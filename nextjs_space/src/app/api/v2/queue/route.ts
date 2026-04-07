@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get('limit') || '50'), 100);
   const offset = parseInt(searchParams.get('offset') || '0');
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { userId: auth.userId };
   if (status) where.status = status;
   if (priority) where.priority = priority;
   if (type) where.type = type;

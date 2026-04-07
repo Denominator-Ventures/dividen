@@ -24,7 +24,7 @@ export async function POST(
       where: { id: params.id },
     });
 
-    if (!item) {
+    if (!item || item.userId !== auth.userId) {
       return jsonError('Queue item not found', 404);
     }
 

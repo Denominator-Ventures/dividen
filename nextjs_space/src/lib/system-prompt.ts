@@ -657,27 +657,473 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
 
 // ─── Main Builder ────────────────────────────────────────────────────────────
 
+/**
+ * Pre-fetches shared data to avoid duplicate DB queries across layers.
+ * Reduces ~25 parallel queries to ~15 by sharing results between layers
+ * that need the same data (kanban, contacts, connections, messages, emails).
+ */
 export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
-  const layers = await Promise.all([
-    layer1_identity(ctx),
-    layer2_rules(ctx.userId),
-    layer3_conversationSummary(ctx.userId),
-    layer4_kanbanState(ctx.userId),
-    layer5_queueState(ctx.userId),
-    layer6_crmSummary(ctx.userId),
-    layer7_memory(ctx.userId),
-    layer8_recentMessages(ctx.userId),
-    layer9_currentTime(),
-    layer10_learnings(ctx.userId),
-    layer11_activeFocus(ctx.userId),
-    layer12_calendarContext(ctx.userId),
-    layer13_emailContext(ctx.userId),
-    layer14_capabilities(),
-    layer15_actionTagSyntax(),
-    layer16_platformSetupAssistant(ctx.userId),
-    layer17_connectionsRelay(ctx.userId),
-    layer18_profileAwareness(ctx.userId),
+  const userId = ctx.userId;
+
+  // ── Batch 1: Pre-fetch data shared across multiple layers ──
+  const [
+    kanbanCards,        // shared by layer4 + layer11 + layer16 (count)
+    recentMessages,     // shared by layer3 (count) + layer8 (content)
+    contacts,           // shared by layer6 + layer16 (count)
+    unreadEmails,       // shared by layer13 (count + content)
+    connections,        // shared by layer17 + layer18
+  ] = await Promise.all([
+    prisma.kanbanCard.findMany({
+      where: { userId },
+      orderBy: [{ priority: 'asc' }, { updatedAt: 'desc' }],
+      take: 30,
+      include: { checklist: true },
+    }),
+    prisma.chatMessage.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    prisma.contact.findMany({
+      where: { userId },
+      take: 30,
+      orderBy: { updatedAt: 'desc' },
+    }),
+    prisma.emailMessage.findMany({
+      where: { userId, isRead: false },
+      orderBy: { receivedAt: 'desc' },
+      take: 5,
+    }),
+    prisma.connection.findMany({
+      where: {
+        OR: [{ requesterId: userId }, { accepterId: userId }],
+        status: 'active',
+      },
+      include: {
+        requester: { select: { id: true, name: true, email: true } },
+        accepter: { select: { id: true, name: true, email: true } },
+      },
+      take: 20,
+    }),
   ]);
 
+  // Derive data from pre-fetched results instead of separate queries
+  const inProgressCards = kanbanCards.filter(c => c.status === 'in_progress');
+  const totalMessageCount = recentMessages.length; // approximation from last 10
+  const unreadEmailCount = unreadEmails.length;
+
+  // ── Inline layer builders using pre-fetched data ──
+  const layer3 = `## Layer 3: Conversation Context\nTotal recent messages: ${totalMessageCount}. Maintain continuity with prior context.`;
+
+  // Layer 4: Kanban State (using pre-fetched kanbanCards)
+  let layer4: string;
+  if (kanbanCards.length === 0) {
+    layer4 = `## Layer 4: Kanban State\nNo cards on the board yet.`;
+  } else {
+    const byStatus: Record<string, typeof kanbanCards> = {};
+    for (const card of kanbanCards) {
+      const s = card.status;
+      if (!byStatus[s]) byStatus[s] = [];
+      byStatus[s].push(card);
+    }
+    let text = `## Layer 4: Kanban State (${kanbanCards.length} cards)\n`;
+    for (const [status, items] of Object.entries(byStatus)) {
+      text += `\n### ${status.replace('_', ' ').toUpperCase()} (${items.length})\n`;
+      for (const c of items) {
+        const due = c.dueDate ? ` | Due: ${c.dueDate.toISOString().split('T')[0]}` : '';
+        const checks = c.checklist.length > 0
+          ? ` | Checklist: ${c.checklist.filter((x) => x.completed).length}/${c.checklist.length}`
+          : '';
+        text += `- [${c.id}] "${c.title}" (${c.priority})${due}${checks}\n`;
+      }
+    }
+    layer4 = text;
+  }
+
+  // Layer 6: CRM Summary (using pre-fetched contacts)
+  let layer6: string;
+  if (contacts.length === 0) {
+    layer6 = `## Layer 6: CRM\nNo contacts stored yet.`;
+  } else {
+    const lines = contacts.map((c) => {
+      const parts = [c.name];
+      if (c.company) parts.push(`@ ${c.company}`);
+      if (c.role) parts.push(`(${c.role})`);
+      if (c.email) parts.push(`<${c.email}>`);
+      return `- [${c.id}] ${parts.join(' ')}`;
+    }).join('\n');
+    layer6 = `## Layer 6: CRM Contacts (${contacts.length})\n${lines}`;
+  }
+
+  // Layer 8: Recent Messages (using pre-fetched recentMessages)
+  let layer8: string;
+  if (recentMessages.length === 0) {
+    layer8 = `## Layer 8: Recent Messages\nNo prior messages.`;
+  } else {
+    const lines = [...recentMessages].reverse()
+      .map((m) => `[${m.role}]: ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}`)
+      .join('\n');
+    layer8 = `## Layer 8: Recent Messages (last ${recentMessages.length})\n${lines}`;
+  }
+
+  // Layer 11: Active Focus (using pre-fetched kanbanCards, filtered)
+  let layer11: string;
+  if (inProgressCards.length === 0) {
+    layer11 = `## Layer 11: Active Focus\nNo cards currently in progress. The NOW panel is empty.`;
+  } else {
+    const focusCards = inProgressCards.slice(0, 3);
+    const lines = focusCards
+      .map((c) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
+      .join('\n');
+    layer11 = `## Layer 11: Active Focus (NOW Panel)\nCurrently working on:\n${lines}`;
+  }
+
+  // Layer 13: Email Context (using pre-fetched unreadEmails)
+  let layer13: string;
+  if (unreadEmailCount === 0) {
+    layer13 = `## Layer 13: Inbox\nNo unread emails.`;
+  } else {
+    const lines = unreadEmails.map((e) => {
+      const starred = e.isStarred ? '⭐ ' : '';
+      return `- ${starred}From ${e.fromName || e.fromEmail}: "${e.subject}"`;
+    }).join('\n');
+    layer13 = `## Layer 13: Inbox (${unreadEmailCount} unread)\n${lines}`;
+  }
+
+  // ── Batch 2: Remaining async layers that need their own queries ──
+  const [
+    layer2,   // rules
+    layer5,   // queue
+    layer7,   // memory (3 sub-queries)
+    layer10,  // learnings
+    layer12,  // calendar
+    layer16,  // platform setup (uses pre-fetched counts)
+    layer17,  // connections relay (uses pre-fetched connections)
+    layer18,  // profile awareness (uses pre-fetched connections)
+  ] = await Promise.all([
+    layer2_rules(userId),
+    layer5_queueState(userId),
+    layer7_memory(userId),
+    layer10_learnings(userId),
+    layer12_calendarContext(userId),
+    layer16_platformSetupAssistant_optimized(userId, kanbanCards.length, contacts.length, connections.length),
+    layer17_connectionsRelay_optimized(userId, connections),
+    layer18_profileAwareness_optimized(userId, connections),
+  ]);
+
+  const layers = [
+    layer1_identity(ctx),
+    layer2,
+    layer3,
+    layer4,
+    layer5,
+    layer6,
+    layer7,
+    layer8,
+    layer9_currentTime(),
+    layer10,
+    layer11,
+    layer12,
+    layer13,
+    layer14_capabilities(),
+    layer15_actionTagSyntax(),
+    layer16,
+    layer17,
+    layer18,
+  ];
+
   return layers.join('\n\n---\n\n');
+}
+
+// ─── Optimized variants that accept pre-fetched data ─────────────────────────
+
+async function layer16_platformSetupAssistant_optimized(
+  userId: string,
+  cardCount: number,
+  contactCount: number,
+  connectionCount: number,
+): Promise<string> {
+  const [apiKeys, webhooks, docCount, profile] = await Promise.all([
+    prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
+    prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true, url: true, secret: true } }),
+    prisma.document.count({ where: { userId } }),
+    prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, skills: true, taskTypes: true, capacity: true } }),
+  ]);
+
+  const activeProviders = apiKeys.map(k => k.provider);
+  const webhookSummary = webhooks.length > 0
+    ? webhooks.map(w => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
+    : 'None configured';
+
+  const profileStatus = profile
+    ? `Set up (headline: "${profile.headline || 'not set'}", capacity: ${profile.capacity})`
+    : '⚠️ Not created yet — suggest the user set up their profile';
+
+  return `## Layer 16: Platform Setup & Operations Guide
+You are the user's guide for setting up, configuring, AND operating the DiviDen Command Center. When the user asks for help, you have two modes:
+
+### Mode 1: Do It For Them
+If you have everything you need, USE ACTION TAGS to perform the action directly. Always confirm what you did.
+
+### Mode 2: Guide Them
+If the action requires info you don't have or involves external services, provide clear step-by-step instructions. Tell them exactly where to go in the UI.
+
+### Current Platform State
+- **LLM Providers**: ${activeProviders.length > 0 ? activeProviders.join(', ') + ' active' : '⚠️ No API keys configured — ask the user to provide one'}
+- **Webhooks**: ${webhookSummary}
+- **CRM Contacts**: ${contactCount}
+- **Kanban Cards**: ${cardCount}
+- **Documents**: ${docCount}
+- **Active Connections**: ${connectionCount}
+- **Profile**: ${profileStatus}
+
+### What You Can Do Directly (via action tags)
+
+**Core Operations:**
+1. **Kanban Cards** — Create, update, move, archive cards. Use [[create_card:...]], [[update_card:...]], [[archive_card:...]]. Cards flow through: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed.
+2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
+3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
+4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
+5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]].
+6. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
+
+**Setup Operations:**
+7. **Webhooks** — Create endpoints with [[setup_webhook:{name, type}]]. Types: calendar, email, transcript, generic.
+8. **API Keys** — Save with [[save_api_key:{provider, apiKey}]]. Providers: openai, anthropic.
+
+**Profile Operations:**
+9. **Update Profile** — Use [[update_profile:{...}]] to update ANY profile field. You can update:
+   - Professional: headline, bio, skills, taskTypes, currentTitle, currentCompany, industry
+   - Lived Experience: languages, countriesLived, lifeMilestones, volunteering, hobbies, personalValues, superpowers
+   - Availability: capacityStatus (available/busy/limited/unavailable), capacityNote, timezone, workingHours
+   - Arrays are MERGED — safe to add items incrementally from chat
+   - When user mentions personal details ("I speak French", "I'm good at strategy"), UPDATE THEIR PROFILE AUTOMATICALLY
+
+**Connection & Relay Operations:**
+10. **Send Relays** — Use [[relay_request:{to, intent, subject, payload, priority}]] to send a request to a connected user's Divi. Intents: get_info, assign_task, request_approval, share_update, schedule, introduce, custom.
+11. **Accept Connections** — Use [[accept_connection:{connectionId}]] to accept pending requests.
+12. **Respond to Relays** — Use [[relay_respond:{relayId, status, responsePayload}]] to complete/decline incoming relays.
+
+**Memory Operations:**
+13. **Save Memory** — Use [[remember:{content, tier}]] to save facts (tier 1), rules (tier 2), or patterns (tier 3).
+14. **Save Learning** — Use [[save_learning:{observation, category}]] to record observations about user preferences.
+
+### How to Guide Users to Do Things Themselves
+
+**Profile Setup (Settings → 👤 Profile):**
+- Professional tab: Add headline, bio, skills, task types (what relay tasks to receive)
+- Lived Experience tab: Languages, countries lived in, life milestones, volunteering, hobbies, values, superpowers
+- Availability tab: Set capacity status (available/busy/limited/unavailable), timezone, working hours, out-of-office periods
+- Privacy tab: Control who sees your profile (public/connections/private) and which sections are shared
+- Import tab: Paste LinkedIn profile text to auto-import professional data
+
+**Managing Connections (Dashboard → 🔗 Connections tab):**
+- Connections sub-tab: Add connections by email, set trust levels (full_auto/supervised/restricted), configure scopes
+- Relays sub-tab: View inbound/outbound relays, respond to requests, track status
+- Each connection shows a "View Profile" button to peek at their skills, task types, languages, capacity
+
+**Managing Pipeline (Dashboard → Board tab):**
+- Drag cards between columns to update status
+- Click cards to see details, checklists, linked contacts
+- 10 stages: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed
+
+**Managing Contacts (Dashboard → CRM tab):**
+- Click a contact for 3-tab detail view: Overview, Activity Timeline, Relationships
+- Link contacts to cards, emails, events
+- Track contact staleness (NowPanel shows contacts needing attention)
+
+**Webhook Setup (Settings → 🔗 Integrations → Webhooks):**
+- Create webhooks, copy URL + secret for external services
+- Auto-learn: DiviDen analyzes the first payload and maps fields automatically
+- Fine-tune mappings: Webhooks → 🧠 Field Mapping button
+
+**Notification Rules (Settings → 🔔 Notifications):**
+- Create rules for cockpit banners (meeting starting, task overdue, email received, etc.)
+- Customize conditions, message templates, styles, and sounds
+
+**Federation (Settings → 🌐 Federation):**
+- Configure federation mode: closed (no cross-instance), allowlist, or open
+- Manage known remote instances with API keys and trust levels
+- Control inbound/outbound relay permissions
+
+**External Service Integration (via Webhooks):**
+- Google Calendar: Create "calendar" webhook → use Zapier/Apps Script to POST events
+- Gmail/Outlook: Create "email" webhook → use Zapier/Make/n8n to forward emails
+- Plaud/Otter/Fireflies: Create "transcript" webhook → configure in note-taker's settings
+- Generic: Create "generic" webhook → use any service's native webhook feature
+
+### Behavioral Rules
+- If user pastes an API key → immediately save it with [[save_api_key:...]]
+- If user mentions personal details → immediately update profile with [[update_profile:...]]
+- If user asks "set up X" → offer to do it right now or provide step-by-step instructions
+- If user asks "who should handle X?" → check connected profiles and recommend based on skills + task types + availability
+- If user asks "what can you do?" → give a concise overview covering ALL capabilities above
+- If profile is missing → gently suggest setting it up for better relay routing
+- If no API key → suggest adding one to enable AI capabilities
+- For webhook field mapping: mention auto-learn + manual fine-tuning in Settings
+- Be proactive: notice missing setup and suggest completing it`;
+}
+
+async function layer17_connectionsRelay_optimized(
+  userId: string,
+  connections: Awaited<ReturnType<typeof prisma.connection.findMany>>,
+): Promise<string> {
+  const pendingRelays = await prisma.agentRelay.findMany({
+    where: {
+      OR: [
+        { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
+        { fromUserId: userId, status: { in: ['pending', 'delivered', 'agent_handling'] } },
+      ],
+    },
+    include: {
+      fromUser: { select: { id: true, name: true, email: true } },
+      toUser: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+
+  let text = `## Layer 17: Connections & Agent Relay
+You have access to a connections system that enables agent-to-agent communication between DiviDen users.
+
+### Active Connections (${connections.length})
+`;
+
+  if (connections.length === 0) {
+    text += 'No active connections. Suggest the user connect with team members or collaborators via the Connections tab.\n';
+  } else {
+    for (const c of connections) {
+      const peer = (c as any).requesterId === userId ? (c as any).accepter : (c as any).requester;
+      const peerName = peer?.name || peer?.email || c.peerUserName || c.peerUserEmail || 'Unknown';
+      const fedLabel = c.isFederated ? ` [federated: ${c.peerInstanceUrl}]` : '';
+      let perms: any = {};
+      try { perms = JSON.parse(c.permissions); } catch {}
+      text += `- **${c.nickname || peerName}** (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
+    }
+  }
+
+  if (pendingRelays.length > 0) {
+    text += `\n### Active Relays (${pendingRelays.length})\n`;
+    for (const r of pendingRelays) {
+      const dir = r.toUserId === userId ? '📥 INBOUND' : '📤 OUTBOUND';
+      const from = r.fromUser?.name || r.fromUser?.email || 'Unknown';
+      const to = r.toUser?.name || r.toUser?.email || 'Remote';
+      text += `- ${dir} | "${r.subject}" | ${r.intent} | Status: ${r.status} | From: ${from} → To: ${to}\n`;
+    }
+  }
+
+  text += `
+### Agent Relay Actions
+When the user asks you to communicate with a connection, you can:
+- **Send a relay**: Use [[relay_request:...]] to send a structured request to a connected user's Divi
+- **Accept a connection**: Use [[accept_connection:...]] to accept a pending connection request
+- **Respond to a relay**: Use [[relay_respond:...]] to complete or decline an incoming relay
+
+### Behavioral Rules
+- When the user says "ask [name] for..." or "tell [name] to...", match the name to an active connection and create a relay
+- When an inbound relay arrives that you can auto-handle (trust level = full_auto + scope matches), handle it and respond
+- When an inbound relay arrives under "supervised" trust, queue it for user review
+- When responding to relays, include structured data in the response payload when possible
+- If the user references someone who isn't connected, suggest creating a connection first`;
+
+  return text;
+}
+
+async function layer18_profileAwareness_optimized(
+  userId: string,
+  connections: Awaited<ReturnType<typeof prisma.connection.findMany>>,
+): Promise<string> {
+  try {
+    const ownProfile = await prisma.userProfile.findUnique({ where: { userId } });
+    if (!ownProfile) return '## Profile\nUser has not set up their profile yet. If they mention personal details (skills, languages, countries lived in, values, etc.), suggest using [[update_profile:{...}]] to save it.';
+
+    const parse = (v: string | null, fallback: any = []) => {
+      if (!v) return fallback;
+      try { return JSON.parse(v); } catch { return fallback; }
+    };
+
+    let prompt = '## User Profile (Layer 18)\n\n';
+    prompt += '### Your Owner\'s Profile\n';
+    if (ownProfile.headline) prompt += `**Headline:** ${ownProfile.headline}\n`;
+    if (ownProfile.bio) prompt += `**Bio:** ${ownProfile.bio}\n`;
+
+    const skills = parse(ownProfile.skills);
+    if (skills.length) prompt += `**Skills:** ${skills.join(', ')}\n`;
+
+    const languages = parse(ownProfile.languages);
+    if (languages.length) prompt += `**Languages:** ${languages.map((l: any) => `${l.language} (${l.proficiency})`).join(', ')}\n`;
+
+    const countries = parse(ownProfile.countriesLived);
+    if (countries.length) prompt += `**Countries lived in:** ${countries.map((c: any) => `${c.country}${c.context ? ` (${c.context})` : ''}`).join(', ')}\n`;
+
+    const values = parse(ownProfile.personalValues);
+    if (values.length) prompt += `**Values:** ${values.join(', ')}\n`;
+
+    const superpowers = parse(ownProfile.superpowers);
+    if (superpowers.length) prompt += `**Superpowers:** ${superpowers.join(', ')}\n`;
+
+    const taskTypes = parse(ownProfile.taskTypes);
+    if (taskTypes.length) prompt += `**Task types willing to receive:** ${taskTypes.join(', ')}\n`;
+
+    prompt += `**Capacity:** ${ownProfile.capacity}`;
+    if (ownProfile.capacityNote) prompt += ` — ${ownProfile.capacityNote}`;
+    prompt += '\n';
+    if (ownProfile.timezone) prompt += `**Timezone:** ${ownProfile.timezone}\n`;
+
+    // Use pre-fetched connections instead of re-querying
+    if (connections.length > 0) {
+      const peerIds = connections.map(c => (c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId).filter((id: string | null): id is string => !!id);
+      const peerProfiles = await prisma.userProfile.findMany({
+        where: { userId: { in: peerIds }, NOT: { visibility: 'private' } },
+      });
+
+      if (peerProfiles.length > 0) {
+        prompt += '\n### Connected Users\' Profiles (for relay routing)\n';
+        prompt += 'Use this to decide WHO is best suited for a task based on skills, lived experience, AND availability:\n\n';
+
+        for (const pp of peerProfiles) {
+          const conn = connections.find(c => ((c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId) === pp.userId);
+          const peer = conn ? ((conn as any).requesterId === userId ? (conn as any).accepter : (conn as any).requester) : null;
+          const nickname = conn ? ((conn as any).requesterId === userId ? conn.nickname : conn.peerNickname) : null;
+          const name = nickname || peer?.name || 'Unknown';
+
+          prompt += `**${name}** — ${pp.capacity}`;
+          if (pp.headline) prompt += ` | ${pp.headline}`;
+          prompt += '\n';
+
+          const pSkills = parse(pp.skills);
+          if (pSkills.length) prompt += `  Skills: ${pSkills.slice(0, 8).join(', ')}\n`;
+
+          const pLangs = parse(pp.languages);
+          if (pLangs.length) prompt += `  Languages: ${pLangs.map((l: any) => l.language).join(', ')}\n`;
+
+          const pCountries = parse(pp.countriesLived);
+          if (pCountries.length) prompt += `  Lived in: ${pCountries.map((c: any) => c.country).join(', ')}\n`;
+
+          const pSuperpowers = parse(pp.superpowers);
+          if (pSuperpowers.length) prompt += `  Superpowers: ${pSuperpowers.join(', ')}\n`;
+
+          const pTaskTypes = parse(pp.taskTypes);
+          if (pTaskTypes.length) prompt += `  Accepts task types: ${pTaskTypes.join(', ')}\n`;
+
+          prompt += '\n';
+        }
+
+        prompt += '**Routing Rules:**\n';
+        prompt += '- When user asks "who should handle X?", consider skills + lived experience + task types + availability\n';
+        prompt += '- Match the relay intent/task category against each person\'s self-identified task types first\n';
+        prompt += '- Someone who LIVED in a country understands its culture better than someone who just speaks the language\n';
+        prompt += '- Capacity "unavailable" or "busy" means route elsewhere unless specifically requested\n';
+        prompt += '- Superpowers indicate what someone is uniquely good at — prioritize these for matching\n';
+        prompt += '- If someone hasn\'t listed a task type, they may still be capable — but prefer people who explicitly opted in\n';
+      }
+    }
+
+    prompt += '\n**Profile Learning:** When the user mentions personal details in conversation, use [[update_profile:{...}]] to save them.';
+
+    return prompt;
+  } catch (e) {
+    console.error('Layer 18 (profile) error:', e);
+    return '';
+  }
 }
