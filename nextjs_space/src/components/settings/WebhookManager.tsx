@@ -418,6 +418,31 @@ export function WebhookManager() {
                   <span className="text-xs px-2 py-0.5 rounded bg-[var(--bg-secondary)] text-[var(--text-muted)]">
                     {WEBHOOK_TYPES.find(t => t.value === webhook.type)?.label || webhook.type}
                   </span>
+                  {/* Connection Health Badge */}
+                  {webhook.isActive && (
+                    <span className={cn(
+                      'text-xs px-2 py-0.5 rounded font-medium',
+                      webhook.totalLogs === 0
+                        ? 'bg-gray-500/20 text-gray-400'
+                        : webhook.recentErrors > 0 && webhook.recentSuccess === 0
+                          ? 'bg-red-500/20 text-red-400'
+                          : webhook.recentErrors > 0
+                            ? 'bg-yellow-500/20 text-yellow-400'
+                            : webhook.lastTriggered && (Date.now() - new Date(webhook.lastTriggered).getTime()) < 86400000
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-blue-500/20 text-blue-400'
+                    )}>
+                      {webhook.totalLogs === 0
+                        ? '○ Awaiting'
+                        : webhook.recentErrors > 0 && webhook.recentSuccess === 0
+                          ? '● Failing'
+                          : webhook.recentErrors > 0
+                            ? '◐ Degraded'
+                            : webhook.lastTriggered && (Date.now() - new Date(webhook.lastTriggered).getTime()) < 86400000
+                              ? '● Connected'
+                              : '○ Idle'}
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button

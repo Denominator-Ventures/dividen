@@ -30,9 +30,14 @@ export default function IntegrationDocsPage() {
               <li>Click <strong>+ New Webhook</strong> and choose a type</li>
               <li>Copy the webhook URL and secret</li>
               <li>Configure your external service to POST data to the URL</li>
-              <li>DiviDen automatically creates tasks, contacts, and cards</li>
+              <li>DiviDen auto-learns your payload structure via LLM and maps fields automatically</li>
+              <li>Data flows into Calendar, Inbox, Recordings, CRM, and Queue</li>
             </ol>
           </div>
+          <p className="text-sm text-[var(--text-muted)] mt-3">
+            💡 <strong>Tip:</strong> You can also ask Divi to set up webhooks and API keys directly from chat.
+            Just say &quot;set up a calendar webhook&quot; and Divi will create it for you.
+          </p>
         </section>
 
         {/* Webhook Types */}
@@ -169,8 +174,59 @@ export default function IntegrationDocsPage() {
   }'`}</pre>
         </section>
 
+        {/* Auto-Learn Field Mapping */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">🧠 Auto-Learn Field Mapping</h2>
+          <p className="text-[var(--text-secondary)] mb-3">
+            When a webhook payload arrives for the first time, DiviDen&apos;s LLM analyzes the structure and
+            automatically maps fields to the correct internal format. You can view, edit, or re-learn mappings
+            in <strong>Settings → Integrations → Field Mapping</strong>.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { status: 'Auto-Learned', color: 'text-green-400', desc: 'LLM analyzed and mapped fields automatically' },
+              { status: 'Manual', color: 'text-blue-400', desc: 'You manually specified field paths' },
+              { status: 'Mixed', color: 'text-yellow-400', desc: 'Combination of auto-learned and manual overrides' },
+              { status: 'None', color: 'text-gray-400', desc: 'No mapping yet — send a test payload to trigger' },
+            ].map(item => (
+              <div key={item.status} className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+                <span className={`font-medium text-sm ${item.color}`}>{item.status}</span>
+                <p className="text-xs text-[var(--text-muted)] mt-1">{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Agent API v2 */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">🔑 Agent API v2</h2>
+          <p className="text-[var(--text-secondary)] mb-3">
+            External AI agents can interact with your DiviDen instance via the Agent API. Generate a Bearer
+            token in <strong>Settings → API Keys</strong>, then use the <code>/api/v2/*</code> endpoints.
+          </p>
+          <div className="space-y-2">
+            {[
+              { method: 'GET/POST', path: '/api/v2/kanban', desc: 'List or create Kanban cards' },
+              { method: 'GET/POST', path: '/api/v2/contacts', desc: 'List or create contacts' },
+              { method: 'GET/POST', path: '/api/v2/queue', desc: 'List or dispatch queue items' },
+              { method: 'GET/POST', path: '/api/v2/docs', desc: 'API documentation (OpenAPI spec)' },
+              { method: 'POST', path: '/api/v2/shared-chat/send', desc: 'Send a message to Divi' },
+              { method: 'GET', path: '/api/v2/shared-chat/stream', desc: 'Stream Divi\'s response (SSE)' },
+            ].map(item => (
+              <div key={item.path} className="flex items-center gap-3 p-2 bg-[var(--bg-surface)] rounded border border-[var(--border-primary)]">
+                <code className="text-xs font-mono text-brand-400 w-20 shrink-0">{item.method}</code>
+                <code className="text-xs font-mono text-green-400 w-52 shrink-0">{item.path}</code>
+                <span className="text-xs text-[var(--text-muted)]">{item.desc}</span>
+              </div>
+            ))}
+          </div>
+          <pre className="p-3 bg-[var(--bg-surface)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)] mt-3">{`curl -H "Authorization: Bearer YOUR_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  YOUR_DIVIDEN_URL/api/v2/kanban`}</pre>
+        </section>
+
         <div className="border-t border-[var(--border-primary)] pt-6 text-center text-sm text-[var(--text-muted)]">
-          <p>Full documentation available at <code>docs/integrations.md</code> in the project root.</p>
+          <p>Open source: <a href="https://github.com/jonnyuniverse/dividenapp" className="text-brand-400 hover:text-brand-300">github.com/jonnyuniverse/dividenapp</a></p>
           <a href="/settings" className="text-brand-400 hover:text-brand-300 mt-2 inline-block">
             ← Back to Settings
           </a>

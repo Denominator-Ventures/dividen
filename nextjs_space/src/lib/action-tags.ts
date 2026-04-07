@@ -48,6 +48,7 @@ export const SUPPORTED_TAGS = [
   'create_calendar_event', // direct calendar event creation
   'create_document',   // create a document in Drive
   'send_comms',        // send a comms message from Divi
+  'add_relationship',  // link two contacts with a relationship type
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -578,6 +579,51 @@ async function executeTag(
           tag: name,
           success: true,
           data: { id: comms.id, note: 'Message sent to Comms Channel' },
+        };
+      }
+
+      case 'add_relationship': {
+        // params: { fromName OR fromId, toName OR toId, type, label? }
+        const relType = params.type || 'colleague';
+        const validTypes = ['colleague', 'manager', 'report', 'partner', 'spouse', 'friend', 'referral', 'custom'];
+        if (!validTypes.includes(relType)) {
+          return { tag: name, success: false, error: `Invalid type: ${relType}. Must be one of: ${validTypes.join(', ')}` };
+        }
+
+        // Resolve contacts by name or id
+        let fromId = params.fromId;
+        let toId = params.toId;
+
+        if (!fromId && params.fromName) {
+          const c = await prisma.contact.findFirst({
+            where: { name: { contains: params.fromName, mode: 'insensitive' }, userId },
+          });
+          if (c) fromId = c.id;
+        }
+        if (!toId && params.toName) {
+          const c = await prisma.contact.findFirst({
+            where: { name: { contains: params.toName, mode: 'insensitive' }, userId },
+          });
+          if (c) toId = c.id;
+        }
+
+        if (!fromId || !toId) {
+          return { tag: name, success: false, error: 'Could not resolve both contacts. Provide fromId/toId or fromName/toName.' };
+        }
+        if (fromId === toId) {
+          return { tag: name, success: false, error: 'Cannot create a relationship between a contact and itself.' };
+        }
+
+        const rel = await prisma.contactRelationship.upsert({
+          where: { fromId_toId: { fromId, toId } },
+          update: { type: relType, label: params.label || null },
+          create: { fromId, toId, type: relType, label: params.label || null },
+        });
+
+        return {
+          tag: name,
+          success: true,
+          data: { id: rel.id, fromId, toId, type: relType, note: 'Relationship created/updated' },
         };
       }
 

@@ -300,6 +300,9 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[send_comms:{"content":"...","priority":"urgent|normal|low","linkedCardId":"optional","linkedContactId":"optional"}]] — Send message to Comms Channel
 - [[send_email:{"to":"...","subject":"...","body":"..."}]] — Draft email
 
+### Relationships
+- [[add_relationship:{"fromName":"Contact A","toName":"Contact B","type":"colleague|manager|report|partner|spouse|friend|referral|custom","label":"optional description"}]] — Link two contacts with a relationship. Can also use fromId/toId instead of names.
+
 ### Platform Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]] — Create a new webhook endpoint
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-...","label":"optional label"}]] — Save LLM API key
