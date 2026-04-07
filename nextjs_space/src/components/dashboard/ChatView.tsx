@@ -226,7 +226,7 @@ export function ChatView() {
               DiviDen Command Center
             </h3>
             <p className="text-sm text-[var(--text-muted)] max-w-md mb-3">
-              Chat with your AI agent. Ask questions, delegate tasks, or get
+              Chat with Divi, your AI agent. Ask questions, delegate tasks, or get
               status updates on your projects.
             </p>
             <div className="bg-[var(--bg-surface)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
@@ -332,7 +332,7 @@ export function ChatView() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? 'Waiting for response...' : 'Type a message...'}
+            placeholder={isStreaming ? 'Divi is thinking...' : 'Message Divi...'}
             className="input-field flex-1 text-sm md:text-base"
             disabled={isStreaming}
             onKeyDown={(e) => {
@@ -374,7 +374,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             : 'bg-[var(--brand-primary)] text-white'
         )}
       >
-        {isUser ? 'U' : 'AI'}
+        {isUser ? 'U' : 'D'}
       </div>
 
       {/* Content */}

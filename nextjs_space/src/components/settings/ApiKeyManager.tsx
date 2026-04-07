@@ -61,7 +61,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
     <div className="space-y-4">
       <p className="text-sm text-[var(--text-secondary)]">
         Add your API keys for GPT-4 (OpenAI) and Claude Sonnet (Anthropic) to
-        enable AI agent features.
+        enable Divi, your AI agent.
       </p>
 
       {/* Existing Keys */}

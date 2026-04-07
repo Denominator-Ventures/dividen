@@ -124,8 +124,11 @@ export function ContactDetailModal({
     qualifying: '#60a5fa',
     proposal: '#a78bfa',
     negotiation: '#fbbf24',
+    contracted: '#f59e0b',
     active: '#34d399',
     development: '#2dd4bf',
+    planning: '#818cf8',
+    paused: '#6b7280',
     completed: '#a78bfa',
   };
 

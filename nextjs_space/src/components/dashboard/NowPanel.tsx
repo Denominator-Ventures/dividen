@@ -15,6 +15,19 @@ interface QueueItemData {
   type: string;
 }
 
+interface PulseStats {
+  pipeline: number;
+  diviTasks: number;
+  portfolio: number;
+  blocked: number;
+}
+
+interface PortfolioItem {
+  id: string;
+  title: string;
+  status: string;
+}
+
 export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [inProgress, setInProgress] = useState<QueueItemData[]>([]);
   const [doneToday, setDoneToday] = useState<QueueItemData[]>([]);
@@ -22,6 +35,8 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [showNewTask, setShowNewTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [pulse, setPulse] = useState<PulseStats>({ pipeline: 0, diviTasks: 0, portfolio: 0, blocked: 0 });
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -31,16 +46,38 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
         const items = data?.data ?? [];
         setInProgress(items?.filter((i: QueueItemData) => i?.status === 'in_progress') ?? []);
         setDoneToday(items?.filter((i: QueueItemData) => i?.status === 'done_today') ?? []);
-        setTotalReady(items?.filter((i: QueueItemData) => i?.status === 'ready')?.length ?? 0);
+        const ready = items?.filter((i: QueueItemData) => i?.status === 'ready') ?? [];
+        setTotalReady(ready.length);
+        const blocked = items?.filter((i: QueueItemData) => i?.status === 'blocked')?.length ?? 0;
+        setPulse(prev => ({ ...prev, diviTasks: ready.length + (items?.filter((i: QueueItemData) => i?.status === 'in_progress')?.length ?? 0), blocked }));
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to fetch queue:', e);
+    }
+  }, []);
+
+  const fetchKanban = useCallback(async () => {
+    try {
+      const res = await fetch('/api/kanban');
+      const data = await res.json();
+      if (data?.success) {
+        const cards = data?.data ?? [];
+        const activeStatuses = ['active', 'development', 'planning'];
+        const pipelineStatuses = ['leads', 'qualifying', 'proposal', 'negotiation', 'contracted'];
+        const activeCards = cards.filter((c: PortfolioItem) => activeStatuses.includes(c.status));
+        const pipelineCards = cards.filter((c: PortfolioItem) => pipelineStatuses.includes(c.status));
+        setPortfolio(activeCards.slice(0, 8));
+        setPulse(prev => ({ ...prev, pipeline: pipelineCards.length, portfolio: activeCards.length }));
+      }
+    } catch (e: unknown) {
+      console.error('Failed to fetch kanban:', e);
     }
   }, []);
 
   useEffect(() => {
     fetchQueue();
-  }, [fetchQueue]);
+    fetchKanban();
+  }, [fetchQueue, fetchKanban]);
 
   const handleNewTask = async () => {
     if (!newTaskTitle?.trim()) return;
@@ -64,7 +101,7 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
         fetchQueue();
         onNewTask?.();
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to create task:', e);
     } finally {
       setCreating(false);
@@ -76,36 +113,59 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const totalCount = completedCount + (inProgress?.length ?? 0) + totalReady;
   const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  const STATUS_DOT: Record<string, string> = {
+    active: 'bg-green-400',
+    development: 'bg-cyan-400',
+    planning: 'bg-indigo-400',
+  };
+
   return (
     <div className="panel h-full flex flex-col">
-      <div className="panel-header">
-        <h2 className="label-mono-accent">
-          ⚡ NOW
-        </h2>
-        <span className="label-mono" style={{ fontSize: '10px' }}>Focus</span>
+      {/* Today's Pulse Header */}
+      <div className="panel-header flex-col items-start gap-1">
+        <div className="flex items-center justify-between w-full">
+          <h2 className="label-mono-accent">⚡ NOW</h2>
+          <span className="label-mono" style={{ fontSize: '10px' }}>Focus</span>
+        </div>
+        <div className="text-xs text-[var(--text-muted)]">
+          {completedCount}/{totalCount} tasks • {pulse.pipeline} pipeline • {pulse.portfolio} active
+        </div>
       </div>
 
-      <div className="panel-body flex-1 flex flex-col">
+      <div className="panel-body flex-1 flex flex-col overflow-y-auto">
+        {/* Quick Stats Row */}
+        <div className="grid grid-cols-4 gap-1.5 mb-3">
+          {[
+            { label: 'Pipeline', value: pulse.pipeline, color: 'text-blue-400' },
+            { label: 'Divi', value: pulse.diviTasks, color: 'text-brand-400' },
+            { label: 'Active', value: pulse.portfolio, color: 'text-green-400' },
+            { label: 'Blocked', value: pulse.blocked, color: pulse.blocked > 0 ? 'text-red-400' : 'text-[var(--text-muted)]' },
+          ].map(s => (
+            <div key={s.label} className="text-center py-1.5 bg-[var(--bg-surface)] rounded-md">
+              <div className={`text-sm font-bold ${s.color}`}>{s.value}</div>
+              <div className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
         {/* Current Focus Card */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-3 mb-3">
+          <div className="flex items-center gap-2 mb-1.5">
             <span className={`w-2 h-2 rounded-full ${activeTask ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
             <span className={`text-xs font-medium ${activeTask ? 'text-green-400' : 'text-[var(--text-muted)]'}`}>
               {activeTask ? 'Active' : 'Idle'}
             </span>
           </div>
-          <h3 className="font-medium mb-1">{activeTask?.title ?? 'No active task'}</h3>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <h3 className="font-medium text-sm mb-0.5">{activeTask?.title ?? 'No active task'}</h3>
+          <p className="text-xs text-[var(--text-secondary)]">
             {activeTask ? `Priority: ${activeTask.priority}` : 'Create a task or start one from your queue.'}
           </p>
         </div>
 
         {/* Quick Actions */}
-        <div className="space-y-2">
-          <h4 className="label-mono mb-1">Quick Actions</h4>
-          
+        <div className="space-y-1.5 mb-3">
           {showNewTask ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <input
                 type="text"
                 className="input-field text-sm"
@@ -116,51 +176,46 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
                 autoFocus
               />
               <div className="flex gap-2">
-                <button
-                  onClick={handleNewTask}
-                  disabled={creating || !newTaskTitle?.trim()}
-                  className="flex-1 btn-primary text-sm disabled:opacity-50"
-                >
+                <button onClick={handleNewTask} disabled={creating || !newTaskTitle?.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
                   {creating ? 'Creating...' : 'Add'}
                 </button>
-                <button
-                  onClick={() => { setShowNewTask(false); setNewTaskTitle(''); }}
-                  className="btn-secondary text-sm px-3"
-                >
-                  ✕
-                </button>
+                <button onClick={() => { setShowNewTask(false); setNewTaskTitle(''); }} className="btn-secondary text-sm px-3">✕</button>
               </div>
             </div>
           ) : (
-            <button
-              onClick={() => setShowNewTask(true)}
-              className="w-full btn-secondary text-sm text-left"
-            >
-              + New Task
-            </button>
+            <div className="flex gap-1.5">
+              <button onClick={() => setShowNewTask(true)} className="flex-1 btn-secondary text-xs text-left py-1.5">+ Task</button>
+              <button onClick={() => onQuickChat?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">💬 Chat</button>
+            </div>
           )}
-          
-          <button
-            onClick={() => onQuickChat?.()}
-            className="w-full btn-secondary text-sm text-left"
-          >
-            💬 Quick Chat
-          </button>
         </div>
 
+        {/* Portfolio Section */}
+        {portfolio.length > 0 && (
+          <div className="mb-3">
+            <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Portfolio</h4>
+            <div className="space-y-1">
+              {portfolio.map(item => (
+                <div key={item.id} className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors">
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[item.status] || 'bg-gray-500'}`} />
+                  <span className="text-xs text-[var(--text-secondary)] truncate">{item.title}</span>
+                  <span className="text-[9px] text-[var(--text-muted)] capitalize ml-auto flex-shrink-0">{item.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Today's Progress */}
-        <div className="mt-auto pt-4">
-          <h4 className="label-mono mb-2">Today&apos;s Progress</h4>
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-3">
-            <div className="flex justify-between text-sm mb-1">
+        <div className="mt-auto pt-3">
+          <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Today&apos;s Progress</h4>
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-2.5">
+            <div className="flex justify-between text-xs mb-1">
               <span className="text-[var(--text-secondary)]">Completed</span>
               <span className="font-medium">{completedCount} / {totalCount}</span>
             </div>
             <div className="w-full h-1.5 bg-[var(--border-color)] rounded-full">
-              <div
-                className="h-full bg-brand-500 rounded-full transition-all"
-                style={{ width: `${progressPct}%` }}
-              />
+              <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
             </div>
           </div>
         </div>

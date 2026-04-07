@@ -213,7 +213,7 @@ export async function streamLLMResponse(
   if (!available) {
     callbacks.onError(
       new Error(
-        'No API key configured. Go to Settings and add your OpenAI or Anthropic API key to enable the AI agent.'
+        'No API key configured. Go to Settings and add your OpenAI or Anthropic API key to enable Divi.'
       )
     );
     return;

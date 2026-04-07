@@ -263,116 +263,180 @@ export function QueuePanel() {
 
   // ─── Render ───────────────────────────────────────────────────────────
 
+  const [activeView, setActiveView] = useState<'queue' | 'activity'>('queue');
+  const [activities, setActivities] = useState<Array<{ id: string; action: string; actor: string; summary: string; createdAt: string }>>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
+
+  const fetchActivities = useCallback(async () => {
+    setActivitiesLoading(true);
+    try {
+      const res = await fetch('/api/activity');
+      const data = await res.json();
+      if (data.success) setActivities(data.data);
+    } catch {
+      // ignore
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeView === 'activity' && activities.length === 0) fetchActivities();
+  }, [activeView, activities.length, fetchActivities]);
+
+  const ACTOR_ICONS: Record<string, string> = { user: '👤', divi: '🤖', system: '⚙️' };
+  const ACTION_ICONS: Record<string, string> = {
+    card_created: '📋', card_moved: '↗️', task_dispatched: '🚀', contact_added: '👥',
+    mode_changed: '🔄', recording_created: '🎙️', recording_processed: '✅',
+    document_created: '📝', queue_dispatched: '🚀',
+  };
+
   return (
     <div className="panel h-full flex flex-col">
-      {/* Header */}
-      <div className="panel-header">
-        <div className="flex items-center gap-2">
-          <h2 className="label-mono-accent">
-            📥 Queue
-          </h2>
-          <span className="text-xs bg-[var(--bg-surface)] px-2 py-0.5 rounded-full text-[var(--text-muted)]">
-            {totalCount}
-          </span>
-        </div>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface-hover)] transition-colors"
-        >
-          +
-        </button>
-      </div>
-
-      {/* Dispatch Button */}
-      {readyCount > 0 && (
-        <div className="px-4 pt-3">
+      {/* Header with tabs */}
+      <div className="panel-header flex-col items-start gap-1.5">
+        <div className="flex items-center justify-between w-full">
+          <div className="flex items-center gap-2">
+            <h2 className="label-mono-accent">📥 Workspace</h2>
+          </div>
           <button
-            onClick={handleDispatch}
-            disabled={dispatching}
-            className="w-full btn-primary text-sm py-2 flex items-center justify-center gap-2"
+            onClick={() => setShowAddForm(true)}
+            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface-hover)] transition-colors"
           >
-            {dispatching ? (
-              <>⏳ Dispatching...</>
-            ) : (
-              <>🚀 Dispatch Next ({readyCount} ready)</>
-            )}
+            +
           </button>
         </div>
-      )}
-
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <span className="text-sm text-[var(--text-muted)]">Loading...</span>
-          </div>
-        ) : totalCount === 0 && !showAddForm ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="text-4xl mb-3 opacity-30">📥</div>
-            <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">
-              Queue is empty
-            </h3>
-            <p className="text-xs text-[var(--text-muted)] mb-3">
-              Agent suggestions, tasks, and notifications will appear here.
-            </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="btn-primary text-xs px-3 py-1.5"
-            >
-              + Add Item
-            </button>
-          </div>
-        ) : (
-          <>
-            {/* Add Form */}
-            {showAddForm && (
-              <NewQueueItemForm onAdd={handleAdd} onCancel={() => setShowAddForm(false)} />
+        <div className="flex gap-1 w-full">
+          <button
+            onClick={() => setActiveView('queue')}
+            className={cn(
+              'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+              activeView === 'queue'
+                ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             )}
-
-            {/* Sections */}
-            {QUEUE_SECTIONS.map((section) => {
-              const sectionItems = grouped[section.id] || [];
-              if (sectionItems.length === 0) return null;
-
-              return (
-                <div key={section.id}>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-sm">{section.icon}</span>
-                    <span
-                      className="text-xs font-semibold uppercase tracking-wider"
-                      style={{ color: section.color }}
-                    >
-                      {section.label}
-                    </span>
-                    <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">
-                      {sectionItems.length}
-                    </span>
-                  </div>
-                  <div className="space-y-2">
-                    {sectionItems.map((item) => (
-                      <QueueItemCard
-                        key={item.id}
-                        item={item}
-                        onStatusChange={handleStatusChange}
-                        onDelete={handleDelete}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-
-      {/* Queue filters */}
-      <div className="border-t border-[var(--border-color)] p-3">
-        <div className="flex gap-2 text-xs">
-          <span className="text-[var(--text-muted)]">
-            {readyCount} ready · {grouped.in_progress?.length ?? 0} active · {grouped.done_today?.length ?? 0} done · {grouped.blocked?.length ?? 0} blocked
-          </span>
+          >
+            Divi&apos;s Queue ({totalCount})
+          </button>
+          <button
+            onClick={() => setActiveView('activity')}
+            className={cn(
+              'px-2.5 py-1 text-xs font-medium rounded-md transition-colors',
+              activeView === 'activity'
+                ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            Activity ({activities.length})
+          </button>
         </div>
       </div>
+
+      {activeView === 'queue' ? (
+        <>
+          {/* Dispatch Button */}
+          {readyCount > 0 && (
+            <div className="px-4 pt-3">
+              <button
+                onClick={handleDispatch}
+                disabled={dispatching}
+                className="w-full btn-primary text-sm py-2 flex items-center justify-center gap-2"
+              >
+                {dispatching ? (
+                  <>⏳ Dispatching...</>
+                ) : (
+                  <>🚀 Dispatch Next ({readyCount} ready)</>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto p-3 space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-sm text-[var(--text-muted)]">Loading...</span>
+              </div>
+            ) : totalCount === 0 && !showAddForm ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="text-4xl mb-3 opacity-30">📥</div>
+                <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">
+                  Queue is empty
+                </h3>
+                <p className="text-xs text-[var(--text-muted)] mb-3">
+                  Divi&apos;s suggestions, tasks, and notifications will appear here.
+                </p>
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="btn-primary text-xs px-3 py-1.5"
+                >
+                  + Add Item
+                </button>
+              </div>
+            ) : (
+              <>
+                {showAddForm && (
+                  <NewQueueItemForm onAdd={handleAdd} onCancel={() => setShowAddForm(false)} />
+                )}
+                {QUEUE_SECTIONS.map((section) => {
+                  const sectionItems = grouped[section.id] || [];
+                  if (sectionItems.length === 0) return null;
+                  return (
+                    <div key={section.id}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm">{section.icon}</span>
+                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
+                        <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
+                      </div>
+                      <div className="space-y-2">
+                        {sectionItems.map((item) => (
+                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+          </div>
+
+          {/* Queue filters */}
+          <div className="border-t border-[var(--border-color)] p-3">
+            <div className="flex gap-2 text-xs">
+              <span className="text-[var(--text-muted)]">
+                {readyCount} ready · {grouped.in_progress?.length ?? 0} active · {grouped.done_today?.length ?? 0} done · {grouped.blocked?.length ?? 0} blocked
+              </span>
+            </div>
+          </div>
+        </>
+      ) : (
+        /* Activity Feed */
+        <div className="flex-1 overflow-y-auto p-3">
+          {activitiesLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <span className="text-sm text-[var(--text-muted)]">Loading activity...</span>
+            </div>
+          ) : activities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full text-center">
+              <div className="text-4xl mb-3 opacity-30">📊</div>
+              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">No activity yet</h3>
+              <p className="text-xs text-[var(--text-muted)]">Actions like card moves, dispatches, and contact changes will appear here.</p>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {activities.map(a => (
+                <div key={a.id} className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors">
+                  <span className="text-sm flex-shrink-0">{ACTION_ICONS[a.action] || ACTOR_ICONS[a.actor] || '📌'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{a.summary}</p>
+                    <span className="text-[10px] text-[var(--text-muted)]">{timeAgo(a.createdAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

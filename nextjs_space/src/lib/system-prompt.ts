@@ -23,7 +23,7 @@ function layer1_identity(ctx: PromptContext): string {
       : `You are operating in Cockpit mode. You present information, options, and recommendations to ${ctx.userName || 'the user'}, who makes all final decisions. You execute tasks only when explicitly instructed.`;
 
   return `## Layer 1: Identity
-You are DiviDen, a personal command center AI agent for ${ctx.userName || 'the user'}.
+You are Divi, the AI agent inside the DiviDen Command Center, working for ${ctx.userName || 'the user'}.
 Current operating mode: **${modeName}**
 ${modeDesc}`;
 }
@@ -216,7 +216,7 @@ function layer13_actionTagSyntax(): string {
 Embed these tags in your response to execute actions. Use double brackets: [[tag_name:params]]
 
 ### Card Management
-- [[create_card:{"title":"...","description":"...","status":"leads|qualifying|proposal|negotiation|active|development|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]]
+- [[create_card:{"title":"...","description":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]]
 - [[update_card:{"id":"card_id","title":"...","status":"...","priority":"...","dueDate":"..."}]]
 - [[archive_card:{"id":"card_id"}]]
 
