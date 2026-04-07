@@ -248,14 +248,18 @@ async function layer13_emailContext(userId: string): Promise<string> {
 }
 
 function layer14_capabilities(): string {
-  return `## Layer 12: System Capabilities
+  return `## Layer 14: System Capabilities
 You can perform the following actions by embedding action tags in your responses:
 - Create, update, and archive Kanban cards
 - Add and complete checklist items on cards
 - Create and link contacts (CRM)
 - Dispatch items to the user's queue
-- Create calendar events and reminders
+- Create calendar events directly
+- Create documents in Drive
+- Send messages to the Comms Channel
 - Send emails (draft)
+- Set up webhooks for external integrations
+- Save API keys for LLM providers
 - Update your memory about the user
 - Save observations about user preferences
 
@@ -263,7 +267,7 @@ Always embed action tags alongside your natural language response. The user will
 }
 
 function layer15_actionTagSyntax(): string {
-  return `## Layer 13: Action Tag Syntax
+  return `## Layer 15: Action Tag Syntax
 Embed these tags in your response to execute actions. Use double brackets: [[tag_name:params]]
 
 ### Card Management
@@ -284,12 +288,21 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 ### Queue / Dispatch
 - [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","description":"...","priority":"low|medium|high|urgent"}]]  (alias: [[dispatch:...]])
 
-### Calendar & Reminders
+### Calendar Events
+- [[create_calendar_event:{"title":"...","description":"...","startTime":"ISO datetime","endTime":"ISO datetime","location":"...","attendees":["email1","email2"]}]]
 - [[create_event:{"title":"...","description":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]  (alias: [[schedule_event:...]])
 - [[set_reminder:{"title":"...","description":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
 
+### Documents (Drive)
+- [[create_document:{"title":"...","content":"markdown content","type":"note|report|template|meeting_notes","tags":"tag1,tag2"}]]
+
 ### Communication
-- [[send_email:{"to":"...","subject":"...","body":"..."}]]
+- [[send_comms:{"content":"...","priority":"urgent|normal|low","linkedCardId":"optional","linkedContactId":"optional"}]] — Send message to Comms Channel
+- [[send_email:{"to":"...","subject":"...","body":"..."}]] — Draft email
+
+### Platform Setup
+- [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]] — Create a new webhook endpoint
+- [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-...","label":"optional label"}]] — Save LLM API key
 
 ### Memory & Learning (3-Tier System)
 - [[update_memory:{"tier":1,"category":"general|project|contact","key":"...","value":"...","scope":"optional scope","pinned":false}]] — Explicit fact
@@ -303,6 +316,81 @@ IMPORTANT:
 - Place tags at the end of your response or inline where relevant.
 - Tags will be stripped from the displayed message — users never see them.
 - If unsure, ask the user before creating/modifying data.`;
+}
+
+async function layer16_platformSetupAssistant(userId: string): Promise<string> {
+  // Gather current platform state so Divi knows what's already configured
+  const [apiKeys, webhooks, contactCount, cardCount, docCount] = await Promise.all([
+    prisma.agentApiKey.findMany({ where: { isActive: true }, select: { provider: true } }),
+    prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true, url: true, secret: true } }),
+    prisma.contact.count({ where: { userId } }),
+    prisma.kanbanCard.count({ where: { userId } }),
+    prisma.document.count({ where: { userId } }),
+  ]);
+
+  const activeProviders = apiKeys.map(k => k.provider);
+  const webhookSummary = webhooks.length > 0
+    ? webhooks.map(w => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
+    : 'None configured';
+
+  return `## Layer 16: Platform Setup Assistant
+You are the user's guide for setting up and configuring the DiviDen Command Center. When the user asks for help with setup, configuration, or "how do I...?" questions, you have two modes:
+
+### Mode 1: Do It For Them
+If you have everything you need, USE ACTION TAGS to perform the setup directly. Always confirm what you did.
+
+### Mode 2: Guide Them
+If the action requires information you don't have, or involves external services you can't access, provide clear step-by-step instructions. Tell them exactly what you need to do it for them.
+
+### Current Platform State
+- **LLM Providers**: ${activeProviders.length > 0 ? activeProviders.join(', ') + ' active' : '⚠️ No API keys configured — ask the user to provide one'}
+- **Webhooks**: ${webhookSummary}
+- **CRM Contacts**: ${contactCount}
+- **Kanban Cards**: ${cardCount}
+- **Documents**: ${docCount}
+
+### What You Can Set Up Directly (via action tags)
+1. **Webhooks** — Create webhook endpoints for calendar, email, transcript, or generic data. Use [[setup_webhook:...]]. After creating, give the user the URL and secret they need to configure in their external service.
+2. **API Keys** — If the user gives you an OpenAI or Anthropic key, save it with [[save_api_key:...]].
+3. **Calendar Events** — Create events directly with [[create_calendar_event:...]].
+4. **Documents** — Create notes, reports, templates with [[create_document:...]].
+5. **Comms Messages** — Send structured messages to the Comms Channel with [[send_comms:...]].
+6. **Kanban Cards** — Create pipeline cards with [[create_card:...]].
+7. **Contacts** — Add contacts with [[create_contact:...]].
+
+### External Integrations You Can Guide (but not access directly)
+When the user asks about connecting external services, provide specific setup instructions:
+
+**Google Calendar → DiviDen**:
+1. Go to Settings → Webhooks → Create a "calendar" webhook
+2. Copy the webhook URL and secret
+3. In Google Calendar, use Google Apps Script or Zapier to POST event data to the webhook URL
+4. Include the secret in the X-Webhook-Secret header
+5. DiviDen will auto-learn the payload structure and map fields
+
+**Email (Gmail/Outlook) → DiviDen**:
+1. Create an "email" webhook in Settings → Webhooks
+2. Use Zapier/Make/n8n to forward emails as JSON to the webhook URL
+3. Or use your email provider's webhook/forwarding rules
+
+**Meeting Transcripts (Plaud/Otter/Fireflies) → DiviDen**:
+1. Create a "transcript" webhook in Settings → Webhooks
+2. In your note-taker app, configure the webhook URL as the destination
+3. Plaud: Settings → Webhook URL; Otter: Integrations → Webhook; Fireflies: Integrations → Webhooks
+
+**Generic Integrations (Slack, Notion, CRM, etc.)**:
+1. Create a "generic" webhook for any data source
+2. Use Zapier/Make or the service's native webhook feature
+3. DiviDen auto-learns the payload structure
+
+### Behavioral Rules for Setup Help
+- If the user says "set up" or "connect" something, ask what service and offer to create the webhook right now
+- If the user pastes an API key in chat, immediately save it with [[save_api_key:...]]
+- When creating webhooks, always tell the user: the URL to POST to, the secret header, and a sample payload format
+- If the user asks "what can you do?" or "how does this work?", give a concise overview of the platform's capabilities
+- If the user asks about a feature that doesn't exist, be honest and suggest alternatives or workarounds
+- For webhook field mapping: mention that DiviDen auto-learns from the first payload, and they can fine-tune in Settings → Webhooks → Field Mapping
+- Be proactive: if you notice missing setup (no API keys, no webhooks), gently suggest completing the setup`;
 }
 
 // ─── Main Builder ────────────────────────────────────────────────────────────
@@ -324,6 +412,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     layer13_emailContext(ctx.userId),
     layer14_capabilities(),
     layer15_actionTagSyntax(),
+    layer16_platformSetupAssistant(ctx.userId),
   ]);
 
   return layers.join('\n\n---\n\n');

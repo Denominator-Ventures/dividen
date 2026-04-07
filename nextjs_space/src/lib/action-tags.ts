@@ -42,6 +42,12 @@ export const SUPPORTED_TAGS = [
   'update_memory',
   'save_learning',
   'add_known_person',  // register a name alias (matches protocol spec)
+  // ── Platform Setup Actions ──
+  'setup_webhook',     // create a webhook endpoint
+  'save_api_key',      // store an LLM API key
+  'create_calendar_event', // direct calendar event creation
+  'create_document',   // create a document in Drive
+  'send_comms',        // send a comms message from Divi
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -406,6 +412,173 @@ async function executeTag(
           },
         });
         return { tag: name, success: true, data: { id: learning.id } };
+      }
+
+      // ── Platform Setup: Webhook ──────────────────────────────────────
+      case 'setup_webhook': {
+        if (!params.name || !params.type) {
+          return { tag: name, success: false, error: 'Missing name or type' };
+        }
+        const validTypes = ['calendar', 'email', 'transcript', 'generic'];
+        const whType = validTypes.includes(params.type) ? params.type : 'generic';
+        // Generate a cryptographic secret
+        const crypto = await import('crypto');
+        const whSecret = `whsec_${crypto.randomBytes(24).toString('hex')}`;
+        const webhook = await prisma.webhook.create({
+          data: {
+            name: params.name,
+            type: whType,
+            secret: whSecret,
+            url: `/api/webhooks/${whType}`,
+            isActive: true,
+            userId,
+          },
+        });
+        // Log activity
+        await prisma.activityLog.create({
+          data: {
+            action: 'webhook_created',
+            actor: 'divi',
+            summary: `Divi created webhook "${params.name}" (${whType})`,
+            metadata: JSON.stringify({ webhookId: webhook.id, type: whType }),
+            userId,
+          },
+        }).catch(() => {});
+        return {
+          tag: name,
+          success: true,
+          data: {
+            id: webhook.id,
+            name: webhook.name,
+            type: whType,
+            secret: whSecret,
+            url: webhook.url,
+            note: `Webhook created. External services should POST to {your_domain}${webhook.url} with header X-Webhook-Secret: ${whSecret}`,
+          },
+        };
+      }
+
+      // ── Platform Setup: API Key ──────────────────────────────────────
+      case 'save_api_key': {
+        if (!params.provider || !params.apiKey) {
+          return { tag: name, success: false, error: 'Missing provider or apiKey' };
+        }
+        const validProviders = ['openai', 'anthropic'];
+        const keyProvider = validProviders.includes(params.provider.toLowerCase())
+          ? params.provider.toLowerCase()
+          : null;
+        if (!keyProvider) {
+          return { tag: name, success: false, error: `Invalid provider. Use: ${validProviders.join(', ')}` };
+        }
+        // Deactivate existing keys for this provider, then create new
+        await prisma.agentApiKey.updateMany({
+          where: { provider: keyProvider },
+          data: { isActive: false },
+        });
+        const apiKeyRecord = await prisma.agentApiKey.create({
+          data: {
+            provider: keyProvider,
+            apiKey: params.apiKey,
+            label: params.label || `${keyProvider} key`,
+            isActive: true,
+          },
+        });
+        // Log activity
+        await prisma.activityLog.create({
+          data: {
+            action: 'api_key_saved',
+            actor: 'divi',
+            summary: `Divi saved ${keyProvider} API key`,
+            metadata: JSON.stringify({ provider: keyProvider }),
+            userId,
+          },
+        }).catch(() => {});
+        return {
+          tag: name,
+          success: true,
+          data: {
+            id: apiKeyRecord.id,
+            provider: keyProvider,
+            note: `${keyProvider} API key saved and activated. You can now use ${keyProvider === 'openai' ? 'GPT-4o' : 'Claude'} through me.`,
+          },
+        };
+      }
+
+      // ── Platform Setup: Calendar Event ───────────────────────────────
+      case 'create_calendar_event': {
+        if (!params.title) {
+          return { tag: name, success: false, error: 'Missing title' };
+        }
+        const startTime = params.startTime || params.date
+          ? new Date(params.startTime || `${params.date}T${params.time || '09:00'}`)
+          : new Date();
+        const endTime = params.endTime
+          ? new Date(params.endTime)
+          : new Date(startTime.getTime() + 60 * 60 * 1000); // default 1hr
+
+        const calEvent = await prisma.calendarEvent.create({
+          data: {
+            title: params.title,
+            description: params.description || null,
+            startTime,
+            endTime,
+            location: params.location || null,
+            attendees: params.attendees ? JSON.stringify(params.attendees) : null,
+            source: 'chat',
+            userId,
+          },
+        });
+        return {
+          tag: name,
+          success: true,
+          data: { id: calEvent.id, title: calEvent.title, startTime: calEvent.startTime.toISOString() },
+        };
+      }
+
+      // ── Platform Setup: Document ─────────────────────────────────────
+      case 'create_document': {
+        if (!params.title) {
+          return { tag: name, success: false, error: 'Missing title' };
+        }
+        const validDocTypes = ['note', 'report', 'template', 'meeting_notes'];
+        const docType = validDocTypes.includes(params.type) ? params.type : 'note';
+        const doc = await prisma.document.create({
+          data: {
+            title: params.title,
+            content: params.content || '',
+            type: docType,
+            tags: params.tags || null,
+            userId,
+          },
+        });
+        return {
+          tag: name,
+          success: true,
+          data: { id: doc.id, title: doc.title, type: docType },
+        };
+      }
+
+      // ── Platform Setup: Comms Message ────────────────────────────────
+      case 'send_comms': {
+        if (!params.content) {
+          return { tag: name, success: false, error: 'Missing content' };
+        }
+        const comms = await prisma.commsMessage.create({
+          data: {
+            sender: 'divi',
+            content: params.content,
+            state: 'new',
+            priority: params.priority || 'normal',
+            linkedCardId: params.linkedCardId || null,
+            linkedContactId: params.linkedContactId || null,
+            userId,
+          },
+        });
+        return {
+          tag: name,
+          success: true,
+          data: { id: comms.id, note: 'Message sent to Comms Channel' },
+        };
       }
 
       default:
