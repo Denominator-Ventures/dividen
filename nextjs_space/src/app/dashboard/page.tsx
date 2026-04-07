@@ -8,6 +8,7 @@ import { NowPanel } from '@/components/dashboard/NowPanel';
 import { CenterPanel } from '@/components/dashboard/CenterPanel';
 import { QueuePanel } from '@/components/dashboard/QueuePanel';
 import { Walkthrough } from '@/components/dashboard/Walkthrough';
+import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import type { CenterTab } from '@/types';
 
 type MobilePanel = 'now' | 'center' | 'queue';
@@ -22,6 +23,7 @@ export default function DashboardPage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
   const [commsUnread, setCommsUnread] = useState(0);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -42,6 +44,18 @@ export default function DashboardPage() {
       .then((r) => r.json())
       .then((d) => { if (d.success) setCommsUnread(d.data.count); })
       .catch(() => {});
+  }, []);
+
+  // ⌘K / Ctrl+K keyboard shortcut for search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        setSearchOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
   }, []);
 
   const toggleMode = useCallback(async () => {
@@ -78,6 +92,13 @@ export default function DashboardPage() {
     <div className="h-full flex flex-col">
       {/* Walkthrough overlay */}
       {showWalkthrough && <Walkthrough onComplete={handleWalkthroughComplete} />}
+
+      {/* Global Search Modal */}
+      <GlobalSearch
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onNavigate={(tab) => setActiveTab(tab as CenterTab)}
+      />
 
       {/* ── Top Header Bar ────────────────────────────────────── */}
       <header className="flex-shrink-0 px-3 md:px-4 py-2 md:py-2.5 flex items-center justify-between border-b border-[var(--border-color)] gap-2">
@@ -139,6 +160,23 @@ export default function DashboardPage() {
                 }`}
               />
             </div>
+          </button>
+
+          {/* Global Search */}
+          <button
+            onClick={() => setSearchOpen(true)}
+            className="flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)]"
+            title="Search (⌘K)"
+            data-walkthrough="search"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span className="hidden sm:inline text-[11px]">Search</span>
+            <kbd className="hidden md:inline-flex items-center px-1 py-0.5 text-[9px] text-[var(--text-muted)] bg-[var(--bg-primary)] border border-[var(--border-color)] rounded font-mono ml-1">
+              ⌘K
+            </kbd>
           </button>
 
           {/* Comms Channel */}
