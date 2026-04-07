@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function SetupPage() {
   const router = useRouter();
@@ -61,9 +62,11 @@ export default function SetupPage() {
       <div className="w-full max-w-sm">
         {/* Brand */}
         <div className="text-center mb-10">
-          <h1 className="font-heading text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-1">
-            DiviDen
-          </h1>
+          <Link href="/" className="inline-block hover:opacity-80 transition-opacity">
+            <h1 className="font-heading text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-1">
+              DiviDen
+            </h1>
+          </Link>
           <p className="label-mono">
             Create Account
           </p>
@@ -141,6 +144,24 @@ export default function SetupPage() {
             Sign in
           </a>
         </p>
+
+        {/* Open Source CTA */}
+        <div className="mt-10 pt-6 border-t border-white/[0.06] text-center">
+          <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+            Take your DiviDen to the next level.{' '}
+            <a
+              href="https://os.dividen.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--brand-primary)] hover:text-[var(--brand-secondary)] font-medium"
+            >
+              Build your own customizable version →
+            </a>
+          </p>
+          <p className="text-[10px] text-[var(--text-muted)] mt-1">
+            Open source · Self-host · Extend with your own integrations
+          </p>
+        </div>
       </div>
     </div>
   );
