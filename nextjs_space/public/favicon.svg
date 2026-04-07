@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <polygon points="128,20 220,76 220,180 128,236 36,180 36,76" fill="#7c3aed"/>
+  <polygon points="128,60 190,96 190,168 128,204 66,168 66,96" fill="#a78bfa" opacity="0.4"/>
+  <circle cx="128" cy="128" r="16" fill="#ffffff"/>
+  <circle cx="128" cy="88" r="8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="158" cy="108" r="8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="158" cy="148" r="8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="128" cy="168" r="8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="98" cy="148" r="8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="98" cy="108" r="8" fill="#ffffff" opacity="0.8"/>
+</svg>

@@ -1,0 +1,296 @@
+// DiviDen Command Center - Database Schema
+// Supports PostgreSQL
+
+generator client {
+    provider = "prisma-client-js"
+    binaryTargets = ["native", "linux-musl-arm64-openssl-3.0.x"]
+    output = "/home/ubuntu/dividen_command_center/nextjs_space/node_modules/.prisma/client"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// ─── Authentication & Users ────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  role          String    @default("admin")
+  mode          String    @default("cockpit") // "cockpit" | "chief_of_staff"
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  kanbanCards   KanbanCard[]
+  chatMessages  ChatMessage[]
+  contacts      Contact[]
+  memoryItems   MemoryItem[]
+  userLearnings UserLearning[]
+  externalApiKeys ExternalApiKey[]
+  webhooks      Webhook[]
+  serviceApiKeys ServiceApiKey[]
+
+  @@map("users")
+}
+
+// ─── Kanban Board ──────────────────────────────────────────────────────────────
+
+model KanbanCard {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  status      String          @default("leads") // pipeline stage
+  priority    String          @default("medium")   // "low" | "medium" | "high" | "urgent"
+  assignee    String          @default("human") // "human" | "agent"
+  dueDate     DateTime?
+  order       Int             @default(0)
+  userId      String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  checklist   ChecklistItem[]
+  contacts    CardContact[]
+
+  @@map("kanban_cards")
+}
+
+model ChecklistItem {
+  id        String     @id @default(cuid())
+  text      String
+  completed Boolean    @default(false)
+  order     Int        @default(0)
+  cardId    String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  card      KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@map("checklist_items")
+}
+
+// ─── Queue System ──────────────────────────────────────────────────────────────
+
+model QueueItem {
+  id          String   @id @default(cuid())
+  type        String   // "task" | "notification" | "reminder" | "agent_suggestion"
+  title       String
+  description String?
+  priority    String   @default("medium")  // "low" | "medium" | "high" | "urgent"
+  status      String   @default("ready")   // "ready" | "in_progress" | "done_today" | "blocked"
+  source      String?  // "user" | "agent" | "system"
+  userId      String?
+  metadata    String?  // JSON string for flexible data
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("queue_items")
+}
+
+// ─── Chat & Agent Communication ────────────────────────────────────────────────
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  role      String   // "user" | "assistant" | "system"
+  content   String
+  userId    String?
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("chat_messages")
+}
+
+model AgentMessage {
+  id        String   @id @default(cuid())
+  agentName String
+  type      String   // "status_update" | "suggestion" | "alert" | "completion"
+  content   String
+  priority  String   @default("normal")
+  read      Boolean  @default(false)
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+
+  @@map("agent_messages")
+}
+
+// ─── CRM / Contacts ───────────────────────────────────────────────────────────
+
+model Contact {
+  id           String        @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  company      String?
+  role         String?
+  notes        String?
+  tags         String?       // Comma-separated tags
+  source       String?       // "manual" | "chat" | "enriched"
+  enrichedData String?       // JSON string for enrichment data
+  userId       String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards        CardContact[]
+
+  @@map("contacts")
+}
+
+model CardContact {
+  id        String     @id @default(cuid())
+  cardId    String
+  contactId String
+  role      String?    // Contact's role in this card
+  createdAt DateTime   @default(now())
+
+  card      KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  contact   Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, contactId])
+  @@map("card_contacts")
+}
+
+// ─── AI Memory & Learning ──────────────────────────────────────────────────────
+
+model MemoryItem {
+  id         String   @id @default(cuid())
+  tier       Int      @default(1) // 1=Explicit Facts, 2=Behavioral Rules, 3=Learned Patterns
+  category   String   // Tier1: "general"|"project"|"contact" | Tier2: "communication"|"workflow"|"preferences" | Tier3: "style"|"preference"|"workflow"|"communication"
+  key        String
+  value      String
+  scope      String?  // Tier1: scope context (e.g., project name, contact name)
+  pinned     Boolean  @default(false) // Tier1: pin for high priority
+  priority   String?  // Tier2: "critical"|"high"|"medium"|"low"
+  confidence Float?   // Tier3: confidence score 0.0-1.0
+  approved   Boolean? // Tier3: user approval status (null=pending, true=approved, false=rejected)
+  source     String?  // "user" | "agent" | "system"
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@map("memory_items")
+}
+
+model AgentRule {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  rule        String   // The actual rule text
+  enabled     Boolean  @default(true)
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("agent_rules")
+}
+
+model UserLearning {
+  id          String   @id @default(cuid())
+  category    String   // "style" | "preference" | "workflow" | "communication"
+  observation String
+  confidence  Float    @default(0.5)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_learnings")
+}
+
+// ─── Configuration ─────────────────────────────────────────────────────────────
+
+model AgentApiKey {
+  id        String   @id @default(cuid())
+  provider  String   // "openai" | "anthropic"
+  label     String?
+  apiKey    String   // Encrypted in production
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agent_api_keys")
+}
+
+// ─── Webhook Infrastructure ──────────────────────────────────────────────────
+
+model Webhook {
+  id          String       @id @default(cuid())
+  name        String
+  type        String       // "calendar" | "email" | "transcript" | "generic"
+  url         String?      // Generated webhook URL path
+  secret      String       // Secret for signature validation
+  isActive    Boolean      @default(true)
+  mappingRules String?     // JSON string for payload-to-action mapping rules
+  userId      String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs        WebhookLog[]
+
+  @@index([userId])
+  @@index([secret])
+  @@map("webhooks")
+}
+
+model WebhookLog {
+  id          String   @id @default(cuid())
+  webhookId   String
+  payload     String   // JSON string of incoming payload
+  status      String   // "success" | "error" | "ignored"
+  statusCode  Int      @default(200)
+  error       String?
+  actionsRun  String?  // JSON string of actions executed
+  createdAt   DateTime @default(now())
+
+  webhook     Webhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+  @@map("webhook_logs")
+}
+
+model ServiceApiKey {
+  id          String   @id @default(cuid())
+  service     String   // "sendgrid" | "twilio" | "slack" | "custom" etc.
+  keyName     String   // Display name / label
+  keyValue    String   // Encrypted API key value
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("service_api_keys")
+}
+
+// External Agent API Keys for v2 API authentication
+model ExternalApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  key         String    @unique
+  keyPrefix   String
+  permissions String    @default("all")
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  lastUsedAt  DateTime?
+  usageCount  Int       @default(0)
+  userId      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([key])
+  @@index([userId])
+  @@map("external_api_keys")
+}
