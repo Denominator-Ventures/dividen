@@ -225,10 +225,20 @@ export function ChatView() {
             <h3 className="text-lg font-medium text-[var(--text-secondary)] mb-2">
               DiviDen Command Center
             </h3>
-            <p className="text-sm text-[var(--text-muted)] max-w-md mb-4">
+            <p className="text-sm text-[var(--text-muted)] max-w-md mb-3">
               Chat with your AI agent. Ask questions, delegate tasks, or get
               status updates on your projects.
             </p>
+            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
+              <p className="text-xs text-[var(--text-secondary)]">
+                <span className="font-semibold text-brand-400">Bring your own AI.</span>{' '}
+                Add your OpenAI or Anthropic API key in{' '}
+                <a href="/settings" className="text-brand-400 hover:text-brand-300 underline">
+                  Settings
+                </a>{' '}
+                to enable the chat agent. Nothing runs on our dime — you control your own AI.
+              </p>
+            </div>
             <div className="flex gap-2 flex-wrap justify-center">
               {quickActions.map((action) => (
                 <button
