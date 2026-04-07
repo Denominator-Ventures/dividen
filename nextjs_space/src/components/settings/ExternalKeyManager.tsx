@@ -177,8 +177,8 @@ export function ExternalKeyManager() {
                 className={cn(
                   'flex items-center justify-between p-3 rounded-lg border transition-colors',
                   key.isActive
-                    ? 'bg-[var(--bg-tertiary)] border-[var(--border-primary)]'
-                    : 'bg-[var(--bg-tertiary)]/50 border-[var(--border-primary)]/50 opacity-60'
+                    ? 'bg-[var(--bg-surface)] border-[var(--border-primary)]'
+                    : 'bg-[var(--bg-surface)]/50 border-[var(--border-primary)]/50 opacity-60'
                 )}
               >
                 <div className="flex-1 min-w-0">
@@ -246,7 +246,7 @@ export function ExternalKeyManager() {
 
       {/* Create form */}
       {showForm && (
-        <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] space-y-3">
+        <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] space-y-3">
           <h4 className="font-medium text-sm">Generate New API Key</h4>
 
           <div>
@@ -284,7 +284,7 @@ export function ExternalKeyManager() {
                     className={cn(
                       'flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm cursor-pointer border transition-colors',
                       selectedPerms.includes(perm.id)
-                        ? 'bg-brand-600/20 border-brand-500 text-brand-300'
+                        ? 'bg-[var(--brand-primary)]/15 border-brand-500 text-brand-300'
                         : 'bg-[var(--bg-secondary)] border-[var(--border-primary)] text-[var(--text-secondary)]'
                     )}
                   >

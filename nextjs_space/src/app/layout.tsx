@@ -5,16 +5,16 @@ import { Providers } from './providers';
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
-  title: 'DiviDen Command Center',
-  description: 'Coordination between humans and AI agents',
+  title: 'DiviDen — Command Center',
+  description: 'The Company Operating System. Human-AI coordination.',
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
   },
   openGraph: {
-    title: 'DiviDen Command Center',
-    description: 'Coordination between humans and AI agents',
+    title: 'DiviDen — Command Center',
+    description: 'The Company Operating System. Human-AI coordination.',
     images: ['/og-image.png'],
   },
 };

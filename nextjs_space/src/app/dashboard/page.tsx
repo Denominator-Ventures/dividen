@@ -41,14 +41,14 @@ export default function DashboardPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Top Bar: Mode Toggle + Open Source Banner */}
+      {/* Top Bar */}
       <div className="flex-shrink-0 px-3 pt-3 pb-1 flex items-center justify-between gap-3">
         {/* Mode Toggle */}
         <div className="flex items-center gap-3">
           <button
             onClick={toggleMode}
             disabled={modeLoading}
-            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all border border-[var(--border-primary)] hover:border-brand-600/50"
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 hover:bg-[var(--bg-surface)]"
             title={
               mode === 'cockpit'
                 ? 'Cockpit: You drive, AI assists'
@@ -56,35 +56,33 @@ export default function DashboardPage() {
             }
           >
             <span className="text-lg">{mode === 'cockpit' ? '🎮' : '🎯'}</span>
-            <span className="text-[var(--text-primary)]">
-              {mode === 'cockpit' ? 'Cockpit Mode' : 'Chief of Staff'}
+            <span className="text-[var(--text-primary)] font-medium">
+              {mode === 'cockpit' ? 'Cockpit' : 'Chief of Staff'}
             </span>
-            <span className="text-xs text-[var(--text-muted)] hidden sm:inline">
+            <span className="label-mono hidden sm:inline" style={{ fontSize: '10px' }}>
               {mode === 'cockpit'
-                ? '— you drive, AI assists'
-                : '— AI drives, you approve'}
+                ? 'you drive'
+                : 'ai drives'}
             </span>
           </button>
         </div>
 
         {/* Open Source Banner */}
         {showBanner && (
-          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg px-3 py-1.5">
-            <span>⬡</span>
-            <span>
-              DiviDen is open source.{' '}
-              <a
-                href="https://github.com/jonnyuniverse/dividenapp"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-brand-400 hover:text-brand-300 font-medium"
-              >
-                Fork it, build on it, make it yours →
-              </a>
-            </span>
+          <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg px-3 py-1.5">
+            <span className="label-mono-accent" style={{ fontSize: '10px' }}>Open Source</span>
+            <span className="text-[var(--text-muted)]">—</span>
+            <a
+              href="https://github.com/jonnyuniverse/dividenapp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+            >
+              Fork it, build on it, make it yours →
+            </a>
             <button
               onClick={() => setShowBanner(false)}
-              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] ml-1"
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] ml-1 transition-colors"
             >
               ✕
             </button>
@@ -128,7 +126,7 @@ export default function DashboardPage() {
   );
 }
 
-/* ── Collapsed sidebar: thin icon strip ─────────────────────────────────── */
+/* ── Collapsed sidebar: thin icon strip ───────────────────────────────────────── */
 
 function CollapsedSidebar({
   onExpand,
@@ -137,78 +135,41 @@ function CollapsedSidebar({
   onExpand: () => void;
   onTabChange: (tab: CenterTab) => void;
 }) {
+  const iconBtn = "w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-all";
+
   return (
     <div className="panel h-full flex flex-col items-center py-3 gap-1">
-      {/* Expand button */}
-      <button
-        onClick={onExpand}
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="Expand sidebar"
-      >
+      <button onClick={onExpand} className={iconBtn} title="Expand sidebar">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="13 17 18 12 13 7" />
           <polyline points="6 17 11 12 6 7" />
         </svg>
       </button>
 
-      <div className="w-6 border-t border-[var(--border-primary)] my-1" />
+      <div className="w-6 border-t border-[var(--border-color)] my-1" />
 
-      {/* NOW / Focus */}
-      <button
-        onClick={onExpand}
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="Focus / NOW"
-      >
+      <button onClick={onExpand} className={iconBtn} title="Focus / NOW">
         <span className="text-lg">⚡</span>
       </button>
-
-      {/* Chat */}
-      <button
-        onClick={() => onTabChange('chat')}
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="Chat"
-      >
+      <button onClick={() => onTabChange('chat')} className={iconBtn} title="Chat">
         <span className="text-lg">💬</span>
       </button>
-
-      {/* Kanban */}
-      <button
-        onClick={() => onTabChange('kanban')}
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="Kanban Board"
-      >
+      <button onClick={() => onTabChange('kanban')} className={iconBtn} title="Kanban Board">
         <span className="text-lg">📋</span>
       </button>
-
-      {/* CRM */}
-      <button
-        onClick={() => onTabChange('crm')}
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="CRM"
-      >
+      <button onClick={() => onTabChange('crm')} className={iconBtn} title="CRM">
         <span className="text-lg">👥</span>
       </button>
 
-      <div className="w-6 border-t border-[var(--border-primary)] my-1" />
+      <div className="w-6 border-t border-[var(--border-color)] my-1" />
 
-      {/* Settings */}
-      <a
-        href="/settings"
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="Settings"
-      >
+      <a href="/settings" className={iconBtn} title="Settings">
         <span className="text-lg">⚙️</span>
       </a>
 
-      {/* Push remaining to bottom */}
       <div className="mt-auto" />
 
-      {/* Docs */}
-      <a
-        href="/docs/integrations"
-        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
-        title="Integration Docs"
-      >
+      <a href="/docs/integrations" className={iconBtn} title="Integration Docs">
         <span className="text-lg">📖</span>
       </a>
     </div>

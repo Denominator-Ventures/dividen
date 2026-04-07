@@ -210,7 +210,7 @@ export function WebhookManager() {
 
       {/* Create Form */}
       {showCreate && (
-        <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] space-y-3">
+        <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] space-y-3">
           <h4 className="font-medium text-sm">Create New Webhook</h4>
           <div>
             <label className="block text-xs text-[var(--text-muted)] mb-1">Name</label>
@@ -272,7 +272,7 @@ export function WebhookManager() {
           {webhooks.map((webhook) => (
             <div
               key={webhook.id}
-              className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]"
+              className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]"
             >
               {/* Webhook Header */}
               <div className="flex items-start justify-between mb-2">
@@ -354,7 +354,7 @@ export function WebhookManager() {
                 <button
                   onClick={() => testWebhook(webhook)}
                   disabled={testing}
-                  className="text-xs px-3 py-1.5 rounded bg-brand-600/20 text-brand-400 hover:bg-brand-600/30 disabled:opacity-50"
+                  className="text-xs px-3 py-1.5 rounded bg-[var(--brand-primary)]/15 text-brand-400 hover:bg-[var(--brand-primary)]/20 disabled:opacity-50"
                 >
                   {testing ? '⏳ Testing...' : '🧪 Test'}
                 </button>

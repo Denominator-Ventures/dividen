@@ -23,7 +23,7 @@ export default function IntegrationDocsPage() {
             connect external services by creating webhook endpoints that receive data from platforms like
             Zapier, Make (Integromat), n8n, or direct API calls.
           </p>
-          <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+          <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
             <h3 className="font-medium mb-2">Quick Start</h3>
             <ol className="list-decimal list-inside space-y-1 text-sm text-[var(--text-secondary)]">
               <li>Go to <strong>Settings → Integrations</strong></li>
@@ -45,7 +45,7 @@ export default function IntegrationDocsPage() {
               { type: '📝 Transcript', endpoint: '/api/webhooks/transcript', desc: 'Creates kanban cards with checklists from action items' },
               { type: '🔗 Generic', endpoint: '/api/webhooks/generic', desc: 'Creates a queue item with the payload data' },
             ].map(item => (
-              <div key={item.type} className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+              <div key={item.type} className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
                 <h3 className="font-medium">{item.type}</h3>
                 <code className="text-xs text-brand-400">{item.endpoint}</code>
                 <p className="text-xs text-[var(--text-muted)] mt-1">{item.desc}</p>
@@ -58,19 +58,19 @@ export default function IntegrationDocsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-3 text-brand-400">Authentication</h2>
           <div className="space-y-3">
-            <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-medium text-sm">Query Parameter (Simplest)</h3>
               <code className="text-xs text-green-400 block mt-1">
                 POST /api/webhooks/calendar?webhookId=ID&secret=YOUR_SECRET
               </code>
             </div>
-            <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-medium text-sm">Header-Based Secret</h3>
               <code className="text-xs text-green-400 block mt-1">
                 X-Webhook-Secret: YOUR_SECRET
               </code>
             </div>
-            <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-medium text-sm">HMAC-SHA256 Signature</h3>
               <code className="text-xs text-green-400 block mt-1">
                 X-Webhook-Signature: sha256=COMPUTED_HMAC_HEX
@@ -86,7 +86,7 @@ export default function IntegrationDocsPage() {
           <div className="space-y-4">
             <div>
               <h3 className="font-medium text-sm mb-1">📅 Calendar Event</h3>
-              <pre className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
+              <pre className="p-3 bg-[var(--bg-surface)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
   "summary": "Team Standup",
   "description": "Daily standup meeting",
   "start": { "dateTime": "2025-01-15T09:00:00Z" },
@@ -99,7 +99,7 @@ export default function IntegrationDocsPage() {
 
             <div>
               <h3 className="font-medium text-sm mb-1">📧 Email Notification</h3>
-              <pre className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
+              <pre className="p-3 bg-[var(--bg-surface)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
   "from": { "name": "Jane Doe", "email": "jane@example.com" },
   "subject": "Project Update",
   "body": "Hi, here is the latest update..."
@@ -108,7 +108,7 @@ export default function IntegrationDocsPage() {
 
             <div>
               <h3 className="font-medium text-sm mb-1">📝 Meeting Transcript</h3>
-              <pre className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
+              <pre className="p-3 bg-[var(--bg-surface)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
   "title": "Q1 Planning Meeting",
   "transcript": "Discussion about Q1 goals...",
   "actionItems": [
@@ -123,7 +123,7 @@ export default function IntegrationDocsPage() {
 
             <div>
               <h3 className="font-medium text-sm mb-1">🔗 Generic</h3>
-              <pre className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
+              <pre className="p-3 bg-[var(--bg-surface)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`{
   "title": "New Form Submission",
   "description": "Lead from website",
   "data": { "name": "Alex Brown", "email": "alex@example.com" }
@@ -136,7 +136,7 @@ export default function IntegrationDocsPage() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-3 text-brand-400">Zapier Examples</h2>
           <div className="space-y-4">
-            <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-medium">Google Calendar → DiviDen</h3>
               <ol className="list-decimal list-inside space-y-1 text-sm text-[var(--text-secondary)] mt-2">
                 <li>Trigger: Google Calendar → New Event</li>
@@ -145,7 +145,7 @@ export default function IntegrationDocsPage() {
                 <li>Map: summary, description, start.dateTime, end.dateTime, attendees</li>
               </ol>
             </div>
-            <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-medium">Gmail → DiviDen</h3>
               <ol className="list-decimal list-inside space-y-1 text-sm text-[var(--text-secondary)] mt-2">
                 <li>Trigger: Gmail → New Email</li>
@@ -160,7 +160,7 @@ export default function IntegrationDocsPage() {
         {/* cURL */}
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-3 text-brand-400">Testing with cURL</h2>
-          <pre className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`curl -X POST "YOUR_WEBHOOK_URL" \\
+          <pre className="p-3 bg-[var(--bg-surface)] rounded-lg text-xs overflow-x-auto border border-[var(--border-primary)]">{`curl -X POST "YOUR_WEBHOOK_URL" \\
   -H "Content-Type: application/json" \\
   -d '{
     "summary": "Test Meeting",

@@ -82,7 +82,7 @@ function KanbanCard({
       <div className="flex items-center justify-between mt-1">
         {totalCount > 0 ? (
           <div className="flex items-center gap-1.5">
-            <div className="w-16 h-1.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+            <div className="w-16 h-1.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-brand-500 rounded-full transition-all"
                 style={{ width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%` }}
@@ -99,8 +99,8 @@ function KanbanCard({
           className={cn(
             'text-[10px] px-1.5 py-0.5 rounded',
             card.assignee === 'agent'
-              ? 'bg-purple-600/20 text-purple-400'
-              : 'bg-[var(--bg-tertiary)] text-[var(--text-muted)]'
+              ? 'bg-brand-500/20 text-brand-400'
+              : 'bg-[var(--bg-surface)] text-[var(--text-muted)]'
           )}
         >
           {card.assignee === 'agent' ? '🤖 Agent' : '👤 Human'}
@@ -164,7 +164,7 @@ function KanbanColumn({
   const cardIds = cards.map((c) => c.id);
 
   return (
-    <div className="flex-1 min-w-[200px] bg-[var(--bg-tertiary)]/30 rounded-lg flex flex-col">
+    <div className="flex-1 min-w-[200px] bg-[var(--bg-surface)]/30 rounded-lg flex flex-col">
       {/* Column Header */}
       <div className="p-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -172,13 +172,13 @@ function KanbanColumn({
           <span className="text-sm font-semibold text-[var(--text-primary)]">
             {column.label}
           </span>
-          <span className="text-xs bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">
+          <span className="text-xs bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">
             {cards.length}
           </span>
         </div>
         <button
           onClick={() => onAddCard(column.id)}
-          className="text-[var(--text-muted)] hover:text-brand-400 text-lg leading-none transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-tertiary)]"
+          className="text-[var(--text-muted)] hover:text-brand-400 text-lg leading-none transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface)]"
         >
           +
         </button>

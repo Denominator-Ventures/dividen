@@ -70,7 +70,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
           {apiKeys.map((key) => (
             <div
               key={key.id}
-              className="flex items-center justify-between bg-[var(--bg-tertiary)] rounded-lg p-3"
+              className="flex items-center justify-between bg-[var(--bg-surface)] rounded-lg p-3"
             >
               <div className="flex items-center gap-3">
                 <span
@@ -108,7 +108,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
 
       {/* Add Key Form */}
       {adding ? (
-        <form onSubmit={handleAdd} className="space-y-3 bg-[var(--bg-tertiary)] rounded-lg p-4">
+        <form onSubmit={handleAdd} className="space-y-3 bg-[var(--bg-surface)] rounded-lg p-4">
           {error && (
             <div className="text-sm text-red-400">{error}</div>
           )}

@@ -98,7 +98,7 @@ export function ServiceApiKeyManager() {
 
       {/* Add Key Form */}
       {showAdd && (
-        <div className="p-4 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] space-y-3">
+        <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] space-y-3">
           <h4 className="font-medium text-sm">Add Service API Key</h4>
 
           <div>
@@ -180,7 +180,7 @@ export function ServiceApiKeyManager() {
             return (
               <div
                 key={key.id}
-                className="flex items-center justify-between p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)]"
+                className="flex items-center justify-between p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]"
               >
                 <div className="flex items-center gap-3">
                   <span className="text-lg">{preset?.icon || '🔧'}</span>

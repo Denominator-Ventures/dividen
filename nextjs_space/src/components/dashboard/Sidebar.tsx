@@ -41,8 +41,8 @@ export function Sidebar({ user }: SidebarProps) {
             className={cn(
               'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
               pathname === item.href
-                ? 'bg-brand-600/20 text-brand-400'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                ? 'bg-[var(--brand-primary)]/15 text-brand-400'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             )}
           >
             <span className="text-lg">{item.icon}</span>

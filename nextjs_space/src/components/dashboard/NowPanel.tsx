@@ -80,15 +80,15 @@ export function NowPanel({ onNewTask, onQuickChat, onCollapse }: NowPanelProps) 
   return (
     <div className="panel h-full flex flex-col">
       <div className="panel-header">
-        <h2 className="font-semibold text-sm uppercase tracking-wider text-brand-400">
+        <h2 className="label-mono-accent">
           ⚡ NOW
         </h2>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-[var(--text-muted)]">Focus Mode</span>
+          <span className="label-mono" style={{ fontSize: '10px' }}>Focus</span>
           {onCollapse && (
             <button
               onClick={onCollapse}
-              className="w-6 h-6 flex items-center justify-center rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+              className="w-6 h-6 flex items-center justify-center rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors"
               title="Collapse sidebar"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -102,7 +102,7 @@ export function NowPanel({ onNewTask, onQuickChat, onCollapse }: NowPanelProps) 
 
       <div className="panel-body flex-1 flex flex-col">
         {/* Current Focus Card */}
-        <div className="bg-[var(--bg-tertiary)] rounded-lg p-4 mb-4">
+        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
             <span className={`w-2 h-2 rounded-full ${activeTask ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
             <span className={`text-xs font-medium ${activeTask ? 'text-green-400' : 'text-[var(--text-muted)]'}`}>
@@ -117,9 +117,7 @@ export function NowPanel({ onNewTask, onQuickChat, onCollapse }: NowPanelProps) 
 
         {/* Quick Actions */}
         <div className="space-y-2">
-          <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider">
-            Quick Actions
-          </h4>
+          <h4 className="label-mono mb-1">Quick Actions</h4>
           
           {showNewTask ? (
             <div className="space-y-2">
@@ -167,10 +165,8 @@ export function NowPanel({ onNewTask, onQuickChat, onCollapse }: NowPanelProps) 
 
         {/* Today's Progress */}
         <div className="mt-auto pt-4">
-          <h4 className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider mb-2">
-            Today&apos;s Progress
-          </h4>
-          <div className="bg-[var(--bg-tertiary)] rounded-lg p-3">
+          <h4 className="label-mono mb-2">Today&apos;s Progress</h4>
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-3">
             <div className="flex justify-between text-sm mb-1">
               <span className="text-[var(--text-secondary)]">Completed</span>
               <span className="font-medium">{completedCount} / {totalCount}</span>

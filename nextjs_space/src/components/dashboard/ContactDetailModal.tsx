@@ -138,7 +138,7 @@ export function ContactDetailModal({
         {/* Header */}
         <div className="p-4 border-b border-[var(--border-primary)] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-400 text-lg font-bold">
+            <div className="w-12 h-12 rounded-full bg-[var(--brand-primary)]/20 flex items-center justify-center text-brand-400 text-lg font-bold">
               {initials}
             </div>
             <div>
@@ -160,7 +160,7 @@ export function ContactDetailModal({
             <button
               onClick={handleResearch}
               disabled={enriching}
-              className="text-xs px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-brand-600/20 text-[var(--text-secondary)] hover:text-brand-400 transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 bg-[var(--bg-surface)] rounded-md hover:bg-[var(--brand-primary)]/15 text-[var(--text-secondary)] hover:text-brand-400 transition-colors disabled:opacity-50"
             >
               {enriching ? '🔄 Enriching...' : '🔍 Research'}
             </button>
@@ -253,7 +253,7 @@ export function ContactDetailModal({
               <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">Tags</h4>
               <div className="flex flex-wrap gap-1.5">
                 {tags.map((tag) => (
-                  <span key={tag} className="text-xs px-2 py-1 bg-brand-600/20 text-brand-400 rounded-md">
+                  <span key={tag} className="text-xs px-2 py-1 bg-[var(--brand-primary)]/15 text-brand-400 rounded-md">
                     {tag}
                   </span>
                 ))}
@@ -273,7 +273,7 @@ export function ContactDetailModal({
                 {linkedCards.map((lc) => (
                   <div
                     key={lc.linkId}
-                    className="flex items-center justify-between p-2 bg-[var(--bg-tertiary)] rounded text-sm"
+                    className="flex items-center justify-between p-2 bg-[var(--bg-surface)] rounded text-sm"
                   >
                     <div className="flex items-center gap-2">
                       <span
@@ -298,7 +298,7 @@ export function ContactDetailModal({
               <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-2">
                 Research Data
               </h4>
-              <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-sm space-y-1">
+              <div className="p-3 bg-[var(--bg-surface)] rounded-lg text-sm space-y-1">
                 {enrichmentData.linkedCards !== undefined && (
                   <div className="flex justify-between">
                     <span className="text-[var(--text-muted)]">Linked Cards</span>
@@ -344,7 +344,7 @@ export function ContactDetailModal({
                 <span className="w-1.5 h-1.5 rounded-full bg-brand-500" />
                 Created {new Date(contact.createdAt).toLocaleDateString()}
                 {contact.source && (
-                  <span className="text-xs px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded capitalize">
+                  <span className="text-xs px-1.5 py-0.5 bg-[var(--bg-surface)] rounded capitalize">
                     {contact.source}
                   </span>
                 )}

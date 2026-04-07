@@ -49,7 +49,7 @@ function QueueItemCard({
             <span className="text-[10px] text-[var(--text-muted)]">
               {timeAgo(item.createdAt)}
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-tertiary)] text-[var(--text-muted)]">
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-muted)]">
               {item.type}
             </span>
           </div>
@@ -118,7 +118,7 @@ function NewQueueItemForm({
   const [priority, setPriority] = useState<CardPriority>('medium');
 
   return (
-    <div className="bg-[var(--bg-tertiary)] rounded-lg p-3 space-y-2">
+    <div className="bg-[var(--bg-surface)] rounded-lg p-3 space-y-2">
       <input
         type="text"
         value={title}
@@ -268,16 +268,16 @@ export function QueuePanel() {
       {/* Header */}
       <div className="panel-header">
         <div className="flex items-center gap-2">
-          <h2 className="font-semibold text-sm uppercase tracking-wider text-brand-400">
+          <h2 className="label-mono-accent">
             📥 Queue
           </h2>
-          <span className="text-xs bg-[var(--bg-tertiary)] px-2 py-0.5 rounded-full text-[var(--text-muted)]">
+          <span className="text-xs bg-[var(--bg-surface)] px-2 py-0.5 rounded-full text-[var(--text-muted)]">
             {totalCount}
           </span>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="text-[var(--text-muted)] hover:text-brand-400 text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-tertiary)] transition-colors"
+          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface-hover)] transition-colors"
         >
           +
         </button>
@@ -344,7 +344,7 @@ export function QueuePanel() {
                     >
                       {section.label}
                     </span>
-                    <span className="text-[10px] bg-[var(--bg-tertiary)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">
+                    <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">
                       {sectionItems.length}
                     </span>
                   </div>

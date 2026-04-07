@@ -105,8 +105,8 @@ export function MemoryPanel() {
             className={cn(
               'flex-1 px-2 py-2 text-xs font-medium rounded-md transition-colors text-center',
               activeTier === tier.id
-                ? 'bg-brand-600/20 text-brand-400'
-                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                ? 'bg-[var(--brand-primary)]/15 text-brand-400'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
             )}
           >
             <span className="block text-base">{tier.icon}</span>
@@ -129,7 +129,7 @@ export function MemoryPanel() {
         />
         <button
           onClick={() => setShowNewForm(!showNewForm)}
-          className="text-sm px-3 py-1.5 bg-brand-600/20 text-brand-400 rounded-md hover:bg-brand-600/30 transition-colors"
+          className="text-sm px-3 py-1.5 bg-[var(--brand-primary)]/15 text-brand-400 rounded-md hover:bg-[var(--brand-primary)]/20 transition-colors"
         >
           {showNewForm ? '✕' : '+'}
         </button>
@@ -223,7 +223,7 @@ function NewMemoryForm({
   };
 
   return (
-    <div className="mx-3 mb-2 p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] space-y-2">
+    <div className="mx-3 mb-2 p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] space-y-2">
       <div className="grid grid-cols-2 gap-2">
         <input className="input-field text-sm" placeholder="Key / Label *" value={form.key} onChange={(e) => setForm((p) => ({ ...p, key: e.target.value }))} />
         <select className="input-field text-sm" value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}>
@@ -298,11 +298,11 @@ function MemoryItemCard({
         <div className="flex items-center gap-2">
           {tier === 1 && item.pinned && <span className="text-xs">📌</span>}
           <span className="text-sm font-medium">{item.key}</span>
-          <span className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded capitalize text-[var(--text-muted)]">
+          <span className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-surface)] rounded capitalize text-[var(--text-muted)]">
             {item.category}
           </span>
           {tier === 1 && item.scope && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-brand-600/10 text-brand-400 rounded">
+            <span className="text-[10px] px-1.5 py-0.5 bg-[var(--brand-primary)]/10 text-brand-400 rounded">
               {item.scope}
             </span>
           )}
@@ -322,11 +322,11 @@ function MemoryItemCard({
         {/* Actions */}
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           {tier === 1 && (
-            <button onClick={onPin} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-tertiary)]" title={item.pinned ? 'Unpin' : 'Pin'}>
+            <button onClick={onPin} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface)]" title={item.pinned ? 'Unpin' : 'Pin'}>
               {item.pinned ? '📌' : '📍'}
             </button>
           )}
-          <button onClick={onStartEdit} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-tertiary)]" title="Edit">
+          <button onClick={onStartEdit} className="text-xs px-1.5 py-0.5 rounded hover:bg-[var(--bg-surface)]" title="Edit">
             ✏️
           </button>
           <button onClick={onDelete} className="text-xs px-1.5 py-0.5 rounded hover:bg-red-600/10 text-red-400" title="Delete">
@@ -353,7 +353,7 @@ function MemoryItemCard({
         <div className="mt-2 space-y-1.5">
           <div className="flex items-center gap-2">
             <span className="text-xs text-[var(--text-muted)]">Confidence:</span>
-            <div className="flex-1 h-1.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+            <div className="flex-1 h-1.5 bg-[var(--bg-surface)] rounded-full overflow-hidden">
               <div
                 className={cn(
                   'h-full rounded-full transition-all',

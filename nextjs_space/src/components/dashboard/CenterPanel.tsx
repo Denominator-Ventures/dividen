@@ -28,10 +28,10 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
+                'px-4 py-1.5 text-sm font-medium rounded-md transition-all',
                 activeTab === tab.id
-                  ? 'bg-brand-600/20 text-brand-400'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]'
+                  ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]'
               )}
             >
               {tab.icon} {tab.label}

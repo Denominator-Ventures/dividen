@@ -214,8 +214,8 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
                 className={cn(
                   'w-full py-2 px-3 rounded-lg text-sm font-medium transition-all border',
                   assignee === 'agent'
-                    ? 'bg-purple-600/20 border-purple-500/30 text-purple-400'
-                    : 'bg-[var(--bg-tertiary)] border-[var(--border-color)] text-[var(--text-secondary)]'
+                    ? 'bg-brand-500/20 border-brand-500/30 text-brand-400'
+                    : 'bg-[var(--bg-surface)] border-[var(--border-color)] text-[var(--text-secondary)]'
                 )}
               >
                 {assignee === 'agent' ? '🤖 Agent' : '👤 Human'}
@@ -252,7 +252,7 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
 
             {/* Progress bar */}
             {totalCount > 0 && (
-              <div className="w-full h-1.5 bg-[var(--bg-tertiary)] rounded-full mb-3 overflow-hidden">
+              <div className="w-full h-1.5 bg-[var(--bg-surface)] rounded-full mb-3 overflow-hidden">
                 <div
                   className="h-full bg-brand-500 rounded-full transition-all duration-300"
                   style={{ width: `${progress}%` }}
@@ -329,9 +329,9 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
                 {card.contacts.map((cc) => (
                   <div
                     key={cc.id}
-                    className="flex items-center gap-3 bg-[var(--bg-tertiary)] rounded-lg p-2.5"
+                    className="flex items-center gap-3 bg-[var(--bg-surface)] rounded-lg p-2.5"
                   >
-                    <div className="w-8 h-8 rounded-full bg-brand-600/20 flex items-center justify-center text-brand-400 text-sm font-semibold">
+                    <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)]/15 flex items-center justify-center text-brand-400 text-sm font-semibold">
                       {cc.contact.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">

@@ -33,7 +33,7 @@ export function ModeToggle({ currentMode, onModeChange }: ModeToggleProps) {
           className={cn(
             'p-4 rounded-lg border text-left transition-all',
             currentMode === mode.id
-              ? 'border-brand-500 bg-brand-600/10'
+              ? 'border-brand-500 bg-[var(--brand-primary)]/10'
               : 'border-[var(--border-color)] hover:border-[var(--text-muted)]'
           )}
         >

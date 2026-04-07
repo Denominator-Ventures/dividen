@@ -229,7 +229,7 @@ export function ChatView() {
               Chat with your AI agent. Ask questions, delegate tasks, or get
               status updates on your projects.
             </p>
-            <div className="bg-[var(--bg-tertiary)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
               <p className="text-xs text-[var(--text-secondary)]">
                 <span className="font-semibold text-brand-400">Bring your own AI.</span>{' '}
                 Add your OpenAI or Anthropic API key in{' '}
@@ -263,7 +263,7 @@ export function ChatView() {
                 <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   AI
                 </div>
-                <div className="flex-1 bg-[var(--bg-tertiary)] rounded-lg p-3 max-w-[80%]">
+                <div className="flex-1 bg-[var(--bg-surface)] rounded-lg p-3 max-w-[80%]">
                   <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
                     {stripTagsClient(streamingContent)}
                     <span className="animate-pulse">▌</span>
@@ -278,7 +278,7 @@ export function ChatView() {
                 <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   AI
                 </div>
-                <div className="flex-1 bg-[var(--bg-tertiary)] rounded-lg p-3 max-w-[80%]">
+                <div className="flex-1 bg-[var(--bg-surface)] rounded-lg p-3 max-w-[80%]">
                   <div className="flex gap-1">
                     <span className="w-2 h-2 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                     <span className="w-2 h-2 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -290,7 +290,7 @@ export function ChatView() {
 
             {/* Tag execution results */}
             {tagResults.length > 0 && (
-              <div className="mx-11 p-2 rounded bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
+              <div className="mx-11 p-2 rounded bg-[var(--bg-surface)] border border-[var(--border-color)]">
                 <p className="text-xs text-[var(--text-muted)] mb-1 font-medium">
                   ⚡ Actions executed:
                 </p>
@@ -370,7 +370,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         className={cn(
           'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
           isUser
-            ? 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)]'
+            ? 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
             : 'bg-[var(--brand-primary)] text-white'
         )}
       >
@@ -383,7 +383,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           'flex-1 rounded-lg p-3 max-w-[80%]',
           isUser
             ? 'bg-[var(--brand-primary)]/10 ml-auto'
-            : 'bg-[var(--bg-tertiary)]'
+            : 'bg-[var(--bg-surface)]'
         )}
       >
         <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">

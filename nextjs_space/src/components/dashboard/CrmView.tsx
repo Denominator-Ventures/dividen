@@ -123,7 +123,7 @@ export function CrmView() {
 
       {/* New Contact Form */}
       {showNewForm && (
-        <div className="mb-4 p-3 bg-[var(--bg-tertiary)] rounded-lg border border-[var(--border-primary)] space-y-2">
+        <div className="mb-4 p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <input
               className="input-field text-sm"
@@ -264,7 +264,7 @@ function ContactCard({
     >
       <div className="flex items-center gap-3">
         {/* Avatar */}
-        <div className="w-9 h-9 rounded-full bg-brand-600/30 flex items-center justify-center text-brand-400 text-xs font-bold flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)]/20 flex items-center justify-center text-brand-400 text-xs font-bold flex-shrink-0">
           {initials}
         </div>
 
@@ -287,7 +287,7 @@ function ContactCard({
           {tags.slice(0, 2).map((tag) => (
             <span
               key={tag}
-              className="text-[10px] px-1.5 py-0.5 bg-brand-600/20 text-brand-400 rounded"
+              className="text-[10px] px-1.5 py-0.5 bg-[var(--brand-primary)]/15 text-brand-400 rounded"
             >
               {tag}
             </span>
@@ -299,7 +299,7 @@ function ContactCard({
 
         {/* Linked cards count */}
         {contact.cards && contact.cards.length > 0 && (
-          <span className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-tertiary)] rounded text-[var(--text-muted)]">
+          <span className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-surface)] rounded text-[var(--text-muted)]">
             📋 {contact.cards.length}
           </span>
         )}

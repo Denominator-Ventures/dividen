@@ -127,13 +127,13 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="flex gap-1 p-1 bg-[var(--bg-tertiary)] rounded-lg w-fit">
+      <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg w-fit">
         <button
           onClick={() => setActiveTab('general')}
           className={cn(
             'px-4 py-2 rounded-md text-sm font-medium transition-colors',
             activeTab === 'general'
-              ? 'bg-brand-600 text-white'
+              ? 'bg-[var(--brand-primary)] text-white'
               : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
@@ -144,7 +144,7 @@ export default function SettingsPage() {
           className={cn(
             'px-4 py-2 rounded-md text-sm font-medium transition-colors',
             activeTab === 'integrations'
-              ? 'bg-brand-600 text-white'
+              ? 'bg-[var(--brand-primary)] text-white'
               : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
           )}
         >
@@ -191,19 +191,19 @@ export default function SettingsPage() {
             <div className="panel-body">
               {memoryStats && (
                 <div className="grid grid-cols-4 gap-3 mb-4">
-                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                  <div className="p-3 bg-[var(--bg-surface)] rounded-lg text-center">
                     <div className="text-2xl font-bold text-brand-400">{memoryStats.total}</div>
                     <div className="text-xs text-[var(--text-muted)]">Total Items</div>
                   </div>
-                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                  <div className="p-3 bg-[var(--bg-surface)] rounded-lg text-center">
                     <div className="text-2xl font-bold text-blue-400">{memoryStats.tier1}</div>
                     <div className="text-xs text-[var(--text-muted)]">📌 Facts</div>
                   </div>
-                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
-                    <div className="text-2xl font-bold text-purple-400">{memoryStats.tier2}</div>
+                  <div className="p-3 bg-[var(--bg-surface)] rounded-lg text-center">
+                    <div className="text-2xl font-bold text-brand-400">{memoryStats.tier2}</div>
                     <div className="text-xs text-[var(--text-muted)]">📏 Rules</div>
                   </div>
-                  <div className="p-3 bg-[var(--bg-tertiary)] rounded-lg text-center">
+                  <div className="p-3 bg-[var(--bg-surface)] rounded-lg text-center">
                     <div className="text-2xl font-bold text-green-400">{memoryStats.tier3}</div>
                     <div className="text-xs text-[var(--text-muted)]">🧠 Patterns</div>
                   </div>
@@ -223,14 +223,14 @@ export default function SettingsPage() {
               <div className="flex gap-2">
                 <button
                   onClick={handleExportMemory}
-                  className="text-sm px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-brand-600/20 text-[var(--text-secondary)] hover:text-brand-400 transition-colors"
+                  className="text-sm px-3 py-1.5 bg-[var(--bg-surface)] rounded-md hover:bg-[var(--brand-primary)]/15 text-[var(--text-secondary)] hover:text-brand-400 transition-colors"
                 >
                   📤 Export All
                 </button>
                 <button
                   onClick={handleClearOldMemories}
                   disabled={clearingMemory}
-                  className="text-sm px-3 py-1.5 bg-[var(--bg-tertiary)] rounded-md hover:bg-red-600/10 text-[var(--text-secondary)] hover:text-red-400 transition-colors disabled:opacity-50"
+                  className="text-sm px-3 py-1.5 bg-[var(--bg-surface)] rounded-md hover:bg-red-600/10 text-[var(--text-secondary)] hover:text-red-400 transition-colors disabled:opacity-50"
                 >
                   {clearingMemory ? '🔄 Clearing...' : '🗑 Clear Low-Confidence'}
                 </button>
@@ -364,27 +364,27 @@ export default function SettingsPage() {
               <div>
                 <h4 className="font-medium text-brand-400 mb-1">Authentication Methods</h4>
                 <ul className="list-disc list-inside space-y-1 text-[var(--text-secondary)]">
-                  <li><code className="text-xs bg-[var(--bg-tertiary)] px-1 rounded">?secret=YOUR_SECRET</code> — Query parameter (simplest)</li>
-                  <li><code className="text-xs bg-[var(--bg-tertiary)] px-1 rounded">X-Webhook-Secret: YOUR_SECRET</code> — Header-based</li>
-                  <li><code className="text-xs bg-[var(--bg-tertiary)] px-1 rounded">X-Webhook-Signature: sha256=...</code> — HMAC-SHA256 signature</li>
+                  <li><code className="text-xs bg-[var(--bg-surface)] px-1 rounded">?secret=YOUR_SECRET</code> — Query parameter (simplest)</li>
+                  <li><code className="text-xs bg-[var(--bg-surface)] px-1 rounded">X-Webhook-Secret: YOUR_SECRET</code> — Header-based</li>
+                  <li><code className="text-xs bg-[var(--bg-surface)] px-1 rounded">X-Webhook-Signature: sha256=...</code> — HMAC-SHA256 signature</li>
                 </ul>
               </div>
               <div>
                 <h4 className="font-medium text-brand-400 mb-1">Popular Integrations</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                  <div className="p-2 bg-[var(--bg-surface)] rounded text-xs">
                     <span className="font-medium">📅 Google Calendar → DiviDen</span>
                     <p className="text-[var(--text-muted)] mt-0.5">Auto-create tasks from calendar events via Zapier</p>
                   </div>
-                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                  <div className="p-2 bg-[var(--bg-surface)] rounded text-xs">
                     <span className="font-medium">📧 Gmail → DiviDen</span>
                     <p className="text-[var(--text-muted)] mt-0.5">Create contacts and tasks from important emails</p>
                   </div>
-                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                  <div className="p-2 bg-[var(--bg-surface)] rounded text-xs">
                     <span className="font-medium">📝 Otter.ai → DiviDen</span>
                     <p className="text-[var(--text-muted)] mt-0.5">Extract action items from meeting transcripts</p>
                   </div>
-                  <div className="p-2 bg-[var(--bg-tertiary)] rounded text-xs">
+                  <div className="p-2 bg-[var(--bg-surface)] rounded text-xs">
                     <span className="font-medium">🔗 Custom → DiviDen</span>
                     <p className="text-[var(--text-muted)] mt-0.5">Any service that can send HTTP POST webhooks</p>
                   </div>

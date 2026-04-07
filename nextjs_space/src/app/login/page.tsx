@@ -39,78 +39,72 @@ function LoginForm() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+      <div className="w-full max-w-sm">
         {/* Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <span className="text-3xl">⬡</span>
-            <h1 className="text-3xl font-bold text-brand-400">DiviDen</h1>
-          </div>
-          <p className="text-[var(--text-secondary)]">
-            Sign in to your Command Center
+        <div className="text-center mb-10">
+          <h1 className="font-heading text-2xl font-bold tracking-tight text-[var(--text-primary)] mb-1">
+            DiviDen
+          </h1>
+          <p className="label-mono">
+            Command Center
           </p>
         </div>
 
         {/* Success banner */}
         {setupComplete && (
-          <div className="bg-green-500/10 border border-green-500/30 text-green-400 px-4 py-3 rounded-lg text-sm mb-4 text-center">
-            ✔ Admin account created! Sign in below.
+          <div className="bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/20 text-[var(--brand-primary)] px-4 py-3 rounded-lg text-sm mb-6 text-center">
+            Account created. Sign in below.
           </div>
         )}
 
         {/* Login Form */}
-        <div className="panel">
-          <div className="panel-header">
-            <h2 className="font-semibold">Sign In</h2>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="label-mono block mb-2">
+              Email
+            </label>
+            <input
+              type="email"
+              className="input-field"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              required
+            />
           </div>
-          <form onSubmit={handleSubmit} className="panel-body space-y-4">
-            {error && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-lg text-sm">
-                {error}
-              </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-                Email
-              </label>
-              <input
-                type="email"
-                className="input-field"
-                placeholder="admin@example.com"
-                value={form.email}
-                onChange={(e) => setForm({ ...form, email: e.target.value })}
-                required
-              />
-            </div>
+          <div>
+            <label className="label-mono block mb-2">
+              Password
+            </label>
+            <input
+              type="password"
+              className="input-field"
+              placeholder="••••••••"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
-                Password
-              </label>
-              <input
-                type="password"
-                className="input-field"
-                placeholder="••••••••"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-              />
-            </div>
+          <button
+            type="submit"
+            className="btn-primary w-full"
+            disabled={loading}
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
 
-            <button
-              type="submit"
-              className="btn-primary w-full"
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-        </div>
-
-        <p className="text-center text-sm text-[var(--text-secondary)] mt-4">
+        <p className="text-center text-sm text-[var(--text-muted)] mt-6">
           Don&apos;t have an account?{' '}
-          <a href="/setup" className="text-brand-400 hover:text-brand-300 font-medium">
+          <a href="/setup" className="text-[var(--brand-primary)] hover:text-[var(--brand-secondary)] font-medium">
             Create one
           </a>
         </p>
@@ -124,7 +118,7 @@ export default function LoginPage() {
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center">
-          <div className="animate-pulse text-[var(--text-secondary)]">Loading...</div>
+          <div className="animate-pulse text-[var(--text-muted)]">Loading...</div>
         </div>
       }
     >
