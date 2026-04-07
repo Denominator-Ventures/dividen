@@ -141,8 +141,8 @@ DiviDen is built on these realities. The protocol defines *how* agents coordinat
 ### Run the Reference Frontend
 ```bash
 # Clone and install
-git clone https://github.com/jonnyuniverse/dividenapp.git
-cd dividenapp/nextjs_space
+git clone https://github.com/Denominator-Ventures/dividen.git
+cd dividen/nextjs_space
 yarn install
 
 # Set up environment

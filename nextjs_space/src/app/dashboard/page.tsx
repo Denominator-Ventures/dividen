@@ -115,7 +115,7 @@ export default function DashboardPage() {
             <span className="label-mono-accent" style={{ fontSize: '10px' }}>Open Source</span>
             <span className="text-[var(--text-muted)]">—</span>
             <a
-              href="https://github.com/jonnyuniverse/dividenapp"
+              href="https://github.com/Denominator-Ventures/dividen"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"

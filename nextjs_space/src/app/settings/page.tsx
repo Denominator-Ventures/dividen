@@ -546,7 +546,7 @@ export default function SettingsPage() {
             <span>PostgreSQL</span>
           </div>
           <div className="flex items-center gap-3">
-            <a href="https://github.com/jonnyuniverse/dividenapp" target="_blank" rel="noopener noreferrer" className="hover:text-brand-400 transition-colors">
+            <a href="https://github.com/Denominator-Ventures/dividen" target="_blank" rel="noopener noreferrer" className="hover:text-brand-400 transition-colors">
               GitHub
             </a>
             <span>·</span>

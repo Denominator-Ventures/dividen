@@ -226,7 +226,7 @@ export default function IntegrationDocsPage() {
         </section>
 
         <div className="border-t border-[var(--border-primary)] pt-6 text-center text-sm text-[var(--text-muted)]">
-          <p>Open source: <a href="https://github.com/jonnyuniverse/dividenapp" className="text-brand-400 hover:text-brand-300">github.com/jonnyuniverse/dividenapp</a></p>
+          <p>Open source: <a href="https://github.com/Denominator-Ventures/dividen" className="text-brand-400 hover:text-brand-300">github.com/Denominator-Ventures/dividen</a></p>
           <a href="/settings" className="text-brand-400 hover:text-brand-300 mt-2 inline-block">
             ← Back to Settings
           </a>
