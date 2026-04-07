@@ -51,6 +51,10 @@ export const SUPPORTED_TAGS = [
   'add_relationship',  // link two contacts with a relationship type
   'update_contact',    // update a contact's details (tags, notes, company, role, etc.)
   'link_recording',    // link a recording to a kanban card
+  // ── Connection & Relay Actions ──
+  'relay_request',     // send a relay to a connected user's agent
+  'accept_connection', // accept a pending connection request
+  'relay_respond',     // respond to an inbound relay (complete/decline)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -734,6 +738,152 @@ async function executeTag(
           success: true,
           data: { id: recording.id, cardId: params.cardId, note: 'Recording linked to card' },
         };
+      }
+
+      // ── Connection & Relay Actions ──────────────────────────────────────
+
+      case 'relay_request': {
+        // params: { connectionNickname or connectionId, intent, subject, payload?, priority? }
+        const subject = params.subject || params.message || 'Agent relay request';
+        const intent = params.intent || 'custom';
+        const priority = params.priority || 'normal';
+
+        // Find the connection — by nickname, email, or ID
+        let connection: any = null;
+        if (params.connectionId) {
+          connection = await prisma.connection.findUnique({ where: { id: params.connectionId } });
+        } else if (params.connectionNickname || params.to || params.name) {
+          const search = (params.connectionNickname || params.to || params.name).toLowerCase();
+          const allConns = await prisma.connection.findMany({
+            where: {
+              OR: [{ requesterId: userId }, { accepterId: userId }],
+              status: 'active',
+            },
+            include: {
+              requester: { select: { id: true, name: true, email: true } },
+              accepter: { select: { id: true, name: true, email: true } },
+            },
+          });
+          connection = allConns.find(c => {
+            const nick = (c.nickname || '').toLowerCase();
+            const peerNick = (c.peerNickname || '').toLowerCase();
+            const peerName = (c.peerUserName || '').toLowerCase();
+            const reqName = (c.requester?.name || '').toLowerCase();
+            const accName = (c.accepter?.name || '').toLowerCase();
+            const reqEmail = (c.requester?.email || '').toLowerCase();
+            const accEmail = (c.accepter?.email || '').toLowerCase();
+            return [nick, peerNick, peerName, reqName, accName, reqEmail, accEmail].some(v => v.includes(search));
+          });
+        }
+
+        if (!connection) {
+          return { tag: name, success: false, error: 'Could not find an active connection matching that name. The user may need to connect first.' };
+        }
+
+        const toUserId_relay = connection.requesterId === userId ? connection.accepterId : connection.requesterId;
+
+        const relay = await prisma.agentRelay.create({
+          data: {
+            connectionId: connection.id,
+            fromUserId: userId,
+            toUserId: connection.isFederated ? null : toUserId_relay,
+            direction: 'outbound',
+            type: 'request',
+            intent,
+            subject,
+            payload: params.payload ? (typeof params.payload === 'string' ? params.payload : JSON.stringify(params.payload)) : null,
+            status: 'pending',
+            priority,
+            peerInstanceUrl: connection.isFederated ? connection.peerInstanceUrl : null,
+          },
+        });
+
+        // Notify the receiver (local)
+        if (!connection.isFederated && toUserId_relay) {
+          await prisma.commsMessage.create({
+            data: {
+              sender: 'divi',
+              content: `📡 Relay sent on your behalf: "${subject}"`,
+              state: 'new',
+              priority,
+              userId: toUserId_relay,
+              metadata: JSON.stringify({ type: 'agent_relay', relayId: relay.id, intent }),
+            },
+          });
+          await prisma.agentRelay.update({ where: { id: relay.id }, data: { status: 'delivered' } });
+        }
+
+        await prisma.activityLog.create({
+          data: {
+            action: 'relay_sent',
+            actor: 'divi',
+            summary: `Divi sent ${intent} relay: "${subject}"`,
+            metadata: JSON.stringify({ relayId: relay.id, connectionId: connection.id }),
+            userId,
+          },
+        });
+
+        return { tag: name, success: true, data: { relayId: relay.id, subject, intent, status: 'delivered' } };
+      }
+
+      case 'accept_connection': {
+        // params: { connectionId }
+        if (!params.connectionId) {
+          return { tag: name, success: false, error: 'connectionId is required.' };
+        }
+        const conn = await prisma.connection.findUnique({ where: { id: params.connectionId } });
+        if (!conn || conn.accepterId !== userId || conn.status !== 'pending') {
+          return { tag: name, success: false, error: 'No pending connection found for you with that ID.' };
+        }
+        const acceptedConn = await prisma.connection.update({
+          where: { id: params.connectionId },
+          data: { status: 'active' },
+        });
+        await prisma.commsMessage.create({
+          data: {
+            sender: 'divi',
+            content: `Connection accepted! Agents can now communicate.`,
+            state: 'new',
+            priority: 'normal',
+            userId: conn.requesterId,
+            metadata: JSON.stringify({ type: 'connection_accepted', connectionId: params.connectionId }),
+          },
+        });
+        return { tag: name, success: true, data: { connectionId: acceptedConn.id, status: 'active' } };
+      }
+
+      case 'relay_respond': {
+        // params: { relayId, status ("completed"|"declined"), responsePayload? }
+        if (!params.relayId || !params.status) {
+          return { tag: name, success: false, error: 'relayId and status are required.' };
+        }
+        const relayToRespond = await prisma.agentRelay.findUnique({ where: { id: params.relayId } });
+        if (!relayToRespond) {
+          return { tag: name, success: false, error: 'Relay not found.' };
+        }
+        const updatedRelay = await prisma.agentRelay.update({
+          where: { id: params.relayId },
+          data: {
+            status: params.status,
+            resolvedAt: new Date(),
+            responsePayload: params.responsePayload ? (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)) : null,
+          },
+        });
+        // Notify the original sender
+        if (relayToRespond.fromUserId !== userId) {
+          const statusLabel = params.status === 'completed' ? '✅ completed' : '❌ declined';
+          await prisma.commsMessage.create({
+            data: {
+              sender: 'divi',
+              content: `📡 Divi ${statusLabel} the relay: "${relayToRespond.subject}"`,
+              state: 'new',
+              priority: relayToRespond.priority || 'normal',
+              userId: relayToRespond.fromUserId,
+              metadata: JSON.stringify({ type: 'relay_response', relayId: params.relayId }),
+            },
+          });
+        }
+        return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status } };
       }
 
       default:

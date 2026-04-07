@@ -305,6 +305,11 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[update_contact:{"name":"Contact Name","company":"Acme Inc","role":"CTO","tags":"vip,partner","notes":"Met at conference","enrichedData":{"linkedin":"url"}}]] — Update a contact's details. Can also use contactId. Only include fields you want to change.
 - [[link_recording:{"recordingId":"...","cardId":"..."}]] — Link a meeting recording to a Kanban card.
 
+### Connections & Relays
+- [[relay_request:{"to":"nickname or email","intent":"get_info|assign_task|request_approval|share_update|schedule|introduce|custom","subject":"What you need","payload":"optional details","priority":"normal|urgent|low"}]] — Send a relay to a connected user's Divi agent. Match "to" against connection nicknames, names, or emails.
+- [[accept_connection:{"connectionId":"..."}]] — Accept a pending inbound connection request.
+- [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"optional response data"}]] — Respond to an inbound relay.
+
 ### Platform Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]] — Create a new webhook endpoint
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-...","label":"optional label"}]] — Save LLM API key
@@ -398,6 +403,80 @@ When the user asks about connecting external services, provide specific setup in
 - Be proactive: if you notice missing setup (no API keys, no webhooks), gently suggest completing the setup`;
 }
 
+async function layer17_connectionsRelay(userId: string): Promise<string> {
+  const connections = await prisma.connection.findMany({
+    where: {
+      OR: [{ requesterId: userId }, { accepterId: userId }],
+      status: 'active',
+    },
+    include: {
+      requester: { select: { id: true, name: true, email: true } },
+      accepter: { select: { id: true, name: true, email: true } },
+    },
+    take: 20,
+  });
+
+  const pendingRelays = await prisma.agentRelay.findMany({
+    where: {
+      OR: [
+        { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
+        { fromUserId: userId, status: { in: ['pending', 'delivered', 'agent_handling'] } },
+      ],
+    },
+    include: {
+      fromUser: { select: { id: true, name: true, email: true } },
+      toUser: { select: { id: true, name: true, email: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+
+  let text = `## Layer 17: Connections & Agent Relay
+You have access to a connections system that enables agent-to-agent communication between DiviDen users.
+
+### Active Connections (${connections.length})
+`;
+
+  if (connections.length === 0) {
+    text += 'No active connections. Suggest the user connect with team members or collaborators via the Connections tab.\n';
+  } else {
+    for (const c of connections) {
+      const peer = c.requesterId === userId ? c.accepter : c.requester;
+      const peerName = peer?.name || peer?.email || c.peerUserName || c.peerUserEmail || 'Unknown';
+      const fedLabel = c.isFederated ? ` [federated: ${c.peerInstanceUrl}]` : '';
+      let perms: any = {};
+      try { perms = JSON.parse(c.permissions); } catch {}
+      text += `- **${c.nickname || peerName}** (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
+    }
+  }
+
+  if (pendingRelays.length > 0) {
+    text += `\n### Active Relays (${pendingRelays.length})\n`;
+    for (const r of pendingRelays) {
+      const dir = r.toUserId === userId ? '📥 INBOUND' : '📤 OUTBOUND';
+      const from = r.fromUser?.name || r.fromUser?.email || 'Unknown';
+      const to = r.toUser?.name || r.toUser?.email || 'Remote';
+      text += `- ${dir} | "${r.subject}" | ${r.intent} | Status: ${r.status} | From: ${from} → To: ${to}\n`;
+    }
+  }
+
+  text += `
+### Agent Relay Actions
+When the user asks you to communicate with a connection, you can:
+- **Send a relay**: Use [[relay_request:...]] to send a structured request to a connected user's Divi
+- **Accept a connection**: Use [[accept_connection:...]] to accept a pending connection request
+- **Respond to a relay**: Use [[relay_respond:...]] to complete or decline an incoming relay
+
+### Behavioral Rules
+- When the user says "ask [name] for..." or "tell [name] to...", match the name to an active connection and create a relay
+- When an inbound relay arrives that you can auto-handle (trust level = full_auto + scope matches), handle it and respond
+- When an inbound relay arrives under "supervised" trust, queue it for user review
+- When responding to relays, include structured data in the response payload when possible
+- If the user references someone who isn't connected, suggest creating a connection first`;
+
+  return text;
+}
+
 // ─── Main Builder ────────────────────────────────────────────────────────────
 
 export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
@@ -418,6 +497,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     layer14_capabilities(),
     layer15_actionTagSyntax(),
     layer16_platformSetupAssistant(ctx.userId),
+    layer17_connectionsRelay(ctx.userId),
   ]);
 
   return layers.join('\n\n---\n\n');

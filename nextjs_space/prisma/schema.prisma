@@ -40,6 +40,10 @@ model User {
   emailMessages   EmailMessage[]
   integrationAccounts IntegrationAccount[]
   notificationRules   NotificationRule[]
+  connectionsRequested Connection[] @relation("ConnectionsRequested")
+  connectionsAccepted  Connection[] @relation("ConnectionsAccepted")
+  relaysSent           AgentRelay[] @relation("RelaysSent")
+  relaysReceived       AgentRelay[] @relation("RelaysReceived")
 
   @@map("users")
 }
@@ -539,4 +543,129 @@ model NotificationRule {
 
   @@index([userId])
   @@map("notification_rules")
+}
+
+// ─── Connections ──────────────────────────────────────────────────────────────
+// Links between two users, enabling agent-to-agent communication.
+// Connections can be local (same instance) or federated (cross-instance).
+
+model Connection {
+  id              String   @id @default(cuid())
+  requesterId     String   // User who initiated the connection
+  accepterId      String?  // User who accepted (null if federated pending)
+  status          String   @default("pending") // "pending" | "active" | "blocked" | "declined"
+
+  // Permission scopes — what the other party's agent can do
+  permissions     String   @default("{\"trustLevel\":\"supervised\",\"scopes\":[]}") // JSON: { trustLevel, scopes[] }
+
+  // Display
+  nickname        String?  // How the requester refers to the other party
+  peerNickname    String?  // How the accepter refers to the requester
+
+  // Federation fields (cross-instance connections)
+  isFederated     Boolean  @default(false)
+  peerInstanceUrl String?  // The remote instance's base URL
+  peerUserId      String?  // The user ID on the remote instance
+  peerUserName    String?  // Display name of the remote user
+  peerUserEmail   String?  // Email of the remote user
+  federationToken String?  // Shared secret for authenticating relay messages
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  requester       User     @relation("ConnectionsRequested", fields: [requesterId], references: [id], onDelete: Cascade)
+  accepter        User?    @relation("ConnectionsAccepted", fields: [accepterId], references: [id], onDelete: Cascade)
+  relays          AgentRelay[]
+
+  @@unique([requesterId, accepterId])
+  @@index([requesterId])
+  @@index([accepterId])
+  @@index([status])
+  @@map("connections")
+}
+
+// ─── Agent Relay ──────────────────────────────────────────────────────────────
+// Structured request/response protocol between connected agents.
+// This is the core communication primitive — Divi-to-Divi messaging.
+
+model AgentRelay {
+  id              String    @id @default(cuid())
+  connectionId    String
+  fromUserId      String    // Sender (local user ID)
+  toUserId        String?   // Receiver (local user ID, null if federated)
+  direction       String    @default("outbound") // "outbound" | "inbound"
+
+  // Message classification
+  type            String    // "request" | "response" | "notification" | "update"
+  intent          String    // "get_info" | "assign_task" | "request_approval" | "share_update" | "schedule" | "introduce" | "custom"
+  subject         String
+  payload         String?   // JSON — structured data for the relay
+  
+  // Lifecycle
+  status          String    @default("pending") // "pending" | "delivered" | "agent_handling" | "user_review" | "completed" | "declined" | "expired"
+  priority        String    @default("normal") // "urgent" | "normal" | "low"
+  dueDate         DateTime?
+  resolvedAt      DateTime?
+  responsePayload String?   // JSON — the response data
+
+  // Threading
+  parentRelayId   String?
+  parentRelay     AgentRelay?  @relation("RelayThread", fields: [parentRelayId], references: [id], onDelete: SetNull)
+  childRelays     AgentRelay[] @relation("RelayThread")
+
+  // Federation
+  peerRelayId     String?   // The relay ID on the remote instance
+  peerInstanceUrl String?   // Remote instance URL (for federated relays)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  connection      Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  fromUser        User       @relation("RelaysSent", fields: [fromUserId], references: [id], onDelete: Cascade)
+  toUser          User?      @relation("RelaysReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("agent_relays")
+}
+
+// ─── Instance Registry ────────────────────────────────────────────────────────
+// Tracks known DiviDen instances for federation.
+// Each instance has a shared API key for authenticating relay messages.
+
+model InstanceRegistry {
+  id              String   @id @default(cuid())
+  name            String   // Display name, e.g. "Acme Corp DiviDen"
+  baseUrl         String   @unique // The instance's public URL
+  apiKey          String   // Shared secret for authenticating inbound relays
+  isActive        Boolean  @default(true)
+  isTrusted       Boolean  @default(false) // Admin-approved trust
+  lastSeenAt      DateTime?
+  metadata        String?  // JSON — capabilities, version, etc.
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([baseUrl])
+  @@map("instance_registry")
+}
+
+// ─── Federation Settings ──────────────────────────────────────────────────────
+// Instance-level configuration for federation behavior.
+
+model FederationConfig {
+  id              String   @id @default(cuid())
+  instanceName    String   @default("DiviDen") // This instance's display name
+  instanceUrl     String?  // This instance's public URL
+  federationMode  String   @default("closed") // "open" | "closed" | "allowlist"
+  allowInbound    Boolean  @default(false)  // Accept incoming connection requests
+  allowOutbound   Boolean  @default(true)   // Allow users to connect to external instances
+  requireApproval Boolean  @default(true)   // Admin must approve new federated connections
+  instanceApiKey  String?  // This instance's API key for outbound authentication
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("federation_config")
 }

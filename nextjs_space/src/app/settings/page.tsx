@@ -9,6 +9,7 @@ import { WebhookManager } from '@/components/settings/WebhookManager';
 import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager';
 import { IntegrationManager } from '@/components/settings/IntegrationManager';
 import { NotificationManager } from '@/components/settings/NotificationManager';
+import { FederationManager } from '@/components/settings/FederationManager';
 import { cn } from '@/lib/utils';
 
 interface SettingsData {
@@ -38,7 +39,7 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'general' | 'integrations' | 'notifications';
+type SettingsTab = 'general' | 'integrations' | 'notifications' | 'federation';
 
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -163,6 +164,17 @@ export default function SettingsPage() {
           )}
         >
           🔔 Notifications
+        </button>
+        <button
+          onClick={() => setActiveTab('federation')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'federation'
+              ? 'bg-[var(--brand-primary)] text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          🌐 Federation
         </button>
       </div>
 
@@ -472,6 +484,23 @@ export default function SettingsPage() {
           </div>
           <div className="panel-body">
             <NotificationManager />
+          </div>
+        </div>
+      )}
+
+      {/* Federation Tab */}
+      {activeTab === 'federation' && (
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="font-semibold">🌐 Federation</h2>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Configure cross-instance connections. Allow users from other DiviDen deployments to connect with yours.
+              </p>
+            </div>
+          </div>
+          <div className="panel-body">
+            <FederationManager />
           </div>
         </div>
       )}

@@ -54,9 +54,16 @@ const STEPS: WalkthroughStep[] = [
     position: 'bottom',
   },
   {
+    id: 'connections',
+    title: 'Connections & Agent Relay',
+    description: 'Connect with other DiviDen users. Your Divi talks to their Divi — send relays, assign tasks across teams, and get responses back through a structured agent-to-agent protocol. Supports both local and federated (cross-instance) connections.',
+    targetSelector: '[data-walkthrough="center-panel"]',
+    position: 'bottom',
+  },
+  {
     id: 'settings',
     title: 'Settings & API Keys',
-    description: 'Head to Settings to add your OpenAI or Anthropic API key to enable Divi. You can also configure webhooks, manage memory, and more.',
+    description: 'Head to Settings to add your OpenAI or Anthropic API key to enable Divi. You can also configure webhooks, manage memory, federation settings, and more.',
     targetSelector: '[data-walkthrough="settings"]',
     position: 'bottom',
   },

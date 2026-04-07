@@ -170,7 +170,7 @@ export interface ApiResponse<T = unknown> {
 
 // ─── Dashboard Tab Types ────────────────────────────────────────────────────
 
-export type CenterTab = 'chat' | 'kanban' | 'crm' | 'recordings' | 'drive' | 'calendar' | 'inbox';
+export type CenterTab = 'chat' | 'kanban' | 'crm' | 'recordings' | 'drive' | 'calendar' | 'inbox' | 'connections';
 
 // ─── Calendar Types ──────────────────────────────────────────────────────────
 
@@ -249,6 +249,118 @@ export const COMMS_STATES: { id: CommsState; label: string; color: string }[] = 
   { id: 'resolved', label: 'Resolved', color: '#34d399' },
   { id: 'dismissed', label: 'Dismissed', color: '#6b7280' },
 ];
+
+// ─── Connection Types ────────────────────────────────────────────────────────
+
+export type ConnectionStatus = 'pending' | 'active' | 'blocked' | 'declined';
+export type TrustLevel = 'full_auto' | 'supervised' | 'restricted';
+export type ConnectionScope = 'request_files' | 'assign_tasks' | 'read_status' | 'schedule' | 'share_updates' | 'request_approval';
+
+export interface ConnectionPermissions {
+  trustLevel: TrustLevel;
+  scopes: ConnectionScope[];
+}
+
+export interface ConnectionData {
+  id: string;
+  requesterId: string;
+  accepterId: string | null;
+  status: ConnectionStatus;
+  permissions: string; // JSON ConnectionPermissions
+  nickname: string | null;
+  peerNickname: string | null;
+  isFederated: boolean;
+  peerInstanceUrl: string | null;
+  peerUserId: string | null;
+  peerUserName: string | null;
+  peerUserEmail: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requester?: { id: string; name: string | null; email: string };
+  accepter?: { id: string; name: string | null; email: string } | null;
+  _count?: { relays: number };
+}
+
+export const TRUST_LEVELS: { id: TrustLevel; label: string; description: string; icon: string }[] = [
+  { id: 'full_auto', label: 'Full Auto', description: "Their Divi can fulfill requests without your approval", icon: '⚡' },
+  { id: 'supervised', label: 'Supervised', description: "Divi queues requests for your review before acting", icon: '👁️' },
+  { id: 'restricted', label: 'Restricted', description: "You only receive notifications — no auto-actions", icon: '🔒' },
+];
+
+export const CONNECTION_SCOPES: { id: ConnectionScope; label: string; icon: string }[] = [
+  { id: 'request_files', label: 'Request Files', icon: '📁' },
+  { id: 'assign_tasks', label: 'Assign Tasks', icon: '✅' },
+  { id: 'read_status', label: 'Read Project Status', icon: '📊' },
+  { id: 'schedule', label: 'Schedule Meetings', icon: '📅' },
+  { id: 'share_updates', label: 'Share Updates', icon: '📢' },
+  { id: 'request_approval', label: 'Request Approval', icon: '🤝' },
+];
+
+// ─── Agent Relay Types ──────────────────────────────────────────────────────
+
+export type RelayType = 'request' | 'response' | 'notification' | 'update';
+export type RelayIntent = 'get_info' | 'assign_task' | 'request_approval' | 'share_update' | 'schedule' | 'introduce' | 'custom';
+export type RelayStatus = 'pending' | 'delivered' | 'agent_handling' | 'user_review' | 'completed' | 'declined' | 'expired';
+export type RelayDirection = 'outbound' | 'inbound';
+
+export interface AgentRelayData {
+  id: string;
+  connectionId: string;
+  fromUserId: string;
+  toUserId: string | null;
+  direction: RelayDirection;
+  type: RelayType;
+  intent: RelayIntent;
+  subject: string;
+  payload: string | null;
+  status: RelayStatus;
+  priority: CommsPriority;
+  dueDate: string | null;
+  resolvedAt: string | null;
+  responsePayload: string | null;
+  parentRelayId: string | null;
+  peerRelayId: string | null;
+  peerInstanceUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  connection?: ConnectionData;
+  fromUser?: { id: string; name: string | null; email: string };
+  toUser?: { id: string; name: string | null; email: string } | null;
+}
+
+export const RELAY_STATUSES: { id: RelayStatus; label: string; color: string }[] = [
+  { id: 'pending', label: 'Pending', color: '#94a3b8' },
+  { id: 'delivered', label: 'Delivered', color: '#60a5fa' },
+  { id: 'agent_handling', label: 'Agent Handling', color: '#fbbf24' },
+  { id: 'user_review', label: 'Needs Review', color: '#f59e0b' },
+  { id: 'completed', label: 'Completed', color: '#34d399' },
+  { id: 'declined', label: 'Declined', color: '#f87171' },
+  { id: 'expired', label: 'Expired', color: '#6b7280' },
+];
+
+export const RELAY_INTENTS: { id: RelayIntent; label: string; icon: string }[] = [
+  { id: 'get_info', label: 'Get Info', icon: '🔍' },
+  { id: 'assign_task', label: 'Assign Task', icon: '📋' },
+  { id: 'request_approval', label: 'Request Approval', icon: '✅' },
+  { id: 'share_update', label: 'Share Update', icon: '📢' },
+  { id: 'schedule', label: 'Schedule', icon: '📅' },
+  { id: 'introduce', label: 'Introduce', icon: '🤝' },
+  { id: 'custom', label: 'Custom', icon: '💬' },
+];
+
+// ─── Federation Types ───────────────────────────────────────────────────────
+
+export type FederationMode = 'open' | 'closed' | 'allowlist';
+
+export interface FederationConfigData {
+  id: string;
+  instanceName: string;
+  instanceUrl: string | null;
+  federationMode: FederationMode;
+  allowInbound: boolean;
+  allowOutbound: boolean;
+  requireApproval: boolean;
+}
 
 // ─── Auth Types ─────────────────────────────────────────────────────────────
 

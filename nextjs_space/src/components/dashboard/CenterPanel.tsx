@@ -9,6 +9,7 @@ import { RecordingsView } from './RecordingsView';
 import { DriveView } from './DriveView';
 import { CalendarView } from './CalendarView';
 import { InboxView } from './InboxView';
+import { ConnectionsView } from './ConnectionsView';
 
 interface CenterPanelProps {
   activeTab: CenterTab;
@@ -23,6 +24,7 @@ const tabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'inbox', label: 'Inbox', icon: '📧' },
   { id: 'recordings', label: 'Recordings', icon: '🎙️' },
   { id: 'drive', label: 'Drive', icon: '📁' },
+  { id: 'connections', label: 'Connections', icon: '🔗' },
 ];
 
 export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
@@ -57,6 +59,7 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
         {activeTab === 'inbox' && <InboxView />}
         {activeTab === 'recordings' && <RecordingsView />}
         {activeTab === 'drive' && <DriveView />}
+        {activeTab === 'connections' && <ConnectionsView />}
       </div>
     </div>
   );

@@ -1,0 +1,83 @@
+export const dynamic = 'force-dynamic';
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { prisma } from '@/lib/prisma';
+
+// PATCH /api/relays/[id] — update relay status, respond, etc.
+export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const userId = (session.user as any).id;
+    const { id } = params;
+
+    const relay = await prisma.agentRelay.findUnique({
+      where: { id },
+      include: { connection: true },
+    });
+    if (!relay) {
+      return NextResponse.json({ error: 'Relay not found' }, { status: 404 });
+    }
+
+    // Must be involved in this relay
+    if (relay.fromUserId !== userId && relay.toUserId !== userId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const data: any = {};
+
+    if (body.status) {
+      data.status = body.status;
+      if (body.status === 'completed' || body.status === 'declined') {
+        data.resolvedAt = new Date();
+      }
+    }
+
+    if (body.responsePayload !== undefined) {
+      data.responsePayload = typeof body.responsePayload === 'string'
+        ? body.responsePayload
+        : JSON.stringify(body.responsePayload);
+    }
+
+    const updated = await prisma.agentRelay.update({
+      where: { id },
+      data,
+      include: {
+        connection: {
+          include: {
+            requester: { select: { id: true, name: true, email: true } },
+            accepter: { select: { id: true, name: true, email: true } },
+          },
+        },
+        fromUser: { select: { id: true, name: true, email: true } },
+        toUser: { select: { id: true, name: true, email: true } },
+      },
+    });
+
+    // If completing/declining, notify the sender
+    if ((body.status === 'completed' || body.status === 'declined') && relay.fromUserId !== userId) {
+      const responderName = (session.user as any).name || (session.user as any).email || 'Someone';
+      const statusLabel = body.status === 'completed' ? '✅ completed' : '❌ declined';
+      await prisma.commsMessage.create({
+        data: {
+          sender: 'system',
+          content: `📡 ${responderName} ${statusLabel} your relay: "${relay.subject}"`,
+          state: 'new',
+          priority: relay.priority || 'normal',
+          userId: relay.fromUserId,
+          metadata: JSON.stringify({ type: 'relay_response', relayId: id, status: body.status }),
+        },
+      });
+    }
+
+    return NextResponse.json(updated);
+  } catch (error: any) {
+    console.error('PATCH /api/relays/[id] error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to update relay' }, { status: 500 });
+  }
+}
