@@ -9,6 +9,8 @@ interface Document {
   content: string | null;
   type: string;
   tags: string | null;
+  url: string | null;
+  fileSource: string;
   cardId: string | null;
   createdAt: string;
   updatedAt: string;
@@ -19,6 +21,14 @@ const TYPE_ICONS: Record<string, string> = {
   report: '📊',
   template: '📄',
   meeting_notes: '🗓️',
+};
+
+const SOURCE_ICONS: Record<string, string> = {
+  local: '💾',
+  google_drive: '🔷',
+  dropbox: '📦',
+  onedrive: '☁️',
+  url: '🔗',
 };
 
 export function DriveView() {
@@ -32,6 +42,8 @@ export function DriveView() {
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editUrl, setEditUrl] = useState('');
+  const [editFileSource, setEditFileSource] = useState('local');
 
   const fetchDocuments = useCallback(async () => {
     try {
@@ -54,7 +66,7 @@ export function DriveView() {
       const res = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: editTitle, content: editContent, type: editType }),
+        body: JSON.stringify({ title: editTitle, content: editContent, type: editType, url: editUrl || null, fileSource: editFileSource }),
       });
       const data = await res.json();
       if (data.success) {
@@ -65,6 +77,8 @@ export function DriveView() {
         setEditTitle('');
         setEditContent('');
         setEditType('note');
+        setEditUrl('');
+        setEditFileSource('local');
       }
     } catch (e) {
       console.error('Failed to create document:', e);
@@ -80,7 +94,7 @@ export function DriveView() {
       const res = await fetch(`/api/documents/${selected.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: editTitle, content: editContent, type: editType }),
+        body: JSON.stringify({ title: editTitle, content: editContent, type: editType, url: editUrl || null, fileSource: editFileSource }),
       });
       const data = await res.json();
       if (data.success) {
@@ -133,7 +147,7 @@ export function DriveView() {
           />
         </div>
         <button
-          onClick={() => { setCreating(true); setEditing(true); setSelected(null); setEditTitle(''); setEditContent(''); setEditType('note'); }}
+          onClick={() => { setCreating(true); setEditing(true); setSelected(null); setEditTitle(''); setEditContent(''); setEditType('note'); setEditUrl(''); setEditFileSource('local'); }}
           className="btn-primary text-xs px-3 py-1 flex-shrink-0"
         >
           + New
@@ -164,11 +178,14 @@ export function DriveView() {
                   )}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="text-base flex-shrink-0">{TYPE_ICONS[doc.type] || '📝'}</span>
+                    <span className="text-base flex-shrink-0">{doc.fileSource !== 'local' ? (SOURCE_ICONS[doc.fileSource] || '🔗') : (TYPE_ICONS[doc.type] || '📝')}</span>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-[var(--text-primary)] truncate block">{doc.title}</span>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--text-muted)] capitalize">{doc.type.replace('_', ' ')}</span>
+                        {doc.fileSource !== 'local' && (
+                          <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400">{doc.fileSource.replace('_', ' ')}</span>
+                        )}
                         <span className="text-xs text-[var(--text-muted)]">{new Date(doc.updatedAt).toLocaleDateString()}</span>
                       </div>
                       {doc.content && <p className="text-xs text-[var(--text-secondary)] mt-1 line-clamp-1">{doc.content.slice(0, 100)}</p>}
@@ -203,10 +220,32 @@ export function DriveView() {
                   <option value="template">📄 Template</option>
                   <option value="meeting_notes">🗓️ Meeting Notes</option>
                 </select>
+                <div className="flex items-center gap-2 mb-2">
+                  <select
+                    value={editFileSource}
+                    onChange={(e) => setEditFileSource(e.target.value)}
+                    className="input-field text-xs py-1 w-40"
+                  >
+                    <option value="local">💾 Local</option>
+                    <option value="google_drive">🔷 Google Drive</option>
+                    <option value="dropbox">📦 Dropbox</option>
+                    <option value="onedrive">☁️ OneDrive</option>
+                    <option value="url">🔗 External URL</option>
+                  </select>
+                  {editFileSource !== 'local' && (
+                    <input
+                      type="url"
+                      value={editUrl}
+                      onChange={(e) => setEditUrl(e.target.value)}
+                      placeholder="https://..."
+                      className="input-field text-xs py-1 flex-1"
+                    />
+                  )}
+                </div>
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  placeholder="Write your content here... (Markdown supported)"
+                  placeholder={editFileSource !== 'local' ? 'Optional notes about this file...' : 'Write your content here... (Markdown supported)'}
                   className="input-field text-sm flex-1 min-h-[200px] resize-none"
                 />
                 <div className="flex gap-2 mt-3">
@@ -231,7 +270,7 @@ export function DriveView() {
                   <h3 className="text-sm font-semibold text-[var(--text-primary)]">{selected.title}</h3>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => { setEditing(true); setEditTitle(selected.title); setEditContent(selected.content || ''); setEditType(selected.type); }}
+                      onClick={() => { setEditing(true); setEditTitle(selected.title); setEditContent(selected.content || ''); setEditType(selected.type); setEditUrl(selected.url || ''); setEditFileSource(selected.fileSource || 'local'); }}
                       className="text-xs text-[var(--text-muted)] hover:text-[var(--brand-primary)] transition-colors"
                     >
                       ✏️ Edit
@@ -245,10 +284,26 @@ export function DriveView() {
                     <button onClick={() => setSelected(null)} className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xs">✕</button>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 mb-4">
+                <div className="flex items-center gap-3 mb-4 flex-wrap">
                   <span className="text-xs text-[var(--text-muted)] capitalize">{TYPE_ICONS[selected.type]} {selected.type.replace('_', ' ')}</span>
+                  {selected.fileSource !== 'local' && (
+                    <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400">
+                      {SOURCE_ICONS[selected.fileSource] || '🔗'} {selected.fileSource.replace('_', ' ')}
+                    </span>
+                  )}
                   <span className="text-xs text-[var(--text-muted)]">Updated {new Date(selected.updatedAt).toLocaleString()}</span>
                 </div>
+                {selected.url && (
+                  <a
+                    href={selected.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs text-brand-400 hover:text-brand-300 mb-4 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-3 py-1.5 transition-colors"
+                  >
+                    🔗 Open in {selected.fileSource === 'google_drive' ? 'Google Drive' : selected.fileSource === 'dropbox' ? 'Dropbox' : selected.fileSource === 'onedrive' ? 'OneDrive' : 'browser'}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                  </a>
+                )}
                 {selected.content ? (
                   <div className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap leading-relaxed">
                     {selected.content}

@@ -66,7 +66,33 @@ export async function processCalendarEvent(
     const endTime = payload.end?.dateTime || payload.end || payload.endTime || '';
     const attendees = payload.attendees || [];
 
-    // Create a queue item
+    // Create a CalendarEvent record
+    const parsedStart = startTime ? new Date(startTime) : new Date();
+    const parsedEnd = endTime ? new Date(endTime) : null;
+    const externalId = payload.id || payload.eventId || payload.iCalUID || null;
+
+    const calendarEvent = await prisma.calendarEvent.create({
+      data: {
+        title: summary,
+        description: description || null,
+        startTime: parsedStart,
+        endTime: parsedEnd,
+        location: payload.location || null,
+        attendees: attendees.length > 0 ? JSON.stringify(attendees) : null,
+        source: 'webhook',
+        externalId,
+        metadata: JSON.stringify(payload),
+        userId,
+      },
+    });
+
+    results.push({
+      action: 'create_calendar_event',
+      success: true,
+      data: { id: calendarEvent.id, title: calendarEvent.title },
+    });
+
+    // Also create a queue item
     const queueItem = await prisma.queueItem.create({
       data: {
         type: 'task',
@@ -178,7 +204,39 @@ export async function processEmailEvent(
       }
     }
 
-    // Create a queue item for the email
+    // Create an EmailMessage record
+    const toEmail = payload.to?.email || payload.to?.address || payload.to || payload.recipient || null;
+    const snippet = (body || '').substring(0, 200);
+    const labels = payload.labels || payload.labelIds || null;
+    const receivedAt = payload.date || payload.receivedAt || payload.internalDate
+      ? new Date(payload.date || payload.receivedAt || payload.internalDate)
+      : new Date();
+
+    const emailRecord = await prisma.emailMessage.create({
+      data: {
+        subject,
+        fromName: senderName,
+        fromEmail: senderEmail,
+        toEmail: typeof toEmail === 'string' ? toEmail : null,
+        body: body.substring(0, 10000),
+        snippet,
+        labels: labels ? (typeof labels === 'string' ? labels : JSON.stringify(labels)) : null,
+        isRead: false,
+        isStarred: false,
+        source: 'webhook',
+        metadata: JSON.stringify(payload),
+        receivedAt,
+        userId,
+      },
+    });
+
+    results.push({
+      action: 'create_email_message',
+      success: true,
+      data: { id: emailRecord.id, subject: emailRecord.subject },
+    });
+
+    // Also create a queue item for the email
     const queueItem = await prisma.queueItem.create({
       data: {
         type: 'notification',

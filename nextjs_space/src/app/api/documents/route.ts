@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const userId = (session.user as any).id;
 
   const body = await req.json();
-  const { title, content, type, tags, cardId } = body;
+  const { title, content, type, tags, cardId, url, fileSource } = body;
   if (!title) return NextResponse.json({ success: false, error: 'Title is required' }, { status: 400 });
 
   const document = await prisma.document.create({
@@ -33,6 +33,8 @@ export async function POST(req: NextRequest) {
       content: content || null,
       type: type || 'note',
       tags: tags || null,
+      url: url || null,
+      fileSource: fileSource || 'local',
       cardId: cardId || null,
       userId,
     },

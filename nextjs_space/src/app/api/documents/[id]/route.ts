@@ -10,7 +10,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
-  const { title, content, type, tags, cardId } = body;
+  const { title, content, type, tags, cardId, url, fileSource } = body;
 
   const document = await prisma.document.update({
     where: { id: params.id },
@@ -20,6 +20,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       ...(type !== undefined && { type }),
       ...(tags !== undefined && { tags }),
       ...(cardId !== undefined && { cardId }),
+      ...(url !== undefined && { url }),
+      ...(fileSource !== undefined && { fileSource }),
     },
   });
 

@@ -196,7 +196,58 @@ async function layer11_activeFocus(userId: string): Promise<string> {
   return `## Layer 11: Active Focus (NOW Panel)\nCurrently working on:\n${lines}`;
 }
 
-function layer12_capabilities(): string {
+async function layer12_calendarContext(userId: string): Promise<string> {
+  const now = new Date();
+  const nextWeek = new Date(now);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+
+  const events = await prisma.calendarEvent.findMany({
+    where: {
+      userId,
+      startTime: { gte: now, lte: nextWeek },
+    },
+    orderBy: { startTime: 'asc' },
+    take: 15,
+  });
+
+  if (events.length === 0) {
+    return `## Layer 12: Calendar\nNo upcoming events in the next 7 days.`;
+  }
+
+  const lines = events.map((e) => {
+    const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+    const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const loc = e.location ? ` @ ${e.location}` : '';
+    return `- ${day} ${time}: "${e.title}"${loc}`;
+  }).join('\n');
+
+  return `## Layer 12: Calendar (next 7 days — ${events.length} events)\n${lines}`;
+}
+
+async function layer13_emailContext(userId: string): Promise<string> {
+  const unreadCount = await prisma.emailMessage.count({
+    where: { userId, isRead: false },
+  });
+
+  const recent = await prisma.emailMessage.findMany({
+    where: { userId, isRead: false },
+    orderBy: { receivedAt: 'desc' },
+    take: 5,
+  });
+
+  if (unreadCount === 0) {
+    return `## Layer 13: Inbox\nNo unread emails.`;
+  }
+
+  const lines = recent.map((e) => {
+    const starred = e.isStarred ? '⭐ ' : '';
+    return `- ${starred}From ${e.fromName || e.fromEmail}: "${e.subject}"`;
+  }).join('\n');
+
+  return `## Layer 13: Inbox (${unreadCount} unread)\n${lines}`;
+}
+
+function layer14_capabilities(): string {
   return `## Layer 12: System Capabilities
 You can perform the following actions by embedding action tags in your responses:
 - Create, update, and archive Kanban cards
@@ -211,7 +262,7 @@ You can perform the following actions by embedding action tags in your responses
 Always embed action tags alongside your natural language response. The user will only see the natural language; tags are stripped before display.`;
 }
 
-function layer13_actionTagSyntax(): string {
+function layer15_actionTagSyntax(): string {
   return `## Layer 13: Action Tag Syntax
 Embed these tags in your response to execute actions. Use double brackets: [[tag_name:params]]
 
@@ -269,8 +320,10 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     layer9_currentTime(),
     layer10_learnings(ctx.userId),
     layer11_activeFocus(ctx.userId),
-    layer12_capabilities(),
-    layer13_actionTagSyntax(),
+    layer12_calendarContext(ctx.userId),
+    layer13_emailContext(ctx.userId),
+    layer14_capabilities(),
+    layer15_actionTagSyntax(),
   ]);
 
   return layers.join('\n\n---\n\n');

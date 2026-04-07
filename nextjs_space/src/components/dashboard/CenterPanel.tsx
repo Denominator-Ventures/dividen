@@ -7,6 +7,8 @@ import { KanbanView } from './KanbanView';
 import { CrmView } from './CrmView';
 import { RecordingsView } from './RecordingsView';
 import { DriveView } from './DriveView';
+import { CalendarView } from './CalendarView';
+import { InboxView } from './InboxView';
 
 interface CenterPanelProps {
   activeTab: CenterTab;
@@ -17,6 +19,8 @@ const tabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
   { id: 'kanban', label: 'Board', icon: '📋' },
   { id: 'crm', label: 'CRM', icon: '👥' },
+  { id: 'calendar', label: 'Calendar', icon: '📅' },
+  { id: 'inbox', label: 'Inbox', icon: '📧' },
   { id: 'recordings', label: 'Recordings', icon: '🎙️' },
   { id: 'drive', label: 'Drive', icon: '📁' },
 ];
@@ -32,7 +36,7 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={cn(
-                'px-3 md:px-4 py-1.5 text-xs md:text-sm font-medium rounded-md transition-all whitespace-nowrap flex-shrink-0',
+                'px-2.5 md:px-3 py-1.5 text-[11px] md:text-xs font-medium rounded-md transition-all whitespace-nowrap flex-shrink-0',
                 activeTab === tab.id
                   ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
                   : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)]'
@@ -49,6 +53,8 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
         {activeTab === 'chat' && <ChatView />}
         {activeTab === 'kanban' && <KanbanView />}
         {activeTab === 'crm' && <CrmView />}
+        {activeTab === 'calendar' && <CalendarView />}
+        {activeTab === 'inbox' && <InboxView />}
         {activeTab === 'recordings' && <RecordingsView />}
         {activeTab === 'drive' && <DriveView />}
       </div>

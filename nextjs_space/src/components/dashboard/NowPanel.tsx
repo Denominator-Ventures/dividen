@@ -28,6 +28,14 @@ interface PortfolioItem {
   status: string;
 }
 
+interface UpcomingEvent {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime: string | null;
+  location: string | null;
+}
+
 export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [inProgress, setInProgress] = useState<QueueItemData[]>([]);
   const [doneToday, setDoneToday] = useState<QueueItemData[]>([]);
@@ -37,6 +45,7 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [creating, setCreating] = useState(false);
   const [pulse, setPulse] = useState<PulseStats>({ pipeline: 0, diviTasks: 0, portfolio: 0, blocked: 0 });
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -74,10 +83,26 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
     }
   }, []);
 
+  const fetchCalendar = useCallback(async () => {
+    try {
+      const now = new Date();
+      const end = new Date(now);
+      end.setDate(end.getDate() + 2); // Today + tomorrow
+      const res = await fetch(`/api/calendar?startDate=${now.toISOString()}&endDate=${end.toISOString()}`);
+      const data = await res.json();
+      if (data?.success) {
+        setUpcomingEvents((data?.data ?? []).slice(0, 4));
+      }
+    } catch (e: unknown) {
+      console.error('Failed to fetch calendar:', e);
+    }
+  }, []);
+
   useEffect(() => {
     fetchQueue();
     fetchKanban();
-  }, [fetchQueue, fetchKanban]);
+    fetchCalendar();
+  }, [fetchQueue, fetchKanban, fetchCalendar]);
 
   const handleNewTask = async () => {
     if (!newTaskTitle?.trim()) return;
@@ -189,6 +214,27 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
             </div>
           )}
         </div>
+
+        {/* Coming Up — Calendar Events */}
+        {upcomingEvents.length > 0 && (
+          <div className="mb-3">
+            <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Coming Up</h4>
+            <div className="space-y-1">
+              {upcomingEvents.map(ev => {
+                const start = new Date(ev.startTime);
+                const isToday = start.toDateString() === new Date().toDateString();
+                const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                const dayLabel = isToday ? 'Today' : start.toLocaleDateString('en-US', { weekday: 'short' });
+                return (
+                  <div key={ev.id} className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
+                    <span className="text-[10px] text-brand-400 font-mono w-16 flex-shrink-0">{dayLabel} {timeStr}</span>
+                    <span className="text-xs text-[var(--text-secondary)] truncate">{ev.title}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Portfolio Section */}
         {portfolio.length > 0 && (
