@@ -230,6 +230,7 @@ export function CrmView() {
           onClose={() => setSelectedContact(null)}
           onUpdate={handleUpdateContact}
           onDelete={handleDeleteContact}
+          allContacts={contacts.map(c => ({ id: c.id, name: c.name }))}
         />
       )}
     </div>
