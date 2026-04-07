@@ -22,6 +22,22 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'DiviDen — The Last Interface You\'ll Ever Need',
     description: 'Your personal AI agent that manages your pipeline, coordinates with other agents, and acts on your behalf. Protocol-first. Open source. Federated by design.',
+    siteName: 'DiviDen',
+    type: 'website',
+    images: [
+      {
+        url: '/og-image.png',
+        width: 1436,
+        height: 682,
+        alt: 'DiviDen — The last interface you\'ll ever need',
+        type: 'image/png',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DiviDen — The Last Interface You\'ll Ever Need',
+    description: 'Your personal AI agent that manages your pipeline, coordinates with other agents, and acts on your behalf.',
     images: ['/og-image.png'],
   },
 };
