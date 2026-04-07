@@ -19,7 +19,8 @@ export async function POST(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const contact = await prisma.contact.findUnique({ where: { id: params.id } });
+  const userId = (session.user as any).id;
+  const contact = await prisma.contact.findFirst({ where: { id: params.id, userId } });
   if (!contact) {
     return NextResponse.json({ success: false, error: 'Contact not found' }, { status: 404 });
   }

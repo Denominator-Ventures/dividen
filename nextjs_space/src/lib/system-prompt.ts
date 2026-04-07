@@ -28,9 +28,9 @@ Current operating mode: **${modeName}**
 ${modeDesc}`;
 }
 
-async function layer2_rules(): Promise<string> {
+async function layer2_rules(userId: string): Promise<string> {
   const rules = await prisma.agentRule.findMany({
-    where: { enabled: true },
+    where: { enabled: true, OR: [{ userId }, { userId: null }] },
     orderBy: { priority: 'desc' },
   });
 
@@ -87,9 +87,9 @@ async function layer4_kanbanState(userId: string): Promise<string> {
   return text;
 }
 
-async function layer5_queueState(): Promise<string> {
+async function layer5_queueState(userId: string): Promise<string> {
   const items = await prisma.queueItem.findMany({
-    where: { status: 'ready' },
+    where: { status: 'ready', userId },
     orderBy: { createdAt: 'desc' },
     take: 20,
   });
@@ -351,7 +351,7 @@ IMPORTANT:
 async function layer16_platformSetupAssistant(userId: string): Promise<string> {
   // Gather current platform state so Divi knows what's already configured
   const [apiKeys, webhooks, contactCount, cardCount, docCount, connectionCount, profile] = await Promise.all([
-    prisma.agentApiKey.findMany({ where: { isActive: true }, select: { provider: true } }),
+    prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
     prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true, url: true, secret: true } }),
     prisma.contact.count({ where: { userId } }),
     prisma.kanbanCard.count({ where: { userId } }),
@@ -660,10 +660,10 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
 export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const layers = await Promise.all([
     layer1_identity(ctx),
-    layer2_rules(),
+    layer2_rules(ctx.userId),
     layer3_conversationSummary(ctx.userId),
     layer4_kanbanState(ctx.userId),
-    layer5_queueState(),
+    layer5_queueState(ctx.userId),
     layer6_crmSummary(ctx.userId),
     layer7_memory(ctx.userId),
     layer8_recentMessages(ctx.userId),

@@ -19,6 +19,13 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  // Verify card ownership via parent card
+  const card = await prisma.kanbanCard.findFirst({ where: { id: params.id, userId } });
+  if (!card) {
+    return NextResponse.json({ error: 'Card not found' }, { status: 404 });
+  }
+
   const body = await request.json();
   const updateData: any = {};
   if (body.text !== undefined) updateData.text = body.text;

@@ -19,6 +19,13 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  // Verify card ownership
+  const card = await prisma.kanbanCard.findFirst({ where: { id: params.id, userId } });
+  if (!card) {
+    return NextResponse.json({ error: 'Card not found' }, { status: 404 });
+  }
+
   const items = await prisma.checklistItem.findMany({
     where: { cardId: params.id },
     orderBy: { order: 'asc' },
@@ -34,6 +41,12 @@ export async function POST(
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const userId = (session.user as any).id;
+  const card = await prisma.kanbanCard.findFirst({ where: { id: params.id, userId } });
+  if (!card) {
+    return NextResponse.json({ error: 'Card not found' }, { status: 404 });
   }
 
   const body = await request.json();

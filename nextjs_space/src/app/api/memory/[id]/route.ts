@@ -18,6 +18,12 @@ export async function PATCH(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  const existing = await prisma.memoryItem.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'Memory item not found' }, { status: 404 });
+  }
+
   const body = await req.json();
   const updateData: any = {};
 
@@ -43,6 +49,11 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  const existing = await prisma.memoryItem.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'Memory item not found' }, { status: 404 });
+  }
   await prisma.memoryItem.delete({ where: { id: params.id } });
 
   return NextResponse.json({ success: true });

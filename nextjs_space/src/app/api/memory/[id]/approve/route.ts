@@ -21,7 +21,8 @@ export async function POST(
   const body = await req.json();
   const approved = body.approved === true;
 
-  const item = await prisma.memoryItem.findUnique({ where: { id: params.id } });
+  const userId = (session.user as any).id;
+  const item = await prisma.memoryItem.findFirst({ where: { id: params.id, userId } });
   if (!item) {
     return NextResponse.json({ success: false, error: 'Memory item not found' }, { status: 404 });
   }

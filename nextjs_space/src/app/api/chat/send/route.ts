@@ -101,6 +101,7 @@ export async function POST(request: Request) {
       streamLLMResponse(
         llmMessages,
         {
+
           onToken(token: string) {
             fullResponse += token;
             // Send each token as an SSE event
@@ -168,7 +169,8 @@ export async function POST(request: Request) {
             controller.close();
           },
         },
-        provider as any
+        provider as any,
+        userId
       );
     },
   });

@@ -20,8 +20,10 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const card = await prisma.kanbanCard.findUnique({
-    where: { id: params.id },
+  const userId = (session.user as any).id;
+
+  const card = await prisma.kanbanCard.findFirst({
+    where: { id: params.id, userId },
     include: {
       checklist: { orderBy: { order: 'asc' } },
       contacts: {
@@ -50,8 +52,15 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
   const body = await request.json();
   const { title, description, status, priority, assignee, dueDate } = body;
+
+  // Verify ownership
+  const existing = await prisma.kanbanCard.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ error: 'Card not found' }, { status: 404 });
+  }
 
   const updateData: any = {};
   if (title !== undefined) updateData.title = title;
@@ -88,6 +97,12 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  // Verify ownership before delete
+  const existing = await prisma.kanbanCard.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ error: 'Card not found' }, { status: 404 });
+  }
   await prisma.kanbanCard.delete({ where: { id: params.id } });
 
   return NextResponse.json({ success: true });

@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Use LLM to parse the pasted LinkedIn profile into structured data
-  const apiConfig = await getAvailableProvider();
+  const apiConfig = await getAvailableProvider(undefined, userId);
   if (!apiConfig) {
     return NextResponse.json({ success: false, error: 'No API key configured. Add an API key in Settings to use LinkedIn import.' }, { status: 400 });
   }

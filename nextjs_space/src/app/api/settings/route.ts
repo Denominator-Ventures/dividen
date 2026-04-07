@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
@@ -31,6 +33,7 @@ export async function GET() {
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({
+    where: { userId },
     select: {
       id: true,
       provider: true,
@@ -106,11 +109,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const userId = (session.user as any).id;
+
   const apiKey = await prisma.agentApiKey.create({
     data: {
       provider: result.data.provider,
       apiKey: result.data.apiKey,
       label: result.data.label,
+      user: { connect: { id: userId } },
     },
   });
 

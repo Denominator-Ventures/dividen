@@ -527,9 +527,9 @@ async function executeTag(
         if (!keyProvider) {
           return { tag: name, success: false, error: `Invalid provider. Use: ${validProviders.join(', ')}` };
         }
-        // Deactivate existing keys for this provider, then create new
+        // Deactivate existing keys for this provider for this user, then create new
         await prisma.agentApiKey.updateMany({
-          where: { provider: keyProvider },
+          where: { provider: keyProvider, userId },
           data: { isActive: false },
         });
         const apiKeyRecord = await prisma.agentApiKey.create({
@@ -538,6 +538,7 @@ async function executeTag(
             apiKey: params.apiKey,
             label: params.label || `${keyProvider} key`,
             isActive: true,
+            user: { connect: { id: userId } },
           },
         });
         // Log activity

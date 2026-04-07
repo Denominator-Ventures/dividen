@@ -26,17 +26,23 @@ export interface StreamCallbacks {
 /**
  * Fetch the user's active API key from the database.
  * Tries preferred provider first, then falls back to the other.
+ * userId is required to ensure data isolation between users.
  */
 export async function getAvailableProvider(
-  preferredProvider?: LLMProvider
+  preferredProvider?: LLMProvider,
+  userId?: string
 ): Promise<{ provider: LLMProvider; apiKey: string } | null> {
   const order: LLMProvider[] = preferredProvider
     ? [preferredProvider, preferredProvider === 'openai' ? 'anthropic' : 'openai']
     : ['openai', 'anthropic'];
 
   for (const p of order) {
+    const whereClause: any = { provider: p, isActive: true };
+    if (userId) {
+      whereClause.userId = userId;
+    }
     const key = await prisma.agentApiKey.findFirst({
-      where: { provider: p, isActive: true },
+      where: whereClause,
       select: { apiKey: true },
     });
     if (key?.apiKey) {
@@ -206,9 +212,10 @@ async function readSSEStream(
 export async function streamLLMResponse(
   messages: LLMMessage[],
   callbacks: StreamCallbacks,
-  preferredProvider?: LLMProvider
+  preferredProvider?: LLMProvider,
+  userId?: string
 ): Promise<void> {
-  const available = await getAvailableProvider(preferredProvider);
+  const available = await getAvailableProvider(preferredProvider, userId);
 
   if (!available) {
     callbacks.onError(

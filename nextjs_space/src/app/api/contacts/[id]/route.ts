@@ -18,8 +18,10 @@ export async function GET(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const contact = await prisma.contact.findUnique({
-    where: { id: params.id },
+  const userId = (session.user as any).id;
+
+  const contact = await prisma.contact.findFirst({
+    where: { id: params.id, userId },
     include: {
       cards: {
         include: {
@@ -43,6 +45,12 @@ export async function PATCH(
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const userId = (session.user as any).id;
+  const existing = await prisma.contact.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'Contact not found' }, { status: 404 });
   }
 
   const body = await req.json();
@@ -70,6 +78,11 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  const existing = await prisma.contact.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ success: false, error: 'Contact not found' }, { status: 404 });
+  }
   await prisma.contact.delete({ where: { id: params.id } });
 
   return NextResponse.json({ success: true });

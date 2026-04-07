@@ -9,6 +9,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
+  const userId = (session.user as any).id;
+  const existing = await prisma.recording.findFirst({ where: { id: params.id, userId } });
+  if (!existing) return NextResponse.json({ success: false, error: 'Recording not found' }, { status: 404 });
+
   const body = await req.json();
   const { title, transcript, summary, status, cardId } = body;
 
@@ -29,6 +33,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+
+  const userId = (session.user as any).id;
+  const existing = await prisma.recording.findFirst({ where: { id: params.id, userId } });
+  if (!existing) return NextResponse.json({ success: false, error: 'Recording not found' }, { status: 404 });
 
   await prisma.recording.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });

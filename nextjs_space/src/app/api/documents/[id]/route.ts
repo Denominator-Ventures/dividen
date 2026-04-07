@@ -9,6 +9,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
+  const userId = (session.user as any).id;
+  const existing = await prisma.document.findFirst({ where: { id: params.id, userId } });
+  if (!existing) return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 });
+
   const body = await req.json();
   const { title, content, type, tags, cardId, url, fileSource } = body;
 
@@ -31,6 +35,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+
+  const userId = (session.user as any).id;
+  const existing = await prisma.document.findFirst({ where: { id: params.id, userId } });
+  if (!existing) return NextResponse.json({ success: false, error: 'Document not found' }, { status: 404 });
 
   await prisma.document.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });

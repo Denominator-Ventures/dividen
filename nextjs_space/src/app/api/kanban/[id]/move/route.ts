@@ -26,8 +26,8 @@ export async function POST(
     return NextResponse.json({ error: 'Status (target column) is required' }, { status: 400 });
   }
 
-  // Get the card
-  const card = await prisma.kanbanCard.findUnique({ where: { id: params.id } });
+  // Get the card (verify ownership)
+  const card = await prisma.kanbanCard.findFirst({ where: { id: params.id, userId } });
   if (!card) {
     return NextResponse.json({ error: 'Card not found' }, { status: 404 });
   }

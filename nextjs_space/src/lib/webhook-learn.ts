@@ -68,9 +68,10 @@ function extractAllPaths(obj: any, prefix = ''): string[] {
 
 async function callLLMNonStreaming(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  userId?: string
 ): Promise<string | null> {
-  const provider = await getAvailableProvider();
+  const provider = await getAvailableProvider(undefined, userId);
   if (!provider) {
     console.log('[webhook-learn] No LLM API key available, skipping auto-learn');
     return null;

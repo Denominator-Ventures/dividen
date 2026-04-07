@@ -19,6 +19,14 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  
+  // Verify ownership
+  const existing = await prisma.queueItem.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+  }
+
   const body = await request.json();
   const updateData: any = {};
   if (body.title !== undefined) updateData.title = body.title;
@@ -44,6 +52,11 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = (session.user as any).id;
+  const existing = await prisma.queueItem.findFirst({ where: { id: params.id, userId } });
+  if (!existing) {
+    return NextResponse.json({ error: 'Item not found' }, { status: 404 });
+  }
   await prisma.queueItem.delete({ where: { id: params.id } });
 
   return NextResponse.json({ success: true });
