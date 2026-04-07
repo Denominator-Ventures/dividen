@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const [mode, setMode] = useState<'cockpit' | 'chief_of_staff'>('cockpit');
   const [modeLoading, setModeLoading] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -93,12 +94,24 @@ export default function DashboardPage() {
 
       {/* Main Dashboard */}
       <div className="flex-1 flex gap-3 p-3 min-h-0">
-        {/* NOW Panel - Left */}
-        <div className="w-72 flex-shrink-0">
-          <NowPanel
-            onNewTask={() => {}}
-            onQuickChat={() => setActiveTab('chat')}
-          />
+        {/* NOW Panel - Left: Collapsible sidebar */}
+        <div
+          className={`flex-shrink-0 transition-all duration-300 ease-in-out ${
+            sidebarOpen ? 'w-72' : 'w-14'
+          }`}
+        >
+          {sidebarOpen ? (
+            <NowPanel
+              onNewTask={() => {}}
+              onQuickChat={() => setActiveTab('chat')}
+              onCollapse={() => setSidebarOpen(false)}
+            />
+          ) : (
+            <CollapsedSidebar
+              onExpand={() => setSidebarOpen(true)}
+              onTabChange={setActiveTab}
+            />
+          )}
         </div>
 
         {/* Center Panel - Main */}
@@ -111,6 +124,93 @@ export default function DashboardPage() {
           <QueuePanel />
         </div>
       </div>
+    </div>
+  );
+}
+
+/* ── Collapsed sidebar: thin icon strip ─────────────────────────────────── */
+
+function CollapsedSidebar({
+  onExpand,
+  onTabChange,
+}: {
+  onExpand: () => void;
+  onTabChange: (tab: CenterTab) => void;
+}) {
+  return (
+    <div className="panel h-full flex flex-col items-center py-3 gap-1">
+      {/* Expand button */}
+      <button
+        onClick={onExpand}
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="Expand sidebar"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="13 17 18 12 13 7" />
+          <polyline points="6 17 11 12 6 7" />
+        </svg>
+      </button>
+
+      <div className="w-6 border-t border-[var(--border-primary)] my-1" />
+
+      {/* NOW / Focus */}
+      <button
+        onClick={onExpand}
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="Focus / NOW"
+      >
+        <span className="text-lg">⚡</span>
+      </button>
+
+      {/* Chat */}
+      <button
+        onClick={() => onTabChange('chat')}
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="Chat"
+      >
+        <span className="text-lg">💬</span>
+      </button>
+
+      {/* Kanban */}
+      <button
+        onClick={() => onTabChange('kanban')}
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="Kanban Board"
+      >
+        <span className="text-lg">📋</span>
+      </button>
+
+      {/* CRM */}
+      <button
+        onClick={() => onTabChange('crm')}
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="CRM"
+      >
+        <span className="text-lg">👥</span>
+      </button>
+
+      <div className="w-6 border-t border-[var(--border-primary)] my-1" />
+
+      {/* Settings */}
+      <a
+        href="/settings"
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="Settings"
+      >
+        <span className="text-lg">⚙️</span>
+      </a>
+
+      {/* Push remaining to bottom */}
+      <div className="mt-auto" />
+
+      {/* Docs */}
+      <a
+        href="/docs/integrations"
+        className="w-10 h-10 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-brand-400 hover:bg-brand-600/10 transition-colors"
+        title="Integration Docs"
+      >
+        <span className="text-lg">📖</span>
+      </a>
     </div>
   );
 }
