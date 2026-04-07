@@ -302,6 +302,8 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 
 ### Relationships
 - [[add_relationship:{"fromName":"Contact A","toName":"Contact B","type":"colleague|manager|report|partner|spouse|friend|referral|custom","label":"optional description"}]] — Link two contacts with a relationship. Can also use fromId/toId instead of names.
+- [[update_contact:{"name":"Contact Name","company":"Acme Inc","role":"CTO","tags":"vip,partner","notes":"Met at conference","enrichedData":{"linkedin":"url"}}]] — Update a contact's details. Can also use contactId. Only include fields you want to change.
+- [[link_recording:{"recordingId":"...","cardId":"..."}]] — Link a meeting recording to a Kanban card.
 
 ### Platform Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]] — Create a new webhook endpoint

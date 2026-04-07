@@ -49,6 +49,8 @@ export const SUPPORTED_TAGS = [
   'create_document',   // create a document in Drive
   'send_comms',        // send a comms message from Divi
   'add_relationship',  // link two contacts with a relationship type
+  'update_contact',    // update a contact's details (tags, notes, company, role, etc.)
+  'link_recording',    // link a recording to a kanban card
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -624,6 +626,64 @@ async function executeTag(
           tag: name,
           success: true,
           data: { id: rel.id, fromId, toId, type: relType, note: 'Relationship created/updated' },
+        };
+      }
+
+      case 'update_contact': {
+        // params: { contactId OR name, ...fields to update }
+        let contactId = params.contactId;
+        if (!contactId && params.name) {
+          const c = await prisma.contact.findFirst({
+            where: { name: { contains: params.name, mode: 'insensitive' }, userId },
+          });
+          if (c) contactId = c.id;
+        }
+        if (!contactId) {
+          return { tag: name, success: false, error: 'Could not find contact. Provide contactId or name.' };
+        }
+
+        const updateData: Record<string, any> = {};
+        if (params.email !== undefined) updateData.email = params.email;
+        if (params.phone !== undefined) updateData.phone = params.phone;
+        if (params.company !== undefined) updateData.company = params.company;
+        if (params.role !== undefined) updateData.role = params.role;
+        if (params.notes !== undefined) updateData.notes = params.notes;
+        if (params.tags !== undefined) updateData.tags = params.tags;
+        if (params.enrichedData !== undefined) {
+          // Merge with existing enrichedData
+          const existing = await prisma.contact.findUnique({ where: { id: contactId }, select: { enrichedData: true } });
+          const prev = (existing?.enrichedData as unknown as Record<string, any>) || {};
+          updateData.enrichedData = { ...prev, ...(typeof params.enrichedData === 'object' ? params.enrichedData : {}) };
+        }
+
+        if (Object.keys(updateData).length === 0) {
+          return { tag: name, success: false, error: 'No fields to update.' };
+        }
+
+        const updated = await prisma.contact.update({
+          where: { id: contactId },
+          data: updateData,
+        });
+        return {
+          tag: name,
+          success: true,
+          data: { id: updated.id, name: updated.name, fieldsUpdated: Object.keys(updateData) },
+        };
+      }
+
+      case 'link_recording': {
+        // params: { recordingId, cardId }
+        if (!params.recordingId || !params.cardId) {
+          return { tag: name, success: false, error: 'Both recordingId and cardId are required.' };
+        }
+        const recording = await prisma.recording.update({
+          where: { id: params.recordingId },
+          data: { cardId: params.cardId },
+        });
+        return {
+          tag: name,
+          success: true,
+          data: { id: recording.id, cardId: params.cardId, note: 'Recording linked to card' },
         };
       }
 

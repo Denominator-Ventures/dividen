@@ -36,6 +36,13 @@ interface UpcomingEvent {
   location: string | null;
 }
 
+interface StaleContact {
+  id: string;
+  name: string;
+  company: string | null;
+  updatedAt: string;
+}
+
 export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [inProgress, setInProgress] = useState<QueueItemData[]>([]);
   const [doneToday, setDoneToday] = useState<QueueItemData[]>([]);
@@ -46,6 +53,7 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [pulse, setPulse] = useState<PulseStats>({ pipeline: 0, diviTasks: 0, portfolio: 0, blocked: 0 });
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
+  const [staleContacts, setStaleContacts] = useState<StaleContact[]>([]);
 
   const fetchQueue = useCallback(async () => {
     try {
@@ -98,11 +106,27 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
     }
   }, []);
 
+  const fetchStaleContacts = useCallback(async () => {
+    try {
+      const res = await fetch('/api/contacts?sort=updatedAt&order=asc&limit=4');
+      const data = await res.json();
+      if (data?.success) {
+        // Only show contacts not updated in >7 days
+        const weekAgo = Date.now() - 7 * 86400000;
+        const stale = (data?.data ?? []).filter((c: StaleContact) => new Date(c.updatedAt).getTime() < weekAgo);
+        setStaleContacts(stale.slice(0, 3));
+      }
+    } catch (e: unknown) {
+      console.error('Failed to fetch stale contacts:', e);
+    }
+  }, []);
+
   useEffect(() => {
     fetchQueue();
     fetchKanban();
     fetchCalendar();
-  }, [fetchQueue, fetchKanban, fetchCalendar]);
+    fetchStaleContacts();
+  }, [fetchQueue, fetchKanban, fetchCalendar, fetchStaleContacts]);
 
   const handleNewTask = async () => {
     if (!newTaskTitle?.trim()) return;
@@ -248,6 +272,25 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
                   <span className="text-[9px] text-[var(--text-muted)] capitalize ml-auto flex-shrink-0">{item.status}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Needs Attention — Stale Contacts */}
+        {staleContacts.length > 0 && (
+          <div className="mb-3">
+            <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Needs Attention</h4>
+            <div className="space-y-1">
+              {staleContacts.map(c => {
+                const days = Math.floor((Date.now() - new Date(c.updatedAt).getTime()) / 86400000);
+                return (
+                  <div key={c.id} className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors">
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-yellow-500" />
+                    <span className="text-xs text-[var(--text-secondary)] truncate">{c.name}</span>
+                    <span className="text-[9px] text-[var(--text-muted)] ml-auto flex-shrink-0">{days}d ago</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

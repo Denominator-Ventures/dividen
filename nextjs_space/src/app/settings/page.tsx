@@ -430,6 +430,28 @@ export default function SettingsPage() {
           </div>
         </>
       )}
+
+      {/* System Info Footer */}
+      <div className="mt-8 pt-4 border-t border-[var(--border-color)]">
+        <div className="flex items-center justify-between text-[10px] text-[var(--text-muted)]">
+          <div className="flex items-center gap-3">
+            <span className="font-mono">DiviDen v0.1.0</span>
+            <span>·</span>
+            <span>Next.js 14</span>
+            <span>·</span>
+            <span>PostgreSQL</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <a href="https://github.com/jonnyuniverse/dividenapp" target="_blank" rel="noopener noreferrer" className="hover:text-brand-400 transition-colors">
+              GitHub
+            </a>
+            <span>·</span>
+            <a href="/docs/integrations" className="hover:text-brand-400 transition-colors">
+              Docs
+            </a>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

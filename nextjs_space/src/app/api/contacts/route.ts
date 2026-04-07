@@ -21,6 +21,10 @@ export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const search = url.searchParams.get('search') || '';
   const tag = url.searchParams.get('tag') || '';
+  const sortField = url.searchParams.get('sort') || 'updatedAt';
+  const sortOrder = url.searchParams.get('order') === 'asc' ? 'asc' : 'desc';
+  const limitParam = url.searchParams.get('limit');
+  const take = limitParam ? Math.min(parseInt(limitParam, 10) || 100, 200) : undefined;
 
   const where: any = { userId: user.id };
 
@@ -37,9 +41,13 @@ export async function GET(req: NextRequest) {
     where.tags = { contains: tag };
   }
 
+  const allowedSortFields = ['updatedAt', 'createdAt', 'name'];
+  const orderByField = allowedSortFields.includes(sortField) ? sortField : 'updatedAt';
+
   const contacts = await prisma.contact.findMany({
     where,
-    orderBy: { updatedAt: 'desc' },
+    orderBy: { [orderByField]: sortOrder },
+    ...(take ? { take } : {}),
     include: {
       cards: {
         include: {
