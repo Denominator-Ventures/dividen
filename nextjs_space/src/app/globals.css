@@ -113,3 +113,30 @@
 
 /* Hydration error suppression */
 [data-hydration-error] { display: none !important; }
+
+/* ── Mobile Utilities ──────────────────────────────────────── */
+
+/* Safe area padding for iOS notch/home indicator */
+.safe-bottom {
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+}
+
+/* Touch-friendly tap targets */
+@media (max-width: 767px) {
+  .panel-header {
+    @apply px-3 py-2;
+  }
+  .panel-body {
+    @apply p-3;
+  }
+  /* Prevent text size adjustment on orientation change */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+  /* Better touch scrolling */
+  .overflow-y-auto,
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}

@@ -106,39 +106,55 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
 
   if (!step || !targetRect) return null;
 
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   // Calculate tooltip position
-  const PADDING = 12;
-  const TOOLTIP_GAP = 16;
+  const PADDING = isMobile ? 8 : 12;
+  const TOOLTIP_GAP = isMobile ? 12 : 16;
   const getTooltipStyle = (): React.CSSProperties => {
     const base: React.CSSProperties = {
       position: 'fixed',
       zIndex: 10002,
-      maxWidth: 360,
       transition: 'all 0.3s ease',
     };
 
+    // On mobile: always position below or above, full width with margins
+    if (isMobile) {
+      const spaceBelow = window.innerHeight - targetRect.bottom;
+      const spaceAbove = targetRect.top;
+      if (spaceBelow > 200 || spaceBelow > spaceAbove) {
+        return { ...base, top: targetRect.bottom + TOOLTIP_GAP, left: 12, right: 12 };
+      }
+      return { ...base, bottom: window.innerHeight - targetRect.top + TOOLTIP_GAP, left: 12, right: 12 };
+    }
+
+    // Desktop: position based on step config
     switch (step.position) {
       case 'bottom':
         return {
           ...base,
+          maxWidth: 360,
           top: targetRect.bottom + TOOLTIP_GAP,
           left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 376)),
         };
       case 'top':
         return {
           ...base,
+          maxWidth: 360,
           bottom: window.innerHeight - targetRect.top + TOOLTIP_GAP,
           left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 376)),
         };
       case 'right':
         return {
           ...base,
+          maxWidth: 360,
           top: targetRect.top,
           left: targetRect.right + TOOLTIP_GAP,
         };
       case 'left':
         return {
           ...base,
+          maxWidth: 360,
           top: targetRect.top,
           right: window.innerWidth - targetRect.left + TOOLTIP_GAP,
         };

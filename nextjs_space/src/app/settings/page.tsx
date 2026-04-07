@@ -119,7 +119,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Settings</h1>
         <p className="text-[var(--text-secondary)] mt-1">
@@ -226,7 +226,7 @@ export default function SettingsPage() {
             </div>
             <div className="panel-body">
               {memoryStats && (
-                <div className="grid grid-cols-4 gap-3 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                   <div className="p-3 bg-[var(--bg-surface)] rounded-lg text-center">
                     <div className="text-2xl font-bold text-brand-400">{memoryStats.total}</div>
                     <div className="text-xs text-[var(--text-muted)]">Total Items</div>

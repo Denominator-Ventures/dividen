@@ -132,7 +132,7 @@ export function ContactDetailModal({
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div
-        className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col"
+        className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-primary)] w-full max-w-2xl max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

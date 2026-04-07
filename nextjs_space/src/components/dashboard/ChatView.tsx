@@ -325,15 +325,15 @@ export function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-[var(--border-color)] p-4">
+      <div className="border-t border-[var(--border-color)] p-3 md:p-4">
         <div className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? 'Waiting for response...' : 'Type a message to your AI agent...'}
-            className="input-field flex-1"
+            placeholder={isStreaming ? 'Waiting for response...' : 'Type a message...'}
+            className="input-field flex-1 text-sm md:text-base"
             disabled={isStreaming}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -344,7 +344,7 @@ export function ChatView() {
           />
           <button
             className={cn(
-              'btn-primary px-6 transition-opacity',
+              'btn-primary px-3 md:px-6 transition-opacity',
               (isStreaming || !input.trim()) && 'opacity-50 cursor-not-allowed'
             )}
             onClick={() => sendMessage()}

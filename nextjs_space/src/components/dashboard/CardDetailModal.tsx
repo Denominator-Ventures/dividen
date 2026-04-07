@@ -145,7 +145,7 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
     >
       <div
         ref={modalRef}
-        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto"
+        className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl w-full max-w-2xl max-h-[90vh] md:max-h-[85vh] overflow-y-auto"
       >
         {/* Header */}
         <div className="p-6 border-b border-[var(--border-color)]">
