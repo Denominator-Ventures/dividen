@@ -439,7 +439,7 @@ export function LandingPage() {
               <Link href="/docs/integrations" className="hover:text-white/60 transition-colors">
                 Docs
               </Link>
-              <span>© 2026 Denominator Ventures</span>
+              <a href="https://denominator.ventures" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">© 2026 Denominator Ventures</a>
             </div>
           </div>
         </div>
