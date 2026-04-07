@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyHmacSignature, logWebhookRequest } from '@/lib/webhook-auth';
 import { processEmailEvent, MappingRule } from '@/lib/webhook-actions';
+import { parseMappingConfig, learnAndSaveMapping } from '@/lib/webhook-learn';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -28,12 +29,24 @@ export async function POST(req: NextRequest) {
 
   const webhook = await prisma.webhook.findUnique({ where: { id: auth.webhookId } });
   let mappingRules: MappingRule[] | undefined;
-  if (webhook?.mappingRules) {
-    try { mappingRules = JSON.parse(webhook.mappingRules); } catch { /* defaults */ }
+  let fieldMap: Record<string, string> | undefined;
+  const config = parseMappingConfig(webhook?.mappingRules || null);
+
+  if (config?.fieldMap) {
+    fieldMap = config.fieldMap;
+  } else if (webhook?.mappingRules) {
+    try {
+      const parsed = JSON.parse(webhook.mappingRules);
+      if (Array.isArray(parsed)) mappingRules = parsed;
+    } catch { /* defaults */ }
   }
 
-  const results = await processEmailEvent(payload, auth.userId, mappingRules);
+  const results = await processEmailEvent(payload, auth.userId, mappingRules, fieldMap);
   const hasErrors = results.some(r => !r.success);
+
+  if (!config && !mappingRules) {
+    learnAndSaveMapping(auth.webhookId, payload, 'email').catch(() => {});
+  }
 
   await logWebhookRequest(
     auth.webhookId, bodyText,

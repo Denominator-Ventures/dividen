@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 
 interface WebhookData {
@@ -28,6 +28,46 @@ interface WebhookLog {
   actionsRun: string | null;
   createdAt: string;
 }
+
+interface MappingConfig {
+  fieldMap: Record<string, string>;
+  source: 'auto_learned' | 'manual' | 'mixed';
+  learnedAt?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  samplePayloadKeys?: string[];
+}
+
+const FIELD_TEMPLATES: Record<string, { field: string; label: string; hint: string }[]> = {
+  calendar: [
+    { field: 'title', label: 'Event Title', hint: 'e.g. summary, event.name' },
+    { field: 'description', label: 'Description', hint: 'e.g. description, event.body' },
+    { field: 'startTime', label: 'Start Time', hint: 'e.g. start.dateTime, event.begins' },
+    { field: 'endTime', label: 'End Time', hint: 'e.g. end.dateTime, event.ends' },
+    { field: 'location', label: 'Location', hint: 'e.g. location, event.venue' },
+    { field: 'attendees', label: 'Attendees', hint: 'e.g. attendees, event.participants' },
+  ],
+  email: [
+    { field: 'subject', label: 'Subject', hint: 'e.g. subject, mail.title' },
+    { field: 'fromName', label: 'Sender Name', hint: 'e.g. from.name, sender.displayName' },
+    { field: 'fromEmail', label: 'Sender Email', hint: 'e.g. from.email, sender.address' },
+    { field: 'toEmail', label: 'Recipient', hint: 'e.g. to.email, recipient' },
+    { field: 'body', label: 'Body', hint: 'e.g. body, text, content' },
+    { field: 'receivedAt', label: 'Received At', hint: 'e.g. date, receivedAt' },
+  ],
+  transcript: [
+    { field: 'title', label: 'Meeting Title', hint: 'e.g. title, meetingTitle' },
+    { field: 'transcript', label: 'Transcript', hint: 'e.g. transcript, text' },
+    { field: 'summary', label: 'Summary', hint: 'e.g. summary, overview' },
+    { field: 'actionItems', label: 'Action Items', hint: 'e.g. actionItems, tasks' },
+    { field: 'participants', label: 'Participants', hint: 'e.g. participants, attendees' },
+  ],
+  generic: [
+    { field: 'title', label: 'Title', hint: 'e.g. title, name, event' },
+    { field: 'description', label: 'Description', hint: 'e.g. description, body, message' },
+    { field: 'type', label: 'Event Type', hint: 'e.g. type, event_type' },
+    { field: 'priority', label: 'Priority', hint: 'e.g. priority, severity' },
+  ],
+};
 
 const WEBHOOK_TYPES = [
   { value: 'calendar', label: '📅 Calendar', description: 'Google Calendar, Outlook, Calendly events' },
@@ -86,6 +126,12 @@ export function WebhookManager() {
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<any>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [mappingWebhook, setMappingWebhook] = useState<string | null>(null);
+  const [mappingConfig, setMappingConfig] = useState<MappingConfig | null>(null);
+  const [editingMap, setEditingMap] = useState<Record<string, string>>({});
+  const [loadingMapping, setLoadingMapping] = useState(false);
+  const [learningMapping, setLearningMapping] = useState(false);
+  const [savingMapping, setSavingMapping] = useState(false);
 
   useEffect(() => {
     fetchWebhooks();
@@ -174,6 +220,93 @@ export function WebhookManager() {
     await navigator.clipboard.writeText(text);
     setCopiedField(field);
     setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const fetchMapping = async (webhookId: string) => {
+    setLoadingMapping(true);
+    try {
+      const res = await fetch(`/api/webhooks-management/${webhookId}/learn`);
+      const data = await res.json();
+      if (data.success && data.mapping) {
+        setMappingConfig(data.mapping);
+        setEditingMap(data.mapping.fieldMap || {});
+      } else {
+        setMappingConfig(null);
+        setEditingMap({});
+      }
+    } catch {
+      setMappingConfig(null);
+      setEditingMap({});
+    } finally {
+      setLoadingMapping(false);
+    }
+  };
+
+  const toggleMapping = (webhookId: string) => {
+    if (mappingWebhook === webhookId) {
+      setMappingWebhook(null);
+    } else {
+      setMappingWebhook(webhookId);
+      fetchMapping(webhookId);
+    }
+  };
+
+  const triggerLearn = async (webhook: WebhookData) => {
+    setLearningMapping(true);
+    try {
+      const res = await fetch(`/api/webhooks-management/${webhook.id}/learn`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.success && data.mapping) {
+        setMappingConfig(data.mapping);
+        setEditingMap(data.mapping.fieldMap || {});
+      } else {
+        alert(data.error || 'Could not learn mapping. Make sure you have an API key configured and at least one webhook log.');
+      }
+    } catch {
+      alert('Failed to trigger auto-learn.');
+    } finally {
+      setLearningMapping(false);
+    }
+  };
+
+  const saveMapping = async (webhookId: string) => {
+    setSavingMapping(true);
+    try {
+      // Filter out empty values
+      const cleanMap: Record<string, string> = {};
+      for (const [k, v] of Object.entries(editingMap)) {
+        if (v.trim()) cleanMap[k] = v.trim();
+      }
+      const config: MappingConfig = {
+        fieldMap: cleanMap,
+        source: mappingConfig?.source === 'auto_learned' ? 'mixed' : 'manual',
+        learnedAt: mappingConfig?.learnedAt,
+        confidence: mappingConfig?.confidence,
+      };
+      await fetch(`/api/webhooks-management/${webhookId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mappingRules: config }),
+      });
+      setMappingConfig(config);
+    } finally {
+      setSavingMapping(false);
+    }
+  };
+
+  const clearMapping = async (webhookId: string) => {
+    if (!confirm('Clear all field mappings? Divi will use default field sniffing.')) return;
+    await fetch(`/api/webhooks-management/${webhookId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mappingRules: null }),
+    });
+    setMappingConfig(null);
+    setEditingMap({});
   };
 
   const timeAgo = (date: string) => {
@@ -350,13 +483,24 @@ export function WebhookManager() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-2 mt-3">
+              <div className="flex gap-2 mt-3 flex-wrap">
                 <button
                   onClick={() => testWebhook(webhook)}
                   disabled={testing}
                   className="text-xs px-3 py-1.5 rounded bg-[var(--brand-primary)]/15 text-brand-400 hover:bg-[var(--brand-primary)]/20 disabled:opacity-50"
                 >
                   {testing ? '⏳ Testing...' : '🧪 Test'}
+                </button>
+                <button
+                  onClick={() => toggleMapping(webhook.id)}
+                  className={cn(
+                    'text-xs px-3 py-1.5 rounded transition-colors',
+                    mappingWebhook === webhook.id
+                      ? 'bg-brand-500/20 text-brand-400'
+                      : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  🧠 {mappingWebhook === webhook.id ? 'Hide Mapping' : 'Field Mapping'}
                 </button>
                 <button
                   onClick={() => {
@@ -372,6 +516,91 @@ export function WebhookManager() {
                   📋 {selectedWebhook === webhook.id ? 'Hide Logs' : 'View Logs'}
                 </button>
               </div>
+
+              {/* Field Mapping Panel */}
+              {mappingWebhook === webhook.id && (
+                <div className="mt-3 border-t border-[var(--border-primary)] pt-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h5 className="text-xs font-medium text-[var(--text-primary)]">
+                        🧠 Field Mapping
+                      </h5>
+                      {mappingConfig && (
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block',
+                          mappingConfig.source === 'auto_learned' ? 'bg-cyan-500/15 text-cyan-400' :
+                          mappingConfig.source === 'manual' ? 'bg-yellow-500/15 text-yellow-400' :
+                          'bg-brand-500/15 text-brand-400'
+                        )}>
+                          {mappingConfig.source === 'auto_learned' ? '✨ Auto-learned by Divi' :
+                           mappingConfig.source === 'manual' ? '✏️ Manually configured' :
+                           '✨✏️ Auto-learned + manual edits'}
+                          {mappingConfig.confidence && ` • ${mappingConfig.confidence} confidence`}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => triggerLearn(webhook)}
+                        disabled={learningMapping}
+                        className="text-[10px] px-2 py-1 rounded bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25 disabled:opacity-50"
+                      >
+                        {learningMapping ? '🧠 Divi learning...' : '🧠 Ask Divi'}
+                      </button>
+                      {mappingConfig && (
+                        <button
+                          onClick={() => clearMapping(webhook.id)}
+                          className="text-[10px] px-2 py-1 rounded text-red-400 hover:bg-red-400/10"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {loadingMapping ? (
+                    <div className="text-xs text-[var(--text-muted)] animate-pulse py-2">Loading mapping...</div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[10px] text-[var(--text-muted)]">
+                        Map incoming payload fields (dot notation) to DiviDen fields. Leave empty to use auto-detection.
+                      </p>
+                      {(FIELD_TEMPLATES[webhook.type] || FIELD_TEMPLATES.generic).map(({ field, label, hint }) => (
+                        <div key={field} className="flex items-center gap-2">
+                          <label className="text-[11px] text-[var(--text-secondary)] w-24 shrink-0 text-right">
+                            {label}
+                          </label>
+                          <span className="text-[var(--text-muted)] text-xs">←</span>
+                          <input
+                            type="text"
+                            value={editingMap[field] || ''}
+                            onChange={(e) => setEditingMap(prev => ({ ...prev, [field]: e.target.value }))}
+                            placeholder={hint}
+                            className="flex-1 text-xs bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded px-2 py-1 text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/50 focus:border-brand-500/50 outline-none"
+                          />
+                          {editingMap[field] && (
+                            <button
+                              onClick={() => setEditingMap(prev => ({ ...prev, [field]: '' }))}
+                              className="text-[var(--text-muted)] hover:text-red-400 text-xs"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <div className="flex gap-2 pt-2">
+                        <button
+                          onClick={() => saveMapping(webhook.id)}
+                          disabled={savingMapping}
+                          className="text-xs px-3 py-1.5 rounded bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 disabled:opacity-50"
+                        >
+                          {savingMapping ? 'Saving...' : 'Save Mapping'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Test Result */}
               {testResult && selectedWebhook !== webhook.id && (

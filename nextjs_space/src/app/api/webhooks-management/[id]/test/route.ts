@@ -10,6 +10,7 @@ import {
   processGenericEvent,
   MappingRule,
 } from '@/lib/webhook-actions';
+import { parseMappingConfig } from '@/lib/webhook-learn';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,25 +41,34 @@ export async function POST(
 
   const payload = body.payload || body;
 
+  // Parse mapping config
   let mappingRules: MappingRule[] | undefined;
-  if (webhook.mappingRules) {
-    try { mappingRules = JSON.parse(webhook.mappingRules); } catch { /* defaults */ }
+  let fieldMap: Record<string, string> | undefined;
+  const config = parseMappingConfig(webhook.mappingRules);
+
+  if (config?.fieldMap) {
+    fieldMap = config.fieldMap;
+  } else if (webhook.mappingRules) {
+    try {
+      const parsed = JSON.parse(webhook.mappingRules);
+      if (Array.isArray(parsed)) mappingRules = parsed;
+    } catch { /* defaults */ }
   }
 
   let results;
   switch (webhook.type) {
     case 'calendar':
-      results = await processCalendarEvent(payload, user.id, mappingRules);
+      results = await processCalendarEvent(payload, user.id, mappingRules, fieldMap);
       break;
     case 'email':
-      results = await processEmailEvent(payload, user.id, mappingRules);
+      results = await processEmailEvent(payload, user.id, mappingRules, fieldMap);
       break;
     case 'transcript':
-      results = await processTranscriptEvent(payload, user.id, mappingRules);
+      results = await processTranscriptEvent(payload, user.id, mappingRules, fieldMap);
       break;
     case 'generic':
     default:
-      results = await processGenericEvent(payload, user.id, mappingRules);
+      results = await processGenericEvent(payload, user.id, mappingRules, fieldMap);
       break;
   }
 

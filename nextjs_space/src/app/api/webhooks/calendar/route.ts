@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateWebhook, logWebhookRequest } from '@/lib/webhook-auth';
 import { processCalendarEvent, MappingRule } from '@/lib/webhook-actions';
+import { parseMappingConfig, learnAndSaveMapping } from '@/lib/webhook-learn';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  // Rebuild request for auth (body already consumed)
   const auth = await authenticateWebhookFromBody(req, 'calendar', bodyText);
 
   if (!auth.valid || !auth.webhookId || !auth.userId) {
@@ -28,17 +28,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
   }
 
-  // Get mapping rules from webhook config
+  // Parse mapping config — could be new fieldMap format or legacy MappingRule[]
   const webhook = await prisma.webhook.findUnique({ where: { id: auth.webhookId } });
   let mappingRules: MappingRule[] | undefined;
-  if (webhook?.mappingRules) {
+  let fieldMap: Record<string, string> | undefined;
+  const config = parseMappingConfig(webhook?.mappingRules || null);
+
+  if (config?.fieldMap) {
+    fieldMap = config.fieldMap;
+  } else if (webhook?.mappingRules) {
     try {
-      mappingRules = JSON.parse(webhook.mappingRules);
+      const parsed = JSON.parse(webhook.mappingRules);
+      if (Array.isArray(parsed)) mappingRules = parsed;
     } catch { /* use defaults */ }
   }
 
-  const results = await processCalendarEvent(payload, auth.userId, mappingRules);
+  const results = await processCalendarEvent(payload, auth.userId, mappingRules, fieldMap);
   const hasErrors = results.some(r => !r.success);
+
+  // Trigger auto-learn in background if no mapping exists yet
+  if (!config && !mappingRules) {
+    learnAndSaveMapping(auth.webhookId, payload, 'calendar').catch(() => {});
+  }
 
   await logWebhookRequest(
     auth.webhookId,
