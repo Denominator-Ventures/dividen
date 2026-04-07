@@ -36,6 +36,29 @@ async function main() {
     },
   });
 
+  // Seed default notification rules for all users
+  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  for (const user of allUsers) {
+    // Meeting Starting Soon
+    const existingMeeting = await prisma.notificationRule.findFirst({
+      where: { userId: user.id, eventType: 'meeting_starting' },
+    });
+    if (!existingMeeting) {
+      await prisma.notificationRule.create({
+        data: {
+          userId: user.id,
+          name: 'Meeting Starting Soon',
+          eventType: 'meeting_starting',
+          conditions: JSON.stringify({ minutesBefore: 5 }),
+          message: "Meeting '{{title}}' starts in {{minutes}}m",
+          style: 'warning',
+          sound: true,
+          enabled: true,
+        },
+      });
+    }
+  }
+
   console.log('Database seeded successfully.');
 }
 

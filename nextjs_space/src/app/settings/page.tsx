@@ -8,6 +8,7 @@ import { ExternalKeyManager } from '@/components/settings/ExternalKeyManager';
 import { WebhookManager } from '@/components/settings/WebhookManager';
 import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager';
 import { IntegrationManager } from '@/components/settings/IntegrationManager';
+import { NotificationManager } from '@/components/settings/NotificationManager';
 import { cn } from '@/lib/utils';
 
 interface SettingsData {
@@ -37,7 +38,7 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'general' | 'integrations';
+type SettingsTab = 'general' | 'integrations' | 'notifications';
 
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -151,6 +152,17 @@ export default function SettingsPage() {
           )}
         >
           🔗 Integrations
+        </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'notifications'
+              ? 'bg-[var(--brand-primary)] text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          🔔 Notifications
         </button>
       </div>
 
@@ -445,6 +457,23 @@ export default function SettingsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === 'notifications' && (
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="font-semibold">🔔 Cockpit Notifications</h2>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Banner alerts that appear in your chat view when events happen
+              </p>
+            </div>
+          </div>
+          <div className="panel-body">
+            <NotificationManager />
+          </div>
+        </div>
       )}
 
       {/* System Info Footer */}

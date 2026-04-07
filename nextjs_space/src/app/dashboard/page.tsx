@@ -9,6 +9,7 @@ import { CenterPanel } from '@/components/dashboard/CenterPanel';
 import { QueuePanel } from '@/components/dashboard/QueuePanel';
 import { Walkthrough } from '@/components/dashboard/Walkthrough';
 import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
+import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
 import type { CenterTab } from '@/types';
 
 type MobilePanel = 'now' | 'center' | 'queue';
@@ -230,6 +231,9 @@ export default function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* ── Cockpit Notification Banners ── */}
+      <CockpitBanners mode={mode} />
 
       {/* ── Desktop: 3-column layout ── */}
       <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
