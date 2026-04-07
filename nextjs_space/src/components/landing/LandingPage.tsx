@@ -142,6 +142,14 @@ export function LandingPage() {
               Protocol
             </a>
             <a
+              href="https://os.dividen.ai"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-white/50 hover:text-white transition-colors"
+            >
+              Open Source
+            </a>
+            <a
               href="https://github.com/Denominator-Ventures/dividen"
               target="_blank"
               rel="noopener noreferrer"
@@ -354,13 +362,22 @@ export function LandingPage() {
               Open Source
             </p>
             <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-              Built in the open.
+              Build your own interface.
             </h2>
             <p className="text-white/40 max-w-xl mx-auto mb-8 leading-relaxed">
-              DiviDen is open source. Fork it. Self-host it. Build your own frontend.
-              The protocol lives independently of any single UI, LLM provider, or deployment.
+              DiviDen is a protocol, not a product. The entire stack is open source —
+              fork it, self-host it, and build the interface that fits the way you work.
+              No vendor lock-in. No permission needed.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+              <a
+                href="https://os.dividen.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-black font-medium px-8 py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-brand-500/20"
+              >
+                Explore the Open Source Project →
+              </a>
               <a
                 href="https://github.com/Denominator-Ventures/dividen"
                 target="_blank"
@@ -369,12 +386,6 @@ export function LandingPage() {
               >
                 ⭐ Star on GitHub
               </a>
-              <Link
-                href="/docs/integrations"
-                className="w-full sm:w-auto text-center border border-white/10 hover:border-white/20 text-white/60 hover:text-white px-8 py-3.5 rounded-xl transition-all"
-              >
-                Read the Docs
-              </Link>
             </div>
           </div>
         </div>
@@ -414,6 +425,14 @@ export function LandingPage() {
             </div>
 
             <div className="flex items-center gap-6 text-sm text-white/30">
+              <a
+                href="https://os.dividen.ai"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-white/60 transition-colors"
+              >
+                Open Source
+              </a>
               <a
                 href="https://github.com/Denominator-Ventures/dividen"
                 target="_blank"
