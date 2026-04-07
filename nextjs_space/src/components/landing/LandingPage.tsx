@@ -125,16 +125,16 @@ export function LandingPage() {
     <div className="min-h-screen bg-[#050505] text-white overflow-x-hidden">
       {/* ── Navbar ──────────────────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/[0.06] bg-[#050505]/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <a href="/" className="relative">
-            <svg viewBox="0 0 130 50" fill="none" xmlns="http://www.w3.org/2000/svg" width="67.6" height="26" aria-label="DiviDen">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between relative">
+          <a href="/" className="relative shrink-0">
+            <svg viewBox="0 0 130 50" fill="none" xmlns="http://www.w3.org/2000/svg" width="91" height="35" aria-label="DiviDen">
               <rect x="1" y="1" width="128" height="48" rx="2" stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
               <line x1="1" y1="12" x2="1" y2="38" stroke="#4F7CFF" strokeWidth="1.5" />
               <text x="65" y="31" textAnchor="middle" fill="#F5F5F5" fontFamily="'Space Grotesk', 'Inter', system-ui, sans-serif" fontSize="18" fontWeight="600" letterSpacing="0.5">DiviDen</text>
             </svg>
           </a>
 
-          <div className="hidden md:flex items-center gap-8">
+          <div className="hidden md:flex items-center justify-center gap-8 absolute left-1/2 -translate-x-1/2">
             <a href="#features" className="text-sm text-white/50 hover:text-white transition-colors">
               Features
             </a>
