@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { NowPanel } from '@/components/dashboard/NowPanel';
 import { CenterPanel } from '@/components/dashboard/CenterPanel';
 import { QueuePanel } from '@/components/dashboard/QueuePanel';
+import { Walkthrough } from '@/components/dashboard/Walkthrough';
 import type { CenterTab } from '@/types';
 
 export default function DashboardPage() {
@@ -13,14 +14,24 @@ export default function DashboardPage() {
   const [mode, setMode] = useState<'cockpit' | 'chief_of_staff'>('cockpit');
   const [modeLoading, setModeLoading] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
       .then((d) => {
-        if (d.success) setMode(d.data.user.mode);
+        if (d.success) {
+          setMode(d.data.user.mode);
+          // Show walkthrough for first-time users
+          if (!d.data.user.hasSeenWalkthrough) {
+            // Small delay to let the dashboard render first
+            setTimeout(() => setShowWalkthrough(true), 600);
+          }
+          setSettingsLoaded(true);
+        }
       })
-      .catch(() => {});
+      .catch(() => setSettingsLoaded(true));
   }, []);
 
   const toggleMode = useCallback(async () => {
@@ -40,12 +51,28 @@ export default function DashboardPage() {
     }
   }, [mode]);
 
+  const handleWalkthroughComplete = useCallback(async () => {
+    setShowWalkthrough(false);
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasSeenWalkthrough: true }),
+      });
+    } catch {
+      // silent
+    }
+  }, []);
+
   return (
     <div className="h-full flex flex-col">
+      {/* Walkthrough overlay */}
+      {showWalkthrough && <Walkthrough onComplete={handleWalkthroughComplete} />}
+
       {/* ── Top Header Bar ────────────────────────────────────── */}
       <header className="flex-shrink-0 px-4 py-2.5 flex items-center justify-between border-b border-[var(--border-color)]">
         {/* Left: Brand */}
-        <Link href="/dashboard" className="flex items-center gap-2 flex-shrink-0">
+        <Link href="/dashboard" className="flex items-center gap-2 flex-shrink-0" data-walkthrough="brand">
           <span className="text-xl text-brand-400">⬡</span>
           <span className="font-bold text-brand-400 text-lg tracking-tight">DiviDen</span>
         </Link>
@@ -79,6 +106,7 @@ export default function DashboardPage() {
             onClick={toggleMode}
             disabled={modeLoading}
             className="flex items-center gap-2.5 group"
+            data-walkthrough="mode-toggle"
             title={
               mode === 'cockpit'
                 ? 'Cockpit: You drive, AI assists'
@@ -112,6 +140,7 @@ export default function DashboardPage() {
             href="/settings"
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
             title="Settings"
+            data-walkthrough="settings"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3" />
@@ -137,7 +166,7 @@ export default function DashboardPage() {
       {/* ── Main Dashboard: 3-column layout ───────────────────── */}
       <div className="flex-1 flex gap-3 p-3 min-h-0">
         {/* NOW Panel - Left */}
-        <div className="w-72 flex-shrink-0">
+        <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
           <NowPanel
             onNewTask={() => {}}
             onQuickChat={() => setActiveTab('chat')}
@@ -145,12 +174,12 @@ export default function DashboardPage() {
         </div>
 
         {/* Center Panel - Main */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0" data-walkthrough="center-panel">
           <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} />
         </div>
 
         {/* Queue Panel - Right */}
-        <div className="w-72 flex-shrink-0">
+        <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
           <QueuePanel />
         </div>
       </div>

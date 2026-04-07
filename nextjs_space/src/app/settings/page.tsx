@@ -45,6 +45,7 @@ export default function SettingsPage() {
   const [showMemoryManager, setShowMemoryManager] = useState(false);
   const [clearingMemory, setClearingMemory] = useState(false);
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [resettingWalkthrough, setResettingWalkthrough] = useState(false);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -174,6 +175,41 @@ export default function SettingsPage() {
                   );
                 }}
               />
+            </div>
+          </div>
+
+          {/* Guided Walkthrough */}
+          <div className="panel">
+            <div className="panel-header flex items-center justify-between">
+              <h2 className="font-semibold">Guided Walkthrough</h2>
+            </div>
+            <div className="panel-body">
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Take a guided tour of the DiviDen Command Center to learn about all the key features and how to get started.
+              </p>
+              <button
+                onClick={async () => {
+                  setResettingWalkthrough(true);
+                  try {
+                    await fetch('/api/settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ hasSeenWalkthrough: false }),
+                    });
+                    window.location.href = '/dashboard';
+                  } catch {
+                    setResettingWalkthrough(false);
+                  }
+                }}
+                disabled={resettingWalkthrough}
+                className="text-sm px-4 py-2 bg-[var(--bg-surface)] rounded-lg hover:bg-[var(--brand-primary)]/15 text-[var(--text-secondary)] hover:text-brand-400 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                {resettingWalkthrough ? 'Redirecting...' : 'Restart Walkthrough'}
+              </button>
             </div>
           </div>
 

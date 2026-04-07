@@ -27,7 +27,7 @@ export async function GET() {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, mode: true, role: true },
+    select: { id: true, name: true, email: true, mode: true, role: true, hasSeenWalkthrough: true },
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({
@@ -72,6 +72,14 @@ export async function PUT(request: NextRequest) {
     await prisma.user.update({
       where: { id: userId },
       data: { mode: result.data.mode },
+    });
+  }
+
+  // Update walkthrough status
+  if (typeof body.hasSeenWalkthrough === 'boolean') {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { hasSeenWalkthrough: body.hasSeenWalkthrough },
     });
   }
 

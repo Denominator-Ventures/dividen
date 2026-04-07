@@ -21,6 +21,7 @@ model User {
   passwordHash  String
   role          String    @default("admin")
   mode          String    @default("cockpit") // "cockpit" | "chief_of_staff"
+  hasSeenWalkthrough Boolean @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
