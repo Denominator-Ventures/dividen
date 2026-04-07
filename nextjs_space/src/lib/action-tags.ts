@@ -308,24 +308,73 @@ async function executeTag(
 
       // ── Email ────────────────────────────────────────────────────────
       case 'send_email': {
-        // Store as a queue item (draft) since we don't have email integration yet
-        const emailMeta = JSON.stringify({
-          to: params.to,
-          subject: params.subject,
-          body: params.body,
-          type: 'email_draft',
+        if (!params.to || !params.subject || !params.body) {
+          return { tag: name, success: false, error: 'Missing to, subject, or body' };
+        }
+        const sendIdentity = params.identity || 'operator';
+        // Try to find an email integration for this identity
+        const emailAccount = await prisma.integrationAccount.findFirst({
+          where: { userId, identity: sendIdentity, service: 'email', isActive: true },
         });
-        const item = await prisma.queueItem.create({
-          data: {
-            type: 'task',
-            title: `Email draft: ${params.subject || 'No subject'}`,
-            description: `To: ${params.to}\n\n${params.body || ''}`,
-            priority: 'medium',
-            source: 'agent',
-            metadata: emailMeta,
-          },
-        });
-        return { tag: name, success: true, data: { id: item.id, note: 'Saved as draft in queue' } };
+        if (emailAccount?.smtpHost && emailAccount?.smtpUser && emailAccount?.smtpPass) {
+          // Send via SMTP
+          try {
+            const nodemailer = await import('nodemailer');
+            const transporter = nodemailer.default.createTransport({
+              host: emailAccount.smtpHost,
+              port: emailAccount.smtpPort || 587,
+              secure: emailAccount.smtpPort === 465,
+              auth: { user: emailAccount.smtpUser, pass: emailAccount.smtpPass },
+            });
+            const fromAddr = emailAccount.emailAddress || emailAccount.smtpUser;
+            const fromName = emailAccount.label || (sendIdentity === 'agent' ? 'Divi' : undefined);
+            const result = await transporter.sendMail({
+              from: fromName ? `"${fromName}" <${fromAddr}>` : fromAddr,
+              to: params.to,
+              subject: params.subject,
+              text: params.body,
+            });
+            // Store sent email
+            await prisma.emailMessage.create({
+              data: {
+                subject: params.subject,
+                fromName: fromName || fromAddr,
+                fromEmail: fromAddr,
+                toEmail: params.to,
+                body: params.body,
+                snippet: params.body.slice(0, 200),
+                source: 'sent',
+                externalId: result.messageId || null,
+                isRead: true,
+                labels: 'sent',
+                userId,
+              },
+            });
+            return { tag: name, success: true, data: { messageId: result.messageId, sent: true, as: sendIdentity } };
+          } catch (err: any) {
+            return { tag: name, success: false, error: `SMTP send failed: ${err?.message}` };
+          }
+        } else {
+          // Fallback: save as draft in queue
+          const emailMeta = JSON.stringify({
+            to: params.to,
+            subject: params.subject,
+            body: params.body,
+            identity: sendIdentity,
+            type: 'email_draft',
+          });
+          const item = await prisma.queueItem.create({
+            data: {
+              type: 'task',
+              title: `Email draft: ${params.subject || 'No subject'}`,
+              description: `To: ${params.to}\n\n${params.body || ''}`,
+              priority: 'medium',
+              source: 'agent',
+              metadata: emailMeta,
+            },
+          });
+          return { tag: name, success: true, data: { id: item.id, note: `No email integration for ${sendIdentity}. Saved as draft in queue.` } };
+        }
       }
 
       // ── Memory (3-Tier System) ────────────────────────────────────────

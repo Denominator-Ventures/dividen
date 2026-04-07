@@ -7,6 +7,7 @@ import { MemoryPanel } from '@/components/dashboard/MemoryPanel';
 import { ExternalKeyManager } from '@/components/settings/ExternalKeyManager';
 import { WebhookManager } from '@/components/settings/WebhookManager';
 import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager';
+import { IntegrationManager } from '@/components/settings/IntegrationManager';
 import { cn } from '@/lib/utils';
 
 interface SettingsData {
@@ -345,6 +346,21 @@ export default function SettingsPage() {
       {/* Integrations Tab */}
       {activeTab === 'integrations' && (
         <>
+          {/* Identities & Integrations Section */}
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="font-semibold">🔗 Identities & Integrations</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Connect email, calendar, and drive for you and Divi independently
+                </p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <IntegrationManager />
+            </div>
+          </div>
+
           {/* Webhooks Section */}
           <div className="panel">
             <div className="panel-header flex items-center justify-between">

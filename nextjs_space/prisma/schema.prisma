@@ -38,6 +38,7 @@ model User {
   commsMessages   CommsMessage[]
   calendarEvents  CalendarEvent[]
   emailMessages   EmailMessage[]
+  integrationAccounts IntegrationAccount[]
 
   @@map("users")
 }
@@ -473,4 +474,46 @@ model ExternalApiKey {
   @@index([key])
   @@index([userId])
   @@map("external_api_keys")
+}
+
+// ─── Integration Accounts (Dual Identity) ──────────────────────────────────────
+// Each user can have integration credentials for both their own identity
+// ("operator") and their agent's identity ("agent"). This enables the agent
+// to operate with its own email, calendar, and drive — separate from the user's.
+
+model IntegrationAccount {
+  id            String   @id @default(cuid())
+  userId        String
+  identity      String   // "operator" | "agent"
+  provider      String   // "google" | "microsoft" | "smtp"
+  service       String   // "email" | "calendar" | "drive"
+  label         String?  // Display name, e.g. "Divi's Gmail" or "My Work Calendar"
+
+  // OAuth fields
+  accessToken   String?
+  refreshToken  String?
+  tokenExpiry   DateTime?
+  scope         String?
+
+  // SMTP / App Password fields
+  smtpHost      String?
+  smtpPort      Int?
+  smtpUser      String?
+  smtpPass      String?  // encrypted at rest
+
+  // Shared config
+  emailAddress  String?  // The actual email address for this identity
+  isActive      Boolean  @default(true)
+  lastSyncAt    DateTime?
+  syncCursor    String?  // Pagination cursor for incremental sync
+  metadata      String?  // JSON - provider-specific config
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, identity, service])
+  @@index([userId])
+  @@map("integration_accounts")
 }

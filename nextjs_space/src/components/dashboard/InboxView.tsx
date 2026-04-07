@@ -3,7 +3,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { EmailMessageData } from '@/types';
 
-type InboxFilter = 'all' | 'unread' | 'starred';
+type InboxFilter = 'all' | 'unread' | 'starred' | 'sent';
+type ComposeMode = 'new' | 'reply' | null;
+
+interface IntegrationBrief {
+  id: string;
+  identity: string;
+  label: string | null;
+  emailAddress: string | null;
+  service: string;
+}
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -23,12 +32,37 @@ export function InboxView() {
   const [selected, setSelected] = useState<EmailMessageData | null>(null);
   const [filter, setFilter] = useState<InboxFilter>('all');
 
+  // Compose state
+  const [composeMode, setComposeMode] = useState<ComposeMode>(null);
+  const [composeTo, setComposeTo] = useState('');
+  const [composeSubject, setComposeSubject] = useState('');
+  const [composeBody, setComposeBody] = useState('');
+  const [composeIdentity, setComposeIdentity] = useState<string>('operator');
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState('');
+
+  // Integration accounts for sending
+  const [emailIntegrations, setEmailIntegrations] = useState<IntegrationBrief[]>([]);
+
+  // Sync state
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState('');
+
   const fetchEmails = useCallback(async () => {
     try {
-      const params = filter !== 'all' ? `?filter=${filter}` : '';
-      const res = await fetch(`/api/emails${params}`);
+      const params = new URLSearchParams();
+      if (filter === 'unread') params.set('filter', 'unread');
+      if (filter === 'starred') params.set('filter', 'starred');
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const res = await fetch(`/api/emails${qs}`);
       const data = await res.json();
-      if (data.success) setEmails(data.data);
+      if (data.success) {
+        let filtered = data.data as EmailMessageData[];
+        if (filter === 'sent') {
+          filtered = filtered.filter((e: EmailMessageData) => e.source === 'sent');
+        }
+        setEmails(filtered);
+      }
     } catch (e) {
       console.error('Failed to fetch emails:', e);
     } finally {
@@ -36,14 +70,31 @@ export function InboxView() {
     }
   }, [filter]);
 
+  const fetchIntegrations = useCallback(async () => {
+    try {
+      const res = await fetch('/api/integrations');
+      const data = await res.json();
+      if (data.success) {
+        setEmailIntegrations(
+          (data.data as IntegrationBrief[]).filter((a) => a.service === 'email')
+        );
+      }
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     setLoading(true);
     fetchEmails();
   }, [fetchEmails]);
 
+  useEffect(() => {
+    fetchIntegrations();
+  }, [fetchIntegrations]);
+
   // Mark as read when selecting
   const handleSelect = useCallback(async (email: EmailMessageData) => {
     setSelected(email);
+    setComposeMode(null);
     if (!email.isRead) {
       try {
         await fetch(`/api/emails/${email.id}`, {
@@ -80,15 +131,94 @@ export function InboxView() {
     } catch { /* silent */ }
   }, [selected]);
 
+  // Compose handlers
+  const openCompose = (mode: 'new' | 'reply', email?: EmailMessageData) => {
+    setComposeMode(mode);
+    setSendError('');
+    if (mode === 'reply' && email) {
+      setComposeTo(email.fromEmail || '');
+      setComposeSubject(`Re: ${email.subject}`);
+      setComposeBody(`\n\n---\nOn ${new Date(email.receivedAt).toLocaleDateString()}, ${email.fromName || email.fromEmail} wrote:\n> ${(email.body || email.snippet || '').split('\n').join('\n> ')}`);
+    } else {
+      setComposeTo('');
+      setComposeSubject('');
+      setComposeBody('');
+    }
+  };
+
+  const handleSend = async () => {
+    if (!composeTo || !composeSubject || !composeBody.trim()) {
+      setSendError('Fill in all fields');
+      return;
+    }
+    setSending(true);
+    setSendError('');
+    try {
+      const res = await fetch('/api/integrations/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          identity: composeIdentity,
+          to: composeTo,
+          subject: composeSubject,
+          body: composeBody.trim(),
+          replyToMessageId: composeMode === 'reply' && selected?.externalId ? selected.externalId : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setComposeMode(null);
+        setComposeTo('');
+        setComposeSubject('');
+        setComposeBody('');
+        fetchEmails();
+      } else {
+        setSendError(data.error || 'Send failed');
+      }
+    } catch {
+      setSendError('Network error');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // Sync handler
+  const handleSync = async () => {
+    const emailAcct = emailIntegrations[0];
+    if (!emailAcct) {
+      setSyncMsg('No email integration configured. Go to Settings \u2192 Integrations.');
+      setTimeout(() => setSyncMsg(''), 4000);
+      return;
+    }
+    setSyncing(true);
+    setSyncMsg('');
+    try {
+      const res = await fetch('/api/integrations/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ integrationId: emailAcct.id }),
+      });
+      const data = await res.json();
+      setSyncMsg(data.success ? data.message : (data.error || 'Sync failed'));
+      if (data.success) fetchEmails();
+    } catch {
+      setSyncMsg('Sync failed');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(''), 4000);
+    }
+  };
+
   const unreadCount = emails.filter((e) => !e.isRead).length;
+  const hasEmailIntegration = emailIntegrations.length > 0;
 
   return (
     <div className="h-full flex">
       {/* Left: Email list */}
       <div className="w-full md:w-96 flex-shrink-0 border-r border-[var(--border-color)] flex flex-col">
         <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1">
-            {(['all', 'unread', 'starred'] as InboxFilter[]).map((f) => (
+          <div className="flex items-center gap-1 overflow-x-auto">
+            {(['all', 'unread', 'starred', 'sent'] as InboxFilter[]).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -96,11 +226,34 @@ export function InboxView() {
                   filter === f ? 'bg-[var(--brand-primary)]/15 text-brand-400' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                 }`}
               >
-                {f === 'all' ? `All${emails.length ? ` (${emails.length})` : ''}` : f === 'unread' ? `Unread${unreadCount ? ` (${unreadCount})` : ''}` : 'Starred'}
+                {f === 'all' ? `All${emails.length ? ` (${emails.length})` : ''}` : f === 'unread' ? `Unread${unreadCount ? ` (${unreadCount})` : ''}` : f === 'sent' ? 'Sent' : 'Starred'}
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={() => openCompose('new')}
+              className="px-2 py-1 text-[10px] rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors whitespace-nowrap"
+              title="Compose new email"
+            >
+              ✏ Compose
+            </button>
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="px-2 py-1 text-[10px] rounded bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-[var(--border-color)] transition-colors disabled:opacity-50 whitespace-nowrap"
+              title="Sync emails from server"
+            >
+              {syncing ? '↻...' : '↻ Sync'}
+            </button>
+          </div>
         </div>
+
+        {syncMsg && (
+          <div className="px-3 py-1.5 text-[10px] bg-brand-500/10 text-brand-400 border-b border-[var(--border-color)]">
+            {syncMsg}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -110,8 +263,14 @@ export function InboxView() {
           ) : emails.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
               <div className="text-3xl mb-3">📧</div>
-              <p className="text-sm text-[var(--text-secondary)] mb-1">No emails yet</p>
-              <p className="text-xs text-[var(--text-muted)]">Connect Gmail or another email service via webhooks to see your inbox here.</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-1">
+                {filter === 'sent' ? 'No sent emails' : 'No emails yet'}
+              </p>
+              <p className="text-xs text-[var(--text-muted)]">
+                {hasEmailIntegration
+                  ? 'Click Sync to fetch emails, or compose a new one.'
+                  : 'Go to Settings \u2192 Integrations to connect your email.'}
+              </p>
             </div>
           ) : (
             emails.map((email) => (
@@ -123,7 +282,6 @@ export function InboxView() {
                 } ${!email.isRead ? 'border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'}`}
               >
                 <div className="flex items-start gap-2">
-                  {/* Star */}
                   <button
                     onClick={(e) => { e.stopPropagation(); handleStar(email.id, !email.isStarred); }}
                     className={`flex-shrink-0 mt-0.5 text-sm transition-colors ${
@@ -137,7 +295,9 @@ export function InboxView() {
                       <span className={`text-xs truncate ${
                         !email.isRead ? 'font-semibold text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
                       }`}>
-                        {email.fromName || email.fromEmail || 'Unknown'}
+                        {(email as any).source === 'sent'
+                          ? `To: ${email.toEmail || 'Unknown'}`
+                          : (email.fromName || email.fromEmail || 'Unknown')}
                       </span>
                       <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">{timeAgo(email.receivedAt)}</span>
                     </div>
@@ -149,13 +309,15 @@ export function InboxView() {
                     <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">
                       {email.snippet || email.body?.substring(0, 100) || ''}
                     </p>
-                    {/* Linked entities */}
                     <div className="flex items-center gap-2 mt-1">
                       {email.linkedCard && (
                         <span className="text-[9px] bg-[var(--bg-surface)] rounded px-1.5 py-0.5 text-[var(--text-muted)]">🗂 {email.linkedCard.title}</span>
                       )}
                       {email.linkedContact && (
                         <span className="text-[9px] bg-[var(--bg-surface)] rounded px-1.5 py-0.5 text-[var(--text-muted)]">👤 {email.linkedContact.name}</span>
+                      )}
+                      {(email as any).source === 'sent' && (
+                        <span className="text-[9px] bg-brand-500/10 rounded px-1.5 py-0.5 text-brand-400">↗ Sent</span>
                       )}
                     </div>
                   </div>
@@ -166,9 +328,99 @@ export function InboxView() {
         </div>
       </div>
 
-      {/* Right: Detail */}
+      {/* Right: Detail or Compose */}
       <div className="hidden md:flex flex-1 flex-col min-h-0">
-        {selected ? (
+        {composeMode ? (
+          /* ── Compose view ── */
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="px-6 py-3 border-b border-[var(--border-color)] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+                {composeMode === 'reply' ? 'Reply' : 'New Email'}
+              </h3>
+              <button
+                onClick={() => setComposeMode(null)}
+                className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              >
+                Cancel
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+              {/* Send as identity */}
+              {emailIntegrations.length > 0 && (
+                <div>
+                  <label className="label-mono text-[10px] mb-1 block">Send As</label>
+                  <div className="flex gap-2">
+                    {emailIntegrations.map((acct) => (
+                      <button
+                        key={acct.id}
+                        onClick={() => setComposeIdentity(acct.identity)}
+                        className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${
+                          composeIdentity === acct.identity
+                            ? 'border-brand-500 bg-brand-500/10 text-brand-400'
+                            : 'border-[var(--border-color)] text-[var(--text-muted)] hover:border-[var(--text-muted)]'
+                        }`}
+                      >
+                        {acct.identity === 'agent' ? '🤖' : '👤'} {acct.label || acct.emailAddress || acct.identity}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label className="label-mono text-[10px] mb-1 block">To</label>
+                <input
+                  type="email"
+                  value={composeTo}
+                  onChange={(e) => setComposeTo(e.target.value)}
+                  placeholder="recipient@example.com"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+              <div>
+                <label className="label-mono text-[10px] mb-1 block">Subject</label>
+                <input
+                  type="text"
+                  value={composeSubject}
+                  onChange={(e) => setComposeSubject(e.target.value)}
+                  placeholder="Subject"
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="label-mono text-[10px] mb-1 block">Message</label>
+                <textarea
+                  value={composeBody}
+                  onChange={(e) => setComposeBody(e.target.value)}
+                  rows={12}
+                  placeholder="Write your message..."
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] resize-none font-mono"
+                />
+              </div>
+
+              {sendError && (
+                <div className="text-xs text-red-400 px-3 py-2 bg-red-500/10 rounded-lg">
+                  {sendError}
+                </div>
+              )}
+            </div>
+            <div className="px-6 py-3 border-t border-[var(--border-color)] flex items-center justify-between">
+              <div className="text-[10px] text-[var(--text-muted)]">
+                {emailIntegrations.length === 0
+                  ? '⚠ No email integration configured. Go to Settings \u2192 Integrations.'
+                  : `Sending as ${composeIdentity === 'agent' ? 'Divi' : 'you'}`}
+              </div>
+              <button
+                onClick={handleSend}
+                disabled={sending || emailIntegrations.length === 0}
+                className="px-4 py-1.5 text-xs font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {sending ? 'Sending...' : 'Send'}
+              </button>
+            </div>
+          </div>
+        ) : selected ? (
+          /* ── Detail view ── */
           <div className="flex-1 flex flex-col min-h-0">
             <div className="px-6 py-4 border-b border-[var(--border-color)]">
               <div className="flex items-center justify-between mb-2">
@@ -212,14 +464,43 @@ export function InboxView() {
                 </div>
               )}
             </div>
+            {/* Reply bar */}
+            {(selected as any).source !== 'sent' && selected.fromEmail && (
+              <div className="px-6 py-3 border-t border-[var(--border-color)]">
+                <button
+                  onClick={() => openCompose('reply', selected)}
+                  className="px-4 py-1.5 text-xs font-medium rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-brand-500/30 transition-colors"
+                >
+                  ↩ Reply
+                </button>
+              </div>
+            )}
           </div>
         ) : (
+          /* ── Empty state ── */
           <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
             <div className="text-4xl mb-4">📧</div>
             <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Inbox</h3>
-            <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed">
-              Emails from connected services appear here. Star important ones, link them to deals or contacts, and let Divi help triage.
+            <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed mb-4">
+              {hasEmailIntegration
+                ? 'Click Sync to pull in your latest emails. Compose new ones, reply, and let Divi help triage.'
+                : 'Connect your email in Settings \u2192 Integrations to sync your inbox, compose, and reply.'}
             </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => openCompose('new')}
+                className="px-3 py-1.5 text-xs rounded-lg bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors"
+              >
+                ✏ Compose
+              </button>
+              <button
+                onClick={handleSync}
+                disabled={syncing || !hasEmailIntegration}
+                className="px-3 py-1.5 text-xs rounded-lg bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-[var(--border-color)] transition-colors disabled:opacity-50"
+              >
+                {syncing ? 'Syncing...' : '↻ Sync Inbox'}
+              </button>
+            </div>
           </div>
         )}
       </div>
