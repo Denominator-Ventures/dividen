@@ -216,24 +216,25 @@ function layer13_actionTagSyntax(): string {
 Embed these tags in your response to execute actions. Use double brackets: [[tag_name:params]]
 
 ### Card Management
-- [[create_card:{"title":"...","description":"...","status":"backlog|in_progress|review|done","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]]
+- [[create_card:{"title":"...","description":"...","status":"leads|qualifying|proposal|negotiation|active|development|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]]
 - [[update_card:{"id":"card_id","title":"...","status":"...","priority":"...","dueDate":"..."}]]
 - [[archive_card:{"id":"card_id"}]]
 
-### Checklist
-- [[add_checklist:{"cardId":"card_id","text":"Item text"}]]
+### Checklist / Tasks
+- [[add_checklist:{"cardId":"card_id","text":"Item text"}]]  (alias: [[add_task:...]])
 - [[complete_checklist:{"id":"checklist_item_id","completed":true}]]
 
 ### Contacts (CRM)
 - [[create_contact:{"name":"...","email":"...","phone":"...","company":"...","role":"...","notes":"...","tags":"tag1,tag2","cardId":"optional_card_to_link"}]]
 - [[link_contact:{"cardId":"card_id","contactId":"contact_id","role":"..."}]]
 - [[link_contact:{"cardId":"card_id","contactName":"Name","role":"..."}]] — Will find or create contact by name
+- [[add_known_person:{"alias":"...","fullName":"...","context":"..."}]] — Register a name alias
 
-### Queue
-- [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","description":"...","priority":"low|medium|high|urgent"}]]
+### Queue / Dispatch
+- [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","description":"...","priority":"low|medium|high|urgent"}]]  (alias: [[dispatch:...]])
 
 ### Calendar & Reminders
-- [[create_event:{"title":"...","description":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
+- [[create_event:{"title":"...","description":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]  (alias: [[schedule_event:...]])
 - [[set_reminder:{"title":"...","description":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
 
 ### Communication

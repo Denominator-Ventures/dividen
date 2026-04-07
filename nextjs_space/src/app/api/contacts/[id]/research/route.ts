@@ -41,7 +41,7 @@ export async function POST(
 
   enrichment.linkedCards = linkedCards.length;
   enrichment.activeDeals = linkedCards.filter(
-    (lc) => !['won', 'lost'].includes(lc.card.status)
+    (lc) => !['completed'].includes(lc.card.status)
   ).length;
 
   // Check for memory items related to this contact

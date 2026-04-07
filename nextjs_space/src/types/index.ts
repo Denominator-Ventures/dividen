@@ -4,7 +4,7 @@ export type DividenMode = 'cockpit' | 'chief_of_staff';
 
 // ─── Kanban Types ───────────────────────────────────────────────────────────
 
-export type CardStatus = 'leads' | 'qualifying' | 'proposal' | 'negotiation' | 'won' | 'lost';
+export type CardStatus = 'leads' | 'qualifying' | 'proposal' | 'negotiation' | 'active' | 'development' | 'completed';
 export type CardPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type CardAssignee = 'human' | 'agent';
 
@@ -13,8 +13,9 @@ export const KANBAN_COLUMNS: { id: CardStatus; label: string; color: string }[] 
   { id: 'qualifying', label: 'Qualifying', color: '#60a5fa' },
   { id: 'proposal', label: 'Proposal', color: '#a78bfa' },
   { id: 'negotiation', label: 'Negotiation', color: '#fbbf24' },
-  { id: 'won', label: 'Won', color: '#34d399' },
-  { id: 'lost', label: 'Lost', color: '#f87171' },
+  { id: 'active', label: 'Active', color: '#34d399' },
+  { id: 'development', label: 'Development', color: '#2dd4bf' },
+  { id: 'completed', label: 'Completed', color: '#a78bfa' },
 ];
 
 export interface KanbanCardData {
@@ -57,13 +58,14 @@ export interface CardContactData {
 // ─── Queue Types ────────────────────────────────────────────────────────────
 
 export type QueueItemType = 'task' | 'notification' | 'reminder' | 'agent_suggestion';
-export type QueueItemStatus = 'ready' | 'in_progress' | 'done_today' | 'blocked';
+export type QueueItemStatus = 'ready' | 'in_progress' | 'done_today' | 'blocked' | 'later';
 
 export const QUEUE_SECTIONS: { id: QueueItemStatus; label: string; icon: string; color: string }[] = [
   { id: 'ready', label: 'Ready', icon: '🟢', color: '#34d399' },
   { id: 'in_progress', label: 'In Progress', icon: '🔵', color: '#60a5fa' },
   { id: 'done_today', label: 'Done Today', icon: '✅', color: '#a78bfa' },
   { id: 'blocked', label: 'Blocked', icon: '🔴', color: '#f87171' },
+  { id: 'later', label: 'Later', icon: '⏳', color: '#94a3b8' },
 ];
 
 export interface QueueItemData {

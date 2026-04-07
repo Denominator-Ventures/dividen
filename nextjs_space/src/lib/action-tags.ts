@@ -31,14 +31,25 @@ export const SUPPORTED_TAGS = [
   'create_contact',
   'link_contact',
   'dispatch_queue',
+  'dispatch',          // alias for dispatch_queue (matches protocol spec)
   'create_event',
+  'schedule_event',    // alias for create_event (matches protocol spec)
   'set_reminder',
   'send_email',
   'add_checklist',
+  'add_task',          // alias for add_checklist (matches protocol spec)
   'complete_checklist',
   'update_memory',
   'save_learning',
+  'add_known_person',  // register a name alias (matches protocol spec)
 ] as const;
+
+// Map alias tag names to their canonical implementation
+const TAG_ALIASES: Record<string, string> = {
+  dispatch: 'dispatch_queue',
+  schedule_event: 'create_event',
+  add_task: 'add_checklist',
+};
 
 export type TagName = (typeof SUPPORTED_TAGS)[number];
 
@@ -103,7 +114,9 @@ async function executeTag(
   tag: ParsedTag,
   userId: string
 ): Promise<TagExecutionResult> {
-  const { name, params } = tag;
+  // Resolve aliases to canonical tag names
+  const name = TAG_ALIASES[tag.name] || tag.name;
+  const { params } = tag;
 
   try {
     switch (name) {
@@ -113,7 +126,7 @@ async function executeTag(
           data: {
             title: params.title || 'Untitled Card',
             description: params.description || null,
-            status: params.status || 'backlog',
+            status: params.status || 'leads',
             priority: params.priority || 'medium',
             dueDate: params.dueDate ? new Date(params.dueDate) : null,
             userId,
@@ -142,7 +155,7 @@ async function executeTag(
         if (!params.id) return { tag: name, success: false, error: 'Missing card id' };
         const card = await prisma.kanbanCard.update({
           where: { id: params.id },
-          data: { status: 'done' },
+          data: { status: 'completed' },
         });
         return { tag: name, success: true, data: { id: card.id } };
       }
@@ -339,6 +352,29 @@ async function executeTag(
           },
         });
         return { tag: name, success: true, data: { id: memory.id, key: memory.key, tier } };
+      }
+
+      // ── Known Person (alias registration) ─────────────────────────────
+      case 'add_known_person': {
+        if (!params.alias || !params.fullName) {
+          return { tag: name, success: false, error: 'Missing alias or fullName' };
+        }
+        // Save as a Tier 1 memory fact for name resolution
+        const memory = await prisma.memoryItem.upsert({
+          where: { userId_key: { userId, key: `known_person_${params.alias.toLowerCase()}` } },
+          create: {
+            tier: 1,
+            category: 'contact',
+            key: `known_person_${params.alias.toLowerCase()}`,
+            value: `${params.alias} → ${params.fullName}${params.context ? ` (${params.context})` : ''}`,
+            source: 'agent',
+            userId,
+          },
+          update: {
+            value: `${params.alias} → ${params.fullName}${params.context ? ` (${params.context})` : ''}`,
+          },
+        });
+        return { tag: name, success: true, data: { id: memory.id, alias: params.alias, fullName: params.fullName } };
       }
 
       // ── Learning (saved as Tier 3 pattern) ────────────────────────────

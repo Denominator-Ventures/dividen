@@ -80,7 +80,7 @@ All errors follow a consistent format:
           id: { type: 'string' },
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
-          status: { type: 'string', enum: ['leads', 'qualifying', 'proposal', 'negotiation', 'won', 'lost'] },
+          status: { type: 'string', enum: ['leads', 'qualifying', 'proposal', 'negotiation', 'active', 'development', 'completed'] },
           priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
           assignee: { type: 'string', enum: ['human', 'agent'] },
           dueDate: { type: 'string', format: 'date-time', nullable: true },
@@ -350,7 +350,7 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         tags: ['Kanban'],
         summary: 'List all kanban cards (read-only)',
         parameters: [
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['leads', 'qualifying', 'proposal', 'negotiation', 'won', 'lost'] } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['leads', 'qualifying', 'proposal', 'negotiation', 'active', 'development', 'completed'] } },
           { name: 'priority', in: 'query', schema: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] } },
           { name: 'assignee', in: 'query', schema: { type: 'string', enum: ['human', 'agent'] } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: 200 } },

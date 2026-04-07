@@ -124,8 +124,9 @@ export function ContactDetailModal({
     qualifying: '#60a5fa',
     proposal: '#a78bfa',
     negotiation: '#fbbf24',
-    won: '#34d399',
-    lost: '#f87171',
+    active: '#34d399',
+    development: '#2dd4bf',
+    completed: '#a78bfa',
   };
 
   return (
