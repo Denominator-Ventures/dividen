@@ -362,6 +362,61 @@ export interface FederationConfigData {
   requireApproval: boolean;
 }
 
+// ─── Profile Types ──────────────────────────────────────────────────────────
+
+export type CapacityStatus = 'available' | 'busy' | 'limited' | 'unavailable';
+export type ProfileVisibility = 'public' | 'connections' | 'private';
+export type ProfileSection = 'professional' | 'lived_experience' | 'availability' | 'values' | 'superpowers';
+
+export interface UserProfileData {
+  id: string;
+  userId: string;
+  // Professional
+  headline: string | null;
+  bio: string | null;
+  skills: string[];
+  experience: Array<{ title: string; company: string; startYear: number; endYear?: number; description?: string }>;
+  education: Array<{ institution: string; degree: string; field?: string; year?: number }>;
+  certifications: string[];
+  linkedinUrl: string | null;
+  // Lived Experience
+  languages: Array<{ language: string; proficiency: 'native' | 'fluent' | 'conversational' | 'basic' }>;
+  countriesLived: Array<{ country: string; years?: number; context?: string }>;
+  lifeMilestones: Array<{ milestone: string; year?: number; insight?: string }>;
+  volunteering: Array<{ org: string; role?: string; cause?: string }>;
+  hobbies: string[];
+  personalValues: string[];
+  superpowers: string[];
+  // Availability
+  capacityStatus: CapacityStatus;
+  capacityNote: string | null;
+  timezone: string | null;
+  workingHours: string | null;
+  outOfOffice: Array<{ start: string; end: string; reason?: string }>;
+  // Privacy
+  visibility: ProfileVisibility;
+  sharedSections: ProfileSection[];
+  // Meta
+  linkedinData: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const CAPACITY_STATUSES: Array<{ id: CapacityStatus; label: string; icon: string; color: string }> = [
+  { id: 'available', label: 'Available', icon: '🟢', color: 'text-green-400' },
+  { id: 'limited', label: 'Limited', icon: '🟡', color: 'text-yellow-400' },
+  { id: 'busy', label: 'Busy', icon: '🟠', color: 'text-orange-400' },
+  { id: 'unavailable', label: 'Unavailable', icon: '🔴', color: 'text-red-400' },
+];
+
+export const PROFILE_SECTIONS: Array<{ id: ProfileSection; label: string; icon: string }> = [
+  { id: 'professional', label: 'Professional', icon: '💼' },
+  { id: 'lived_experience', label: 'Lived Experience', icon: '🌍' },
+  { id: 'availability', label: 'Availability', icon: '📅' },
+  { id: 'values', label: 'Values & Principles', icon: '💎' },
+  { id: 'superpowers', label: 'Superpowers', icon: '⚡' },
+];
+
 // ─── Auth Types ─────────────────────────────────────────────────────────────
 
 export interface SetupFormData {

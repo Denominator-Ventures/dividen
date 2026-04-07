@@ -10,6 +10,7 @@ import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager
 import { IntegrationManager } from '@/components/settings/IntegrationManager';
 import { NotificationManager } from '@/components/settings/NotificationManager';
 import { FederationManager } from '@/components/settings/FederationManager';
+import ProfileEditor from '@/components/settings/ProfileEditor';
 import { cn } from '@/lib/utils';
 
 interface SettingsData {
@@ -39,7 +40,7 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'general' | 'integrations' | 'notifications' | 'federation';
+type SettingsTab = 'general' | 'profile' | 'integrations' | 'notifications' | 'federation';
 
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -142,6 +143,17 @@ export default function SettingsPage() {
           )}
         >
           ⚙️ General
+        </button>
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'profile'
+              ? 'bg-[var(--brand-primary)] text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          👤 Profile
         </button>
         <button
           onClick={() => setActiveTab('integrations')}
@@ -365,6 +377,24 @@ export default function SettingsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Profile Tab */}
+      {activeTab === 'profile' && (
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="font-semibold">👤 Personal Profile</h2>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Your professional background, lived experience, availability, and privacy settings.
+                This is what Divi uses to understand who you are — and what connections see.
+              </p>
+            </div>
+          </div>
+          <div className="panel-body">
+            <ProfileEditor />
+          </div>
+        </div>
       )}
 
       {/* Integrations Tab */}

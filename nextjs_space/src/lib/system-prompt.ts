@@ -310,6 +310,9 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[accept_connection:{"connectionId":"..."}]] — Accept a pending inbound connection request.
 - [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"optional response data"}]] — Respond to an inbound relay.
 
+### Profile
+- [[update_profile:{"skills":["skill1","skill2"],"languages":[{"language":"French","proficiency":"fluent"}],"countriesLived":[{"country":"Brazil","years":3,"context":"work"}],"personalValues":["transparency"],"superpowers":["cross-cultural communication"],"hobbies":["photography"],"capacityStatus":"available","headline":"...","bio":"...","timezone":"America/New_York"}]] — Update user's profile. Arrays are MERGED with existing data (not replaced). Use when user mentions personal details in conversation. Any subset of fields can be included.
+
 ### Platform Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]] — Create a new webhook endpoint
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-...","label":"optional label"}]] — Save LLM API key
@@ -477,6 +480,105 @@ When the user asks you to communicate with a connection, you can:
   return text;
 }
 
+// ─── Layer 18: Profile Awareness ──────────────────────────────────────────────
+
+async function layer18_profileAwareness(userId: string): Promise<string> {
+  try {
+    // Fetch owner's profile
+    const ownProfile = await prisma.userProfile.findUnique({ where: { userId } });
+    if (!ownProfile) return '## Profile\nUser has not set up their profile yet. If they mention personal details (skills, languages, countries lived in, values, etc.), suggest using [[update_profile:{...}]] to save it.';
+
+    const parse = (v: string | null, fallback: any = []) => {
+      if (!v) return fallback;
+      try { return JSON.parse(v); } catch { return fallback; }
+    };
+
+    let prompt = '## User Profile (Layer 18)\n\n';
+    prompt += '### Your Owner\'s Profile\n';
+    if (ownProfile.headline) prompt += `**Headline:** ${ownProfile.headline}\n`;
+    if (ownProfile.bio) prompt += `**Bio:** ${ownProfile.bio}\n`;
+
+    const skills = parse(ownProfile.skills);
+    if (skills.length) prompt += `**Skills:** ${skills.join(', ')}\n`;
+
+    const languages = parse(ownProfile.languages);
+    if (languages.length) prompt += `**Languages:** ${languages.map((l: any) => `${l.language} (${l.proficiency})`).join(', ')}\n`;
+
+    const countries = parse(ownProfile.countriesLived);
+    if (countries.length) prompt += `**Countries lived in:** ${countries.map((c: any) => `${c.country}${c.context ? ` (${c.context})` : ''}`).join(', ')}\n`;
+
+    const values = parse(ownProfile.personalValues);
+    if (values.length) prompt += `**Values:** ${values.join(', ')}\n`;
+
+    const superpowers = parse(ownProfile.superpowers);
+    if (superpowers.length) prompt += `**Superpowers:** ${superpowers.join(', ')}\n`;
+
+    prompt += `**Capacity:** ${ownProfile.capacity}`;
+    if (ownProfile.capacityNote) prompt += ` — ${ownProfile.capacityNote}`;
+    prompt += '\n';
+    if (ownProfile.timezone) prompt += `**Timezone:** ${ownProfile.timezone}\n`;
+
+    // Fetch connected users' profiles for relay routing intelligence
+    const connections = await prisma.connection.findMany({
+      where: {
+        status: 'active',
+        OR: [{ requesterId: userId }, { accepterId: userId }],
+      },
+      include: { requester: { select: { id: true, name: true } }, accepter: { select: { id: true, name: true } } },
+    });
+
+    if (connections.length > 0) {
+      const peerIds = connections.map(c => c.requesterId === userId ? c.accepterId : c.requesterId).filter((id): id is string => !!id);
+      const peerProfiles = await prisma.userProfile.findMany({
+        where: { userId: { in: peerIds }, NOT: { visibility: 'private' } },
+      });
+
+      if (peerProfiles.length > 0) {
+        prompt += '\n### Connected Users\' Profiles (for relay routing)\n';
+        prompt += 'Use this to decide WHO is best suited for a task based on skills, lived experience, AND availability:\n\n';
+
+        for (const pp of peerProfiles) {
+          const conn = connections.find(c => (c.requesterId === userId ? c.accepterId : c.requesterId) === pp.userId);
+          const peer = conn ? (conn.requesterId === userId ? conn.accepter : conn.requester) : null;
+          const nickname = conn ? (conn.requesterId === userId ? conn.nickname : conn.peerNickname) : null;
+          const name = nickname || peer?.name || 'Unknown';
+
+          prompt += `**${name}** — ${pp.capacity}`;
+          if (pp.headline) prompt += ` | ${pp.headline}`;
+          prompt += '\n';
+
+          const pSkills = parse(pp.skills);
+          if (pSkills.length) prompt += `  Skills: ${pSkills.slice(0, 8).join(', ')}\n`;
+
+          const pLangs = parse(pp.languages);
+          if (pLangs.length) prompt += `  Languages: ${pLangs.map((l: any) => l.language).join(', ')}\n`;
+
+          const pCountries = parse(pp.countriesLived);
+          if (pCountries.length) prompt += `  Lived in: ${pCountries.map((c: any) => c.country).join(', ')}\n`;
+
+          const pSuperpowers = parse(pp.superpowers);
+          if (pSuperpowers.length) prompt += `  Superpowers: ${pSuperpowers.join(', ')}\n`;
+
+          prompt += '\n';
+        }
+
+        prompt += '**Routing Rules:**\n';
+        prompt += '- When user asks "who should handle X?", consider skills + lived experience + availability\n';
+        prompt += '- Someone who LIVED in a country understands its culture better than someone who just speaks the language\n';
+        prompt += '- Capacity "unavailable" or "busy" means route elsewhere unless specifically requested\n';
+        prompt += '- Superpowers indicate what someone is uniquely good at — prioritize these for matching\n';
+      }
+    }
+
+    prompt += '\n**Profile Learning:** When the user mentions personal details in conversation, use [[update_profile:{...}]] to save them.';
+
+    return prompt;
+  } catch (e) {
+    console.error('Layer 18 (profile) error:', e);
+    return '';
+  }
+}
+
 // ─── Main Builder ────────────────────────────────────────────────────────────
 
 export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
@@ -498,6 +600,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     layer15_actionTagSyntax(),
     layer16_platformSetupAssistant(ctx.userId),
     layer17_connectionsRelay(ctx.userId),
+    layer18_profileAwareness(ctx.userId),
   ]);
 
   return layers.join('\n\n---\n\n');

@@ -55,6 +55,7 @@ export const SUPPORTED_TAGS = [
   'relay_request',     // send a relay to a connected user's agent
   'accept_connection', // accept a pending connection request
   'relay_respond',     // respond to an inbound relay (complete/decline)
+  'update_profile',    // update user profile from conversation (skills, languages, etc.)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -884,6 +885,66 @@ async function executeTag(
           });
         }
         return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status } };
+      }
+
+      case 'update_profile': {
+        // params can include any profile field: skills, languages, countriesLived, etc.
+        // Merge arrays rather than replace — add new items to existing lists
+        const profile = await prisma.userProfile.findUnique({ where: { userId } });
+        const parse = (v: string | null, fb: any = []) => { if (!v) return fb; try { return JSON.parse(v); } catch { return fb; } };
+
+        // Map client field names to DB field names
+        const fieldRemap: Record<string, string> = { capacityStatus: 'capacity', lifeMilestones: 'lifeExperiences' };
+        const jsonFields = ['skills', 'experience', 'education', 'languages', 'countriesLived', 'lifeExperiences', 'volunteering', 'hobbies', 'personalValues', 'superpowers', 'outOfOffice'];
+        const plainDbFields = ['headline', 'bio', 'linkedinUrl', 'capacity', 'capacityNote', 'timezone', 'workingHours', 'currentTitle', 'currentCompany', 'industry'];
+
+        const data: Record<string, any> = {};
+
+        // Handle plain fields (map client names to DB names)
+        for (const [clientName, dbName] of Object.entries(fieldRemap)) {
+          if (params[clientName] !== undefined) data[dbName] = params[clientName];
+        }
+        for (const f of plainDbFields) {
+          if (params[f] !== undefined) data[f] = params[f];
+        }
+
+        // Handle JSON array fields
+        for (const f of jsonFields) {
+          const clientField = f === 'lifeExperiences' ? 'lifeMilestones' : f;
+          const val = params[f] ?? params[clientField];
+          if (val !== undefined) {
+            const newItems = Array.isArray(val) ? val : [val];
+            if (profile) {
+              const existing = parse((profile as any)[f]);
+              if (typeof newItems[0] === 'string') {
+                const merged = [...new Set([...existing, ...newItems])];
+                data[f] = JSON.stringify(merged);
+              } else {
+                data[f] = JSON.stringify([...existing, ...newItems]);
+              }
+            } else {
+              data[f] = JSON.stringify(newItems);
+            }
+          }
+        }
+
+        if (Object.keys(data).length === 0) {
+          return { tag: name, success: false, error: 'No profile fields to update.' };
+        }
+
+        await prisma.userProfile.upsert({
+          where: { userId },
+          update: data,
+          create: {
+            user: { connect: { id: userId } },
+            capacity: 'available',
+            visibility: 'connections',
+            sharedSections: JSON.stringify(['professional', 'lived_experience', 'availability', 'values', 'superpowers']),
+            ...data,
+          },
+        });
+
+        return { tag: name, success: true, data: { fieldsUpdated: Object.keys(data) } };
       }
 
       default:

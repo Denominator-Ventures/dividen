@@ -50,6 +50,8 @@ export function ConnectionsView() {
   const [formLoading, setFormLoading] = useState(false);
 
   // New relay form
+  const [peerProfile, setPeerProfile] = useState<any>(null);
+  const [peerProfileLoading, setPeerProfileLoading] = useState(false);
   const [relayConnectionId, setRelayConnectionId] = useState('');
   const [relayIntent, setRelayIntent] = useState<RelayIntent>('custom');
   const [relaySubject, setRelaySubject] = useState('');
@@ -215,6 +217,22 @@ export function ConnectionsView() {
 
   const getNickname = (c: ConnectionData) => {
     return c.requesterId === userId ? c.nickname : c.peerNickname;
+  };
+
+  const fetchPeerProfile = async (peerId: string) => {
+    setPeerProfile(null);
+    setPeerProfileLoading(true);
+    try {
+      const res = await fetch(`/api/profile/${peerId}`);
+      const data = await res.json();
+      if (data.success) setPeerProfile(data.profile);
+    } catch { /* profile not available */ }
+    setPeerProfileLoading(false);
+  };
+
+  const getPeerId = (c: ConnectionData): string | null => {
+    const peerId = c.requesterId === userId ? c.accepterId : c.requesterId;
+    return peerId || null;
   };
 
   if (loading) {
@@ -552,6 +570,55 @@ export function ConnectionsView() {
                                   {s.icon} {s.label}
                                 </button>
                               ))}
+                            </div>
+
+                            {/* Profile Peek */}
+                            <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
+                              {!peerProfile && !peerProfileLoading && !c.isFederated && getPeerId(c) && (
+                                <button
+                                  onClick={() => fetchPeerProfile(getPeerId(c)!)}
+                                  className="text-[10px] text-brand-400 hover:text-brand-300 mb-2"
+                                >
+                                  👤 View Profile
+                                </button>
+                              )}
+                              {peerProfileLoading && <div className="text-[10px] text-white/30 mb-2">Loading profile...</div>}
+                              {peerProfile && peerProfile.userId === getPeerId(c) && (
+                                <div className="mb-2 space-y-1.5">
+                                  {peerProfile.headline && (
+                                    <div className="text-[11px] text-white/70 italic">{peerProfile.headline}</div>
+                                  )}
+                                  <div className="flex items-center gap-2 text-[10px]">
+                                    <span className={cn(
+                                      peerProfile.capacityStatus === 'available' ? 'text-green-400' :
+                                      peerProfile.capacityStatus === 'limited' ? 'text-yellow-400' :
+                                      peerProfile.capacityStatus === 'busy' ? 'text-orange-400' : 'text-red-400'
+                                    )}>
+                                      {peerProfile.capacityStatus === 'available' ? '🟢' : peerProfile.capacityStatus === 'limited' ? '🟡' : peerProfile.capacityStatus === 'busy' ? '🟠' : '🔴'}{' '}
+                                      {peerProfile.capacityStatus}
+                                    </span>
+                                    {peerProfile.timezone && <span className="text-white/30">🕐 {peerProfile.timezone}</span>}
+                                  </div>
+                                  {peerProfile.skills?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1">
+                                      {peerProfile.skills.slice(0, 5).map((s: string, i: number) => (
+                                        <span key={i} className="px-1.5 py-0.5 text-[9px] bg-white/5 text-white/50 rounded">{s}</span>
+                                      ))}
+                                      {peerProfile.skills.length > 5 && <span className="text-[9px] text-white/30">+{peerProfile.skills.length - 5}</span>}
+                                    </div>
+                                  )}
+                                  {peerProfile.languages?.length > 0 && (
+                                    <div className="text-[9px] text-white/40">
+                                      🗣️ {peerProfile.languages.map((l: any) => l.language).join(', ')}
+                                    </div>
+                                  )}
+                                  {peerProfile.superpowers?.length > 0 && (
+                                    <div className="text-[9px] text-white/40">
+                                      ⚡ {peerProfile.superpowers.slice(0, 3).join(' · ')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             <div className="flex gap-2 mt-2 pt-2 border-t border-[var(--border-color)]">
