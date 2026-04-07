@@ -16,18 +16,9 @@ export default function SetupPage() {
   });
 
   useEffect(() => {
-    // Check if setup is needed
-    fetch('/api/setup')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && !data.data.needsSetup) {
-          router.replace('/login');
-        } else {
-          setLoading(false);
-        }
-      })
-      .catch(() => setLoading(false));
-  }, [router]);
+    // Page is always accessible for account creation
+    setLoading(false);
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,15 +81,14 @@ export default function SetupPage() {
             <h1 className="text-3xl font-bold text-brand-400">DiviDen</h1>
           </div>
           <p className="text-[var(--text-secondary)]">
-            Welcome! Create your admin account to get started.
+            Create your account to get started.
           </p>
         </div>
 
         {/* Setup Form */}
         <div className="panel">
           <div className="panel-header">
-            <h2 className="font-semibold">First-Run Setup</h2>
-            <span className="text-xs text-[var(--text-muted)]">Step 1 of 1</span>
+            <h2 className="font-semibold">Create Account</h2>
           </div>
           <form onSubmit={handleSubmit} className="panel-body space-y-4">
             {error && (
@@ -177,8 +167,11 @@ export default function SetupPage() {
           </form>
         </div>
 
-        <p className="text-center text-xs text-[var(--text-muted)] mt-4">
-          This creates the first admin account for your DiviDen instance.
+        <p className="text-center text-sm text-[var(--text-secondary)] mt-4">
+          Already have an account?{' '}
+          <a href="/login" className="text-brand-400 hover:text-brand-300 font-medium">
+            Sign in
+          </a>
         </p>
       </div>
     </div>

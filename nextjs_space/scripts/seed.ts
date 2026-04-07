@@ -7,7 +7,7 @@ async function main() {
   console.log('Seeding database...');
 
   // Seed required test account
-  const passwordHash = await bcrypt.hash('johndoe123', 12);
+  const testPasswordHash = await bcrypt.hash('johndoe123', 12);
   
   await prisma.user.upsert({
     where: { email: 'john@doe.com' },
@@ -15,7 +15,22 @@ async function main() {
     create: {
       email: 'john@doe.com',
       name: 'John Doe',
-      passwordHash,
+      passwordHash: testPasswordHash,
+      role: 'admin',
+      mode: 'cockpit',
+    },
+  });
+
+  // Seed admin account
+  const adminPasswordHash = await bcrypt.hash('DiviDen2024!', 12);
+
+  await prisma.user.upsert({
+    where: { email: 'admin@dividen.ai' },
+    update: {},
+    create: {
+      email: 'admin@dividen.ai',
+      name: 'Admin User',
+      passwordHash: adminPasswordHash,
       role: 'admin',
       mode: 'cockpit',
     },

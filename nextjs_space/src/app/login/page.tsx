@@ -107,6 +107,13 @@ function LoginForm() {
             </button>
           </form>
         </div>
+
+        <p className="text-center text-sm text-[var(--text-secondary)] mt-4">
+          Don&apos;t have an account?{' '}
+          <a href="/setup" className="text-brand-400 hover:text-brand-300 font-medium">
+            Create one
+          </a>
+        </p>
       </div>
     </div>
   );

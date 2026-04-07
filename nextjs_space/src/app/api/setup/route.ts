@@ -9,13 +9,13 @@ const setupSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
 });
 
-// GET: Check if setup is needed
+// GET: Check if setup is needed (also doubles as health check)
 export async function GET() {
   try {
     const userCount = await prisma.user.count();
     return NextResponse.json({
       success: true,
-      data: { needsSetup: userCount === 0 },
+      data: { needsSetup: userCount === 0, userCount },
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -25,18 +25,9 @@ export async function GET() {
   }
 }
 
-// POST: Create initial admin account
+// POST: Create a new account
 export async function POST(request: NextRequest) {
   try {
-    // Check if setup already completed
-    const userCount = await prisma.user.count();
-    if (userCount > 0) {
-      return NextResponse.json(
-        { success: false, error: 'Setup already completed' },
-        { status: 400 }
-      );
-    }
-
     const body = await request.json();
     const result = setupSchema.safeParse(body);
 
@@ -48,14 +39,28 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, email, password } = result.data;
+
+    // Check if email already exists
+    const existing = await prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      return NextResponse.json(
+        { success: false, error: 'An account with this email already exists' },
+        { status: 400 }
+      );
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
+
+    // First user gets admin role, subsequent users get 'user' role
+    const userCount = await prisma.user.count();
+    const role = userCount === 0 ? 'admin' : 'user';
 
     const user = await prisma.user.create({
       data: {
         name,
         email,
         passwordHash,
-        role: 'admin',
+        role,
         mode: 'cockpit',
       },
     });
@@ -67,7 +72,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Setup error:', error);
     return NextResponse.json(
-      { success: false, error: error.message || 'Setup failed' },
+      { success: false, error: error.message || 'Account creation failed' },
       { status: 500 }
     );
   }
