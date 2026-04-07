@@ -44,6 +44,7 @@ model User {
   connectionsAccepted  Connection[] @relation("ConnectionsAccepted")
   relaysSent           AgentRelay[] @relation("RelaysSent")
   relaysReceived       AgentRelay[] @relation("RelaysReceived")
+  profile              UserProfile?
 
   @@map("users")
 }
@@ -650,6 +651,55 @@ model InstanceRegistry {
 
   @@index([baseUrl])
   @@map("instance_registry")
+}
+
+// ─── User Profile ─────────────────────────────────────────────────────────────
+// Extended identity — professional + lived experience + availability.
+// Shared with connections so agents can assess fitness for tasks.
+
+model UserProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  
+  // ── Professional ──
+  headline        String?  // "Founder & CEO at Acme" — one-liner
+  bio             String?  // Longer narrative bio
+  currentTitle    String?
+  currentCompany  String?
+  industry        String?
+  skills          String?  // JSON array: ["negotiation","python","design"]
+  experience      String?  // JSON array: [{title,company,startYear,endYear,description}]
+  education       String?  // JSON array: [{school,degree,field,year}]
+  linkedinUrl     String?
+  linkedinData    String?  // JSON — raw imported LinkedIn data
+
+  // ── Lived Experience ──
+  languages       String?  // JSON array: [{language,proficiency}] — "native","fluent","conversational","basic"
+  countriesLived  String?  // JSON array: [{country,years,context}]
+  lifeExperiences String?  // JSON array: [{category,description,year?}] — freeform life milestones
+  volunteering    String?  // JSON array: [{org,role,description}]
+  hobbies         String?  // JSON array: ["photography","hiking","chess"]
+  personalValues  String?  // JSON array: ["integrity","creativity","empathy"]
+  superpowers     String?  // JSON array — self-identified strengths beyond skills: ["crisis management","cross-cultural communication"]
+  
+  // ── Availability ──
+  timezone        String?  // e.g. "America/New_York"
+  workingHours    String?  // JSON: {start:"09:00",end:"17:00",days:["mon","tue","wed","thu","fri"]}
+  capacity        String   @default("available") // "available" | "busy" | "limited" | "unavailable"
+  capacityNote    String?  // "Focused on product launch until March 15"
+  outOfOffice     String?  // JSON: [{start,end,reason}]
+
+  // ── Privacy ──
+  visibility      String   @default("connections") // "public" | "connections" | "private"
+  sharedSections  String?  // JSON array of section names shared with connections: ["professional","skills","availability"]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_profiles")
 }
 
 // ─── Federation Settings ──────────────────────────────────────────────────────
