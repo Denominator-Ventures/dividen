@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from 'react';
 interface NowPanelProps {
   onNewTask?: () => void;
   onQuickChat?: () => void;
-  onCollapse?: () => void;
 }
 
 interface QueueItemData {
@@ -16,7 +15,7 @@ interface QueueItemData {
   type: string;
 }
 
-export function NowPanel({ onNewTask, onQuickChat, onCollapse }: NowPanelProps) {
+export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
   const [inProgress, setInProgress] = useState<QueueItemData[]>([]);
   const [doneToday, setDoneToday] = useState<QueueItemData[]>([]);
   const [totalReady, setTotalReady] = useState(0);
@@ -83,21 +82,7 @@ export function NowPanel({ onNewTask, onQuickChat, onCollapse }: NowPanelProps) 
         <h2 className="label-mono-accent">
           ⚡ NOW
         </h2>
-        <div className="flex items-center gap-2">
-          <span className="label-mono" style={{ fontSize: '10px' }}>Focus</span>
-          {onCollapse && (
-            <button
-              onClick={onCollapse}
-              className="w-6 h-6 flex items-center justify-center rounded text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors"
-              title="Collapse sidebar"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="11 17 6 12 11 7" />
-                <polyline points="18 17 13 12 18 7" />
-              </svg>
-            </button>
-          )}
-        </div>
+        <span className="label-mono" style={{ fontSize: '10px' }}>Focus</span>
       </div>
 
       <div className="panel-body flex-1 flex flex-col">
