@@ -417,12 +417,7 @@ export function LandingPage() {
       <footer className="border-t border-white/[0.04] py-12">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-md bg-gradient-to-br from-brand-500 to-brand-400 flex items-center justify-center text-[10px] font-bold text-black">
-                D
-              </div>
-              <span className="text-sm text-white/30">DiviDen — The Agentic Working Protocol</span>
-            </div>
+            <span className="text-sm text-white/30">DiviDen — The Agentic Working Protocol</span>
 
             <div className="flex items-center gap-6 text-sm text-white/30">
               <a
