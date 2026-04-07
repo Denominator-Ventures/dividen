@@ -35,6 +35,7 @@ model User {
   serviceApiKeys ServiceApiKey[]
   documents     Document[]
   recordings    Recording[]
+  commsMessages CommsMessage[]
 
   @@map("users")
 }
@@ -59,6 +60,7 @@ model KanbanCard {
   contacts    CardContact[]
   documents   Document[]
   recordings  Recording[]
+  commsMessages CommsMessage[]
 
   @@map("kanban_cards")
 }
@@ -142,6 +144,7 @@ model Contact {
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards        CardContact[]
+  commsMessages CommsMessage[]
 
   @@map("contacts")
 }
@@ -293,6 +296,7 @@ model Document {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  commsMessages CommsMessage[]
 
   @@index([userId])
   @@map("documents")
@@ -316,6 +320,7 @@ model Recording {
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  commsMessages CommsMessage[]
 
   @@index([userId])
   @@map("recordings")
@@ -335,6 +340,35 @@ model ActivityLog {
   @@index([userId])
   @@index([createdAt])
   @@map("activity_logs")
+}
+
+// ─── Comms Channel ───────────────────────────────────────────────────────────
+
+model CommsMessage {
+  id              String     @id @default(cuid())
+  sender          String     // "user" | "divi" | "system"
+  content         String
+  state           String     @default("new") // "new" | "read" | "acknowledged" | "resolved" | "dismissed"
+  priority        String     @default("normal") // "urgent" | "normal" | "low"
+  linkedCardId    String?
+  linkedContactId String?
+  linkedRecordingId String?
+  linkedDocumentId String?
+  metadata        String?    // JSON string for flexible data
+  userId          String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedCard      KanbanCard? @relation(fields: [linkedCardId], references: [id], onDelete: SetNull)
+  linkedContact   Contact?   @relation(fields: [linkedContactId], references: [id], onDelete: SetNull)
+  linkedRecording Recording? @relation(fields: [linkedRecordingId], references: [id], onDelete: SetNull)
+  linkedDocument  Document?  @relation(fields: [linkedDocumentId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([state])
+  @@index([createdAt])
+  @@map("comms_messages")
 }
 
 // External Agent API Keys for v2 API authentication

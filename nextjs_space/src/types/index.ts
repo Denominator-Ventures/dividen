@@ -172,6 +172,40 @@ export interface ApiResponse<T = unknown> {
 
 export type CenterTab = 'chat' | 'kanban' | 'crm' | 'recordings' | 'drive';
 
+// ─── Comms Channel Types ─────────────────────────────────────────────────────
+
+export type CommsSender = 'user' | 'divi' | 'system';
+export type CommsState = 'new' | 'read' | 'acknowledged' | 'resolved' | 'dismissed';
+export type CommsPriority = 'urgent' | 'normal' | 'low';
+
+export interface CommsMessageData {
+  id: string;
+  sender: CommsSender;
+  content: string;
+  state: CommsState;
+  priority: CommsPriority;
+  linkedCardId: string | null;
+  linkedContactId: string | null;
+  linkedRecordingId: string | null;
+  linkedDocumentId: string | null;
+  metadata: string | null;
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+  linkedCard?: { id: string; title: string; status: string } | null;
+  linkedContact?: { id: string; name: string; company: string | null } | null;
+  linkedRecording?: { id: string; title: string } | null;
+  linkedDocument?: { id: string; title: string; type: string } | null;
+}
+
+export const COMMS_STATES: { id: CommsState; label: string; color: string }[] = [
+  { id: 'new', label: 'New', color: '#4f7cff' },
+  { id: 'read', label: 'Read', color: '#94a3b8' },
+  { id: 'acknowledged', label: 'Acknowledged', color: '#fbbf24' },
+  { id: 'resolved', label: 'Resolved', color: '#34d399' },
+  { id: 'dismissed', label: 'Dismissed', color: '#6b7280' },
+];
+
 // ─── Auth Types ─────────────────────────────────────────────────────────────
 
 export interface SetupFormData {

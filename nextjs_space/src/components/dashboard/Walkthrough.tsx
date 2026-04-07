@@ -47,6 +47,13 @@ const STEPS: WalkthroughStep[] = [
     position: 'left',
   },
   {
+    id: 'comms',
+    title: 'Comms Channel',
+    description: 'Your structured task-passing channel with Divi. Send tasks, receive proactive updates, and track every message through its lifecycle — new → read → acknowledged → resolved.',
+    targetSelector: '[data-walkthrough="comms"]',
+    position: 'bottom',
+  },
+  {
     id: 'settings',
     title: 'Settings & API Keys',
     description: 'Head to Settings to add your OpenAI or Anthropic API key to enable Divi. You can also configure webhooks, manage memory, and more.',

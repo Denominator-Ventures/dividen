@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { NowPanel } from '@/components/dashboard/NowPanel';
 import { CenterPanel } from '@/components/dashboard/CenterPanel';
 import { QueuePanel } from '@/components/dashboard/QueuePanel';
@@ -12,6 +13,7 @@ import type { CenterTab } from '@/types';
 type MobilePanel = 'now' | 'center' | 'queue';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<CenterTab>('chat');
   const [mode, setMode] = useState<'cockpit' | 'chief_of_staff'>('cockpit');
   const [modeLoading, setModeLoading] = useState(false);
@@ -19,6 +21,7 @@ export default function DashboardPage() {
   const [showWalkthrough, setShowWalkthrough] = useState(false);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
+  const [commsUnread, setCommsUnread] = useState(0);
 
   useEffect(() => {
     fetch('/api/settings')
@@ -33,6 +36,12 @@ export default function DashboardPage() {
         }
       })
       .catch(() => setSettingsLoaded(true));
+
+    // Fetch comms unread count
+    fetch('/api/comms/unread')
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setCommsUnread(d.data.count); })
+      .catch(() => {});
   }, []);
 
   const toggleMode = useCallback(async () => {
@@ -132,6 +141,24 @@ export default function DashboardPage() {
             </div>
           </button>
 
+          {/* Comms Channel */}
+          <button
+            onClick={() => router.push('/dashboard/comms')}
+            className="relative text-[var(--text-muted)] hover:text-brand-400 transition-colors p-1"
+            title="Comms Channel"
+            data-walkthrough="comms"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            {commsUnread > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[var(--brand-primary)] text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                {commsUnread > 9 ? '9+' : commsUnread}
+              </span>
+            )}
+          </button>
+
           <div className="w-px h-5 bg-[var(--border-color)]" />
 
           {/* Settings */}
@@ -206,7 +233,7 @@ export default function DashboardPage() {
             <button
               key={tab.id}
               onClick={() => setMobilePanel(tab.id)}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1.5 rounded-lg transition-colors ${
+              className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors ${
                 mobilePanel === tab.id
                   ? 'text-[var(--brand-primary)]'
                   : 'text-[var(--text-muted)]'
@@ -216,6 +243,19 @@ export default function DashboardPage() {
               <span className="text-[10px] font-medium uppercase tracking-wider">{tab.label}</span>
             </button>
           ))}
+          {/* Comms — navigates to dedicated page */}
+          <button
+            onClick={() => router.push('/dashboard/comms')}
+            className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors text-[var(--text-muted)]"
+          >
+            <span className="text-lg leading-none">📡</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider">Comms</span>
+            {commsUnread > 0 && (
+              <span className="absolute top-0.5 right-1 bg-[var(--brand-primary)] text-white text-[7px] font-bold rounded-full w-3.5 h-3.5 flex items-center justify-center">
+                {commsUnread > 9 ? '9+' : commsUnread}
+              </span>
+            )}
+          </button>
         </nav>
       </div>
     </div>
