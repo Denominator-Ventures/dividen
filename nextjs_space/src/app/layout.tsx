@@ -12,16 +12,16 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'DiviDen — Command Center',
-  description: 'The Company Operating System. Human-AI coordination.',
+  title: 'DiviDen — The Agentic Working Protocol',
+  description: 'The last interface you\'ll ever need. Your personal AI agent that manages your pipeline, coordinates with other agents, and acts on your behalf — across every team, tool, and company boundary.',
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
   icons: {
     icon: '/favicon.svg',
     shortcut: '/favicon.svg',
   },
   openGraph: {
-    title: 'DiviDen — Command Center',
-    description: 'The Company Operating System. Human-AI coordination.',
+    title: 'DiviDen — The Last Interface You\'ll Ever Need',
+    description: 'Your personal AI agent that manages your pipeline, coordinates with other agents, and acts on your behalf. Protocol-first. Open source. Federated by design.',
     images: ['/og-image.png'],
   },
 };
