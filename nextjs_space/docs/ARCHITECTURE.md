@@ -166,144 +166,76 @@ The chat handler parses these from the LLM response and executes them server-sid
 
 ## 3. Integration Surface
 
-### 3.1 MCP Server Implementation (Planned)
+### 3.1 MCP Server (Implemented)
 
-The goal: any MCP-compatible agent can participate in the DiviDen network.
+Any MCP-compatible agent can participate in the DiviDen network via `POST /api/mcp`.
 
-**Proposed MCP server structure:**
+**Transport**: Streamable HTTP (JSON-RPC 2.0 over HTTP per MCP November 2025 spec).
+**Authentication**: Bearer token (DiviDen API key, same as Agent API v2).
 
-```typescript
-// DiviDen as an MCP Server
-const dividenMCPServer = {
-  // TOOLS — actions agents can take
-  tools: [
-    {
-      name: "send_relay",
-      description: "Send a structured relay to a connected agent",
-      inputSchema: {
-        type: "object",
-        properties: {
-          connectionId: { type: "string" },
-          intent: { enum: ["get_info", "assign_task", "request_approval", 
-                           "share_update", "schedule", "introduce", "custom"] },
-          subject: { type: "string" },
-          payload: { type: "object" },
-          priority: { enum: ["urgent", "normal", "low"] }
-        }
-      }
-    },
-    {
-      name: "respond_to_relay",
-      description: "Respond to a pending inbound relay",
-      inputSchema: {
-        type: "object",
-        properties: {
-          relayId: { type: "string" },
-          status: { enum: ["completed", "declined"] },
-          responsePayload: { type: "object" }
-        }
-      }
-    },
-    {
-      name: "update_profile",
-      description: "Update the user's identity profile",
-      inputSchema: { /* ... ProfileUpdate schema */ }
-    },
-    {
-      name: "manage_connection",
-      description: "Accept, decline, or update a connection",
-      inputSchema: { /* ... ConnectionUpdate schema */ }
-    }
-  ],
-  
-  // RESOURCES — data agents can read
-  resources: [
-    {
-      uri: "dividen://profile/self",
-      name: "My Profile",
-      description: "The user's full identity profile"
-    },
-    {
-      uri: "dividen://connections",
-      name: "Active Connections",
-      description: "List of active connections with profiles"
-    },
-    {
-      uri: "dividen://relays/pending",
-      name: "Pending Relays",
-      description: "Inbound relays awaiting response"
-    },
-    {
-      uri: "dividen://relays/history",
-      name: "Relay History",
-      description: "Recent relay activity"
-    }
-  ],
-  
-  // PROMPTS — context templates
-  prompts: [
-    {
-      name: "relay_context",
-      description: "Full context for handling a specific relay",
-      arguments: [{ name: "relayId", required: true }]
-    },
-    {
-      name: "routing_decision",
-      description: "Context for deciding who to route a request to",
-      arguments: [{ name: "taskDescription", required: true }]
-    }
-  ]
-};
+**Tools (6):**
+| Tool | Description |
+|------|-------------|
+| `send_relay` | Send a structured relay through a connection |
+| `respond_to_relay` | Respond to a pending inbound relay |
+| `list_connections` | List connections with trust levels and peer profiles |
+| `manage_connection` | Accept, decline, block, or update permissions |
+| `list_relays` | List relays with filters (status, direction, connection) |
+| `update_profile` | Update identity profile (professional, lived experience, task types, availability) |
+
+**Resources (5):**
+| URI | Description |
+|-----|-------------|
+| `dividen://profile/self` | Full identity profile |
+| `dividen://connections` | Active connections with peer profile summaries |
+| `dividen://relays/pending` | Inbound relays needing attention |
+| `dividen://relays/history` | Recent relay activity |
+| `dividen://queue` | Pending/active task queue items |
+
+**Prompts (2):**
+| Prompt | Description |
+|--------|-------------|
+| `relay_context` | Full context for handling a specific relay (includes peer profile) |
+| `routing_decision` | Evaluates all connections for best-match routing (skills + lived experience + task types + availability) |
+
+**Example: MCP initialize + list tools:**
+```bash
+curl -X POST https://your-instance.com/api/mcp \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+
+curl -X POST https://your-instance.com/api/mcp \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
 ```
 
-**Transport**: Streamable HTTP (MCP November 2025 spec) at `/api/mcp`.
+### 3.2 A2A Bridge (Implemented)
 
-**Authentication**: OAuth 2.1 with PKCE, mapping to DiviDen's existing Agent API key system.
+**Agent Card** — published at `GET /.well-known/agent-card.json` (dynamic, CORS-open, no auth required):
+- Advertises instance name, capabilities, skills, authentication, and service endpoints
+- Includes DiviDen-specific metadata: federation mode, relay intents, task types, instance health
+- Per A2A spec: discoverable at the well-known URL for automated agent discovery
 
-### 3.2 A2A Bridge (Planned)
+**A2A Task Endpoint** — `POST /api/a2a` (Bearer token auth):
 
-**Agent Card** (`/.well-known/agent-card.json`):
+| Method | Description |
+|--------|-------------|
+| `tasks/send` | Send a task (maps to DiviDen relay). Message parts → relay subject/payload. |
+| `tasks/get` | Get task status. Relay status maps to A2A states (submitted/working/input-required/completed/failed). |
+| `tasks/cancel` | Cancel a pending task. |
 
-```json
-{
-  "name": "Alice's Divi",
-  "description": "Personal AI agent for Alice — coordination, research, task management",
-  "version": "0.1",
-  "url": "https://dividen.alice.com/api/a2a",
-  "capabilities": {
-    "streaming": true,
-    "pushNotifications": true
-  },
-  "skills": [
-    {
-      "id": "relay",
-      "name": "Agent Relay",
-      "description": "Send and receive structured coordination messages"
-    },
-    {
-      "id": "profile",
-      "name": "Profile Query",
-      "description": "Query availability, skills, and task type compatibility"
-    },
-    {
-      "id": "schedule",
-      "name": "Scheduling",
-      "description": "Coordinate meeting times based on calendar availability"
-    }
-  ],
-  "defaultInputModes": ["text/plain", "application/json"],
-  "defaultOutputModes": ["text/plain", "application/json"],
-  "authentication": {
-    "schemes": ["bearer"]
-  }
-}
-```
+**A2A → DiviDen state mapping:**
+| Relay Status | A2A Task State |
+|--------------|---------------|
+| `pending` | `submitted` |
+| `delivered`, `agent_handling` | `working` |
+| `user_review` | `input-required` |
+| `completed` | `completed` |
+| `declined`, `expired` | `failed` |
 
-**A2A → DiviDen mapping:**
-- A2A `Task` → DiviDen `AgentRelay`
-- A2A Task states → Relay status lifecycle
-- A2A `Message.parts` → Relay payload fields
-- A2A `Artifact` → Relay response payload
+Completed relays include response data as A2A artifacts.
 
 ### 3.3 Existing Integration Points
 

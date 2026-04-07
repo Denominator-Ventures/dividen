@@ -378,15 +378,15 @@ Each agent operates independently. There is no central orchestrator. Trust is bi
 - ✅ Webhook auto-learn infrastructure
 
 ### Next (v0.2)
-- 🔲 MCP server implementation (expose DiviDen as MCP tools/resources)
-- 🔲 A2A Agent Card publishing (`/.well-known/agent-card.json`)
+- ✅ MCP server implementation (6 tools, 5 resources, 2 prompts at `/api/mcp`)
+- ✅ A2A Agent Card publishing (`/.well-known/agent-card.json`)
+- ✅ A2A task endpoint (`/api/a2a` — tasks/send, tasks/get, tasks/cancel)
 - 🔲 Encrypted relay payloads (end-to-end between agents)
 - 🔲 Federation token rotation
 - 🔲 Relay analytics and trust scoring
 - 🔲 Batch relay operations
 
 ### Future (v0.3+)
-- 🔲 A2A task endpoint bridge
 - 🔲 MCP Tasks primitive for long-running relays
 - 🔲 Agent reputation system
 - 🔲 Multi-modal relay payloads (files, images, audio)

@@ -74,8 +74,8 @@ This means Alice's company can run their own DiviDen instance, Bob's company run
 The protocol is designed to be consumed by any environment:
 - **Agent API v2**: RESTful API with Bearer token auth for external agent integration
 - **Webhook Infrastructure**: calendar, email, transcript, and generic webhook types with auto-learning field mapping
-- **MCP Compatibility**: the relay protocol and agent capabilities map naturally to MCP's tool/resource/prompt primitives (see [Architecture](docs/ARCHITECTURE.md))
-- **A2A Alignment**: relay intents, agent cards, and task lifecycles align with Google's Agent2Agent protocol patterns
+- **MCP Server** (`/api/mcp`): Full JSON-RPC 2.0 implementation per MCP November 2025 spec — 6 tools, 5 resources, 2 prompts. Any MCP-compatible agent can participate in the DiviDen network.
+- **A2A Protocol** (`/.well-known/agent-card.json` + `/api/a2a`): Agent Card discovery + task endpoints mapping to DiviDen relays. Compatible with Google's Agent2Agent protocol.
 
 ---
 
@@ -206,10 +206,10 @@ nextjs_space/
 
 | Standard | DiviDen Alignment |
 |----------|------------------|
-| **MCP** (Model Context Protocol) | Relay payloads map to MCP tool calls; agent capabilities map to MCP resources; profile data maps to MCP prompts. Federation endpoints can be exposed as MCP servers. |
-| **A2A** (Agent2Agent Protocol) | Agent profiles serve as Agent Cards; relay intents align with A2A task types; relay lifecycle mirrors A2A task states; federation tokens map to A2A authentication. |
+| **MCP** (Model Context Protocol) | **Implemented.** Full MCP server at `/api/mcp` — 6 tools (relay, connection, profile ops), 5 resources (profile, connections, relays, queue), 2 prompts (relay context, routing decision). JSON-RPC 2.0 over Streamable HTTP. |
+| **A2A** (Agent2Agent Protocol) | **Implemented.** Agent Card at `/.well-known/agent-card.json`, task endpoints at `/api/a2a`. Relay lifecycle maps to A2A task states. |
 | **OAuth 2.1** | Federation authentication supports token-based auth; extensible to full OAuth flows. |
-| **JSON-RPC** | Relay payload structure is JSON-native; adaptable to JSON-RPC 2.0 transport. |
+| **JSON-RPC 2.0** | MCP server uses JSON-RPC 2.0 as its wire protocol. Supports single and batch requests. |
 
 ---
 

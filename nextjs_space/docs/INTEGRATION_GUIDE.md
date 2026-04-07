@@ -12,8 +12,8 @@
 | Connect an external AI agent | Agent API v2 (`/api/v2/*`) | Bearer token |
 | Send data into DiviDen | Webhooks (`/api/webhooks/*`) | Webhook secret |
 | Connect two DiviDen instances | Federation (`/api/federation/*`) | Federation token |
-| Connect any MCP-compatible agent | MCP Server (planned) | OAuth 2.1 |
-| Connect any A2A-compatible agent | A2A Bridge (planned) | Bearer token |
+| Connect any MCP-compatible agent | MCP Server (`/api/mcp`) | Bearer token |
+| Connect any A2A-compatible agent | A2A (`/api/a2a`) | Bearer token |
 
 ---
 
@@ -121,31 +121,97 @@ curl -X POST https://instance-b.com/api/federation/relay \
 
 ---
 
-## 4. MCP Integration (Roadmap)
+## 4. MCP Integration
 
-DiviDen will expose itself as an MCP server, allowing any MCP-compatible agent to:
+DiviDen exposes a full MCP server at `POST /api/mcp`, allowing any MCP-compatible agent to:
 
-- **Read** profiles, connections, pending relays (as MCP Resources)
+- **Read** profiles, connections, pending relays, queue (as MCP Resources)
 - **Execute** relay sends, profile updates, connection management (as MCP Tools)
 - **Use** context templates for relay handling and routing decisions (as MCP Prompts)
 
-**Transport**: Streamable HTTP at `/api/mcp`  
-**Auth**: OAuth 2.1 with PKCE  
-**Spec**: MCP November 2025 specification
+**Transport**: JSON-RPC 2.0 over HTTP (Streamable HTTP per MCP November 2025 spec)  
+**Auth**: Bearer token (DiviDen API key)  
+**Discovery**: `GET /api/mcp` returns server metadata
 
-This means Claude Desktop, GPT agents, Gemini agents, or any custom MCP client can participate in the DiviDen network natively — without running the reference frontend.
+### Example: Initialize + Read Pending Relays
+
+```bash
+# Initialize the MCP session
+curl -X POST https://your-instance.com/api/mcp \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}'
+
+# Read pending relays
+curl -X POST https://your-instance.com/api/mcp \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"dividen://relays/pending"}}'
+
+# Send a relay via tool call
+curl -X POST https://your-instance.com/api/mcp \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"send_relay","arguments":{"connectionId":"conn_id","intent":"get_info","subject":"Project status?"}}}'
+
+# Get routing recommendation
+curl -X POST https://your-instance.com/api/mcp \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":4,"method":"prompts/get","params":{"name":"routing_decision","arguments":{"taskDescription":"Need someone to review a Japanese contract"}}}'
+```
+
+### Available Tools
+`send_relay`, `respond_to_relay`, `list_connections`, `manage_connection`, `list_relays`, `update_profile`
+
+### Available Resources
+`dividen://profile/self`, `dividen://connections`, `dividen://relays/pending`, `dividen://relays/history`, `dividen://queue`
+
+### Available Prompts
+`relay_context` (by relayId), `routing_decision` (by task description)
 
 ---
 
-## 5. A2A Integration (Roadmap)
+## 5. A2A Integration
 
-DiviDen will publish Agent Cards and implement A2A task endpoints:
+DiviDen publishes an Agent Card and implements A2A task endpoints:
 
-- **Agent Card**: published at `/.well-known/agent-card.json`
-- **Task endpoint**: A2A tasks map to DiviDen relays
-- **Streaming**: SSE for long-running relay conversations
+- **Agent Card**: published at `GET /.well-known/agent-card.json` (public, no auth, CORS-open)
+- **Task endpoint**: `POST /api/a2a` — tasks/send, tasks/get, tasks/cancel
+- **Discovery**: `GET /api/a2a` returns endpoint metadata
 
-This enables any A2A-compatible agent to discover and collaborate with DiviDen agents.
+### Example: Send an A2A Task
+
+```bash
+# Discover the agent
+curl https://your-instance.com/.well-known/agent-card.json
+
+# Send a task
+curl -X POST https://your-instance.com/api/a2a \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "method": "tasks/send",
+    "params": {
+      "message": {
+        "parts": [{"type": "text", "text": "Review the Q2 proposal by Friday"}]
+      },
+      "metadata": {
+        "connectionId": "conn_id",
+        "intent": "assign_task",
+        "priority": "normal"
+      }
+    }
+  }'
+
+# Check task status
+curl -X POST https://your-instance.com/api/a2a \
+  -H "Authorization: Bearer dvd_your_key" \
+  -H "Content-Type: application/json" \
+  -d '{"method": "tasks/get", "params": {"id": "relay_id"}}'
+```
+
+Any A2A-compatible agent can discover DiviDen agents and collaborate via structured tasks.
 
 ---
 
