@@ -33,6 +33,7 @@ function serializeProfile(p: any) {
     hobbies: parseJsonField(p.hobbies),
     personalValues: parseJsonField(p.personalValues),
     superpowers: parseJsonField(p.superpowers),
+    taskTypes: parseJsonField(p.taskTypes),
     capacityStatus: p.capacity,
     capacityNote: p.capacityNote,
     timezone: p.timezone,
@@ -83,7 +84,7 @@ export async function PUT(request: NextRequest) {
   const jsonFields = [
     'skills', 'experience', 'education',
     'languages', 'countriesLived', 'volunteering',
-    'hobbies', 'personalValues', 'superpowers', 'outOfOffice', 'sharedSections',
+    'hobbies', 'personalValues', 'superpowers', 'taskTypes', 'outOfOffice', 'sharedSections',
   ];
   // Client sends lifeMilestones, DB stores as lifeExperiences
   const fieldMap: Record<string, string> = {

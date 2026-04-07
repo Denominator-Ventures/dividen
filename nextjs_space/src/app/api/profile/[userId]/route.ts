@@ -83,6 +83,7 @@ function serializeFull(p: any) {
     lifeMilestones: parseJsonField(p.lifeExperiences), volunteering: parseJsonField(p.volunteering),
     hobbies: parseJsonField(p.hobbies), personalValues: parseJsonField(p.personalValues),
     superpowers: parseJsonField(p.superpowers),
+    taskTypes: parseJsonField(p.taskTypes),
     capacityStatus: p.capacity, capacityNote: p.capacityNote,
     timezone: p.timezone, workingHours: p.workingHours,
     outOfOffice: parseJsonField(p.outOfOffice),
@@ -103,7 +104,7 @@ function serializeFiltered(p: any, sections: string[]) {
     result.skills = parseJsonField(p.skills);
     result.experience = parseJsonField(p.experience);
     result.education = parseJsonField(p.education);
-    result.certifications = parseJsonField(p.certifications);
+    result.taskTypes = parseJsonField(p.taskTypes);
   }
   if (sections.includes('lived_experience')) {
     result.languages = parseJsonField(p.languages);

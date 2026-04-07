@@ -387,6 +387,7 @@ export interface UserProfileData {
   hobbies: string[];
   personalValues: string[];
   superpowers: string[];
+  taskTypes: string[];
   // Availability
   capacityStatus: CapacityStatus;
   capacityNote: string | null;
@@ -407,6 +408,23 @@ export const CAPACITY_STATUSES: Array<{ id: CapacityStatus; label: string; icon:
   { id: 'limited', label: 'Limited', icon: '🟡', color: 'text-yellow-400' },
   { id: 'busy', label: 'Busy', icon: '🟠', color: 'text-orange-400' },
   { id: 'unavailable', label: 'Unavailable', icon: '🔴', color: 'text-red-400' },
+];
+
+export const TASK_TYPES: Array<{ id: string; label: string; icon: string; description: string }> = [
+  { id: 'research', label: 'Research', icon: '🔍', description: 'Finding information, market analysis, due diligence' },
+  { id: 'review', label: 'Review & Feedback', icon: '📝', description: 'Reviewing documents, code, proposals, designs' },
+  { id: 'introductions', label: 'Introductions', icon: '🤝', description: 'Connecting people, making warm intros' },
+  { id: 'technical', label: 'Technical', icon: '⚙️', description: 'Engineering, debugging, architecture, data analysis' },
+  { id: 'creative', label: 'Creative', icon: '🎨', description: 'Design, writing, branding, content creation' },
+  { id: 'strategy', label: 'Strategy', icon: '♟️', description: 'Planning, decision-making, roadmapping' },
+  { id: 'operations', label: 'Operations', icon: '📋', description: 'Logistics, scheduling, coordination, project management' },
+  { id: 'mentoring', label: 'Mentoring', icon: '🌱', description: 'Coaching, teaching, career guidance' },
+  { id: 'sales', label: 'Sales & BD', icon: '💼', description: 'Business development, pitching, partnerships' },
+  { id: 'legal', label: 'Legal & Compliance', icon: '⚖️', description: 'Contracts, regulatory, compliance advice' },
+  { id: 'finance', label: 'Finance', icon: '📊', description: 'Budgeting, forecasting, financial analysis' },
+  { id: 'hr', label: 'People & Culture', icon: '👥', description: 'Hiring, team building, conflict resolution' },
+  { id: 'translation', label: 'Translation', icon: '🌐', description: 'Language translation, localization, cultural adaptation' },
+  { id: 'custom', label: 'Other', icon: '✨', description: 'Custom task types not listed above' },
 ];
 
 export const PROFILE_SECTIONS: Array<{ id: ProfileSection; label: string; icon: string }> = [

@@ -895,7 +895,7 @@ async function executeTag(
 
         // Map client field names to DB field names
         const fieldRemap: Record<string, string> = { capacityStatus: 'capacity', lifeMilestones: 'lifeExperiences' };
-        const jsonFields = ['skills', 'experience', 'education', 'languages', 'countriesLived', 'lifeExperiences', 'volunteering', 'hobbies', 'personalValues', 'superpowers', 'outOfOffice'];
+        const jsonFields = ['skills', 'experience', 'education', 'languages', 'countriesLived', 'lifeExperiences', 'volunteering', 'hobbies', 'personalValues', 'superpowers', 'taskTypes', 'outOfOffice'];
         const plainDbFields = ['headline', 'bio', 'linkedinUrl', 'capacity', 'capacityNote', 'timezone', 'workingHours', 'currentTitle', 'currentCompany', 'industry'];
 
         const data: Record<string, any> = {};

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import {
   UserProfileData, CapacityStatus, ProfileVisibility, ProfileSection,
-  CAPACITY_STATUSES, PROFILE_SECTIONS,
+  CAPACITY_STATUSES, PROFILE_SECTIONS, TASK_TYPES,
 } from '@/types';
 
 type ProfileTab = 'professional' | 'lived' | 'availability' | 'privacy' | 'import';
@@ -295,8 +295,37 @@ function ProfessionalTab({ profile, updateField }: { profile: UserProfileData; u
         placeholder="Tell people who you are and what drives you..." />
       <TagInput label="Skills" tags={profile.skills || []} onChange={v => updateField('skills', v)}
         placeholder="e.g. Product Strategy, Python, Team Leadership" />
-      <TagInput label="Certifications" tags={profile.certifications || []} onChange={v => updateField('certifications', v)}
-        placeholder="e.g. PMP, AWS Solutions Architect" />
+      {/* Task Types */}
+      <div>
+        <label className="label-mono text-xs text-white/40 mb-1 block">TASK TYPES YOU CAN HELP WITH</label>
+        <p className="text-white/30 text-xs mb-2">What kinds of tasks should connections send your way via relays?</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {TASK_TYPES.map(tt => {
+            const selected = (profile.taskTypes || []).includes(tt.id);
+            return (
+              <button
+                key={tt.id}
+                onClick={() => {
+                  if (selected) updateField('taskTypes', (profile.taskTypes || []).filter((t: string) => t !== tt.id));
+                  else updateField('taskTypes', [...(profile.taskTypes || []), tt.id]);
+                }}
+                className={cn(
+                  'flex items-center gap-2 px-2.5 py-2 rounded-lg border text-left text-xs transition-all',
+                  selected
+                    ? 'bg-brand-500/10 border-brand-500/30 text-white'
+                    : 'bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:bg-white/8'
+                )}
+              >
+                <span>{tt.icon}</span>
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{tt.label}</div>
+                  <div className="text-[9px] text-white/30 truncate">{tt.description}</div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Experience list */}
       <div>

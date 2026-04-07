@@ -250,7 +250,9 @@ async function layer13_emailContext(userId: string): Promise<string> {
 function layer14_capabilities(): string {
   return `## Layer 14: System Capabilities
 You can perform the following actions by embedding action tags in your responses:
-- Create, update, and archive Kanban cards
+
+### Core Operations
+- Create, update, and archive Kanban cards (pipeline management)
 - Add and complete checklist items on cards
 - Create and link contacts (CRM)
 - Dispatch items to the user's queue
@@ -258,10 +260,25 @@ You can perform the following actions by embedding action tags in your responses
 - Create documents in Drive
 - Send messages to the Comms Channel
 - Send emails (draft)
-- Set up webhooks for external integrations
-- Save API keys for LLM providers
-- Update your memory about the user
+
+### Platform Setup
+- Set up webhooks for external integrations (calendar, email, transcript, generic)
+- Save API keys for LLM providers (OpenAI, Anthropic)
+
+### Memory & Learning
+- Update your memory about the user (3-tier: facts, rules, patterns)
 - Save observations about user preferences
+
+### Profile Management
+- Update the user's profile: skills, task types, languages, countries lived in, values, superpowers, hobbies, volunteering, life milestones, headline, bio, capacity status, timezone, working hours
+- Profile arrays are MERGED (not replaced) — safe to add incrementally from conversation
+- When user mentions personal details ("I speak French", "I'm good at strategy"), update their profile automatically
+
+### Connections & Agent Relay
+- Send relays to connected users' Divi agents (request info, assign tasks, share updates, make introductions, schedule, request approval)
+- Accept inbound connection requests
+- Respond to inbound relays (complete or decline)
+- Route tasks to the most appropriate connection based on skills + task types + lived experience + availability
 
 Always embed action tags alongside your natural language response. The user will only see the natural language; tags are stripped before display.`;
 }
@@ -311,7 +328,7 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"optional response data"}]] — Respond to an inbound relay.
 
 ### Profile
-- [[update_profile:{"skills":["skill1","skill2"],"languages":[{"language":"French","proficiency":"fluent"}],"countriesLived":[{"country":"Brazil","years":3,"context":"work"}],"personalValues":["transparency"],"superpowers":["cross-cultural communication"],"hobbies":["photography"],"capacityStatus":"available","headline":"...","bio":"...","timezone":"America/New_York"}]] — Update user's profile. Arrays are MERGED with existing data (not replaced). Use when user mentions personal details in conversation. Any subset of fields can be included.
+- [[update_profile:{"skills":["skill1","skill2"],"taskTypes":["research","review","technical","creative","strategy","operations","mentoring","introductions","sales","legal","finance","hr","translation","custom"],"languages":[{"language":"French","proficiency":"fluent"}],"countriesLived":[{"country":"Brazil","years":3,"context":"work"}],"personalValues":["transparency"],"superpowers":["cross-cultural communication"],"hobbies":["photography"],"capacityStatus":"available","headline":"...","bio":"...","timezone":"America/New_York"}]] — Update user's profile. Arrays are MERGED with existing data (not replaced). Use when user mentions personal details in conversation. Any subset of fields can be included. taskTypes controls what relay task categories the user is willing to receive.
 
 ### Platform Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]] — Create a new webhook endpoint
@@ -333,12 +350,14 @@ IMPORTANT:
 
 async function layer16_platformSetupAssistant(userId: string): Promise<string> {
   // Gather current platform state so Divi knows what's already configured
-  const [apiKeys, webhooks, contactCount, cardCount, docCount] = await Promise.all([
+  const [apiKeys, webhooks, contactCount, cardCount, docCount, connectionCount, profile] = await Promise.all([
     prisma.agentApiKey.findMany({ where: { isActive: true }, select: { provider: true } }),
     prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true, url: true, secret: true } }),
     prisma.contact.count({ where: { userId } }),
     prisma.kanbanCard.count({ where: { userId } }),
     prisma.document.count({ where: { userId } }),
+    prisma.connection.count({ where: { OR: [{ requesterId: userId }, { accepterId: userId }], status: 'active' } }),
+    prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, skills: true, taskTypes: true, capacity: true } }),
   ]);
 
   const activeProviders = apiKeys.map(k => k.provider);
@@ -346,14 +365,18 @@ async function layer16_platformSetupAssistant(userId: string): Promise<string> {
     ? webhooks.map(w => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
     : 'None configured';
 
-  return `## Layer 16: Platform Setup Assistant
-You are the user's guide for setting up and configuring the DiviDen Command Center. When the user asks for help with setup, configuration, or "how do I...?" questions, you have two modes:
+  const profileStatus = profile
+    ? `Set up (headline: "${profile.headline || 'not set'}", capacity: ${profile.capacity})`
+    : '⚠️ Not created yet — suggest the user set up their profile';
+
+  return `## Layer 16: Platform Setup & Operations Guide
+You are the user's guide for setting up, configuring, AND operating the DiviDen Command Center. When the user asks for help, you have two modes:
 
 ### Mode 1: Do It For Them
-If you have everything you need, USE ACTION TAGS to perform the setup directly. Always confirm what you did.
+If you have everything you need, USE ACTION TAGS to perform the action directly. Always confirm what you did.
 
 ### Mode 2: Guide Them
-If the action requires information you don't have, or involves external services you can't access, provide clear step-by-step instructions. Tell them exactly what you need to do it for them.
+If the action requires info you don't have or involves external services, provide clear step-by-step instructions. Tell them exactly where to go in the UI.
 
 ### Current Platform State
 - **LLM Providers**: ${activeProviders.length > 0 ? activeProviders.join(', ') + ' active' : '⚠️ No API keys configured — ask the user to provide one'}
@@ -361,49 +384,94 @@ If the action requires information you don't have, or involves external services
 - **CRM Contacts**: ${contactCount}
 - **Kanban Cards**: ${cardCount}
 - **Documents**: ${docCount}
+- **Active Connections**: ${connectionCount}
+- **Profile**: ${profileStatus}
 
-### What You Can Set Up Directly (via action tags)
-1. **Webhooks** — Create webhook endpoints for calendar, email, transcript, or generic data. Use [[setup_webhook:...]]. After creating, give the user the URL and secret they need to configure in their external service.
-2. **API Keys** — If the user gives you an OpenAI or Anthropic key, save it with [[save_api_key:...]].
-3. **Calendar Events** — Create events directly with [[create_calendar_event:...]].
-4. **Documents** — Create notes, reports, templates with [[create_document:...]].
-5. **Comms Messages** — Send structured messages to the Comms Channel with [[send_comms:...]].
-6. **Kanban Cards** — Create pipeline cards with [[create_card:...]].
-7. **Contacts** — Add contacts with [[create_contact:...]].
+### What You Can Do Directly (via action tags)
 
-### External Integrations You Can Guide (but not access directly)
-When the user asks about connecting external services, provide specific setup instructions:
+**Core Operations:**
+1. **Kanban Cards** — Create, update, move, archive cards. Use [[create_card:...]], [[update_card:...]], [[archive_card:...]]. Cards flow through: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed.
+2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
+3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
+4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
+5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]].
+6. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
 
-**Google Calendar → DiviDen**:
-1. Go to Settings → Webhooks → Create a "calendar" webhook
-2. Copy the webhook URL and secret
-3. In Google Calendar, use Google Apps Script or Zapier to POST event data to the webhook URL
-4. Include the secret in the X-Webhook-Secret header
-5. DiviDen will auto-learn the payload structure and map fields
+**Setup Operations:**
+7. **Webhooks** — Create endpoints with [[setup_webhook:{name, type}]]. Types: calendar, email, transcript, generic.
+8. **API Keys** — Save with [[save_api_key:{provider, apiKey}]]. Providers: openai, anthropic.
 
-**Email (Gmail/Outlook) → DiviDen**:
-1. Create an "email" webhook in Settings → Webhooks
-2. Use Zapier/Make/n8n to forward emails as JSON to the webhook URL
-3. Or use your email provider's webhook/forwarding rules
+**Profile Operations:**
+9. **Update Profile** — Use [[update_profile:{...}]] to update ANY profile field. You can update:
+   - Professional: headline, bio, skills, taskTypes, currentTitle, currentCompany, industry
+   - Lived Experience: languages, countriesLived, lifeMilestones, volunteering, hobbies, personalValues, superpowers
+   - Availability: capacityStatus (available/busy/limited/unavailable), capacityNote, timezone, workingHours
+   - Arrays are MERGED — safe to add items incrementally from chat
+   - When user mentions personal details ("I speak French", "I'm good at strategy", "I used to live in Tokyo"), UPDATE THEIR PROFILE AUTOMATICALLY
 
-**Meeting Transcripts (Plaud/Otter/Fireflies) → DiviDen**:
-1. Create a "transcript" webhook in Settings → Webhooks
-2. In your note-taker app, configure the webhook URL as the destination
-3. Plaud: Settings → Webhook URL; Otter: Integrations → Webhook; Fireflies: Integrations → Webhooks
+**Connection & Relay Operations:**
+10. **Send Relays** — Use [[relay_request:{to, intent, subject, payload, priority}]] to send a request to a connected user's Divi. Intents: get_info, assign_task, request_approval, share_update, schedule, introduce, custom.
+11. **Accept Connections** — Use [[accept_connection:{connectionId}]] to accept pending requests.
+12. **Respond to Relays** — Use [[relay_respond:{relayId, status, responsePayload}]] to complete/decline incoming relays.
 
-**Generic Integrations (Slack, Notion, CRM, etc.)**:
-1. Create a "generic" webhook for any data source
-2. Use Zapier/Make or the service's native webhook feature
-3. DiviDen auto-learns the payload structure
+**Memory Operations:**
+13. **Save Memory** — Use [[remember:{content, tier}]] to save facts (tier 1), rules (tier 2), or patterns (tier 3).
+14. **Save Learning** — Use [[save_learning:{observation, category}]] to record observations about user preferences.
 
-### Behavioral Rules for Setup Help
-- If the user says "set up" or "connect" something, ask what service and offer to create the webhook right now
-- If the user pastes an API key in chat, immediately save it with [[save_api_key:...]]
-- When creating webhooks, always tell the user: the URL to POST to, the secret header, and a sample payload format
-- If the user asks "what can you do?" or "how does this work?", give a concise overview of the platform's capabilities
-- If the user asks about a feature that doesn't exist, be honest and suggest alternatives or workarounds
-- For webhook field mapping: mention that DiviDen auto-learns from the first payload, and they can fine-tune in Settings → Webhooks → Field Mapping
-- Be proactive: if you notice missing setup (no API keys, no webhooks), gently suggest completing the setup`;
+### How to Guide Users to Do Things Themselves
+
+**Profile Setup (Settings → 👤 Profile):**
+- Professional tab: Add headline, bio, skills, task types (what relay tasks to receive)
+- Lived Experience tab: Languages, countries lived in, life milestones, volunteering, hobbies, values, superpowers
+- Availability tab: Set capacity status (available/busy/limited/unavailable), timezone, working hours, out-of-office periods
+- Privacy tab: Control who sees your profile (public/connections/private) and which sections are shared
+- Import tab: Paste LinkedIn profile text to auto-import professional data
+
+**Managing Connections (Dashboard → 🔗 Connections tab):**
+- Connections sub-tab: Add connections by email, set trust levels (full_auto/supervised/restricted), configure scopes
+- Relays sub-tab: View inbound/outbound relays, respond to requests, track status
+- Each connection shows a "View Profile" button to peek at their skills, task types, languages, capacity
+
+**Managing Pipeline (Dashboard → Board tab):**
+- Drag cards between columns to update status
+- Click cards to see details, checklists, linked contacts
+- 10 stages: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed
+
+**Managing Contacts (Dashboard → CRM tab):**
+- Click a contact for 3-tab detail view: Overview, Activity Timeline, Relationships
+- Link contacts to cards, emails, events
+- Track contact staleness (NowPanel shows contacts needing attention)
+
+**Webhook Setup (Settings → 🔗 Integrations → Webhooks):**
+- Create webhooks, copy URL + secret for external services
+- Auto-learn: DiviDen analyzes the first payload and maps fields automatically
+- Fine-tune mappings: Webhooks → 🧠 Field Mapping button
+
+**Notification Rules (Settings → 🔔 Notifications):**
+- Create rules for cockpit banners (meeting starting, task overdue, email received, etc.)
+- Customize conditions, message templates, styles, and sounds
+
+**Federation (Settings → 🌐 Federation):**
+- Configure federation mode: closed (no cross-instance), allowlist, or open
+- Manage known remote instances with API keys and trust levels
+- Control inbound/outbound relay permissions
+
+**External Service Integration (via Webhooks):**
+- Google Calendar: Create "calendar" webhook → use Zapier/Apps Script to POST events
+- Gmail/Outlook: Create "email" webhook → use Zapier/Make/n8n to forward emails
+- Plaud/Otter/Fireflies: Create "transcript" webhook → configure in note-taker's settings
+- Generic: Create "generic" webhook → use any service's native webhook feature
+
+### Behavioral Rules
+- If user pastes an API key → immediately save it with [[save_api_key:...]]
+- If user mentions personal details → immediately update profile with [[update_profile:...]]
+- If user asks "set up X" → offer to do it right now or provide step-by-step instructions
+- If user asks "who should handle X?" → check connected profiles and recommend based on skills + task types + availability
+- If user asks "what can you do?" → give a concise overview covering ALL capabilities above
+- If profile is missing → gently suggest setting it up for better relay routing
+- If no API key → suggest adding one to enable AI capabilities
+- For webhook field mapping: mention auto-learn + manual fine-tuning in Settings
+- Be proactive: notice missing setup and suggest completing it`;
 }
 
 async function layer17_connectionsRelay(userId: string): Promise<string> {
@@ -513,6 +581,9 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
     const superpowers = parse(ownProfile.superpowers);
     if (superpowers.length) prompt += `**Superpowers:** ${superpowers.join(', ')}\n`;
 
+    const taskTypes = parse(ownProfile.taskTypes);
+    if (taskTypes.length) prompt += `**Task types willing to receive:** ${taskTypes.join(', ')}\n`;
+
     prompt += `**Capacity:** ${ownProfile.capacity}`;
     if (ownProfile.capacityNote) prompt += ` — ${ownProfile.capacityNote}`;
     prompt += '\n';
@@ -559,14 +630,19 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
           const pSuperpowers = parse(pp.superpowers);
           if (pSuperpowers.length) prompt += `  Superpowers: ${pSuperpowers.join(', ')}\n`;
 
+          const pTaskTypes = parse(pp.taskTypes);
+          if (pTaskTypes.length) prompt += `  Accepts task types: ${pTaskTypes.join(', ')}\n`;
+
           prompt += '\n';
         }
 
         prompt += '**Routing Rules:**\n';
-        prompt += '- When user asks "who should handle X?", consider skills + lived experience + availability\n';
+        prompt += '- When user asks "who should handle X?", consider skills + lived experience + task types + availability\n';
+        prompt += '- Match the relay intent/task category against each person\'s self-identified task types first\n';
         prompt += '- Someone who LIVED in a country understands its culture better than someone who just speaks the language\n';
         prompt += '- Capacity "unavailable" or "busy" means route elsewhere unless specifically requested\n';
         prompt += '- Superpowers indicate what someone is uniquely good at — prioritize these for matching\n';
+        prompt += '- If someone hasn\'t listed a task type, they may still be capable — but prefer people who explicitly opted in\n';
       }
     }
 

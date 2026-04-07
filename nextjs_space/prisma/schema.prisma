@@ -681,6 +681,7 @@ model UserProfile {
   hobbies         String?  // JSON array: ["photography","hiking","chess"]
   personalValues  String?  // JSON array: ["integrity","creativity","empathy"]
   superpowers     String?  // JSON array — self-identified strengths beyond skills: ["crisis management","cross-cultural communication"]
+  taskTypes       String?  // JSON array — task types willing to receive via relays: ["research","review","introductions","technical","creative","strategy","operations","mentoring"]
   
   // ── Availability ──
   timezone        String?  // e.g. "America/New_York"

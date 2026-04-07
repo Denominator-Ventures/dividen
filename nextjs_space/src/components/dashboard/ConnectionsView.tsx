@@ -617,6 +617,11 @@ export function ConnectionsView() {
                                       ⚡ {peerProfile.superpowers.slice(0, 3).join(' · ')}
                                     </div>
                                   )}
+                                  {peerProfile.taskTypes?.length > 0 && (
+                                    <div className="text-[9px] text-white/40">
+                                      📋 Accepts: {peerProfile.taskTypes.slice(0, 4).join(', ')}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
