@@ -41,6 +41,16 @@ function serializeProfile(p: any) {
     outOfOffice: parseJsonField(p.outOfOffice),
     visibility: p.visibility,
     sharedSections: parseJsonField(p.sharedSections, ['professional', 'lived_experience', 'availability', 'values', 'superpowers']),
+    // Relay preferences
+    relayMode: p.relayMode || 'full',
+    allowAmbientInbound: p.allowAmbientInbound ?? true,
+    allowAmbientOutbound: p.allowAmbientOutbound ?? true,
+    allowBroadcasts: p.allowBroadcasts ?? true,
+    autoRespondAmbient: p.autoRespondAmbient ?? false,
+    relayQuietHours: parseJsonField(p.relayQuietHours, null),
+    relayTopicFilters: parseJsonField(p.relayTopicFilters, []),
+    briefVisibility: p.briefVisibility || 'self',
+    showBriefOnRelay: p.showBriefOnRelay ?? true,
     linkedinData: parseJsonField(p.linkedinData, null),
     createdAt: p.createdAt?.toISOString(),
     updatedAt: p.updatedAt?.toISOString(),
@@ -85,6 +95,7 @@ export async function PUT(request: NextRequest) {
     'skills', 'experience', 'education',
     'languages', 'countriesLived', 'volunteering',
     'hobbies', 'personalValues', 'superpowers', 'taskTypes', 'outOfOffice', 'sharedSections',
+    'relayQuietHours', 'relayTopicFilters',
   ];
   // Client sends lifeMilestones, DB stores as lifeExperiences
   const fieldMap: Record<string, string> = {
@@ -95,6 +106,12 @@ export async function PUT(request: NextRequest) {
   const plainFields = [
     'headline', 'bio', 'linkedinUrl', 'capacityStatus', 'capacityNote',
     'timezone', 'workingHours', 'visibility', 'currentTitle', 'currentCompany', 'industry',
+    'relayMode', 'briefVisibility',
+  ];
+  // Boolean fields
+  const booleanFields = [
+    'allowAmbientInbound', 'allowAmbientOutbound', 'allowBroadcasts',
+    'autoRespondAmbient', 'showBriefOnRelay',
   ];
 
   const data: Record<string, any> = {};
@@ -106,6 +123,9 @@ export async function PUT(request: NextRequest) {
   }
   for (const f of jsonFields) {
     if (body[f] !== undefined) data[f] = JSON.stringify(body[f]);
+  }
+  for (const f of booleanFields) {
+    if (body[f] !== undefined) data[f] = Boolean(body[f]);
   }
   // lifeMilestones → lifeExperiences
   if (body.lifeMilestones !== undefined) {

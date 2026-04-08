@@ -11,6 +11,7 @@ import { IntegrationManager } from '@/components/settings/IntegrationManager';
 import { NotificationManager } from '@/components/settings/NotificationManager';
 import { FederationManager } from '@/components/settings/FederationManager';
 import ProfileEditor from '@/components/settings/ProfileEditor';
+import RelaySettings from '@/components/settings/RelaySettings';
 import { cn } from '@/lib/utils';
 
 interface SettingsData {
@@ -40,7 +41,7 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'general' | 'profile' | 'integrations' | 'notifications' | 'federation';
+type SettingsTab = 'general' | 'profile' | 'relay' | 'integrations' | 'notifications' | 'federation';
 
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -154,6 +155,17 @@ export default function SettingsPage() {
           )}
         >
           👤 Profile
+        </button>
+        <button
+          onClick={() => setActiveTab('relay')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'relay'
+              ? 'bg-[var(--brand-primary)] text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          🌊 Relay
         </button>
         <button
           onClick={() => setActiveTab('integrations')}
@@ -393,6 +405,24 @@ export default function SettingsPage() {
           </div>
           <div className="panel-body">
             <ProfileEditor />
+          </div>
+        </div>
+      )}
+
+      {/* Relay Tab */}
+      {activeTab === 'relay' && (
+        <div className="panel">
+          <div className="panel-header">
+            <div>
+              <h2 className="font-semibold">🌊 Relay Protocol Settings</h2>
+              <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                Control how your Divi participates in agent-to-agent communication, ambient information
+                gathering, and reasoning transparency.
+              </p>
+            </div>
+          </div>
+          <div className="panel-body">
+            <RelaySettings />
           </div>
         </div>
       )}

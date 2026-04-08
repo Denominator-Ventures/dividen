@@ -58,6 +58,9 @@ export const SUPPORTED_TAGS = [
   'accept_connection', // accept a pending connection request
   'relay_respond',     // respond to an inbound relay (complete/decline)
   'update_profile',    // update user profile from conversation (skills, languages, etc.)
+  // ── Orchestration Actions ──
+  'task_route',        // decompose a kanban card into tasks, match skills, route to best connection
+  'assemble_brief',   // manually trigger brief assembly for a kanban card
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -852,9 +855,32 @@ async function executeTag(
           return { tag: name, success: false, error: 'No active connections to broadcast to.' };
         }
 
+        // Check recipient relay preferences — respect broadcast opt-outs
+        const peerUserIds = allActiveConns.map(c => c.requesterId === userId ? c.accepterId : c.requesterId).filter(Boolean) as string[];
+        const peerProfiles = await prisma.userProfile.findMany({
+          where: { userId: { in: peerUserIds } },
+          select: { userId: true, relayMode: true, allowBroadcasts: true },
+        });
+        const profileMap = new Map(peerProfiles.map(p => [p.userId, p]));
+
         const broadcastResults: { name: string; relayId: string }[] = [];
+        const skipped: string[] = [];
         for (const conn of allActiveConns) {
           const toId = conn.requesterId === userId ? conn.accepterId : conn.requesterId;
+
+          // Check if recipient opted out of broadcasts
+          if (toId) {
+            const peerPref = profileMap.get(toId);
+            if (peerPref) {
+              if (peerPref.relayMode === 'off' || peerPref.relayMode === 'minimal' || !peerPref.allowBroadcasts) {
+                const peerName = conn.requesterId === userId
+                  ? (conn.accepter?.name || 'Unknown')
+                  : (conn.requester?.name || 'Unknown');
+                skipped.push(peerName);
+                continue;
+              }
+            }
+          }
           const peerName = conn.requesterId === userId
             ? (conn.accepter?.name || conn.nickname || 'Unknown')
             : (conn.requester?.name || conn.peerNickname || 'Unknown');
@@ -959,6 +985,31 @@ async function executeTag(
         }
 
         const ambientToId = ambientConn.requesterId === userId ? ambientConn.accepterId : ambientConn.requesterId;
+
+        // Check recipient's ambient relay preferences
+        if (ambientToId) {
+          const recipientProfile = await prisma.userProfile.findUnique({
+            where: { userId: ambientToId },
+            select: { relayMode: true, allowAmbientInbound: true, relayTopicFilters: true },
+          });
+          if (recipientProfile) {
+            if (recipientProfile.relayMode === 'off' || recipientProfile.relayMode === 'minimal') {
+              return { tag: name, success: false, error: `Recipient has relay mode set to "${recipientProfile.relayMode}" — ambient relays not accepted.` };
+            }
+            if (!recipientProfile.allowAmbientInbound) {
+              return { tag: name, success: false, error: 'Recipient has opted out of receiving ambient relays.' };
+            }
+            // Check topic filters
+            if (params.topic && recipientProfile.relayTopicFilters) {
+              try {
+                const filters: string[] = JSON.parse(recipientProfile.relayTopicFilters);
+                if (filters.some(f => params.topic.toLowerCase().includes(f.toLowerCase()))) {
+                  return { tag: name, success: false, error: `Recipient has opted out of "${params.topic}" topic relays.` };
+                }
+              } catch {}
+            }
+          }
+        }
 
         const ambientRelay = await prisma.agentRelay.create({
           data: {
@@ -1128,6 +1179,199 @@ async function executeTag(
         });
 
         return { tag: name, success: true, data: { fieldsUpdated: Object.keys(data) } };
+      }
+
+      // ── Orchestration: Task Route ──────────────────────────────────────────
+      case 'task_route': {
+        const { assembleCardContext, findSkillMatches, generateBriefMarkdown, storeBrief } = await import('./brief-assembly');
+
+        const { cardId, tasks, routeType: preferredRoute } = params;
+        if (!cardId || !tasks || !Array.isArray(tasks)) {
+          return { tag: name, success: false, error: 'task_route requires cardId and tasks array' };
+        }
+
+        // Assemble the card context
+        const context = await assembleCardContext(cardId, userId);
+        if (!context) {
+          return { tag: name, success: false, error: 'Card not found or not owned by user' };
+        }
+
+        const results: any[] = [];
+
+        for (const task of tasks) {
+          const { title, description, requiredSkills = [], requiredTaskTypes = [], intent = 'assign_task', priority = 'normal', to, route } = task;
+
+          // Find skill matches
+          const matches = await findSkillMatches(userId, requiredSkills, requiredTaskTypes);
+          const routeMode = route || preferredRoute || 'direct';
+
+          // Generate brief markdown
+          const briefMd = generateBriefMarkdown(context, [{ title, description, requiredSkills, intent, priority }], matches);
+
+          // Determine target
+          let targetMatch = matches[0] || null;
+          if (to) {
+            // If explicit target specified, find them in matches or connections
+            const explicit = matches.find(m =>
+              (m.userName && m.userName.toLowerCase().includes(to.toLowerCase())) ||
+              m.userEmail.toLowerCase().includes(to.toLowerCase())
+            );
+            if (explicit) targetMatch = explicit;
+          }
+
+          // Store the brief
+          const brief = await storeBrief({
+            userId,
+            type: 'task_decomposition',
+            title: `Task: ${title}`,
+            sourceCardId: cardId,
+            sourceContactIds: context.linkedContacts.map(c => c.id),
+            briefMarkdown: briefMd,
+            promptUsed: description,
+            matchedUserId: targetMatch?.userId || undefined,
+            matchReasoning: targetMatch?.reasoning || 'No matching connections found',
+            matchedSkills: targetMatch ? [...targetMatch.matchedSkills, ...targetMatch.matchedTaskTypes] : undefined,
+            routeType: routeMode,
+            resultAction: targetMatch ? 'relay_sent' : 'suggestion_made',
+            status: targetMatch ? 'routed' : 'assembled',
+          });
+
+          // Create the relay if we have a target
+          if (targetMatch && routeMode !== 'self') {
+            const relayPayload: any = {
+              _briefId: brief.id,
+              task: { title, description, requiredSkills, intent, priority },
+              cardContext: { id: context.card.id, title: context.card.title, status: context.card.status },
+            };
+            if (routeMode === 'ambient') relayPayload._ambient = true;
+
+            const relay = await prisma.agentRelay.create({
+              data: {
+                connectionId: targetMatch.connectionId,
+                fromUserId: userId,
+                toUserId: targetMatch.userId,
+                direction: 'outbound',
+                type: 'request',
+                intent,
+                subject: title,
+                payload: JSON.stringify(relayPayload),
+                status: 'pending',
+                priority,
+              },
+            });
+
+            // Update brief with relay ID
+            await prisma.agentBrief.update({
+              where: { id: brief.id },
+              data: { resultRelayId: relay.id },
+            });
+
+            // Log activity
+            await prisma.activityLog.create({
+              data: {
+                action: 'task_routed',
+                actor: 'divi',
+                summary: `Routed task "${title}" to ${targetMatch.userName || targetMatch.userEmail} via ${routeMode} relay`,
+                metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId, matchScore: targetMatch.score }),
+                userId,
+              },
+            });
+
+            results.push({
+              task: title,
+              routedTo: targetMatch.userName || targetMatch.userEmail,
+              routeType: routeMode,
+              matchScore: targetMatch.score,
+              reasoning: targetMatch.reasoning,
+              briefId: brief.id,
+              relayId: relay.id,
+            });
+          } else {
+            // No match — log as suggestion
+            await prisma.activityLog.create({
+              data: {
+                action: 'task_decomposed',
+                actor: 'divi',
+                summary: `Decomposed task "${title}" from card "${context.card.title}" — no matching connection found`,
+                metadata: JSON.stringify({ briefId: brief.id, cardId, availableMatches: matches.length }),
+                userId,
+              },
+            });
+
+            results.push({
+              task: title,
+              routedTo: null,
+              routeType: 'self',
+              topMatches: matches.slice(0, 3).map(m => ({ name: m.userName, score: m.score, reasoning: m.reasoning })),
+              briefId: brief.id,
+            });
+          }
+        }
+
+        return { tag: name, success: true, data: { tasksRouted: results.length, results } };
+      }
+
+      // ── Orchestration: Assemble Brief ────────────────────────────────────────
+      case 'assemble_brief': {
+        const { assembleCardContext, findSkillMatches, generateBriefMarkdown, storeBrief } = await import('./brief-assembly');
+
+        const { cardId } = params;
+        if (!cardId) {
+          return { tag: name, success: false, error: 'assemble_brief requires cardId' };
+        }
+
+        const context = await assembleCardContext(cardId, userId);
+        if (!context) {
+          return { tag: name, success: false, error: 'Card not found or not owned by user' };
+        }
+
+        // Find all potential skill matches based on card context
+        const allSkills: string[] = [];
+        const allTaskTypes: string[] = [];
+        // Infer from card description and contacts
+        if (context.card.description) {
+          // Simple keyword extraction for common task types
+          const desc = context.card.description.toLowerCase();
+          if (desc.includes('research') || desc.includes('analysis')) allTaskTypes.push('research');
+          if (desc.includes('review') || desc.includes('feedback')) allTaskTypes.push('review');
+          if (desc.includes('design') || desc.includes('creative')) allTaskTypes.push('creative');
+          if (desc.includes('technical') || desc.includes('develop')) allTaskTypes.push('technical');
+          if (desc.includes('strategy') || desc.includes('plan')) allTaskTypes.push('strategy');
+          if (desc.includes('finance') || desc.includes('budget')) allTaskTypes.push('finance');
+          if (desc.includes('legal') || desc.includes('contract')) allTaskTypes.push('legal');
+          if (desc.includes('sales') || desc.includes('pitch')) allTaskTypes.push('sales');
+        }
+
+        const matches = await findSkillMatches(userId, allSkills, allTaskTypes);
+        const briefMd = generateBriefMarkdown(context, [], matches);
+
+        const brief = await storeBrief({
+          userId,
+          type: 'orchestration',
+          title: `Brief: ${context.card.title}`,
+          sourceCardId: cardId,
+          sourceContactIds: context.linkedContacts.map(c => c.id),
+          briefMarkdown: briefMd,
+          routeType: 'self',
+          resultAction: 'brief_assembled',
+          status: 'assembled',
+        });
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            briefId: brief.id,
+            cardTitle: context.card.title,
+            linkedContacts: context.linkedContacts.length,
+            potentialMatches: matches.slice(0, 5).map(m => ({
+              name: m.userName,
+              score: m.score,
+              reasoning: m.reasoning,
+            })),
+            briefMarkdown: briefMd,
+          },
+        };
       }
 
       default:

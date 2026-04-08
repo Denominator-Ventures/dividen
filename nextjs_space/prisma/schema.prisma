@@ -643,6 +643,48 @@ model AgentRelay {
   @@map("agent_relays")
 }
 
+// ─── Agent Briefs (Reasoning Receipts / Provenance Layer) ─────────────────────
+// Every time Divi decomposes a task, routes a relay, or takes an orchestrated action,
+// it generates a brief — the assembled context snapshot that shows WHY the action was taken.
+// This is the "show your work" layer. Humans can inspect any agent action to verify reasoning.
+
+model AgentBrief {
+  id              String    @id @default(cuid())
+  userId          String    // The user whose Divi generated this brief
+  type            String    // "task_decomposition" | "relay_routing" | "ambient_ask" | "broadcast" | "skill_match" | "orchestration"
+  title           String    // Human-readable summary: "Routed financial review to Marcus"
+
+  // ── Source Context ──
+  sourceCardId    String?   // The Kanban card that triggered this brief
+  sourceContactIds String?  // JSON array of contact IDs involved
+  sourceRelayId   String?   // If this brief was generated for/from a relay
+
+  // ── Assembled Brief (the .md) ──
+  briefMarkdown   String    // The full assembled context as Markdown
+  promptUsed      String?   // The constructed prompt/instruction sent to the agent or relay
+
+  // ── Routing Decision ──
+  matchedUserId   String?   // Who was selected as the target (for skill-matching)
+  matchReasoning  String?   // Why this person/agent was chosen
+  matchedSkills   String?   // JSON array of matched skills/taskTypes
+  routeType       String?   // "direct" | "broadcast" | "ambient" | "self" — how the task was routed
+
+  // ── Outcome ──
+  resultRelayId   String?   // The relay that was created from this brief
+  resultAction    String?   // What action was taken: "relay_sent" | "task_created" | "suggestion_made"
+  status          String    @default("assembled") // "assembled" | "routed" | "completed" | "cancelled"
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([sourceCardId])
+  @@index([sourceRelayId])
+  @@index([resultRelayId])
+  @@index([createdAt])
+  @@map("agent_briefs")
+}
+
 // ─── Instance Registry ────────────────────────────────────────────────────────
 // Tracks known DiviDen instances for federation.
 // Each instance has a shared API key for authenticating relay messages.
@@ -703,6 +745,18 @@ model UserProfile {
   // ── Privacy ──
   visibility      String   @default("connections") // "public" | "connections" | "private"
   sharedSections  String?  // JSON array of section names shared with connections: ["professional","skills","availability"]
+
+  // ── Relay Preferences ──
+  // Controls how the user participates in the ambient relay protocol
+  relayMode           String   @default("full")     // "full" | "selective" | "minimal" | "off"
+  allowAmbientInbound Boolean  @default(true)        // Can other agents send ambient relays to this user's Divi?
+  allowAmbientOutbound Boolean @default(true)        // Can this user's Divi send ambient relays to others?
+  allowBroadcasts     Boolean  @default(true)        // Can this user receive broadcast relays?
+  autoRespondAmbient  Boolean  @default(false)       // Should Divi auto-respond to ambient relays without surfacing to user?
+  relayQuietHours     String?  // JSON: {start:"22:00",end:"08:00",timezone:"America/Chicago"} — suppress non-urgent relays
+  relayTopicFilters   String?  // JSON array of topics to opt out of: ["sales","recruiting"]
+  briefVisibility     String   @default("self")      // "self" | "connections" | "public" — who can see reasoning briefs
+  showBriefOnRelay    Boolean  @default(true)        // Attach assembled brief to outbound relays so recipients can inspect reasoning
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
