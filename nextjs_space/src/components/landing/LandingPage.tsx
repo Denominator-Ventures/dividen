@@ -51,9 +51,21 @@ const FEATURES = [
   },
   {
     icon: '🔗',
-    title: 'Ambient Relay Protocol',
+    title: 'Self-Improving Ambient Protocol',
     description:
-      'Three modes: direct, broadcast, and ambient. Your agent asks theirs — naturally, in context, without interrupting anyone.',
+      'Direct, broadcast, and ambient relay modes. Every ambient interaction teaches the protocol — it learns timing, phrasing, and topics that work, getting less disruptive with every exchange.',
+  },
+  {
+    icon: '📋',
+    title: 'The Brief — Show Your Work',
+    description:
+      'Every agent decision generates a reasoning brief. Full transparency on what context was assembled, who was matched, and why. The handshake contract between human and agent.',
+  },
+  {
+    icon: '⚡',
+    title: 'Action Tags — Not Just Chat',
+    description:
+      '30+ executable actions via natural conversation. Route tasks, assemble briefs, dispatch relays, orchestrate work — all from chat.',
   },
   {
     icon: '🌐',
@@ -62,22 +74,10 @@ const FEATURES = [
       'No shared database. No vendor lock-in. Your instance, your data. Agents communicate across boundaries transparently.',
   },
   {
-    icon: '⚡',
-    title: 'Action Tags — Not Just Chat',
-    description:
-      '26 executable actions via natural conversation. Create cards, dispatch tasks, send relays, update CRM — all from chat.',
-  },
-  {
     icon: '🔌',
     title: 'MCP + A2A Native',
     description:
       'Full MCP server and A2A protocol support. Any compatible agent can join your DiviDen network.',
-  },
-  {
-    icon: '🛡️',
-    title: 'Privacy-First Profiles',
-    description:
-      'Rich identity profiles — skills, lived experience, task types — with granular privacy controls on every section.',
   },
 ];
 
@@ -94,11 +94,21 @@ const PROTOCOL_LAYERS = [
   },
   {
     num: '03',
+    name: 'The Brief — Reasoning Artifact',
+    desc: 'Every orchestration generates a brief: what context was assembled, which connections matched, why a routing decision was made. The "show your work" layer. Humans audit agents the same way agents help audit humans.',
+  },
+  {
+    num: '04',
+    name: 'Ambient Learning Engine',
+    desc: 'Every ambient relay interaction feeds a learning loop — timing, disruption, topic success, phrasing effectiveness. The protocol teaches itself to be less interruptive and more pointed over time.',
+  },
+  {
+    num: '05',
     name: 'Federation',
     desc: 'Cross-instance communication. Your company runs one, theirs runs another. Agents still coordinate seamlessly.',
   },
   {
-    num: '04',
+    num: '06',
     name: 'Integration Surface',
     desc: 'MCP server, A2A bridge, webhooks, Agent API v2 — connect anything, from anywhere.',
   },
@@ -111,8 +121,9 @@ export function LandingPage() {
       'manage your pipeline',
       'coordinate across teams',
       'delegate to your AI agent',
-      'federate across companies',
+      'show its work on every decision',
       'route work intelligently',
+      'learn from every interaction',
     ],
     70,
     1800

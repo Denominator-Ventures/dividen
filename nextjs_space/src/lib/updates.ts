@@ -16,6 +16,89 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'briefs-and-ambient-learning',
+    date: '2026-04-08',
+    title: 'The Brief, and the Protocol That Teaches Itself',
+    subtitle: 'Orchestration with full transparency. An ambient protocol that gets smarter with every interaction.',
+    tags: ['protocol', 'brief', 'learning', 'orchestration'],
+    content: `Two things shipped today that represent a real shift in how we think about this platform.
+
+The first is the brief. The second is the learning engine. Together they complete a loop that I've been thinking about since before there was any code.
+
+## The Brief — Show Your Work
+
+Here's the problem with AI agents doing things on your behalf: you have no idea why they did what they did.
+
+An agent routes a task to someone on your team. Why that person? What context did it consider? What alternatives did it weigh? Most agent platforms treat that as a black box. "Trust me, I picked the right person."
+
+We don't think that's good enough. Especially when the decisions involve real people's time and real deliverables.
+
+So now, every orchestration action in DiviDen generates a **brief** — a reasoning artifact that shows exactly what happened:
+
+- What context was assembled (card state, pipeline position, contact graph, activity timeline)
+- Which connections were evaluated, and what their skill/availability profiles looked like
+- Why a specific routing decision was made
+- What was sent, to whom, via what mode (direct, ambient, broadcast)
+
+The brief is the handshake contract between human and agent. You can always inspect it. You can always audit why Divi made a decision. The same way Divi helps you audit your team's work, you can audit Divi's.
+
+This matters more than it might seem. As agents take on more autonomy — especially in Chief of Staff mode — the brief is how trust gets built. Not through blind faith, but through transparency. Show your work. Every time.
+
+## The Ambient Learning Engine
+
+The ambient relay protocol shipped in the last update. Direct, broadcast, ambient — three modes for agents to coordinate without humans breaking focus.
+
+But here's the thing: a protocol that doesn't learn from its own performance is just a static set of rules. And static rules can't handle the infinite variability of human conversation and work rhythms.
+
+So now, every ambient relay interaction feeds a learning loop.
+
+When your Divi weaves an ambient question into conversation and gets a response back, the system captures everything:
+
+- **Timing** — What time of day did this happen? How long did it take to find a natural moment to ask?
+- **Disruption** — Did it land seamlessly, or did it feel forced?
+- **Topic relevance** — Was the ambient question related to what was already being discussed?
+- **Response quality** — Did we get a substantive answer, or a brush-off?
+- **What gets ignored** — Ambient relays that sit unanswered for 48 hours get captured as "ignored" signals. That's data too.
+
+These signals get synthesized into patterns. The patterns get injected back into Divi's context. So the next time Divi considers sending an ambient relay, it knows:
+
+- Which time windows get the best response rates
+- Which topics work well ambiently vs. which need a direct relay
+- Whether a particular connection is experiencing relay fatigue
+- How to phrase questions for maximum seamlessness
+
+The protocol is now self-improving. High-confidence patterns become behavioral rules. Medium-confidence patterns are guidelines. Low-confidence patterns are early signals applied with judgment. And as more ambient relays happen across the platform, all of this gets more precise.
+
+## Task Routing — Kanban to Relay in One Step
+
+The orchestration layer now connects the Kanban board directly to the relay protocol. When a card reaches a stage that implies work is needed, Divi can:
+
+1. Decompose the card into discrete tasks
+2. Match each task against your connection graph — skills, lived experience, task types, current availability
+3. Route each task via the appropriate relay mode
+4. Generate a brief for every routing decision
+
+You can say "route this card" and Divi handles the rest. Or you can say "show me the brief" and inspect the reasoning before anything gets sent.
+
+The Kanban card is the convergence point. People, deliverables, conversations, and status all meet there. The brief is the reasoning layer on top. The relay protocol is the execution layer underneath.
+
+## What This Means
+
+The platform now has three properties that I think matter more than any individual feature:
+
+**Transparency** — Every agent decision is inspectable. The brief is always there. No black boxes.
+
+**Self-improvement** — The protocol learns from its own performance. It doesn't need you to configure rules or tweak settings. It watches what works and adjusts.
+
+**Convergence** — Kanban state, contact relationships, relay protocol, and AI reasoning all flow through the same system. They're not separate tools bolted together. They're one graph.
+
+This is still early. The learning engine has maybe a handful of signals right now. Give it a few weeks of real ambient relay traffic and the patterns will start compounding. That's the point — the more you use it, the less you notice it. The protocol fades into the background and information just flows.
+
+That's what we're building toward.
+
+— Jon`
+  },
+  {
     id: 'ambient-relay-protocol',
     date: '2026-04-08',
     title: 'We Built a New Communication Protocol',
