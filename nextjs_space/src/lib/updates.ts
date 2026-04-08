@@ -21,7 +21,7 @@ export const UPDATES: Update[] = [
     title: 'The Brief, and the Protocol That Teaches Itself',
     subtitle: 'Orchestration with full transparency. An ambient protocol that gets smarter with every interaction.',
     tags: ['protocol', 'brief', 'learning', 'orchestration'],
-    content: `Two things shipped today that represent a real shift in how we think about this platform.
+    content: `Two things shipped today that represent a real shift in how we think about this platform — and the protocol underneath it.
 
 The first is the brief. The second is the learning engine. Together they complete a loop that I've been thinking about since before there was any code.
 
@@ -81,6 +81,22 @@ The orchestration layer now connects the Kanban board directly to the relay prot
 You can say "route this card" and Divi handles the rest. Or you can say "show me the brief" and inspect the reasoning before anything gets sent.
 
 The Kanban card is the convergence point. People, deliverables, conversations, and status all meet there. The brief is the reasoning layer on top. The relay protocol is the execution layer underneath.
+
+## For Open Source Builders
+
+If you're running your own DiviDen instance — or building on the protocol — here's what this means for you:
+
+**Two new Prisma models**: \`AmbientRelaySignal\` and \`AmbientPattern\`. The signal table captures per-relay outcome data. The pattern table stores synthesized learnings. Run \`npx prisma db push\` to pick them up.
+
+**Two new action tags**: \`task_route\` and \`assemble_brief\`. These connect your Kanban board directly to the relay protocol. The system prompt (Layer 17) now includes orchestration intelligence and self-assessment instructions.
+
+**The learning engine** lives in \`src/lib/ambient-learning.ts\` — four exported functions: \`captureAmbientSignal\`, \`synthesizePatterns\`, \`getAmbientLearningPromptSection\`, and \`captureIgnoredAmbientSignals\`. Pattern synthesis runs automatically in the background after ambient signals are captured, or you can trigger it manually via \`POST /api/ambient-learning/synthesize\`.
+
+**The brief system** lives in \`src/lib/brief-assembly.ts\` — context assembly, skill matching, and brief generation. Briefs are stored as \`AgentBrief\` records and exposed via \`/api/briefs\`.
+
+When your instance connects to the network via federation, the learning engine runs locally on your data. Your patterns stay on your instance. But the protocol improvement compounds — every self-hosted node that uses ambient relays generates learnings that make its own ambient protocol better over time.
+
+The action tag count is now 30+. The system prompt is 18 layers. The protocol spec on os.dividen.ai will be updated to reflect all of this.
 
 ## What This Means
 
@@ -144,6 +160,22 @@ If you're on DiviDen today, your Divi is already smarter. It now:
 - Routes relays based on who has the right skills, experience, and availability — not just who you happen to message
 - Surfaces responses naturally in conversation instead of dumping them as notifications
 - In Chief of Staff mode, sends ambient relays autonomously when it detects you need something
+
+## For Open Source Builders
+
+If you're building on the DiviDen protocol or running your own instance, the relay system is fully available to you:
+
+**New Prisma models**: \`Connection\`, \`AgentRelay\`, and \`UserProfile\` (with skills, task types, lived experience, capacity). Run \`npx prisma db push\` after pulling the latest schema.
+
+**Five new action tags**: \`relay_request\`, \`relay_broadcast\`, \`relay_ambient\`, \`relay_respond\`, and \`accept_connection\`. These are documented in the system prompt's Layer 15 (action tag syntax) and executed in \`src/lib/action-tags.ts\`.
+
+**System prompt Layer 17** is entirely new — \`layer17_connectionsRelay_optimized\` handles connection awareness, active relay state, ambient inbound weaving, and proactive relay intelligence. It's the biggest single addition to the prompt architecture since we built it.
+
+**Federation**: The relay protocol works across federated instances. When you connect to someone on a different DiviDen node, relays traverse the federation bridge. Each node maintains its own data. The protocol is the shared language.
+
+**The profile system** (\`src/components/settings/ProfileEditor.tsx\`) gives users rich identity data — skills, languages, countries lived in, task types — that the relay protocol uses for intelligent routing. This isn't a résumé. It's a routing manifest.
+
+The action tag count is now 26+. The system prompt is 18 layers. The Kanban pipeline now has 8 stages. All of it open, all of it forkable. The protocol spec on os.dividen.ai will be updated shortly.
 
 This is the beginning of what we've been building toward. DiviDen isn't a dashboard. It isn't a messaging app. It's a protocol — a new way for the people inside organizations to coordinate through agents that understand context, timing, and intent.
 
