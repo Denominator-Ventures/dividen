@@ -15,7 +15,7 @@ import {
   RelayIntent,
 } from '@/types';
 
-type SubTab = 'connections' | 'relays';
+type SubTab = 'connections' | 'relays' | 'directory';
 
 function timeAgo(dateStr: string): string {
   const now = new Date();
@@ -58,6 +58,44 @@ export function ConnectionsView() {
   const [relayPayload, setRelayPayload] = useState('');
   const [relayPriority, setRelayPriority] = useState('normal');
 
+  // Directory state
+  const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryQuery, setDirectoryQuery] = useState('');
+  const [directorySearched, setDirectorySearched] = useState(false);
+  const [connectingUserId, setConnectingUserId] = useState<string | null>(null);
+
+  const fetchDirectory = useCallback(async (query = '') => {
+    setDirectoryLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (query) params.set('q', query);
+      const res = await fetch(`/api/directory?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDirectoryUsers(data.users);
+      }
+    } catch (e) { console.error(e); }
+    setDirectoryLoading(false);
+    setDirectorySearched(true);
+  }, []);
+
+  const handleDirectoryConnect = async (targetEmail: string, targetName: string) => {
+    setConnectingUserId(targetEmail);
+    try {
+      const res = await fetch('/api/connections', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: targetEmail, nickname: targetName }),
+      });
+      if (res.ok) {
+        fetchConnections();
+        fetchDirectory(directoryQuery);
+      }
+    } catch (e) { console.error(e); }
+    setConnectingUserId(null);
+  };
+
   const fetchConnections = useCallback(async () => {
     try {
       const res = await fetch('/api/connections');
@@ -85,6 +123,13 @@ export function ConnectionsView() {
   useEffect(() => {
     Promise.all([fetchConnections(), fetchRelays(), fetchRelayCounts()]).finally(() => setLoading(false));
   }, [fetchConnections, fetchRelays, fetchRelayCounts]);
+
+  // Load directory when tab is selected
+  useEffect(() => {
+    if (subTab === 'directory' && !directorySearched) {
+      fetchDirectory();
+    }
+  }, [subTab, directorySearched, fetchDirectory]);
 
   // ─── Handlers ──────────────────────────────────────────────────
 
@@ -274,6 +319,17 @@ export function ConnectionsView() {
                 {relayCounts.pendingInbound}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => setSubTab('directory')}
+            className={cn(
+              'px-3 py-1 text-xs font-medium rounded-md transition-all',
+              subTab === 'directory'
+                ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            🧭 Directory
           </button>
         </div>
         <div className="flex gap-2">
@@ -759,6 +815,160 @@ export function ConnectionsView() {
                   </div>
                 );
               })
+            )}
+          </div>
+        )}
+
+        {/* ─── Directory Tab ─── */}
+        {subTab === 'directory' && (
+          <div className="space-y-4">
+            {/* Search bar */}
+            <div className="relative">
+              <input
+                value={directoryQuery}
+                onChange={(e) => setDirectoryQuery(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') fetchDirectory(directoryQuery); }}
+                placeholder="Search by name, skill, company, or keyword…"
+                className="w-full px-3 py-2.5 pl-9 text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]/40"
+              />
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {directoryQuery && (
+                <button
+                  onClick={() => { setDirectoryQuery(''); fetchDirectory(''); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--text-muted)] hover:text-[var(--text-primary)] text-xs"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {directoryLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-pulse text-[var(--text-muted)] text-sm">Searching…</div>
+              </div>
+            ) : directoryUsers.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-3xl mb-3">🧭</div>
+                <p className="text-sm text-[var(--text-secondary)] mb-1">
+                  {directorySearched ? 'No users found' : 'Discover people on DiviDen'}
+                </p>
+                <p className="text-[11px] text-[var(--text-muted)] max-w-xs mx-auto">
+                  {directorySearched
+                    ? 'Try a different search term or check back later.'
+                    : 'Browse the directory to find and connect with other users. Your agents can then communicate.'}
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <span className="label-mono text-[var(--text-muted)] text-[10px]">
+                  {directoryUsers.length} user{directoryUsers.length !== 1 ? 's' : ''} found
+                </span>
+                {directoryUsers.map((u) => {
+                  const isConnected = u.connectionStatus === 'active';
+                  const isPending = u.connectionStatus === 'pending';
+                  const skills = u.skills?.slice(0, 4) || [];
+                  const taskTypes = u.taskTypes?.slice(0, 3) || [];
+
+                  return (
+                    <div
+                      key={u.id}
+                      className="p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)] transition-all"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3 min-w-0 flex-1">
+                          {/* Avatar */}
+                          <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)]/15 flex items-center justify-center text-[var(--brand-primary)] text-sm font-medium shrink-0">
+                            {(u.name || u.email).charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-[var(--text-primary)] truncate">{u.name || 'Anonymous'}</span>
+                              {u.capacity && u.capacity !== 'available' && (
+                                <span className={cn(
+                                  'text-[9px] px-1.5 py-0.5 rounded-full font-medium',
+                                  u.capacity === 'busy' ? 'bg-red-500/15 text-red-400' :
+                                  u.capacity === 'limited' ? 'bg-yellow-500/15 text-yellow-400' :
+                                  'bg-gray-500/15 text-gray-400'
+                                )}>
+                                  {u.capacity}
+                                </span>
+                              )}
+                            </div>
+                            {u.headline && (
+                              <p className="text-[11px] text-[var(--text-secondary)] truncate">{u.headline}</p>
+                            )}
+                            {!u.headline && u.currentTitle && (
+                              <p className="text-[11px] text-[var(--text-secondary)] truncate">
+                                {u.currentTitle}{u.currentCompany ? ` at ${u.currentCompany}` : ''}
+                              </p>
+                            )}
+                            {!u.headline && !u.currentTitle && (
+                              <p className="text-[11px] text-[var(--text-muted)]">{u.email}</p>
+                            )}
+
+                            {/* Skills pills */}
+                            {skills.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {skills.map((s: string, i: number) => (
+                                  <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-[var(--text-secondary)] border border-white/[0.06]">
+                                    {s}
+                                  </span>
+                                ))}
+                                {(u.skills?.length || 0) > 4 && (
+                                  <span className="text-[9px] text-[var(--text-muted)]">+{u.skills.length - 4}</span>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Task types */}
+                            {taskTypes.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {taskTypes.map((t: string, i: number) => (
+                                  <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] capitalize">
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Meta row */}
+                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[var(--text-muted)]">
+                              {u.timezone && <span>🕐 {u.timezone.replace('_', ' ').split('/').pop()}</span>}
+                              {u.industry && <span>• {u.industry}</span>}
+                              {u.languages?.length > 0 && (
+                                <span>• {u.languages.map((l: any) => typeof l === 'string' ? l : l.language).slice(0, 2).join(', ')}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Connect button */}
+                        <div className="shrink-0">
+                          {isConnected ? (
+                            <span className="text-[10px] px-2.5 py-1 rounded-md bg-green-500/15 text-green-400 font-medium">
+                              ✓ Connected
+                            </span>
+                          ) : isPending ? (
+                            <span className="text-[10px] px-2.5 py-1 rounded-md bg-yellow-500/15 text-yellow-400 font-medium">
+                              Pending
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleDirectoryConnect(u.email, u.name)}
+                              disabled={connectingUserId === u.email}
+                              className="text-[10px] px-2.5 py-1 rounded-md bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/25 font-medium transition-colors disabled:opacity-50"
+                            >
+                              {connectingUserId === u.email ? '…' : '+ Connect'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
