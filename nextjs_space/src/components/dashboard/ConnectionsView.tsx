@@ -65,6 +65,17 @@ export function ConnectionsView() {
   const [directorySearched, setDirectorySearched] = useState(false);
   const [connectingUserId, setConnectingUserId] = useState<string | null>(null);
 
+  // Invite state
+  const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteName, setInviteName] = useState('');
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
+  const [sentInvites, setSentInvites] = useState<any[]>([]);
+  const [showSentInvites, setShowSentInvites] = useState(false);
+
   const fetchDirectory = useCallback(async (query = '') => {
     setDirectoryLoading(true);
     try {
@@ -96,6 +107,55 @@ export function ConnectionsView() {
     setConnectingUserId(null);
   };
 
+  const fetchSentInvites = useCallback(async () => {
+    try {
+      const res = await fetch('/api/invites');
+      if (res.ok) {
+        const data = await res.json();
+        setSentInvites(data.invites || []);
+      }
+    } catch (e) { console.error(e); }
+  }, []);
+
+  const handleSendInvite = async () => {
+    setInviteError('');
+    setInviteSuccess('');
+    if (!inviteEmail.trim()) { setInviteError('Email is required'); return; }
+    setInviteLoading(true);
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          name: inviteName.trim() || undefined,
+          message: inviteMessage.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.existingUser || data.existing) {
+          setInviteSuccess('User exists — a connection request was sent instead!');
+          fetchConnections();
+        } else {
+          setInviteError(data.error || 'Failed to send invite');
+        }
+      } else {
+        setInviteSuccess(data.emailSent
+          ? 'Invitation sent! They\'ll receive an email with a link to join.'
+          : 'Invitation created but email delivery may be delayed.');
+        setInviteEmail('');
+        setInviteName('');
+        setInviteMessage('');
+        fetchSentInvites();
+      }
+    } catch (e) {
+      console.error(e);
+      setInviteError('Failed to send invitation');
+    }
+    setInviteLoading(false);
+  };
+
   const fetchConnections = useCallback(async () => {
     try {
       const res = await fetch('/api/connections');
@@ -124,12 +184,13 @@ export function ConnectionsView() {
     Promise.all([fetchConnections(), fetchRelays(), fetchRelayCounts()]).finally(() => setLoading(false));
   }, [fetchConnections, fetchRelays, fetchRelayCounts]);
 
-  // Load directory when tab is selected
+  // Load directory and invites when tab is selected
   useEffect(() => {
-    if (subTab === 'directory' && !directorySearched) {
-      fetchDirectory();
+    if (subTab === 'directory') {
+      if (!directorySearched) fetchDirectory();
+      fetchSentInvites();
     }
-  }, [subTab, directorySearched, fetchDirectory]);
+  }, [subTab, directorySearched, fetchDirectory, fetchSentInvites]);
 
   // ─── Handlers ──────────────────────────────────────────────────
 
@@ -856,7 +917,7 @@ export function ConnectionsView() {
                 </p>
                 <p className="text-[11px] text-[var(--text-muted)] max-w-xs mx-auto">
                   {directorySearched
-                    ? 'Try a different search term or check back later.'
+                    ? 'Can\'t find who you\'re looking for? Invite them below.'
                     : 'Browse the directory to find and connect with other users. Your agents can then communicate.'}
                 </p>
               </div>
@@ -970,6 +1031,118 @@ export function ConnectionsView() {
                 })}
               </div>
             )}
+
+            {/* ─── Invite Section ─── */}
+            <div className="mt-6 pt-4 border-t border-[var(--border-color)]">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">✉️</span>
+                  <span className="text-xs font-medium text-[var(--text-primary)]">Invite to DiviDen</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {sentInvites.length > 0 && (
+                    <button
+                      onClick={() => setShowSentInvites(!showSentInvites)}
+                      className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+                    >
+                      {showSentInvites ? 'Hide' : 'View'} sent ({sentInvites.length})
+                    </button>
+                  )}
+                  <button
+                    onClick={() => { setShowInviteForm(!showInviteForm); setInviteError(''); setInviteSuccess(''); }}
+                    className="text-[10px] px-2 py-1 rounded bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/25 transition-colors font-medium"
+                  >
+                    {showInviteForm ? '✕ Close' : '+ Invite Someone'}
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[var(--text-muted)] mb-3">
+                Know someone who should be on DiviDen? Send them an email invite — they&apos;ll auto-connect with you when they join.
+              </p>
+
+              {inviteSuccess && (
+                <div className="bg-green-500/10 border border-green-500/20 text-green-400 px-3 py-2 rounded-lg text-[11px] mb-3">
+                  {inviteSuccess}
+                </div>
+              )}
+
+              {showInviteForm && (
+                <div className="p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] space-y-3 mb-3">
+                  {inviteError && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded-lg text-[11px]">
+                      {inviteError}
+                    </div>
+                  )}
+                  <div>
+                    <label className="label-mono text-[9px] text-[var(--text-muted)] block mb-1">Email *</label>
+                    <input
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="colleague@example.com"
+                      className="w-full px-3 py-2 text-xs bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="label-mono text-[9px] text-[var(--text-muted)] block mb-1">Name (optional)</label>
+                    <input
+                      value={inviteName}
+                      onChange={(e) => setInviteName(e.target.value)}
+                      placeholder="Their name"
+                      className="w-full px-3 py-2 text-xs bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]/40"
+                    />
+                  </div>
+                  <div>
+                    <label className="label-mono text-[9px] text-[var(--text-muted)] block mb-1">Personal message (optional)</label>
+                    <textarea
+                      value={inviteMessage}
+                      onChange={(e) => setInviteMessage(e.target.value)}
+                      placeholder="Hey, I'm using DiviDen to coordinate AI agents between us..."
+                      rows={2}
+                      className="w-full px-3 py-2 text-xs bg-[var(--bg-base)] border border-[var(--border-color)] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]/40 resize-none"
+                    />
+                  </div>
+                  <button
+                    onClick={handleSendInvite}
+                    disabled={inviteLoading || !inviteEmail.trim()}
+                    className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--brand-primary)] text-white font-medium hover:bg-[var(--brand-secondary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {inviteLoading ? 'Sending...' : 'Send Invitation'}
+                  </button>
+                </div>
+              )}
+
+              {/* Sent invites list */}
+              {showSentInvites && sentInvites.length > 0 && (
+                <div className="space-y-1.5">
+                  {sentInvites.map((inv: any) => (
+                    <div
+                      key={inv.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] text-[11px]"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <span className="text-[var(--text-primary)] font-medium truncate block">
+                          {inv.inviteeName || inv.inviteeEmail}
+                        </span>
+                        {inv.inviteeName && (
+                          <span className="text-[var(--text-muted)] text-[10px]">{inv.inviteeEmail}</span>
+                        )}
+                      </div>
+                      <span
+                        className={cn(
+                          'text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ml-2',
+                          inv.status === 'pending' ? 'bg-yellow-500/15 text-yellow-400' :
+                          inv.status === 'accepted' ? 'bg-green-500/15 text-green-400' :
+                          'bg-gray-500/15 text-gray-400'
+                        )}
+                      >
+                        {inv.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

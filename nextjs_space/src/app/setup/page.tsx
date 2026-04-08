@@ -1,19 +1,58 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 
-export default function SetupPage() {
+interface InviteData {
+  valid: boolean;
+  inviterName: string;
+  inviterEmail: string;
+  inviteeName?: string;
+  inviteeEmail?: string;
+  message?: string;
+  sourceInstance?: string;
+}
+
+function SetupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get('invite');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [invite, setInvite] = useState<InviteData | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(!!inviteToken);
+  const [inviteError, setInviteError] = useState('');
   const [form, setForm] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
   });
+
+  // Fetch invite context if token is present
+  useEffect(() => {
+    if (!inviteToken) return;
+    setInviteLoading(true);
+    fetch(`/api/invites/${inviteToken}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.valid) {
+          setInvite(data);
+          setForm(prev => ({
+            ...prev,
+            email: data.inviteeEmail || prev.email,
+            name: data.inviteeName || prev.name,
+          }));
+        } else {
+          setInviteError(data.error || 'Invalid invitation');
+        }
+      })
+      .catch(() => setInviteError('Could not verify invitation'))
+      .finally(() => setInviteLoading(false));
+  }, [inviteToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +71,7 @@ export default function SetupPage() {
     setLoading(true);
 
     try {
+      // Step 1: Create account
       const res = await fetch('/api/setup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -49,6 +89,35 @@ export default function SetupPage() {
         return;
       }
 
+      // Step 2: If invite token, auto-login and accept the invite
+      if (inviteToken) {
+        const signInResult = await signIn('credentials', {
+          email: form.email,
+          password: form.password,
+          redirect: false,
+        });
+
+        if (signInResult?.ok) {
+          // Accept the specific invite
+          try {
+            await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST' });
+          } catch (err) {
+            console.error('Failed to accept invite:', err);
+          }
+
+          // Also accept any other pending invites for this email
+          try {
+            await fetch('/api/invites/accept-pending', { method: 'POST' });
+          } catch (err) {
+            console.error('Failed to accept pending invites:', err);
+          }
+
+          router.push('/dashboard');
+          return;
+        }
+      }
+
+      // No invite token — go to login page normally
       router.push('/login?setup=complete');
     } catch {
       setError('An error occurred. Please try again.');
@@ -68,9 +137,41 @@ export default function SetupPage() {
             </h1>
           </Link>
           <p className="label-mono">
-            Create Account
+            {invite ? 'Accept Invitation' : 'Create Account'}
           </p>
         </div>
+
+        {/* Invite context banner */}
+        {inviteLoading && (
+          <div className="bg-[var(--brand-primary)]/5 border border-[var(--brand-primary)]/15 px-4 py-3 rounded-lg text-sm mb-6 text-center">
+            <div className="animate-pulse text-[var(--text-muted)] text-xs">Loading invitation...</div>
+          </div>
+        )}
+
+        {inviteError && (
+          <div className="bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 px-4 py-3 rounded-lg text-sm mb-6">
+            <p className="text-xs font-medium mb-1">⚠ Invitation Issue</p>
+            <p className="text-[11px] text-yellow-400/80">{inviteError}</p>
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">You can still create an account below.</p>
+          </div>
+        )}
+
+        {invite && (
+          <div className="bg-[var(--brand-primary)]/8 border border-[var(--brand-primary)]/20 px-4 py-3 rounded-lg mb-6">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm">✉️</span>
+              <span className="text-xs font-medium text-[var(--text-primary)]">You&apos;ve been invited!</span>
+            </div>
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
+              <strong className="text-[var(--text-primary)]">{invite.inviterName}</strong> ({invite.inviterEmail}) invited you to join DiviDen. Create your account to connect.
+            </p>
+            {invite.message && (
+              <div className="mt-2 pl-3 border-l-2 border-[var(--brand-primary)]/30">
+                <p className="text-[11px] text-[var(--text-secondary)] italic">&ldquo;{invite.message}&rdquo;</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -101,7 +202,11 @@ export default function SetupPage() {
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
+              readOnly={!!invite?.inviteeEmail}
             />
+            {invite?.inviteeEmail && (
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">Email pre-filled from invitation</p>
+            )}
           </div>
 
           <div>
@@ -134,14 +239,17 @@ export default function SetupPage() {
             className="btn-primary w-full"
             disabled={loading}
           >
-            {loading ? 'Creating...' : 'Create Account'}
+            {loading ? 'Creating...' : invite ? 'Create Account & Connect' : 'Create Account'}
           </button>
         </form>
 
         <p className="text-center text-sm text-[var(--text-muted)] mt-6">
           Already have an account?{' '}
-          <a href="/login" className="text-[var(--brand-primary)] hover:text-[var(--brand-secondary)] font-medium">
-            Sign in
+          <a
+            href={inviteToken ? `/login?invite=${inviteToken}` : '/login'}
+            className="text-[var(--brand-primary)] hover:text-[var(--brand-secondary)] font-medium"
+          >
+            Sign in{invite ? ' to accept invite' : ''}
           </a>
         </p>
 
@@ -164,5 +272,19 @@ export default function SetupPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="animate-pulse text-[var(--text-muted)]">Loading...</div>
+        </div>
+      }
+    >
+      <SetupForm />
+    </Suspense>
   );
 }

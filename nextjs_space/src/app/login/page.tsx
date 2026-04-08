@@ -8,6 +8,7 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const setupComplete = searchParams.get('setup') === 'complete';
+  const inviteToken = searchParams.get('invite');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,6 +29,15 @@ function LoginForm() {
       if (result?.error) {
         setError('Invalid email or password');
       } else {
+        // Accept any pending invitations for this user's email
+        try {
+          if (inviteToken) {
+            await fetch(`/api/invites/${inviteToken}/accept`, { method: 'POST' });
+          }
+          await fetch('/api/invites/accept-pending', { method: 'POST' });
+        } catch (err) {
+          console.error('Failed to accept pending invites:', err);
+        }
         router.push('/dashboard');
       }
     } catch {
@@ -54,6 +64,15 @@ function LoginForm() {
         {setupComplete && (
           <div className="bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/20 text-[var(--brand-primary)] px-4 py-3 rounded-lg text-sm mb-6 text-center">
             Account created. Sign in below.
+          </div>
+        )}
+
+        {/* Invite banner */}
+        {inviteToken && !setupComplete && (
+          <div className="bg-[var(--brand-primary)]/8 border border-[var(--brand-primary)]/20 px-4 py-3 rounded-lg text-sm mb-6 text-center">
+            <p className="text-xs text-[var(--text-secondary)]">
+              ✉️ Sign in to accept your invitation and auto-connect.
+            </p>
           </div>
         )}
 

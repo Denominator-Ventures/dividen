@@ -46,6 +46,7 @@ model User {
   relaysSent           AgentRelay[] @relation("RelaysSent")
   relaysReceived       AgentRelay[] @relation("RelaysReceived")
   profile              UserProfile?
+  invitations          Invitation[]
 
   @@map("users")
 }
@@ -710,6 +711,35 @@ model UserProfile {
 
   @@index([userId])
   @@map("user_profiles")
+}
+
+// ─── Invitations ──────────────────────────────────────────────────────────────
+// Outbound invites sent by users to bring new people onto DiviDen (or connect cross-instance).
+
+model Invitation {
+  id              String    @id @default(cuid())
+  token           String    @unique @default(cuid()) // Deep-link token
+  inviterId       String
+  inviterName     String?   // Cached for email display
+  inviterEmail    String?   // Cached for email display
+  inviteeEmail    String    // Who we're inviting
+  inviteeName     String?   // Optional display name
+  message         String?   // Personal note from inviter
+  status          String    @default("pending") // "pending" | "accepted" | "expired" | "cancelled"
+  instanceUrl     String?   // If inviting TO a specific instance (for federation)
+  sourceInstance  String?   // The instance URL this invite originated from (for cross-instance)
+  acceptedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  inviter         User      @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([inviterId])
+  @@index([inviteeEmail])
+  @@index([status])
+  @@map("invitations")
 }
 
 // ─── Federation Settings ──────────────────────────────────────────────────────
