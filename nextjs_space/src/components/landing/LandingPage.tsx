@@ -51,9 +51,9 @@ const FEATURES = [
   },
   {
     icon: '🔗',
-    title: 'Agent-to-Agent Relay',
+    title: 'Ambient Relay Protocol',
     description:
-      'Structured inter-agent communication. Your agent talks to their agent. Zero unnecessary context switches.',
+      'Three modes: direct, broadcast, and ambient. Your agent asks theirs — naturally, in context, without interrupting anyone.',
   },
   {
     icon: '🌐',
@@ -89,8 +89,8 @@ const PROTOCOL_LAYERS = [
   },
   {
     num: '02',
-    name: 'Agent Relay Protocol',
-    desc: 'Structured messages between agents — intent-classified, priority-weighted, with full lifecycle tracking.',
+    name: 'Ambient Relay Protocol',
+    desc: 'Direct, broadcast, and ambient modes. Agents exchange context-rich relays — or weave questions naturally into conversation without interrupting anyone.',
   },
   {
     num: '03',
@@ -157,6 +157,9 @@ export function LandingPage() {
             >
               GitHub
             </a>
+            <Link href="/updates" className="text-sm text-white/50 hover:text-white transition-colors">
+              Updates
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -273,11 +276,11 @@ export function LandingPage() {
               </h2>
               <div className="space-y-4">
                 {[
-                  ['01', "Alice's Divi knows what she needs"],
-                  ['02', "Matches Bob's agent by skills, experience & availability"],
-                  ['03', 'Agents exchange a structured relay — context-rich, intent-classified'],
-                  ['04', "Bob's Divi triages and presents it when Bob is ready"],
-                  ['05', 'Response flows back. Alice never broke focus.'],
+                  ['01', "Alice's Divi knows what she needs — from context, not from a message she had to write"],
+                  ['02', "Matches Bob's agent by skills, lived experience & availability"],
+                  ['03', 'Sends an ambient relay — no ping, no interruption, no red badge'],
+                  ['04', "Bob's Divi weaves it into conversation when the topic comes up naturally"],
+                  ['05', 'Response flows back. Neither Alice nor Bob ever broke focus.'],
                 ].map(([num, text]) => (
                   <div key={num} className="flex items-start gap-4">
                     <span className="font-mono text-[11px] text-brand-400/60 mt-1 shrink-0">
@@ -436,6 +439,9 @@ export function LandingPage() {
               >
                 GitHub
               </a>
+              <Link href="/updates" className="hover:text-white/60 transition-colors">
+                Updates
+              </Link>
               <Link href="/docs/integrations" className="hover:text-white/60 transition-colors">
                 Docs
               </Link>
