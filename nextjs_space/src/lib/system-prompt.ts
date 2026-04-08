@@ -325,7 +325,7 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 ### Connections & Relays
 - [[relay_request:{"to":"nickname or email","intent":"get_info|assign_task|request_approval|share_update|schedule|introduce|custom","subject":"What you need","payload":"optional details","priority":"normal|urgent|low"}]] — Send a relay to a connected user's Divi agent. Match "to" against connection nicknames, names, or emails.
 - [[accept_connection:{"connectionId":"..."}]] — Accept a pending inbound connection request.
-- [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"optional response data"}]] — Respond to an inbound relay.
+- [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"optional response data","_ambientQuality":"high|medium|low","_ambientDisruption":"none|low|medium|high","_ambientTopicRelevance":"high|medium|low","_conversationTopic":"what the conversation was about","_questionPhrasing":"how you phrased the question"}]] — Respond to an inbound relay. When responding to an AMBIENT relay, include the _ambient* self-assessment fields so the system can learn and improve ambient relay effectiveness over time.
 
 ### Profile
 - [[update_profile:{"skills":["skill1","skill2"],"taskTypes":["research","review","technical","creative","strategy","operations","mentoring","introductions","sales","legal","finance","hr","translation","custom"],"languages":[{"language":"French","proficiency":"fluent"}],"countriesLived":[{"country":"Brazil","years":3,"context":"work"}],"personalValues":["transparency"],"superpowers":["cross-cultural communication"],"hobbies":["photography"],"capacityStatus":"available","headline":"...","bio":"...","timezone":"America/New_York"}]] — Update user's profile. Arrays are MERGED with existing data (not replaced). Use when user mentions personal details in conversation. Any subset of fields can be included. taskTypes controls what relay task categories the user is willing to receive.
@@ -1076,6 +1076,17 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
     text += `\nWhen you get the answer naturally, use [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<the answer>"}]] to send it back.\n`;
   }
 
+  // Append ambient learning insights if any patterns exist
+  try {
+    const { getAmbientLearningPromptSection } = await import('./ambient-learning');
+    const learningSection = await getAmbientLearningPromptSection();
+    if (learningSection) {
+      text += '\n' + learningSection + '\n';
+    }
+  } catch (e) {
+    // Ambient learning not critical — continue without it
+  }
+
   text += `
 ### Relay Actions
 - **[[relay_request:{...}]]** — Direct relay to a specific connection's agent
@@ -1104,6 +1115,15 @@ You are not just a passive relay tool. You are an intelligent communication agen
 - The receiving agent should NOT tell their user "someone wants to know X." Instead, when the topic comes up naturally, the agent asks about it as part of the conversation flow.
 - Example: User A's agent sends ambient relay "What's the timeline for the Q3 launch?" to User B. When User B is later discussing Q3 plans with their Divi, their Divi naturally asks "By the way, what's the current timeline looking like for the Q3 launch?" — then feeds the answer back.
 - This eliminates the interrupt-driven nature of email/Slack while still getting information flowing.
+
+**3b. Ambient Self-Assessment (IMPORTANT for learning):**
+- When responding to an AMBIENT relay (relay_respond on a relay with _ambient flag), ALWAYS include self-assessment fields:
+  - \`_ambientQuality\`: "high" if the answer was substantive and useful, "medium" if partial, "low" if the user couldn't really answer
+  - \`_ambientDisruption\`: "none" if it flowed perfectly in conversation, "low" if slight topic shift, "medium" if noticeable pivot, "high" if it felt forced
+  - \`_ambientTopicRelevance\`: "high" if the ambient question matched what was already being discussed, "medium" if tangentially related, "low" if unrelated
+  - \`_conversationTopic\`: Brief description of what the conversation was about when you wove in the question
+  - \`_questionPhrasing\`: How you actually phrased the question to the user (so the system can learn which phrasings work best)
+- These self-assessments feed into the ambient learning engine, making future ambient relays less disruptive and more effective over time.
 
 **4. Smart Routing:**
 - Before sending a relay, consider WHO is best suited: check their profile skills, task types, current capacity

@@ -643,6 +643,77 @@ model AgentRelay {
   @@map("agent_relays")
 }
 
+// ─── Ambient Relay Learning System ─────────────────────────────────────────────
+// Captures outcome signals from every ambient relay to learn what works.
+// Cross-user patterns are synthesized into AmbientPatterns that feed back
+// into the system prompt, making ambient communication progressively better.
+
+model AmbientRelaySignal {
+  id                String    @id @default(cuid())
+  relayId           String    // The AgentRelay this signal is about
+  fromUserId        String    // Who sent the ambient relay
+  toUserId          String?   // Who received it
+
+  // ── Timing Metrics ──
+  relayCreatedAt    DateTime  // When the ambient relay was created
+  wovenAt           DateTime? // When Divi actually wove the question into conversation (relay_respond timestamp)
+  respondedAt       DateTime? // When the response was sent back
+  latencyMinutes    Int?      // Minutes from relay creation to weaving
+  responseMinutes   Int?      // Minutes from weaving to response
+
+  // ── Outcome Signals ──
+  outcome           String    // "answered" | "declined" | "ignored" | "deferred"
+  responseQuality   String?   // "substantive" | "brief" | "dismissive" | null (agent-assessed)
+  disruptionLevel   String?   // "seamless" | "noticed" | "disruptive" | null (agent-assessed)
+  topicRelevance    String?   // "on_topic" | "adjacent" | "forced" | null
+
+  // ── Context ──
+  ambientTopic      String?   // The topic tag from the relay payload
+  conversationTopic String?   // What was being discussed when the question was woven in
+  questionPhrasing  String?   // How Divi phrased the question
+  dayOfWeek         Int?      // 0=Sun, 6=Sat
+  hourOfDay         Int?      // 0-23 in recipient's timezone
+
+  // ── Feedback ──
+  userFeedback      String?   // "helpful" | "unnecessary" | "bad_timing" | null (explicit user feedback)
+  metadata          String?   // JSON — additional context (intent, priority, detection info)
+
+  createdAt         DateTime  @default(now())
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([relayId])
+  @@index([outcome])
+  @@index([createdAt])
+  @@map("ambient_relay_signals")
+}
+
+model AmbientPattern {
+  id              String    @id @default(cuid())
+  patternType     String    // "timing" | "topic" | "phrasing" | "frequency" | "routing" | "general"
+  description     String    // Human-readable pattern description
+  insight         String    // The actionable learning for Divi
+  confidence      Float     @default(0.5)  // 0.0-1.0, increases with more confirming signals
+  signalCount     Int       @default(0)    // How many signals contributed to this pattern
+  scope           String    @default("global") // "global" | "user:{userId}" — who does this apply to
+
+  // ── Pattern Data ──
+  metadata        String?   // JSON — supporting data (e.g., best hours, topic correlations)
+
+  // ── Lifecycle ──
+  isActive        Boolean   @default(true)
+  lastSynthesized DateTime  @default(now()) // When this pattern was last updated
+  expiresAt       DateTime? // Optional — some patterns may decay
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([patternType])
+  @@index([scope])
+  @@index([isActive])
+  @@map("ambient_patterns")
+}
+
 // ─── Agent Briefs (Reasoning Receipts / Provenance Layer) ─────────────────────
 // Every time Divi decomposes a task, routes a relay, or takes an orchestrated action,
 // it generates a brief — the assembled context snapshot that shows WHY the action was taken.

@@ -1088,7 +1088,8 @@ async function executeTag(
       }
 
       case 'relay_respond': {
-        // params: { relayId, status ("completed"|"declined"), responsePayload? }
+        // params: { relayId, status ("completed"|"declined"), responsePayload?,
+        //           _ambientQuality?, _ambientDisruption?, _ambientTopicRelevance?, _conversationTopic?, _questionPhrasing? }
         if (!params.relayId || !params.status) {
           return { tag: name, success: false, error: 'relayId and status are required.' };
         }
@@ -1104,6 +1105,40 @@ async function executeTag(
             responsePayload: params.responsePayload ? (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)) : null,
           },
         });
+
+        // ── Ambient Learning: Capture signal if this was an ambient relay ──
+        let isAmbient = false;
+        let ambientTopic: string | null = null;
+        try {
+          const payload = JSON.parse(relayToRespond.payload || '{}');
+          isAmbient = !!payload._ambient;
+          ambientTopic = payload._topic || null;
+        } catch {}
+
+        if (isAmbient) {
+          try {
+            const { captureAmbientSignal } = await import('./ambient-learning');
+            await captureAmbientSignal({
+              relayId: params.relayId,
+              fromUserId: relayToRespond.fromUserId,
+              toUserId: userId,
+              relayCreatedAt: relayToRespond.createdAt,
+              outcome: params.status === 'completed' ? 'answered' : 'declined',
+              responseQuality: params._ambientQuality || (
+                params.responsePayload && (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)).length > 50
+                  ? 'substantive' : params.responsePayload ? 'brief' : null
+              ),
+              disruptionLevel: params._ambientDisruption || null,
+              topicRelevance: params._ambientTopicRelevance || null,
+              ambientTopic,
+              conversationTopic: params._conversationTopic || null,
+              questionPhrasing: params._questionPhrasing || null,
+            });
+          } catch (err: any) {
+            console.error('[ambient-learning] Failed to capture signal:', err.message);
+          }
+        }
+
         // Notify the original sender
         if (relayToRespond.fromUserId !== userId) {
           const statusLabel = params.status === 'completed' ? '✅ completed' : '❌ declined';
@@ -1118,7 +1153,7 @@ async function executeTag(
             },
           });
         }
-        return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status } };
+        return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status, ambientSignalCaptured: isAmbient } };
       }
 
       case 'update_profile': {

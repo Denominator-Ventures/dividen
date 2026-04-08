@@ -120,6 +120,17 @@ export async function POST(request: Request) {
               if (tags.length > 0) {
                 tagResults = await executeActionTags(tags, userId);
 
+                // If any ambient signal was captured, trigger background pattern synthesis
+                const hadAmbientSignal = tagResults.some(r => r.data?.ambientSignalCaptured);
+                if (hadAmbientSignal) {
+                  // Fire-and-forget: synthesize patterns in background
+                  import('@/lib/ambient-learning').then(({ synthesizePatterns, captureIgnoredAmbientSignals }) => {
+                    captureIgnoredAmbientSignals()
+                      .then(() => synthesizePatterns())
+                      .catch(e => console.error('[ambient-learning] Background synthesis error:', e));
+                  }).catch(() => {});
+                }
+
                 // Send tag execution results
                 const tagData = JSON.stringify({
                   type: 'tags_executed',
