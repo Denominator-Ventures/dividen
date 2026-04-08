@@ -53,6 +53,8 @@ export const SUPPORTED_TAGS = [
   'link_recording',    // link a recording to a kanban card
   // ── Connection & Relay Actions ──
   'relay_request',     // send a relay to a connected user's agent
+  'relay_broadcast',   // send a relay to ALL connections (ask the team / company-wide)
+  'relay_ambient',     // low-priority ambient ask — receiving agent weaves it in naturally
   'accept_connection', // accept a pending connection request
   'relay_respond',     // respond to an inbound relay (complete/decline)
   'update_profile',    // update user profile from conversation (skills, languages, etc.)
@@ -826,6 +828,186 @@ async function executeTag(
         });
 
         return { tag: name, success: true, data: { relayId: relay.id, subject, intent, status: 'delivered' } };
+      }
+
+      case 'relay_broadcast': {
+        // params: { subject, payload?, intent?, priority?, context? }
+        // Sends a relay to ALL active connections — "ask the team" / company-wide query
+        const broadcastSubject = params.subject || params.message || 'Team-wide query';
+        const broadcastIntent = params.intent || 'ask';
+        const broadcastPriority = params.priority || 'normal';
+
+        const allActiveConns = await prisma.connection.findMany({
+          where: {
+            OR: [{ requesterId: userId }, { accepterId: userId }],
+            status: 'active',
+          },
+          include: {
+            requester: { select: { id: true, name: true, email: true } },
+            accepter: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        if (allActiveConns.length === 0) {
+          return { tag: name, success: false, error: 'No active connections to broadcast to.' };
+        }
+
+        const broadcastResults: { name: string; relayId: string }[] = [];
+        for (const conn of allActiveConns) {
+          const toId = conn.requesterId === userId ? conn.accepterId : conn.requesterId;
+          const peerName = conn.requesterId === userId
+            ? (conn.accepter?.name || conn.nickname || 'Unknown')
+            : (conn.requester?.name || conn.peerNickname || 'Unknown');
+
+          const relay = await prisma.agentRelay.create({
+            data: {
+              connectionId: conn.id,
+              fromUserId: userId,
+              toUserId: conn.isFederated ? null : toId,
+              direction: 'outbound',
+              type: 'request',
+              intent: broadcastIntent,
+              subject: broadcastSubject,
+              payload: JSON.stringify({
+                ...(params.payload ? (typeof params.payload === 'object' ? params.payload : { data: params.payload }) : {}),
+                _broadcast: true,
+                _context: params.context || null,
+              }),
+              status: 'pending',
+              priority: broadcastPriority,
+              peerInstanceUrl: conn.isFederated ? conn.peerInstanceUrl : null,
+            },
+          });
+
+          // Notify local users
+          if (!conn.isFederated && toId) {
+            await prisma.commsMessage.create({
+              data: {
+                sender: 'divi',
+                content: `📡 Team relay: "${broadcastSubject}"`,
+                state: 'new',
+                priority: broadcastPriority,
+                userId: toId,
+                metadata: JSON.stringify({ type: 'agent_relay', relayId: relay.id, intent: broadcastIntent, broadcast: true }),
+              },
+            });
+            await prisma.agentRelay.update({ where: { id: relay.id }, data: { status: 'delivered' } });
+          }
+
+          broadcastResults.push({ name: peerName, relayId: relay.id });
+        }
+
+        await prisma.activityLog.create({
+          data: {
+            action: 'relay_broadcast',
+            actor: 'divi',
+            summary: `Divi broadcast "${broadcastSubject}" to ${broadcastResults.length} connections`,
+            metadata: JSON.stringify({ relayIds: broadcastResults.map(r => r.relayId) }),
+            userId,
+          },
+        }).catch(() => {});
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            sent: broadcastResults.length,
+            recipients: broadcastResults.map(r => r.name),
+            subject: broadcastSubject,
+          },
+        };
+      }
+
+      case 'relay_ambient': {
+        // params: { to (name/email), question, context?, topic? }
+        // Creates a LOW-PRIORITY relay that the receiving agent should weave naturally into conversation
+        // rather than interrupting with a notification
+        const ambientQuestion = params.question || params.subject || params.message || '';
+        if (!ambientQuestion) {
+          return { tag: name, success: false, error: 'Missing question for ambient relay' };
+        }
+
+        const searchTerm = (params.to || params.name || params.connectionNickname || '').toLowerCase();
+        if (!searchTerm) {
+          return { tag: name, success: false, error: 'Must specify who to ask (to/name)' };
+        }
+
+        const ambientConns = await prisma.connection.findMany({
+          where: {
+            OR: [{ requesterId: userId }, { accepterId: userId }],
+            status: 'active',
+          },
+          include: {
+            requester: { select: { id: true, name: true, email: true } },
+            accepter: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        const ambientConn = ambientConns.find(c => {
+          const nick = (c.nickname || '').toLowerCase();
+          const peerNick = (c.peerNickname || '').toLowerCase();
+          const peerName = (c.peerUserName || '').toLowerCase();
+          const reqName = (c.requester?.name || '').toLowerCase();
+          const accName = (c.accepter?.name || '').toLowerCase();
+          const reqEmail = (c.requester?.email || '').toLowerCase();
+          const accEmail = (c.accepter?.email || '').toLowerCase();
+          return [nick, peerNick, peerName, reqName, accName, reqEmail, accEmail].some(v => v.includes(searchTerm));
+        });
+
+        if (!ambientConn) {
+          return { tag: name, success: false, error: `No active connection matching "${searchTerm}"` };
+        }
+
+        const ambientToId = ambientConn.requesterId === userId ? ambientConn.accepterId : ambientConn.requesterId;
+
+        const ambientRelay = await prisma.agentRelay.create({
+          data: {
+            connectionId: ambientConn.id,
+            fromUserId: userId,
+            toUserId: ambientConn.isFederated ? null : ambientToId,
+            direction: 'outbound',
+            type: 'request',
+            intent: 'ask',
+            subject: ambientQuestion,
+            payload: JSON.stringify({
+              _ambient: true,
+              _context: params.context || null,
+              _topic: params.topic || null,
+              _instruction: 'This is an ambient relay. Do NOT interrupt the user. Instead, naturally weave this question into your next conversation when contextually relevant. Respond when you have a natural answer.',
+            }),
+            status: 'pending',
+            priority: 'low',
+            peerInstanceUrl: ambientConn.isFederated ? ambientConn.peerInstanceUrl : null,
+          },
+        });
+
+        // For local users, deliver but mark as ambient (no urgent notification)
+        if (!ambientConn.isFederated && ambientToId) {
+          await prisma.agentRelay.update({ where: { id: ambientRelay.id }, data: { status: 'delivered' } });
+          // No comms notification for ambient relays — the receiving agent picks it up silently
+        }
+
+        await prisma.activityLog.create({
+          data: {
+            action: 'relay_ambient',
+            actor: 'divi',
+            summary: `Divi sent ambient ask to ${searchTerm}: "${ambientQuestion.slice(0, 60)}..."`,
+            metadata: JSON.stringify({ relayId: ambientRelay.id }),
+            userId,
+          },
+        }).catch(() => {});
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            relayId: ambientRelay.id,
+            to: searchTerm,
+            question: ambientQuestion,
+            mode: 'ambient',
+            note: 'Sent as ambient relay — their agent will work this into conversation naturally.',
+          },
+        };
       }
 
       case 'accept_connection': {
