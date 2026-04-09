@@ -338,6 +338,7 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[task_route:{"cardId":"card_id","tasks":[{"title":"...","description":"...","requiredSkills":["negotiation","finance"],"requiredTaskTypes":["research","review","finance"],"intent":"assign_task","priority":"normal","to":"optional name/email","route":"direct|ambient|broadcast"}],"routeType":"direct|ambient|broadcast","teamId":"optional_team_id","projectId":"optional_project_id"}]] — Decompose a Kanban card into tasks, match against connection profiles (skills + taskTypes + capacity), and route via relay. When teamId/projectId is provided, team/project members are prioritized in skill matching (+10 for project members, +5 for team members). Each task generates a reasoning brief. If no "to" is specified, best-match routing is used. If no match exists, the task is recorded as self-assigned.
 - [[assemble_brief:{"cardId":"card_id","teamId":"optional_team_id","projectId":"optional_project_id"}]] — Generate a full context brief for a Kanban card without routing. When teamId/projectId is provided, skill matches are scoped to team/project members first. Shows the assembled context (contacts, pipeline stage, activity, relay history) and potential skill matches among connections.
 - [[relay_broadcast:{"subject":"...","teamId":"optional_team_id","projectId":"optional_project_id"}]] — When teamId/projectId is provided, broadcast is scoped only to team/project members instead of all connections.
+- [[project_dashboard:{"projectId":"project_id"}]] — Assemble a cross-member project dashboard showing every member's cards, queue items, relays, and blockers. Use when user asks "how's the project going?" or "what's everyone working on?". Returns a full activity breakdown per member.
 
 ### Memory & Learning (3-Tier System)
 - [[update_memory:{"tier":1,"category":"general|project|contact","key":"...","value":"...","scope":"optional scope","pinned":false}]] — Explicit fact
@@ -480,6 +481,8 @@ If the action requires info you don't have or involves external services, provid
 }
 
 async function layer17_connectionsRelay(userId: string): Promise<string> {
+  const { assembleProjectContext, generateProjectDashboardMarkdown } = await import('./brief-assembly');
+
   const [connections, pendingRelays, teams, projects] = await Promise.all([
     prisma.connection.findMany({
       where: {
@@ -518,7 +521,7 @@ async function layer17_connectionsRelay(userId: string): Promise<string> {
     }),
     prisma.project.findMany({
       where: {
-        status: { not: 'archived' },
+        status: 'active',
         members: { some: { userId } },
       },
       include: {
@@ -596,7 +599,32 @@ When routing tasks or broadcasting relays, you can scope to a team or project:
 - When responding to relays, include structured data in the response payload when possible
 - If the user references someone who isn't connected, suggest creating a connection first
 - When the user references a team or project by name, resolve it to the ID and use scoped routing
-- Federated members (connections from other DiviDen instances) can be added to teams/projects — they appear with their instance URL`;
+- Federated members (connections from other DiviDen instances) can be added to teams/projects — they appear with their instance URL
+
+### Project Visibility
+- **private**: Only explicitly added members can see/access the project
+- **team**: All members of the parent team can see the project (even if not explicitly added as project members)
+- **open**: Any connected user can discover and view the project
+- When discussing a project with a user, you have access to ALL members' activity — you are the shared project intelligence layer
+- You can tell User A what User B is working on within the same project (cards, queue, relays)
+- Identify blockers proactively: if a member has stale pending items, flag it`;
+
+  // Assemble project dashboards for active projects (up to 3 to manage prompt size)
+  const projectDashboards: string[] = [];
+  const dashboardProjects = projects.slice(0, 3);
+  for (const p of dashboardProjects) {
+    try {
+      const ctx = await assembleProjectContext(p.id, userId);
+      if (ctx && ctx.members.length > 0) {
+        projectDashboards.push(generateProjectDashboardMarkdown(ctx));
+      }
+    } catch { /* skip failed assemblies */ }
+  }
+
+  if (projectDashboards.length > 0) {
+    text += '\n\n### Active Project Dashboards\nYou are simultaneously managing these projects. Use this data when any member asks about progress:\n\n';
+    text += projectDashboards.join('\n\n---\n\n');
+  }
 
   return text;
 }

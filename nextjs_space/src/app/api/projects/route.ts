@@ -18,10 +18,23 @@ export async function GET(req: NextRequest) {
 
     const where: any = {
       OR: [
+        // Always see projects you created or are a member of
         { createdById: userId },
         { members: { some: { userId } } },
-        // Also include projects from teams the user is in
-        { team: { members: { some: { userId } } } },
+        // "team" visibility: any team member can see the project
+        { visibility: 'team', team: { members: { some: { userId } } } },
+        // "open" visibility: any connected user can discover
+        {
+          visibility: 'open',
+          members: {
+            some: {
+              connection: {
+                OR: [{ requesterId: userId }, { accepterId: userId }],
+                status: 'active',
+              },
+            },
+          },
+        },
       ],
     };
     if (teamId) where.teamId = teamId;
@@ -57,16 +70,24 @@ export async function POST(req: NextRequest) {
     const userId = (session.user as any).id;
 
     const body = await req.json();
-    const { name, description, teamId, color } = body;
+    const { name, description, teamId, color, visibility } = body;
 
     if (!name?.trim()) {
       return NextResponse.json({ error: 'Project name is required' }, { status: 400 });
     }
 
+    const validVisibilities = ['private', 'team', 'open'];
+    const vis = validVisibilities.includes(visibility) ? visibility : 'private';
+
     // If teamId, verify user is in the team
     if (teamId) {
       const membership = await prisma.teamMember.findFirst({ where: { teamId, userId } });
       if (!membership) return NextResponse.json({ error: 'Not a member of this team' }, { status: 403 });
+    }
+
+    // "team" visibility requires a team
+    if (vis === 'team' && !teamId) {
+      return NextResponse.json({ error: 'Team visibility requires a teamId' }, { status: 400 });
     }
 
     const project = await prisma.project.create({
@@ -75,6 +96,7 @@ export async function POST(req: NextRequest) {
         description: description || null,
         teamId: teamId || null,
         color: color || null,
+        visibility: vis,
         createdById: userId,
         members: {
           create: { userId, role: 'lead' },

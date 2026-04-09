@@ -62,6 +62,7 @@ export const SUPPORTED_TAGS = [
   // ── Orchestration Actions ──
   'task_route',        // decompose a kanban card into tasks, match skills, route to best connection
   'assemble_brief',   // manually trigger brief assembly for a kanban card
+  'project_dashboard', // assemble cross-member project dashboard — see what everyone is doing
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -1433,6 +1434,37 @@ async function executeTag(
               reasoning: m.reasoning,
             })),
             briefMarkdown: briefMd,
+          },
+        };
+      }
+
+      // ── Project Dashboard ─────────────────────────────────────────────────
+      case 'project_dashboard': {
+        const { assembleProjectContext, generateProjectDashboardMarkdown } = await import('./brief-assembly');
+
+        const { projectId: dashProjectId } = params;
+        if (!dashProjectId) {
+          return { tag: name, success: false, error: 'project_dashboard requires projectId' };
+        }
+
+        const projCtx = await assembleProjectContext(dashProjectId, userId);
+        if (!projCtx) {
+          return { tag: name, success: false, error: 'Project not found or access denied' };
+        }
+
+        const dashMd = generateProjectDashboardMarkdown(projCtx);
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            projectId: dashProjectId,
+            projectName: projCtx.project.name,
+            status: projCtx.project.status,
+            visibility: projCtx.project.visibility,
+            memberCount: projCtx.members.length,
+            summary: projCtx.summary,
+            dashboard: dashMd,
           },
         };
       }

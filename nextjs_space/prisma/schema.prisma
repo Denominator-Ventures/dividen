@@ -960,6 +960,7 @@ model Project {
   name        String
   description String?
   status      String          @default("active") // "active" | "paused" | "completed" | "archived"
+  visibility  String          @default("private") // "private" | "team" | "open"
   teamId      String?         // Optional team ownership
   createdById String
   color       String?         // Accent color for UI
@@ -977,6 +978,7 @@ model Project {
   @@index([teamId])
   @@index([createdById])
   @@index([status])
+  @@index([visibility])
   @@map("projects")
 }
 

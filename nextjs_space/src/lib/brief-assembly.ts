@@ -332,6 +332,201 @@ export async function findSkillMatches(
   return matches.sort((a, b) => b.score - a.score);
 }
 
+// ─── Project Context Assembly ─────────────────────────────────────────────────
+
+/**
+ * Assembles a cross-member project dashboard that Divi uses when any member
+ * asks about a project. Shows every member's active cards, queue items,
+ * relay status, and blockers — giving Divi simultaneous awareness.
+ */
+export interface ProjectContext {
+  project: {
+    id: string;
+    name: string;
+    description: string | null;
+    status: string;
+    visibility: string;
+    color: string | null;
+    teamName: string | null;
+  };
+  members: Array<{
+    name: string | null;
+    email: string | null;
+    role: string;
+    isFederated: boolean;
+    instanceUrl: string | null;
+    cards: Array<{ id: string; title: string; status: string; priority: string; assignee: string; dueDate: Date | null }>;
+    queueItems: Array<{ id: string; title: string; status: string; priority: string }>;
+    activeRelays: Array<{ id: string; subject: string; intent: string; status: string; direction: string }>;
+  }>;
+  summary: {
+    totalCards: number;
+    totalQueue: number;
+    totalRelays: number;
+    cardsByStatus: Record<string, number>;
+    blockedMembers: string[];
+  };
+}
+
+export async function assembleProjectContext(
+  projectId: string,
+  requestingUserId: string,
+): Promise<ProjectContext | null> {
+  // Fetch project with members
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      OR: [
+        { members: { some: { userId: requestingUserId } } },
+        { createdById: requestingUserId },
+        // team visibility: any team member can see
+        { visibility: 'team', team: { members: { some: { userId: requestingUserId } } } },
+      ],
+    },
+    include: {
+      team: { select: { name: true } },
+      members: {
+        include: {
+          user: { select: { id: true, name: true, email: true } },
+          connection: { select: { id: true, peerUserName: true, peerUserEmail: true, peerInstanceUrl: true, isFederated: true } },
+        },
+      },
+    },
+  });
+
+  if (!project) return null;
+
+  // Get all local member userIds for querying their project-scoped data
+  const localMemberUserIds = project.members
+    .filter(m => m.userId)
+    .map(m => m.userId!);
+
+  // Fetch project-scoped cards, queue items, and relays
+  const [cards, queueItems, relays] = await Promise.all([
+    prisma.kanbanCard.findMany({
+      where: { projectId },
+      select: { id: true, title: true, status: true, priority: true, assignee: true, dueDate: true, userId: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+    }),
+    prisma.queueItem.findMany({
+      where: { projectId },
+      select: { id: true, title: true, status: true, priority: true, userId: true },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    }),
+    prisma.agentRelay.findMany({
+      where: { projectId },
+      select: { id: true, subject: true, intent: true, status: true, direction: true, fromUserId: true, toUserId: true },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+    }),
+  ]);
+
+  // Build per-member views
+  const cardsByStatus: Record<string, number> = {};
+  const blockedMembers: string[] = [];
+
+  const memberViews = project.members.map(m => {
+    const uid = m.userId;
+    const isFed = !!m.connection?.isFederated;
+    const name = m.user?.name || m.connection?.peerUserName || null;
+    const email = m.user?.email || m.connection?.peerUserEmail || null;
+
+    // Filter cards belonging to this member
+    const memberCards = uid ? cards.filter(c => c.userId === uid) : [];
+    const memberQueue = uid ? queueItems.filter(q => q.userId === uid) : [];
+    const memberRelays = uid ? relays.filter(r => r.fromUserId === uid || r.toUserId === uid) : [];
+
+    // Aggregate card statuses
+    memberCards.forEach(c => {
+      cardsByStatus[c.status] = (cardsByStatus[c.status] || 0) + 1;
+    });
+
+    // Detect blocked members (have stale pending queue items or no activity)
+    const hasBlockedQueue = memberQueue.some(q => q.status === 'pending' || q.status === 'blocked');
+    if (hasBlockedQueue && name) blockedMembers.push(name);
+
+    return {
+      name,
+      email,
+      role: m.role,
+      isFederated: isFed,
+      instanceUrl: m.connection?.peerInstanceUrl || null,
+      cards: memberCards.map(c => ({ id: c.id, title: c.title, status: c.status, priority: c.priority, assignee: c.assignee, dueDate: c.dueDate })),
+      queueItems: memberQueue.map(q => ({ id: q.id, title: q.title, status: q.status, priority: q.priority })),
+      activeRelays: memberRelays.map(r => ({
+        id: r.id, subject: r.subject, intent: r.intent, status: r.status,
+        direction: r.fromUserId === uid ? 'outbound' : 'inbound',
+      })),
+    };
+  });
+
+  return {
+    project: {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      status: project.status,
+      visibility: project.visibility,
+      color: project.color,
+      teamName: project.team?.name || null,
+    },
+    members: memberViews,
+    summary: {
+      totalCards: cards.length,
+      totalQueue: queueItems.length,
+      totalRelays: relays.length,
+      cardsByStatus,
+      blockedMembers,
+    },
+  };
+}
+
+/**
+ * Generates a Markdown project dashboard for Divi's system prompt.
+ */
+export function generateProjectDashboardMarkdown(ctx: ProjectContext): string {
+  const lines: string[] = [];
+  lines.push(`### 📋 Project: ${ctx.project.name}`);
+  lines.push(`Status: ${ctx.project.status} | Visibility: ${ctx.project.visibility}${ctx.project.teamName ? ` | Team: ${ctx.project.teamName}` : ''}`);
+  if (ctx.project.description) lines.push(`> ${ctx.project.description}`);
+  lines.push('');
+
+  // Summary
+  lines.push(`**Overview:** ${ctx.summary.totalCards} cards, ${ctx.summary.totalQueue} queue items, ${ctx.summary.totalRelays} relays`);
+  if (Object.keys(ctx.summary.cardsByStatus).length > 0) {
+    const statusStr = Object.entries(ctx.summary.cardsByStatus).map(([k, v]) => `${k}: ${v}`).join(', ');
+    lines.push(`**Cards by stage:** ${statusStr}`);
+  }
+  if (ctx.summary.blockedMembers.length > 0) {
+    lines.push(`**⚠️ Potentially blocked:** ${ctx.summary.blockedMembers.join(', ')}`);
+  }
+  lines.push('');
+
+  // Per-member breakdown
+  lines.push('**Member Activity:**');
+  for (const m of ctx.members) {
+    const fedLabel = m.isFederated ? ` [${m.instanceUrl}]` : '';
+    const label = m.name || m.email || 'Unknown';
+    lines.push(`- **${label}** (${m.role})${fedLabel}:`);
+    if (m.cards.length > 0) {
+      lines.push(`  Cards: ${m.cards.map(c => `"${c.title}" [${c.status}${c.priority !== 'normal' ? '/' + c.priority : ''}]`).join(', ')}`);
+    }
+    if (m.queueItems.length > 0) {
+      lines.push(`  Queue: ${m.queueItems.map(q => `"${q.title}" [${q.status}]`).join(', ')}`);
+    }
+    if (m.activeRelays.length > 0) {
+      lines.push(`  Relays: ${m.activeRelays.map(r => `${r.direction === 'inbound' ? '📥' : '📤'} "${r.subject}" [${r.status}]`).join(', ')}`);
+    }
+    if (m.cards.length === 0 && m.queueItems.length === 0 && m.activeRelays.length === 0) {
+      lines.push(`  No active items`);
+    }
+  }
+
+  return lines.join('\n');
+}
+
 // ─── Brief Markdown Generation ───────────────────────────────────────────────
 
 /**

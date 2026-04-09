@@ -18,7 +18,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         OR: [
           { createdById: userId },
           { members: { some: { userId } } },
-          { team: { members: { some: { userId } } } },
+          { visibility: 'team', team: { members: { some: { userId } } } },
+          {
+            visibility: 'open',
+            members: {
+              some: {
+                connection: {
+                  OR: [{ requesterId: userId }, { accepterId: userId }],
+                  status: 'active',
+                },
+              },
+            },
+          },
         ],
       },
       include: {
@@ -65,6 +76,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (body.status !== undefined) data.status = body.status;
     if (body.color !== undefined) data.color = body.color;
     if (body.teamId !== undefined) data.teamId = body.teamId || null;
+    if (body.visibility !== undefined) {
+      const validVisibilities = ['private', 'team', 'open'];
+      if (validVisibilities.includes(body.visibility)) data.visibility = body.visibility;
+    }
 
     const project = await prisma.project.update({ where: { id: params.id }, data });
     return NextResponse.json(project);
