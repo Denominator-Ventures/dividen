@@ -51,6 +51,7 @@ model User {
   teamMemberships      TeamMember[]
   projectsCreated      Project[]       @relation("ProjectsCreated")
   projectMemberships   ProjectMember[]
+  goals                Goal[]
   agentExtensions      AgentExtension[]
 
   @@map("users")
@@ -928,6 +929,7 @@ model Team {
   projects    Project[]
   queueItems  QueueItem[]
   relays      AgentRelay[]
+  goals       Goal[]
 
   @@index([createdById])
   @@map("teams")
@@ -975,6 +977,7 @@ model Project {
   kanbanCards KanbanCard[]
   queueItems  QueueItem[]
   relays      AgentRelay[]
+  goals       Goal[]
 
   @@index([teamId])
   @@index([createdById])
@@ -1002,8 +1005,48 @@ model ProjectMember {
 }
 
 // ─── Agent Extensions ──────────────────────────────────────────────────────
-// Installable skills, personas, and prompt layers from Claw Mart or manual import.
+// Installable skills, personas, and prompt layers via manual import or custom config.
 // Extensions augment Divi's capabilities at user, team, or project scope.
+
+// ─── Goals & Objectives ─────────────────────────────────────────────────────
+
+model Goal {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  timeframe   String    @default("quarter")   // "week" | "month" | "quarter" | "year"
+  deadline    DateTime?
+  impact      String    @default("medium")     // "low" | "medium" | "high" | "critical"
+  status      String    @default("active")     // "active" | "paused" | "completed" | "abandoned"
+  progress    Int       @default(0)            // 0-100 percentage
+  metadata    String?                          // JSON: extra context, key results, etc.
+
+  // Hierarchy — goals can ladder up
+  parentGoalId String?
+  parentGoal   Goal?   @relation("GoalHierarchy", fields: [parentGoalId], references: [id], onDelete: SetNull)
+  subGoals     Goal[]  @relation("GoalHierarchy")
+
+  // Scope — link to project / team (optional)
+  projectId    String?
+  project      Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  teamId       String?
+  team         Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  // Ownership
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([teamId])
+  @@index([parentGoalId])
+  @@map("goals")
+}
+
+// ─── Agent Extensions ───────────────────────────────────────────────────────
 
 model AgentExtension {
   id            String   @id @default(cuid())
@@ -1011,8 +1054,8 @@ model AgentExtension {
   slug          String                          // URL-safe identifier
   description   String?                         // What this extension does
   type          String   @default("skill")      // "skill" | "persona" | "prompt_layer"
-  source        String   @default("manual")     // "clawmart" | "manual" | "custom"
-  sourceUrl     String?                         // Link to Claw Mart listing or origin
+  source        String   @default("manual")     // "manual" | "custom"
+  sourceUrl     String?                         // Link to origin or documentation
   version       String   @default("1.0.0")
 
   // The extension configuration — prompt text, action tags, parameters, etc.

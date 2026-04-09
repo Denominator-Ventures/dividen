@@ -1,8 +1,9 @@
 /**
- * DiviDen 13-Layer System Prompt Builder
+ * DiviDen Consolidated System Prompt Builder
  * 
  * Dynamically constructs context for the AI agent from database state.
- * Each layer adds a specific dimension of awareness to the prompt.
+ * Consolidated from 19 layers to ~11 logical groups for token efficiency.
+ * Conditional layers are skipped when empty or fully configured.
  */
 
 import { prisma } from './prisma';
@@ -736,23 +737,22 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
   }
 }
 
-// ─── Main Builder ────────────────────────────────────────────────────────────
+// ─── Main Builder (Consolidated) ─────────────────────────────────────────────
 
 /**
- * Pre-fetches shared data to avoid duplicate DB queries across layers.
- * Reduces ~25 parallel queries to ~15 by sharing results between layers
- * that need the same data (kanban, contacts, connections, messages, emails).
+ * Consolidated prompt builder. Merges 19 layers → ~11 logical groups.
+ * Pre-fetches shared data, skips conditional layers when empty.
  */
 export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const userId = ctx.userId;
 
-  // ── Batch 1: Pre-fetch data shared across multiple layers ──
+  // ── Batch 1: Pre-fetch shared data ──
   const [
-    kanbanCards,        // shared by layer4 + layer11 + layer16 (count)
-    recentMessages,     // shared by layer3 (count) + layer8 (content)
-    contacts,           // shared by layer6 + layer16 (count)
-    unreadEmails,       // shared by layer13 (count + content)
-    connections,        // shared by layer17 + layer18
+    kanbanCards,
+    recentMessages,
+    contacts,
+    unreadEmails,
+    connections,
   ] = await Promise.all([
     prisma.kanbanCard.findMany({
       where: { userId },
@@ -788,136 +788,342 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     }),
   ]);
 
-  // Derive data from pre-fetched results instead of separate queries
   const inProgressCards = kanbanCards.filter(c => c.status === 'in_progress');
-  const totalMessageCount = recentMessages.length; // approximation from last 10
-  const unreadEmailCount = unreadEmails.length;
 
-  // ── Inline layer builders using pre-fetched data ──
-  const layer3 = `## Layer 3: Conversation Context\nTotal recent messages: ${totalMessageCount}. Maintain continuity with prior context.`;
+  // ── Group 1: Identity, Rules & Time (merged old 1+2+9) ──
+  const now = new Date();
+  const timeStr = `${now.toISOString()} (${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})`;
 
-  // Layer 4: Kanban State (using pre-fetched kanbanCards)
-  let layer4: string;
-  if (kanbanCards.length === 0) {
-    layer4 = `## Layer 4: Kanban State\nNo cards on the board yet.`;
-  } else {
-    const byStatus: Record<string, typeof kanbanCards> = {};
-    for (const card of kanbanCards) {
-      const s = card.status;
-      if (!byStatus[s]) byStatus[s] = [];
-      byStatus[s].push(card);
-    }
-    let text = `## Layer 4: Kanban State (${kanbanCards.length} cards)\n`;
-    for (const [status, items] of Object.entries(byStatus)) {
-      text += `\n### ${status.replace('_', ' ').toUpperCase()} (${items.length})\n`;
-      for (const c of items) {
-        const due = c.dueDate ? ` | Due: ${c.dueDate.toISOString().split('T')[0]}` : '';
-        const checks = c.checklist.length > 0
-          ? ` | Checklist: ${c.checklist.filter((x) => x.completed).length}/${c.checklist.length}`
-          : '';
-        text += `- [${c.id}] "${c.title}" (${c.priority})${due}${checks}\n`;
-      }
-    }
-    layer4 = text;
+  const rules = await prisma.agentRule.findMany({
+    where: { enabled: true, OR: [{ userId }, { userId: null }] },
+    orderBy: { priority: 'desc' },
+  });
+  const modeName = ctx.mode === 'chief_of_staff' ? 'Chief of Staff' : 'Cockpit';
+  const modeDesc = ctx.mode === 'chief_of_staff'
+    ? `You proactively manage tasks, make decisions, and take action on behalf of ${ctx.userName || 'the user'}. You prioritize, delegate, and execute without waiting for explicit approval on routine matters.`
+    : `You present information, options, and recommendations to ${ctx.userName || 'the user'}, who makes all final decisions. You execute tasks only when explicitly instructed.`;
+
+  let group1 = `## Identity & Context
+You are Divi, the AI agent inside the DiviDen Command Center, working for ${ctx.userName || 'the user'}.
+Mode: **${modeName}** — ${modeDesc}
+Current time: ${timeStr}`;
+  if (rules.length > 0) {
+    group1 += `\n\n### Rules\n` + rules.map((r, i) => `${i + 1}. **${r.name}**: ${r.rule}`).join('\n');
   }
 
-  // Layer 6: CRM Summary (using pre-fetched contacts)
-  let layer6: string;
-  if (contacts.length === 0) {
-    layer6 = `## Layer 6: CRM\nNo contacts stored yet.`;
+  // ── Group 2: Active State (merged old 4+5+11) ──
+  let group2 = '## Active State\n';
+
+  // NOW focus
+  if (inProgressCards.length > 0) {
+    const focusLines = inProgressCards.slice(0, 3)
+      .map(c => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
+      .join('\n');
+    group2 += `### 🎯 NOW (In Progress)\n${focusLines}\n\n`;
   } else {
-    const lines = contacts.map((c) => {
+    group2 += `### 🎯 NOW\nNo cards currently in progress.\n\n`;
+  }
+
+  // Kanban
+  if (kanbanCards.length > 0) {
+    const byStatus: Record<string, typeof kanbanCards> = {};
+    for (const card of kanbanCards) {
+      if (!byStatus[card.status]) byStatus[card.status] = [];
+      byStatus[card.status].push(card);
+    }
+    group2 += `### Board (${kanbanCards.length} cards)\n`;
+    for (const [status, items] of Object.entries(byStatus)) {
+      group2 += `**${status.replace('_', ' ').toUpperCase()}** (${items.length}): `;
+      group2 += items.map(c => {
+        const due = c.dueDate ? ` Due:${c.dueDate.toISOString().split('T')[0]}` : '';
+        const checks = c.checklist.length > 0 ? ` ✓${c.checklist.filter(x => x.completed).length}/${c.checklist.length}` : '';
+        return `[${c.id}] "${c.title}" (${c.priority})${due}${checks}`;
+      }).join(' | ') + '\n';
+    }
+  } else {
+    group2 += 'No cards on the board yet.\n';
+  }
+
+  // Queue
+  const queueItems = await prisma.queueItem.findMany({
+    where: { status: 'ready', userId },
+    orderBy: { createdAt: 'desc' },
+    take: 20,
+  });
+  if (queueItems.length > 0) {
+    group2 += `\n### Queue (${queueItems.length} pending)\n`;
+    group2 += queueItems.map(q => `- [${q.type}] "${q.title}" (${q.priority}) — ${q.source || 'unknown'}`).join('\n') + '\n';
+  }
+
+  // Goals
+  const activeGoals = await prisma.goal.findMany({
+    where: { userId, status: 'active' },
+    orderBy: [{ impact: 'desc' }, { deadline: 'asc' }],
+    take: 15,
+    include: { subGoals: { select: { id: true, title: true, status: true, progress: true } } },
+  });
+  if (activeGoals.length > 0) {
+    group2 += `\n### Goals (${activeGoals.length} active)\n`;
+    group2 += activeGoals.map(g => {
+      const dl = g.deadline ? ` Due:${g.deadline.toISOString().split('T')[0]}` : '';
+      const subs = g.subGoals.length > 0 ? ` (${g.subGoals.filter(s => s.status === 'completed').length}/${g.subGoals.length} sub-goals done)` : '';
+      return `- [${g.impact.toUpperCase()}] "${g.title}" ${g.progress}%${dl}${subs}`;
+    }).join('\n') + '\n';
+  }
+
+  // ── Group 3: Conversation (merged old 3+8) ──
+  let group3: string;
+  if (recentMessages.length === 0) {
+    group3 = '## Conversation\nNo prior messages.';
+  } else {
+    const msgLines = [...recentMessages].reverse()
+      .map(m => `[${m.role}]: ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}`)
+      .join('\n');
+    group3 = `## Conversation (last ${recentMessages.length} messages)\n${msgLines}`;
+  }
+
+  // ── Group 4: People (merged old 6 CRM + 18 profiles) ──
+  const group4 = await buildPeopleLayer(userId, contacts, connections);
+
+  // ── Group 5: Memory & Learning (merged old 7+10) ──
+  const [memorySection, learnings] = await Promise.all([
+    (async () => { const { buildMemoryContext } = await import('./memory'); return buildMemoryContext(userId); })(),
+    prisma.userLearning.findMany({ where: { userId }, orderBy: { confidence: 'desc' }, take: 20 }),
+  ]);
+  let group5 = memorySection;
+  if (learnings.length > 0) {
+    group5 += `\n\n### Learned Patterns\n`;
+    group5 += learnings.map(l => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`).join('\n');
+  }
+
+  // ── Group 6: Calendar & Inbox (merged old 12+13) ──
+  const nextWeek = new Date(now); nextWeek.setDate(nextWeek.getDate() + 7);
+  const events = await prisma.calendarEvent.findMany({
+    where: { userId, startTime: { gte: now, lte: nextWeek } },
+    orderBy: { startTime: 'asc' },
+    take: 15,
+  });
+  let group6 = '## Schedule & Inbox\n';
+  if (events.length > 0) {
+    group6 += `### Calendar (next 7 days — ${events.length} events)\n`;
+    group6 += events.map(e => {
+      const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return `- ${day} ${time}: "${e.title}"${e.location ? ` @ ${e.location}` : ''}`;
+    }).join('\n') + '\n';
+  } else {
+    group6 += 'No upcoming events.\n';
+  }
+  if (unreadEmails.length > 0) {
+    group6 += `\n### Inbox (${unreadEmails.length} unread)\n`;
+    group6 += unreadEmails.map(e => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n');
+  }
+
+  // ── Group 7: Capabilities & Action Tags (merged old 14+15) ──
+  const group7 = buildCapabilitiesAndSyntax();
+
+  // ── Group 8: Connections & Relay (old 17, kept as-is — it's the core protocol) ──
+  const group8 = await layer17_connectionsRelay_optimized(userId, connections);
+
+  // ── Group 9: Extensions (conditional — skip if none) ──
+  const group9 = await layer19_agentExtensions(userId);
+
+  // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
+  const group10 = await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length);
+
+  // ── Assemble ──
+  const layers = [
+    group1,   // Identity, Rules, Time
+    group2,   // Active State (NOW + Board + Queue)
+    group3,   // Conversation
+    group4,   // People (CRM + Profiles)
+    group5,   // Memory & Learning
+    group6,   // Schedule & Inbox
+    group7,   // Capabilities & Syntax
+    group8,   // Connections & Relay Protocol
+    group9,   // Extensions (conditional)
+    group10,  // Platform Setup (conditional)
+  ].filter(Boolean);
+
+  return layers.join('\n\n---\n\n');
+}
+
+// ─── Consolidated People Layer (CRM + Profiles) ─────────────────────────────
+
+async function buildPeopleLayer(
+  userId: string,
+  contacts: Awaited<ReturnType<typeof prisma.contact.findMany>>,
+  connections: Awaited<ReturnType<typeof prisma.connection.findMany>>,
+): Promise<string> {
+  const parse = (v: string | null, fallback: any = []) => {
+    if (!v) return fallback;
+    try { return JSON.parse(v); } catch { return fallback; }
+  };
+
+  let text = '## People\n';
+
+  // Owner's profile
+  const ownProfile = await prisma.userProfile.findUnique({ where: { userId } });
+  if (ownProfile) {
+    text += '### Your Owner\n';
+    if (ownProfile.headline) text += `${ownProfile.headline} | `;
+    text += `Capacity: ${ownProfile.capacity}`;
+    if (ownProfile.capacityNote) text += ` — ${ownProfile.capacityNote}`;
+    text += '\n';
+    const skills = parse(ownProfile.skills);
+    if (skills.length) text += `Skills: ${skills.join(', ')}\n`;
+    const taskTypes = parse(ownProfile.taskTypes);
+    if (taskTypes.length) text += `Task types: ${taskTypes.join(', ')}\n`;
+    const languages = parse(ownProfile.languages);
+    if (languages.length) text += `Languages: ${languages.map((l: any) => `${l.language} (${l.proficiency})`).join(', ')}\n`;
+    const superpowers = parse(ownProfile.superpowers);
+    if (superpowers.length) text += `Superpowers: ${superpowers.join(', ')}\n`;
+    if (ownProfile.timezone) text += `Timezone: ${ownProfile.timezone}\n`;
+  } else {
+    text += '*Profile not set up — suggest completing it for better relay routing.*\n';
+  }
+
+  // CRM Contacts
+  if (contacts.length > 0) {
+    text += `\n### CRM Contacts (${contacts.length})\n`;
+    text += contacts.map(c => {
       const parts = [c.name];
       if (c.company) parts.push(`@ ${c.company}`);
       if (c.role) parts.push(`(${c.role})`);
       if (c.email) parts.push(`<${c.email}>`);
       return `- [${c.id}] ${parts.join(' ')}`;
-    }).join('\n');
-    layer6 = `## Layer 6: CRM Contacts (${contacts.length})\n${lines}`;
+    }).join('\n') + '\n';
   }
 
-  // Layer 8: Recent Messages (using pre-fetched recentMessages)
-  let layer8: string;
-  if (recentMessages.length === 0) {
-    layer8 = `## Layer 8: Recent Messages\nNo prior messages.`;
-  } else {
-    const lines = [...recentMessages].reverse()
-      .map((m) => `[${m.role}]: ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}`)
-      .join('\n');
-    layer8 = `## Layer 8: Recent Messages (last ${recentMessages.length})\n${lines}`;
+  // Connection profiles (for routing intelligence)
+  if (connections.length > 0) {
+    const peerIds = connections.map(c =>
+      (c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId
+    ).filter((id: string | null): id is string => !!id);
+
+    const peerProfiles = peerIds.length > 0
+      ? await prisma.userProfile.findMany({ where: { userId: { in: peerIds }, NOT: { visibility: 'private' } } })
+      : [];
+
+    if (peerProfiles.length > 0) {
+      text += `\n### Connection Profiles (for relay routing)\n`;
+      for (const pp of peerProfiles) {
+        const conn = connections.find(c => ((c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId) === pp.userId);
+        const peer = conn ? ((conn as any).requesterId === userId ? (conn as any).accepter : (conn as any).requester) : null;
+        const nickname = conn ? ((conn as any).requesterId === userId ? conn.nickname : conn.peerNickname) : null;
+        const name = nickname || peer?.name || 'Unknown';
+
+        text += `**${name}** — ${pp.capacity}`;
+        if (pp.headline) text += ` | ${pp.headline}`;
+        text += '\n';
+        const pSkills = parse(pp.skills);
+        if (pSkills.length) text += `  Skills: ${pSkills.slice(0, 8).join(', ')}\n`;
+        const pTaskTypes = parse(pp.taskTypes);
+        if (pTaskTypes.length) text += `  Task types: ${pTaskTypes.join(', ')}\n`;
+      }
+    }
   }
 
-  // Layer 11: Active Focus (using pre-fetched kanbanCards, filtered)
-  let layer11: string;
-  if (inProgressCards.length === 0) {
-    layer11 = `## Layer 11: Active Focus\nNo cards currently in progress. The NOW panel is empty.`;
-  } else {
-    const focusCards = inProgressCards.slice(0, 3);
-    const lines = focusCards
-      .map((c) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
-      .join('\n');
-    layer11 = `## Layer 11: Active Focus (NOW Panel)\nCurrently working on:\n${lines}`;
-  }
+  text += '\n*When the user mentions personal details, update their profile with [[update_profile:{...}]]*';
+  return text;
+}
 
-  // Layer 13: Email Context (using pre-fetched unreadEmails)
-  let layer13: string;
-  if (unreadEmailCount === 0) {
-    layer13 = `## Layer 13: Inbox\nNo unread emails.`;
-  } else {
-    const lines = unreadEmails.map((e) => {
-      const starred = e.isStarred ? '⭐ ' : '';
-      return `- ${starred}From ${e.fromName || e.fromEmail}: "${e.subject}"`;
-    }).join('\n');
-    layer13 = `## Layer 13: Inbox (${unreadEmailCount} unread)\n${lines}`;
-  }
+// ─── Consolidated Capabilities & Syntax (merged old 14+15) ──────────────────
 
-  // ── Batch 2: Remaining async layers that need their own queries ──
-  const [
-    layer2,   // rules
-    layer5,   // queue
-    layer7,   // memory (3 sub-queries)
-    layer10,  // learnings
-    layer12,  // calendar
-    layer16,  // platform setup (uses pre-fetched counts)
-    layer17,  // connections relay (uses pre-fetched connections)
-    layer18,  // profile awareness (uses pre-fetched connections)
-  ] = await Promise.all([
-    layer2_rules(userId),
-    layer5_queueState(userId),
-    layer7_memory(userId),
-    layer10_learnings(userId),
-    layer12_calendarContext(userId),
-    layer16_platformSetupAssistant_optimized(userId, kanbanCards.length, contacts.length, connections.length),
-    layer17_connectionsRelay_optimized(userId, connections),
-    layer18_profileAwareness_optimized(userId, connections),
+function buildCapabilitiesAndSyntax(): string {
+  return `## Capabilities & Action Tags
+Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display.
+
+### Card Management
+- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]]
+- [[update_card:{"id":"card_id","title":"...","status":"...","priority":"..."}]]
+- [[archive_card:{"id":"card_id"}]]
+- [[add_checklist:{"cardId":"card_id","text":"..."}]] / [[complete_checklist:{"id":"item_id","completed":true}]]
+
+### Contacts & Relationships
+- [[create_contact:{"name":"...","email":"...","company":"...","role":"...","tags":"tag1,tag2","cardId":"optional"}]]
+- [[link_contact:{"cardId":"...","contactId":"...","role":"..."}]]
+- [[add_relationship:{"fromName":"A","toName":"B","type":"colleague|manager|report|partner|friend|referral|custom"}]]
+- [[update_contact:{"name":"...","company":"...","role":"...","tags":"..."}]]
+
+### Queue & Calendar
+- [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","priority":"low|medium|high|urgent"}]]
+- [[create_calendar_event:{"title":"...","startTime":"ISO","endTime":"ISO","location":"...","attendees":["email"]}]]
+- [[set_reminder:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
+
+### Goals
+- [[create_goal:{"title":"...","timeframe":"week|month|quarter|year","impact":"low|medium|high|critical","deadline":"YYYY-MM-DD","description":"..."}]]
+- [[update_goal:{"id":"goal_id","progress":0-100,"status":"active|paused|completed|abandoned","title":"..."}]]
+
+### Documents & Comms
+- [[create_document:{"title":"...","content":"markdown","type":"note|report|template|meeting_notes"}]]
+- [[send_comms:{"content":"...","priority":"urgent|normal|low"}]]
+- [[send_email:{"to":"...","subject":"...","body":"...","identity":"operator|agent"}]]
+
+### Connections & Relays
+- [[relay_request:{"to":"name/email","intent":"get_info|assign_task|request_approval|share_update|schedule|introduce|custom","subject":"...","priority":"normal|urgent|low"}]]
+- [[relay_broadcast:{"subject":"...","teamId":"optional","projectId":"optional"}]]
+- [[relay_ambient:{"to":"name/email","subject":"...","_topic":"..."}]] — Low-priority; receiving agent weaves naturally
+- [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"...","_ambientQuality":"high|medium|low","_ambientDisruption":"none|low|medium|high"}]] — Include _ambient* fields for ambient relays
+- [[accept_connection:{"connectionId":"..."}]]
+
+### Orchestration
+- [[task_route:{"cardId":"...","tasks":[{"title":"...","requiredSkills":["..."],"requiredTaskTypes":["..."],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast"}],"teamId":"optional","projectId":"optional"}]] — Decompose card → match skills → route via relay
+- [[assemble_brief:{"cardId":"...","teamId":"optional","projectId":"optional"}]] — Generate reasoning brief without routing
+- [[project_dashboard:{"projectId":"..."}]] — Cross-member project activity dashboard
+
+### Profile & Memory
+- [[update_profile:{"skills":["..."],"taskTypes":["..."],"languages":[{"language":"...","proficiency":"..."}],"headline":"...","capacityStatus":"available|busy|limited|unavailable"}]] — Arrays MERGE (safe to add incrementally)
+- [[update_memory:{"tier":1|2|3,"category":"...","key":"...","value":"..."}]] / [[save_learning:{"category":"...","observation":"...","confidence":0.5}]]
+
+### Setup
+- [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]]
+- [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-..."}]]
+
+**Rules:** Always include required fields. Multiple tags per response OK. Tags go at end or inline. Ask before modifying data if unsure.`;
+}
+
+// ─── Conditional Setup Layer (skip if complete) ─────────────────────────────
+
+async function buildSetupLayer_conditional(
+  userId: string,
+  cardCount: number,
+  contactCount: number,
+  connectionCount: number,
+): Promise<string> {
+  const [apiKeys, webhooks, docCount, profile] = await Promise.all([
+    prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
+    prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true } }),
+    prisma.document.count({ where: { userId } }),
+    prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, capacity: true } }),
   ]);
 
-  // Load active agent extensions for this user (user-scope + team/project scoped)
-  const layer19 = await layer19_agentExtensions(userId);
+  const hasApiKey = apiKeys.length > 0;
+  const hasProfile = !!profile;
+  const hasCards = cardCount > 0;
+  const hasContacts = contactCount > 0;
+  const hasConnections = connectionCount > 0;
 
-  const layers = [
-    layer1_identity(ctx),
-    layer2,
-    layer3,
-    layer4,
-    layer5,
-    layer6,
-    layer7,
-    layer8,
-    layer9_currentTime(),
-    layer10,
-    layer11,
-    layer12,
-    layer13,
-    layer14_capabilities(),
-    layer15_actionTagSyntax(),
-    layer16,
-    layer17,
-    layer18,
-    layer19,
-  ].filter(Boolean);
+  // If everything important is configured, return compact status only
+  if (hasApiKey && hasProfile && hasCards && hasContacts) {
+    return `## Platform Status
+API: ${apiKeys.map(k => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
+If user asks "set up X" → do it with action tags or give step-by-step directions.`;
+  }
 
-  return layers.join('\n\n---\n\n');
+  // Otherwise, show guidance for missing items
+  let text = '## Platform Setup Guide\n';
+  text += 'Help the user complete their setup. Use action tags to do things directly when possible.\n\n';
+  text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
+
+  if (!hasApiKey) text += '- **API Key needed** — Ask user for their OpenAI/Anthropic key, save with [[save_api_key:...]]\n';
+  if (!hasProfile) text += '- **Profile not set** — Suggest filling out profile in Settings → 👤 Profile for better relay routing\n';
+  if (!hasCards) text += '- **Board empty** — Offer to create initial pipeline cards\n';
+  if (!hasContacts) text += '- **No contacts** — Offer to add contacts from conversation\n';
+  if (!hasConnections) text += '- **No connections** — Suggest connecting with collaborators\n';
+
+  text += '\n**Behavioral Rules:** If user pastes API key → save immediately. If user mentions personal details → update profile. Be proactive about missing setup.';
+  return text;
 }
 
 // ─── Optimized variants that accept pre-fetched data ─────────────────────────

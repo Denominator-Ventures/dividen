@@ -43,8 +43,7 @@ export function ExtensionsView() {
   const [importName, setImportName] = useState('');
   const [importDescription, setImportDescription] = useState('');
   const [importType, setImportType] = useState<'skill' | 'persona' | 'prompt_layer'>('skill');
-  const [importSource, setImportSource] = useState<'manual' | 'clawmart'>('manual');
-  const [importSourceUrl, setImportSourceUrl] = useState('');
+  const [importSource, setImportSource] = useState<'manual' | 'custom'>('manual');
   const [importScope, setImportScope] = useState<'user' | 'team' | 'project' | 'global'>('user');
   const [importScopeId, setImportScopeId] = useState('');
   const [importConfig, setImportConfig] = useState('');
@@ -123,7 +122,6 @@ export function ExtensionsView() {
           description: importDescription.trim() || null,
           type: importType,
           source: importSource,
-          sourceUrl: importSourceUrl.trim() || null,
           scope: importScope,
           scopeId: importScope === 'user' || importScope === 'global' ? null : importScopeId || null,
           config: importConfig,
@@ -136,7 +134,7 @@ export function ExtensionsView() {
       }
       // Reset form & go back to list
       setImportName(''); setImportDescription(''); setImportConfig('');
-      setImportSourceUrl(''); setImportScopeId(''); setImportPriority(0);
+      setImportScopeId(''); setImportPriority(0);
       setImportType('skill'); setImportSource('manual'); setImportScope('user');
       setView('list');
       await fetchExtensions();
@@ -159,7 +157,7 @@ export function ExtensionsView() {
 
   const typeIcon = (type: string) => type === 'persona' ? '🎭' : type === 'prompt_layer' ? '📜' : '⚡';
   const scopeIcon = (scope: string) => scope === 'user' ? '👤' : scope === 'team' ? '👥' : scope === 'project' ? '📋' : '🌐';
-  const sourceLabel = (source: string) => source === 'clawmart' ? '🦞 Claw Mart' : source === 'custom' ? '🔧 Custom' : '📝 Manual';
+  const sourceLabel = (source: string) => source === 'custom' ? '🔧 Custom' : '📝 Manual';
 
   // ── Import View ──────────────────────────────────────────────────────
   if (view === 'import') {
@@ -174,25 +172,6 @@ export function ExtensionsView() {
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 text-xs text-red-400">{error}</div>
         )}
-
-        {/* Claw Mart banner */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg">🦞</span>
-            <span className="text-sm font-medium text-[var(--text-primary)]">Claw Mart Marketplace</span>
-          </div>
-          <p className="text-xs text-[var(--text-muted)] mb-2">
-            Browse pre-built skills and personas at the Claw Mart AI marketplace. Copy the config JSON from any listing and paste it below.
-          </p>
-          <a
-            href="https://www.shopclawmart.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-[var(--brand-primary)] hover:underline"
-          >
-            Browse Claw Mart →
-          </a>
-        </div>
 
         {/* Form */}
         <div className="space-y-3">
@@ -239,7 +218,6 @@ export function ExtensionsView() {
                 className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]"
               >
                 <option value="manual">📝 Manual</option>
-                <option value="clawmart">🦞 Claw Mart</option>
                 <option value="custom">🔧 Custom</option>
               </select>
             </div>
@@ -280,19 +258,6 @@ export function ExtensionsView() {
                 value={importScopeId}
                 onChange={e => setImportScopeId(e.target.value)}
                 placeholder={`Paste the ${importScope} ID`}
-                className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]"
-              />
-            </div>
-          )}
-
-          {importSource === 'clawmart' && (
-            <div>
-              <label className="block text-xs text-[var(--text-muted)] mb-1">Claw Mart URL</label>
-              <input
-                type="url"
-                value={importSourceUrl}
-                onChange={e => setImportSourceUrl(e.target.value)}
-                placeholder="https://www.shopclawmart.com/listing/..."
                 className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]"
               />
             </div>
@@ -491,8 +456,8 @@ export function ExtensionsView() {
           <div className="text-3xl mb-3">🧩</div>
           <p className="text-sm text-[var(--text-muted)] mb-1">No extensions installed</p>
           <p className="text-[10px] text-[var(--text-muted)] mb-4">
-            Extensions add new skills, personas, and behaviors to your Divi agent.
-            Import from Claw Mart or create your own.
+            Extensions add new skills, personas, and prompt layers to your Divi agent.
+            Create your own or paste a config JSON to install.
           </p>
           <button
             onClick={() => setView('import')}
@@ -545,25 +510,6 @@ export function ExtensionsView() {
         </div>
       )}
 
-      {/* Claw Mart footer link */}
-      <div className="border-t border-[var(--border-color)] pt-3 mt-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm">🦞</span>
-          <div>
-            <a
-              href="https://www.shopclawmart.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-[var(--brand-primary)] hover:underline font-medium"
-            >
-              Browse Claw Mart Marketplace
-            </a>
-            <p className="text-[10px] text-[var(--text-muted)]">
-              Find pre-built skills & personas for your agent
-            </p>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }

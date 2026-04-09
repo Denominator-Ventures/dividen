@@ -63,6 +63,9 @@ export const SUPPORTED_TAGS = [
   'task_route',        // decompose a kanban card into tasks, match skills, route to best connection
   'assemble_brief',   // manually trigger brief assembly for a kanban card
   'project_dashboard', // assemble cross-member project dashboard — see what everyone is doing
+  // ── Goal Actions ──
+  'create_goal',       // create a new goal
+  'update_goal',       // update goal progress/status/details
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -1467,6 +1470,45 @@ async function executeTag(
             dashboard: dashMd,
           },
         };
+      }
+
+      // ── Goal Actions ──
+      case 'create_goal': {
+        const { title, description, timeframe, deadline, impact, projectId: goalProjectId, teamId: goalTeamId } = params;
+        if (!title) return { tag: name, success: false, error: 'create_goal requires title' };
+
+        const goal = await prisma.goal.create({
+          data: {
+            title,
+            description: description || null,
+            timeframe: timeframe || 'quarter',
+            deadline: deadline ? new Date(deadline) : null,
+            impact: impact || 'medium',
+            projectId: goalProjectId || null,
+            teamId: goalTeamId || null,
+            userId,
+          },
+        });
+        return { tag: name, success: true, data: { goalId: goal.id, title: goal.title, impact: goal.impact, timeframe: goal.timeframe } };
+      }
+
+      case 'update_goal': {
+        const { id: goalId, progress, status: goalStatus, title: goalTitle, description: goalDesc, impact: goalImpact } = params;
+        if (!goalId) return { tag: name, success: false, error: 'update_goal requires id' };
+
+        const existingGoal = await prisma.goal.findFirst({ where: { id: goalId, userId } });
+        if (!existingGoal) return { tag: name, success: false, error: 'Goal not found' };
+
+        const goalUpdates: any = {};
+        if (goalTitle !== undefined) goalUpdates.title = goalTitle;
+        if (goalDesc !== undefined) goalUpdates.description = goalDesc;
+        if (goalImpact !== undefined) goalUpdates.impact = goalImpact;
+        if (goalStatus !== undefined) goalUpdates.status = goalStatus;
+        if (progress !== undefined) goalUpdates.progress = Math.min(100, Math.max(0, Number(progress)));
+        if (goalUpdates.progress >= 100 && !goalUpdates.status) goalUpdates.status = 'completed';
+
+        const updatedGoal = await prisma.goal.update({ where: { id: goalId }, data: goalUpdates });
+        return { tag: name, success: true, data: { goalId: updatedGoal.id, title: updatedGoal.title, status: updatedGoal.status, progress: updatedGoal.progress } };
       }
 
       default:

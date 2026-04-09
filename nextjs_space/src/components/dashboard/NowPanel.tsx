@@ -2,131 +2,83 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+interface NowItem {
+  id: string;
+  type: 'queue' | 'goal_deadline' | 'kanban_due' | 'relay_response' | 'calendar_prep' | 'goal_check';
+  title: string;
+  subtitle?: string;
+  score: number;
+  urgency: 'critical' | 'high' | 'medium' | 'low';
+  sourceId: string;
+  meta?: Record<string, any>;
+}
+
+interface CalendarGap {
+  start: string;
+  end: string;
+  minutes: number;
+}
+
+interface GoalsSummary {
+  total: number;
+  critical: number;
+  approaching: number;
+  onTrack: number;
+}
+
+interface NowData {
+  items: NowItem[];
+  calendarGaps: CalendarGap[];
+  activeGoalsSummary: GoalsSummary;
+  focusSuggestion: string | null;
+}
+
 interface NowPanelProps {
   onNewTask?: () => void;
   onQuickChat?: () => void;
 }
 
-interface QueueItemData {
-  id: string;
-  title: string;
-  priority: string;
-  status: string;
-  type: string;
-}
+const URGENCY_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
+  critical: { dot: 'bg-red-400 animate-pulse', text: 'text-red-400', bg: 'bg-red-400/5 border-red-400/20' },
+  high: { dot: 'bg-orange-400', text: 'text-orange-400', bg: 'bg-orange-400/5 border-orange-400/20' },
+  medium: { dot: 'bg-blue-400', text: 'text-blue-400', bg: 'bg-blue-400/5 border-blue-400/15' },
+  low: { dot: 'bg-gray-500', text: 'text-[var(--text-muted)]', bg: 'bg-[var(--bg-surface)] border-[var(--border-color)]' },
+};
 
-interface PulseStats {
-  pipeline: number;
-  diviTasks: number;
-  portfolio: number;
-  blocked: number;
-}
-
-interface PortfolioItem {
-  id: string;
-  title: string;
-  status: string;
-}
-
-interface UpcomingEvent {
-  id: string;
-  title: string;
-  startTime: string;
-  endTime: string | null;
-  location: string | null;
-}
-
-interface StaleContact {
-  id: string;
-  name: string;
-  company: string | null;
-  updatedAt: string;
-}
+const TYPE_ICONS: Record<string, string> = {
+  queue: '📋',
+  goal_deadline: '🎯',
+  kanban_due: '📌',
+  relay_response: '🔗',
+  calendar_prep: '📅',
+  goal_check: '⚡',
+};
 
 export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
-  const [inProgress, setInProgress] = useState<QueueItemData[]>([]);
-  const [doneToday, setDoneToday] = useState<QueueItemData[]>([]);
-  const [totalReady, setTotalReady] = useState(0);
+  const [data, setData] = useState<NowData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [showNewTask, setShowNewTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [creating, setCreating] = useState(false);
-  const [pulse, setPulse] = useState<PulseStats>({ pipeline: 0, diviTasks: 0, portfolio: 0, blocked: 0 });
-  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
-  const [upcomingEvents, setUpcomingEvents] = useState<UpcomingEvent[]>([]);
-  const [staleContacts, setStaleContacts] = useState<StaleContact[]>([]);
 
-  const fetchQueue = useCallback(async () => {
+  const fetchNow = useCallback(async () => {
     try {
-      const res = await fetch('/api/queue');
-      const data = await res.json();
-      if (data?.success) {
-        const items = data?.data ?? [];
-        setInProgress(items?.filter((i: QueueItemData) => i?.status === 'in_progress') ?? []);
-        setDoneToday(items?.filter((i: QueueItemData) => i?.status === 'done_today') ?? []);
-        const ready = items?.filter((i: QueueItemData) => i?.status === 'ready') ?? [];
-        setTotalReady(ready.length);
-        const blocked = items?.filter((i: QueueItemData) => i?.status === 'blocked')?.length ?? 0;
-        setPulse(prev => ({ ...prev, diviTasks: ready.length + (items?.filter((i: QueueItemData) => i?.status === 'in_progress')?.length ?? 0), blocked }));
-      }
-    } catch (e: unknown) {
-      console.error('Failed to fetch queue:', e);
-    }
-  }, []);
-
-  const fetchKanban = useCallback(async () => {
-    try {
-      const res = await fetch('/api/kanban');
-      const data = await res.json();
-      if (data?.success) {
-        const cards = data?.data ?? [];
-        const activeStatuses = ['active', 'development', 'planning'];
-        const pipelineStatuses = ['leads', 'qualifying', 'proposal', 'negotiation', 'contracted'];
-        const activeCards = cards.filter((c: PortfolioItem) => activeStatuses.includes(c.status));
-        const pipelineCards = cards.filter((c: PortfolioItem) => pipelineStatuses.includes(c.status));
-        setPortfolio(activeCards.slice(0, 8));
-        setPulse(prev => ({ ...prev, pipeline: pipelineCards.length, portfolio: activeCards.length }));
-      }
-    } catch (e: unknown) {
-      console.error('Failed to fetch kanban:', e);
-    }
-  }, []);
-
-  const fetchCalendar = useCallback(async () => {
-    try {
-      const now = new Date();
-      const end = new Date(now);
-      end.setDate(end.getDate() + 2); // Today + tomorrow
-      const res = await fetch(`/api/calendar?startDate=${now.toISOString()}&endDate=${end.toISOString()}`);
-      const data = await res.json();
-      if (data?.success) {
-        setUpcomingEvents((data?.data ?? []).slice(0, 4));
-      }
-    } catch (e: unknown) {
-      console.error('Failed to fetch calendar:', e);
-    }
-  }, []);
-
-  const fetchStaleContacts = useCallback(async () => {
-    try {
-      const res = await fetch('/api/contacts?sort=updatedAt&order=asc&limit=4');
-      const data = await res.json();
-      if (data?.success) {
-        // Only show contacts not updated in >7 days
-        const weekAgo = Date.now() - 7 * 86400000;
-        const stale = (data?.data ?? []).filter((c: StaleContact) => new Date(c.updatedAt).getTime() < weekAgo);
-        setStaleContacts(stale.slice(0, 3));
-      }
-    } catch (e: unknown) {
-      console.error('Failed to fetch stale contacts:', e);
+      const res = await fetch('/api/now');
+      const json = await res.json();
+      if (json?.success) setData(json.data);
+    } catch (e) {
+      console.error('Failed to fetch NOW data:', e);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchQueue();
-    fetchKanban();
-    fetchCalendar();
-    fetchStaleContacts();
-  }, [fetchQueue, fetchKanban, fetchCalendar, fetchStaleContacts]);
+    fetchNow();
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchNow, 120000);
+    return () => clearInterval(interval);
+  }, [fetchNow]);
 
   const handleNewTask = async () => {
     if (!newTaskTitle?.trim()) return;
@@ -135,60 +87,56 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
       const res = await fetch('/api/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'task',
-          title: newTaskTitle.trim(),
-          priority: 'medium',
-          status: 'ready',
-          source: 'user',
-        }),
+        body: JSON.stringify({ type: 'task', title: newTaskTitle.trim(), priority: 'medium', status: 'ready', source: 'user' }),
       });
-      const data = await res.json();
-      if (data?.success) {
+      const json = await res.json();
+      if (json?.success) {
         setNewTaskTitle('');
         setShowNewTask(false);
-        fetchQueue();
+        fetchNow();
         onNewTask?.();
       }
-    } catch (e: unknown) {
+    } catch (e) {
       console.error('Failed to create task:', e);
     } finally {
       setCreating(false);
     }
   };
 
-  const activeTask = inProgress?.[0];
-  const completedCount = doneToday?.length ?? 0;
-  const totalCount = completedCount + (inProgress?.length ?? 0) + totalReady;
-  const progressPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-
-  const STATUS_DOT: Record<string, string> = {
-    active: 'bg-green-400',
-    development: 'bg-cyan-400',
-    planning: 'bg-indigo-400',
-  };
+  const items = data?.items ?? [];
+  const summary = data?.activeGoalsSummary ?? { total: 0, critical: 0, approaching: 0, onTrack: 0 };
+  const nextGap = data?.calendarGaps?.[0];
+  const inProgressCount = items.filter(i => i.meta?.status === 'in_progress').length;
+  const doneItems = items.filter(i => i.meta?.status === 'done_today');
 
   return (
     <div className="panel h-full flex flex-col">
-      {/* Today's Pulse Header */}
+      {/* Header */}
       <div className="panel-header flex-col items-start gap-1">
         <div className="flex items-center justify-between w-full">
           <h2 className="label-mono-accent">⚡ NOW</h2>
-          <span className="label-mono" style={{ fontSize: '10px' }}>Focus</span>
+          <span className="label-mono" style={{ fontSize: '10px' }}>Dynamic</span>
         </div>
         <div className="text-xs text-[var(--text-muted)]">
-          {completedCount}/{totalCount} tasks • {pulse.pipeline} pipeline • {pulse.portfolio} active
+          {items.length} ranked items • {summary.total} goals • {inProgressCount} active
         </div>
       </div>
 
       <div className="panel-body flex-1 flex flex-col overflow-y-auto">
-        {/* Quick Stats Row */}
+        {/* Focus Suggestion */}
+        {data?.focusSuggestion && (
+          <div className="mb-3 px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
+            <p className="text-xs text-brand-400 font-medium">{data.focusSuggestion}</p>
+          </div>
+        )}
+
+        {/* Quick Stats */}
         <div className="grid grid-cols-4 gap-1.5 mb-3">
           {[
-            { label: 'Pipeline', value: pulse.pipeline, color: 'text-blue-400' },
-            { label: 'Divi', value: pulse.diviTasks, color: 'text-brand-400' },
-            { label: 'Active', value: pulse.portfolio, color: 'text-green-400' },
-            { label: 'Blocked', value: pulse.blocked, color: pulse.blocked > 0 ? 'text-red-400' : 'text-[var(--text-muted)]' },
+            { label: 'Goals', value: summary.total, color: 'text-brand-400' },
+            { label: 'Critical', value: summary.critical, color: summary.critical > 0 ? 'text-red-400' : 'text-[var(--text-muted)]' },
+            { label: 'Due Soon', value: summary.approaching, color: summary.approaching > 0 ? 'text-orange-400' : 'text-[var(--text-muted)]' },
+            { label: 'On Track', value: summary.onTrack, color: 'text-green-400' },
           ].map(s => (
             <div key={s.label} className="text-center py-1.5 bg-[var(--bg-surface)] rounded-md">
               <div className={`text-sm font-bold ${s.color}`}>{s.value}</div>
@@ -197,19 +145,17 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
           ))}
         </div>
 
-        {/* Current Focus Card */}
-        <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-3 mb-3">
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className={`w-2 h-2 rounded-full ${activeTask ? 'bg-green-400 animate-pulse' : 'bg-gray-500'}`} />
-            <span className={`text-xs font-medium ${activeTask ? 'text-green-400' : 'text-[var(--text-muted)]'}`}>
-              {activeTask ? 'Active' : 'Idle'}
+        {/* Calendar Gap Indicator */}
+        {nextGap && nextGap.minutes > 0 && (
+          <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
+            <span className="text-[10px]">🕐</span>
+            <span className="text-[10px] text-[var(--text-secondary)]">
+              {nextGap.minutes >= 60
+                ? `${Math.round(nextGap.minutes / 60)}h ${nextGap.minutes % 60}min available`
+                : `${nextGap.minutes}min gap`}
             </span>
           </div>
-          <h3 className="font-medium text-sm mb-0.5">{activeTask?.title ?? 'No active task'}</h3>
-          <p className="text-xs text-[var(--text-secondary)]">
-            {activeTask ? `Priority: ${activeTask.priority}` : 'Create a task or start one from your queue.'}
-          </p>
-        </div>
+        )}
 
         {/* Quick Actions */}
         <div className="space-y-1.5 mb-3">
@@ -220,12 +166,12 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
                 className="input-field text-sm"
                 placeholder="Task title..."
                 value={newTaskTitle}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setNewTaskTitle(e?.target?.value ?? '')}
-                onKeyDown={(e: React.KeyboardEvent) => e?.key === 'Enter' && handleNewTask()}
+                onChange={(e) => setNewTaskTitle(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleNewTask()}
                 autoFocus
               />
               <div className="flex gap-2">
-                <button onClick={handleNewTask} disabled={creating || !newTaskTitle?.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
+                <button onClick={handleNewTask} disabled={creating || !newTaskTitle.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
                   {creating ? 'Creating...' : 'Add'}
                 </button>
                 <button onClick={() => { setShowNewTask(false); setNewTaskTitle(''); }} className="btn-secondary text-sm px-3">✕</button>
@@ -239,75 +185,44 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
           )}
         </div>
 
-        {/* Coming Up — Calendar Events */}
-        {upcomingEvents.length > 0 && (
-          <div className="mb-3">
-            <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Coming Up</h4>
-            <div className="space-y-1">
-              {upcomingEvents.map(ev => {
-                const start = new Date(ev.startTime);
-                const isToday = start.toDateString() === new Date().toDateString();
-                const timeStr = start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-                const dayLabel = isToday ? 'Today' : start.toLocaleDateString('en-US', { weekday: 'short' });
-                return (
-                  <div key={ev.id} className="flex items-center gap-2 py-1.5 px-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
-                    <span className="text-[10px] text-brand-400 font-mono w-16 flex-shrink-0">{dayLabel} {timeStr}</span>
-                    <span className="text-xs text-[var(--text-secondary)] truncate">{ev.title}</span>
+        {/* Ranked Items */}
+        {loading ? (
+          <div className="text-center text-[var(--text-muted)] text-xs py-8">Scoring priorities...</div>
+        ) : items.length === 0 ? (
+          <div className="text-center text-[var(--text-muted)] text-xs py-8">Clear slate. Add a task or set a goal.</div>
+        ) : (
+          <div className="space-y-1 mb-3">
+            <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Priority Stack</h4>
+            {items.slice(0, 10).map((item, idx) => {
+              const colors = URGENCY_COLORS[item.urgency] || URGENCY_COLORS.low;
+              return (
+                <div key={item.id} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border ${colors.bg} transition-colors`}>
+                  <span className="text-[9px] text-[var(--text-muted)] font-mono w-3">{idx + 1}</span>
+                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
+                  <span className="text-[10px] flex-shrink-0">{TYPE_ICONS[item.type] || '📋'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs truncate">{item.title}</div>
+                    {item.subtitle && <div className={`text-[9px] ${colors.text} truncate`}>{item.subtitle}</div>}
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Portfolio Section */}
-        {portfolio.length > 0 && (
-          <div className="mb-3">
-            <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Portfolio</h4>
-            <div className="space-y-1">
-              {portfolio.map(item => (
-                <div key={item.id} className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors">
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${STATUS_DOT[item.status] || 'bg-gray-500'}`} />
-                  <span className="text-xs text-[var(--text-secondary)] truncate">{item.title}</span>
-                  <span className="text-[9px] text-[var(--text-muted)] capitalize ml-auto flex-shrink-0">{item.status}</span>
+                  <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
                 </div>
-              ))}
-            </div>
+              );
+            })}
+            {items.length > 10 && (
+              <div className="text-center text-[9px] text-[var(--text-muted)] py-1">
+                +{items.length - 10} more items
+              </div>
+            )}
           </div>
         )}
 
-        {/* Needs Attention — Stale Contacts */}
-        {staleContacts.length > 0 && (
-          <div className="mb-3">
-            <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Needs Attention</h4>
-            <div className="space-y-1">
-              {staleContacts.map(c => {
-                const days = Math.floor((Date.now() - new Date(c.updatedAt).getTime()) / 86400000);
-                return (
-                  <div key={c.id} className="flex items-center gap-2 py-1 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors">
-                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-yellow-500" />
-                    <span className="text-xs text-[var(--text-secondary)] truncate">{c.name}</span>
-                    <span className="text-[9px] text-[var(--text-muted)] ml-auto flex-shrink-0">{days}d ago</span>
-                  </div>
-                );
-              })}
-            </div>
+        {/* Done Today */}
+        {doneItems.length > 0 && (
+          <div className="mt-auto pt-3">
+            <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Done Today</h4>
+            <div className="text-xs text-[var(--text-muted)]">{doneItems.length} tasks completed</div>
           </div>
         )}
-
-        {/* Today's Progress */}
-        <div className="mt-auto pt-3">
-          <h4 className="label-mono mb-1.5" style={{ fontSize: '10px' }}>Today&apos;s Progress</h4>
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-2.5">
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-[var(--text-secondary)]">Completed</span>
-              <span className="font-medium">{completedCount} / {totalCount}</span>
-            </div>
-            <div className="w-full h-1.5 bg-[var(--border-color)] rounded-full">
-              <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
