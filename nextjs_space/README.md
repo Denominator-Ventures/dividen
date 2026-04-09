@@ -151,7 +151,7 @@ cp .env.example .env
 
 # Initialize database
 yarn prisma generate
-yarn prisma db push
+yarn prisma migrate deploy
 
 # Seed default data
 yarn ts-node scripts/seed.ts
