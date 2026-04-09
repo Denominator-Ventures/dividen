@@ -17,6 +17,101 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'dep-implementation-fvp-contribution',
+    date: '2026-04-09',
+    time: '5:30 PM',
+    title: '12 Extension Proposals, One Session — The FVP Contribution',
+    subtitle: 'Alvaro and the Fractional Venture Partners team submitted a complete DEP package. All 12 proposals are now implemented. DiviDen can now run with an external execution agent.',
+    tags: ['federation', 'agent-protocol', 'open-source', 'community', 'dep'],
+    content: `This is the update I've been most excited to write. Not because of the feature count — though it's significant — but because of what it represents. Someone outside our core team read the protocol, understood the architecture, and came back with a coherent package of 12 extension proposals that fit together like a system design doc.
+
+**Thank you to Alvaro and the entire Fractional Venture Partners team.** You didn't just suggest features — you submitted structured DEPs (DiviDen Extension Proposals) with specs, integration points, and dependency graphs. This is the kind of contribution that makes an open-source protocol real. You saw what DiviDen could be and drew the map to get there.
+
+## What Are DEPs?
+
+DEP stands for DiviDen Extension Proposal. Think of them like RFCs for the protocol — structured specs that describe a capability, how it integrates with the existing architecture, and what it depends on. The FVP team submitted 12 of them, plus a quick fix, organized with an index document showing dependencies between proposals.
+
+## The Dual-Agent Architecture (DEPs 001, 004)
+
+The most fundamental change: DiviDen now has a formal two-agent model. **Cockpit mode** is you driving, Divi assisting. **Chief of Staff mode** is Divi driving, you approving. This existed before — but the transition between modes was passive. Now it's active.
+
+When you switch to Chief of Staff mode, DiviDen fires a **wake event** to any connected execution agent, includes a snapshot of your queue state, and auto-dispatches the highest-priority ready item. When you switch back to Cockpit, you get a **three-phase briefing**: how many tasks were completed, what's blocked, and what's still in the queue. No more "what happened while I was away?" — the system tells you.
+
+## The Connection Ceremony (DEP-006)
+
+External agents now have a formal way to connect. \`POST /api/main-connect\` runs a **Connection Ceremony**: deactivates previous agent sessions, generates a fresh API key, registers the agent instance, creates the routing connection, logs it to your comms channel, and returns a credential package with every endpoint the agent needs.
+
+There's a matching \`POST /api/main-disconnect\` for graceful teardown — cancels in-flight relays, deactivates the instance, and logs the disconnection.
+
+This is how mAIn (the FVP execution agent) connects to DiviDen. But it's not FVP-specific — any agent that speaks the protocol can use the same ceremony.
+
+## The Relay↔Queue Bridge (DEP-003)
+
+The most technically interesting piece. Before this, relays (agent-to-agent messages) and queue items (task management) were independent systems. Now they're bidirectionally linked.
+
+**Direction 1**: When an execution agent reports task completion via \`tasks/respond\`, the relay is marked complete AND the linked queue item is automatically marked \`done_today\`, triggering the next sequential dispatch.
+
+**Direction 2**: When you mark a queue item done in the dashboard, any linked relay is automatically resolved.
+
+**Direction 3**: When CoS mode dispatches a task, it can create both a relay and a queue item simultaneously, linked by a new \`queueItemId\` field on the relay.
+
+This means the execution agent and the dashboard always agree on task state. No drift.
+
+## Webhook Push (DEP-008)
+
+Fire-and-forget webhook delivery for four event types: \`task_dispatched\`, \`new_message\`, \`wake\`, and \`queue_changed\`. Wired into every state change that matters — dispatch, queue updates, mode switches.
+
+Configuration is stored per-user in the service API keys table. Point it at your execution agent's webhook endpoint and every significant event pushes automatically. 5-second timeout, silent failures, never blocks the caller.
+
+## Desktop Notifications (DEP-007)
+
+OS-level desktop notifications with per-category toggles (queue, meetings, email, comms). Fires only when the browser tab is NOT focused — because the point is to pull you back, not annoy you while you're already looking.
+
+Integrated into the mode toggle: when auto-dispatch fires in CoS mode, you'll see a notification even if you've tabbed away. When you switch back to Cockpit and get a briefing, same thing.
+
+## MCP Server (DEP-010)
+
+DiviDen now exposes a Model Context Protocol endpoint at \`/api/mcp\`. This means any MCP-compatible client can discover and invoke DiviDen tools — queue management, relay sending, calendar access — through a standardized interface. \`tools/list\` returns available tools, \`tools/call\` executes them.
+
+## Operational Playbook (DEP-011)
+
+\`GET /api/a2a/playbook\` returns a structured rule set for execution agents: behavioral preferences, communication style, escalation rules, current queue state, trust level. It's the "how to work with this human" manual. The playbook is derived from ambient learnings, so it gets more accurate the more you use DiviDen.
+
+## Handoff Brief (DEP-012)
+
+\`GET /api/main-handoff\` generates a complete context package: queue state, calendar events, email count, recent activity, active learnings, goals, and explicit instructions. This is what an execution agent reads before starting work — everything it needs to pick up where you left off.
+
+## Agent Card Enhancement (DEP-009)
+
+The \`/.well-known/agent-card.json\` now advertises all new endpoints: connect, disconnect, playbook, handoff, MCP. Push notifications capability is set to true. Any agent doing discovery will see the full surface area.
+
+## Sequential Dispatch Enhancement (DEP-002)
+
+Already existed, but now wired into the webhook system. Every dispatch fires a \`task_dispatched\` event so connected agents know immediately when work is available.
+
+## Ambient Learning (DEP-005)
+
+Already existed. The learning engine feeds into the playbook (DEP-011) — patterns about communication style, workflow preferences, and delegation habits inform the rules that execution agents follow.
+
+## For Open Source Builders
+
+If you're running your own DiviDen instance, here's what this means for you:
+
+**New endpoints**: \`/api/main-connect\`, \`/api/main-disconnect\`, \`/api/a2a/playbook\`, \`/api/main-handoff\`, \`/api/mcp\`. All authenticated via Bearer token.
+
+**New A2A method**: \`tasks/respond\` — your execution agent can now report task completion back to DiviDen and trigger the sequential dispatch chain.
+
+**Schema change**: \`AgentRelay\` now has a \`queueItemId\` field. Run \`npx prisma migrate deploy\` to apply.
+
+**Webhook setup**: Store your webhook URL in the service API keys table with \`service: 'webhook_push'\` and \`keyValue: JSON.stringify({ url: 'https://your-agent/webhook', token: 'optional-bearer' })\`.
+
+**The big picture**: You can now build an execution agent that connects to DiviDen, receives task assignments via webhook, reads context via the handoff brief, follows rules from the playbook, reports results via \`tasks/respond\`, and the whole cycle repeats automatically in Chief of Staff mode. The protocol handles everything in between.
+
+This is the foundation for multi-agent coordination. Thank you again to the FVP team for seeing it and building the spec. The protocol is better because you contributed.
+
+— Jon`
+  },
+  {
     id: 'hardening-open-source-community',
     date: '2026-04-09',
     time: '4:00 PM',
