@@ -8,6 +8,8 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { validateStatusTransition, onTaskComplete } from '@/lib/cos-sequential-dispatch';
+import { syncRelayWithQueueCompletion } from '@/lib/relay-queue-bridge';
+import { pushQueueChanged } from '@/lib/webhook-push';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,10 +54,29 @@ export async function PATCH(
   // CoS sequential dispatch: if item just completed, auto-dispatch next
   let autoDispatched = null;
   if (body.status === 'done_today') {
+    // DEP-003: sync linked relay with queue completion
+    await syncRelayWithQueueCompletion(params.id, userId, 'Completed via dashboard');
+
     const result = await onTaskComplete(userId, params.id);
     if (result.dispatched) {
       autoDispatched = result.item;
     }
+
+    // DEP-008: push webhook for status change
+    pushQueueChanged(userId, {
+      changeType: 'status_changed',
+      itemId: params.id,
+      itemTitle: item.title,
+      newStatus: 'done_today',
+    });
+  } else if (body.status !== undefined) {
+    // DEP-008: push any status change
+    pushQueueChanged(userId, {
+      changeType: 'status_changed',
+      itemId: params.id,
+      itemTitle: item.title,
+      newStatus: body.status,
+    });
   }
 
   return NextResponse.json({ success: true, data: item, autoDispatched });

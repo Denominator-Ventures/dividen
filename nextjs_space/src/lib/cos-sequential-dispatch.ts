@@ -10,6 +10,7 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { pushTaskDispatched } from '@/lib/webhook-push';
 
 // ──────────────────────────────────────────────
 //  Helpers
@@ -43,6 +44,14 @@ async function dispatchTopReady(userId: string) {
   const dispatched = await prisma.queueItem.update({
     where: { id: top.id },
     data: { status: 'in_progress' },
+  });
+
+  // DEP-008: fire webhook for dispatched task
+  pushTaskDispatched(userId, {
+    relayId: '',
+    queueItemId: dispatched.id,
+    title: dispatched.title,
+    description: dispatched.description || undefined,
   });
 
   return dispatched;

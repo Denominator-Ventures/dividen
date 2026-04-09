@@ -10,6 +10,7 @@ import { QueuePanel } from '@/components/dashboard/QueuePanel';
 import { Walkthrough } from '@/components/dashboard/Walkthrough';
 import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
+import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import type { CenterTab } from '@/types';
 
 type MobilePanel = 'now' | 'center' | 'queue';
@@ -25,6 +26,13 @@ export default function DashboardPage() {
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
   const [commsUnread, setCommsUnread] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // DEP-007: Desktop notifications
+  const { sendNotification } = useDesktopNotifications({
+    desktopNotifications: true,
+    desktopNotifQueue: true,
+    desktopNotifComms: true,
+  });
 
   useEffect(() => {
     fetch('/api/settings')
@@ -63,18 +71,28 @@ export default function DashboardPage() {
     const newMode = mode === 'cockpit' ? 'chief_of_staff' : 'cockpit';
     setModeLoading(true);
     try {
-      await fetch('/api/settings', {
+      const res = await fetch('/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: newMode }),
       });
+      const data = await res.json();
       setMode(newMode);
+
+      // DEP-007: Desktop notification for mode switch events
+      if (data.autoDispatched) {
+        sendNotification('task_completed', 'Task Auto-Dispatched',
+          `"${data.autoDispatched.title}" is now in progress`);
+      }
+      if (data.briefing) {
+        sendNotification('task_completed', 'Welcome Back to Cockpit', data.briefing.message);
+      }
     } catch {
       // silent
     } finally {
       setModeLoading(false);
     }
-  }, [mode]);
+  }, [mode, sendNotification]);
 
   const handleWalkthroughComplete = useCallback(async () => {
     setShowWalkthrough(false);

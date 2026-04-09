@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { deduplicatedQueueCreate } from '@/lib/queue-dedup';
+import { pushQueueChanged } from '@/lib/webhook-push';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +63,14 @@ export async function POST(request: Request) {
       merged: result.merged || false,
     });
   }
+
+  // DEP-008: push webhook for new queue item
+  pushQueueChanged(userId, {
+    changeType: 'added',
+    itemId: result.item.id,
+    itemTitle: result.item.title,
+    newStatus: result.item.status,
+  });
 
   return NextResponse.json({ success: true, data: result.item }, { status: 201 });
 }

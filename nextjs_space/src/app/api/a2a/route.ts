@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateAgent, isAuthError, AgentContext } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { logRequest, logError, getClientIp } from '@/lib/telemetry';
+import { syncQueueWithRelayCompletion } from '@/lib/relay-queue-bridge';
+import { pushTaskDispatched, pushQueueChanged } from '@/lib/webhook-push';
 
 /**
  * POST /api/a2a
@@ -197,6 +199,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ id: relayId, status: { state: 'canceled' } });
       }
 
+      // ── Respond to Task (DEP-003: agent reports completion) ──────────────
+      case 'tasks/respond': {
+        const { id: relayId, result, status: taskStatus } = params || {};
+        if (!relayId) {
+          return NextResponse.json({ error: 'Task ID (relayId) is required' }, { status: 400 });
+        }
+
+        // Sync relay completion → queue via bridge
+        const bridgeResult = await syncQueueWithRelayCompletion(relayId, userId, result);
+
+        // DEP-008: push webhook if auto-dispatched
+        if (bridgeResult.dispatched && bridgeResult.itemTitle) {
+          pushQueueChanged(userId, {
+            changeType: 'status_changed',
+            itemId: relayId,
+            itemTitle: bridgeResult.itemTitle,
+            newStatus: 'done_today',
+          });
+        }
+
+        logRequest({ userId, ip, method: 'POST', path: '/api/a2a', statusCode: 200, duration: Date.now() - start });
+        return NextResponse.json({
+          id: relayId,
+          status: { state: taskStatus === 'failed' ? 'failed' : 'completed' },
+          autoDispatched: bridgeResult.dispatched,
+        });
+      }
+
       default:
         return NextResponse.json({ error: `Unknown method: ${method}` }, { status: 400 });
     }
@@ -218,7 +248,7 @@ export async function GET() {
     name: 'DiviDen A2A Endpoint',
     version: '0.1.0',
     description: 'Agent-to-Agent protocol endpoint for DiviDen. Send tasks, check status, cancel tasks.',
-    methods: ['tasks/send', 'tasks/get', 'tasks/cancel'],
+    methods: ['tasks/send', 'tasks/get', 'tasks/cancel', 'tasks/respond'],
     authentication: {
       type: 'bearer',
       description: 'Use a DiviDen API key as Bearer token.',

@@ -647,6 +647,9 @@ model AgentRelay {
   peerRelayId     String?   // The relay ID on the remote instance
   peerInstanceUrl String?   // Remote instance URL (for federated relays)
 
+  // Queue bridge (DEP-003)
+  queueItemId     String?   @unique // Links relay to a local queue item (1:1)
+
   // Team/Project context
   teamId          String?
   projectId       String?

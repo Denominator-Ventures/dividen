@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { onEnterCoSMode } from '@/lib/cos-sequential-dispatch';
+import { pushWake, pushQueueChanged } from '@/lib/webhook-push';
 
 const updateModeSchema = z.object({
   mode: z.enum(['cockpit', 'chief_of_staff']),
@@ -78,16 +79,65 @@ export async function PUT(request: NextRequest) {
       data: { mode: result.data.mode },
     });
 
-    // When entering CoS mode, auto-dispatch if nothing is in_progress
+    // DEP-001: Mode switch logic
     if (result.data.mode === 'chief_of_staff') {
+      // DEP-008: wake the execution agent
+      const queueSnapshot = await prisma.queueItem.groupBy({
+        by: ['status'],
+        where: { userId },
+        _count: true,
+      });
+      const snapshot = {
+        ready: queueSnapshot.find(g => g.status === 'ready')?._count || 0,
+        inProgress: queueSnapshot.find(g => g.status === 'in_progress')?._count || 0,
+        blocked: queueSnapshot.find(g => g.status === 'blocked')?._count || 0,
+      };
+
+      pushWake(userId, {
+        reason: 'Mode switched to Chief of Staff',
+        priority: 'normal',
+        queueSnapshot: snapshot,
+      });
+
+      // Auto-dispatch if nothing is in_progress
       const dispatchResult = await onEnterCoSMode(userId);
       if (dispatchResult.dispatched) {
+        pushQueueChanged(userId, {
+          changeType: 'status_changed',
+          itemId: dispatchResult.item.id,
+          itemTitle: dispatchResult.item.title,
+          newStatus: 'in_progress',
+        });
+
         return NextResponse.json({
           success: true,
           message: 'Mode updated to Chief of Staff. Auto-dispatched next item.',
           autoDispatched: dispatchResult.item,
         });
       }
+    }
+
+    // DEP-004: When returning to cockpit, generate briefing summary
+    if (result.data.mode === 'cockpit') {
+      const completedToday = await prisma.queueItem.count({
+        where: { userId, status: 'done_today' },
+      });
+      const stillReady = await prisma.queueItem.count({
+        where: { userId, status: 'ready' },
+      });
+      const blocked = await prisma.queueItem.count({
+        where: { userId, status: 'blocked' },
+      });
+
+      return NextResponse.json({
+        success: true,
+        briefing: {
+          completedToday,
+          stillReady,
+          blocked,
+          message: `Welcome back. ${completedToday} task${completedToday !== 1 ? 's' : ''} completed while in CoS mode. ${blocked > 0 ? `${blocked} item${blocked !== 1 ? 's' : ''} blocked and need${blocked === 1 ? 's' : ''} attention.` : 'No blockers.'} ${stillReady} item${stillReady !== 1 ? 's' : ''} still in queue.`,
+        },
+      });
     }
   }
 

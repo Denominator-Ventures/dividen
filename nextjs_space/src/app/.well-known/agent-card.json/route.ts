@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       // === Capabilities ===
       capabilities: {
         streaming: true,           // SSE support for relay updates
-        pushNotifications: false,  // Not yet implemented
+        pushNotifications: true,   // DEP-008: Webhook push for agent events
         stateTransitionHistory: true, // Relay lifecycle tracking
       },
 
@@ -129,6 +129,10 @@ export async function GET(req: NextRequest) {
       endpoints: {
         a2a: `${baseUrl}/api/a2a`,
         mcp: `${baseUrl}/api/mcp`,
+        connect: `${baseUrl}/api/main-connect`,
+        disconnect: `${baseUrl}/api/main-disconnect`,
+        playbook: `${baseUrl}/api/a2a/playbook`,
+        handoff: `${baseUrl}/api/main-handoff`,
         federation: {
           connect: `${baseUrl}/api/federation/connect`,
           relay: `${baseUrl}/api/federation/relay`,
