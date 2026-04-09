@@ -192,7 +192,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation'>('overview');
 
   const fetchStats = useCallback(async (t: string) => {
     setLoading(true);
@@ -247,6 +247,7 @@ export default function AdminPage() {
     { id: 'users' as const, label: 'Users', icon: '👥' },
     { id: 'content' as const, label: 'Content', icon: '📦' },
     { id: 'activity' as const, label: 'Activity', icon: '⚡' },
+    { id: 'federation' as const, label: 'Federation', icon: '🌐' },
   ];
 
   return (
@@ -305,6 +306,7 @@ export default function AdminPage() {
         {activeTab === 'users' && <UsersTab stats={stats} />}
         {activeTab === 'content' && <ContentTab stats={stats} />}
         {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'federation' && <FederationTab token={token} />}
       </main>
     </div>
   );
@@ -515,6 +517,249 @@ function ActivityTab({ stats }: { stats: AdminStats }) {
               <div className="text-[10px] text-[var(--text-secondary)] shrink-0">{timeAgo(a.createdAt)}</div>
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Federation Tab ─────────────────────────────────────────────────────────
+
+interface FedCheck {
+  id: string;
+  label: string;
+  status: 'pass' | 'fail' | 'warn' | 'skip';
+  detail: string;
+}
+
+interface FedResult {
+  url: string;
+  agentCardUrl: string;
+  isSelfCheck: boolean;
+  httpStatus: number | null;
+  responseTime: number | null;
+  checks: FedCheck[];
+  agentCard: any;
+  score: { passed: number; failed: number; warned: number; total: number };
+}
+
+const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> = {
+  pass: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', icon: '✓' },
+  fail: { bg: 'bg-red-500/10', text: 'text-red-400', icon: '✗' },
+  warn: { bg: 'bg-amber-500/10', text: 'text-amber-400', icon: '!' },
+  skip: { bg: 'bg-white/[0.04]', text: 'text-[var(--text-secondary)]', icon: '—' },
+};
+
+function FederationTab({ token }: { token: string | null }) {
+  const [remoteUrl, setRemoteUrl] = useState('');
+  const [selfResult, setSelfResult] = useState<FedResult | null>(null);
+  const [remoteResult, setRemoteResult] = useState<FedResult | null>(null);
+  const [loadingSelf, setLoadingSelf] = useState(false);
+  const [loadingRemote, setLoadingRemote] = useState(false);
+
+  const runCheck = async (url?: string) => {
+    const isRemote = !!url;
+    if (isRemote) setLoadingRemote(true);
+    else setLoadingSelf(true);
+
+    try {
+      const res = await fetch('/api/admin/federation-check', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url: url || '' }),
+      });
+      const data = await res.json();
+      if (isRemote) setRemoteResult(data);
+      else setSelfResult(data);
+    } catch {
+      // Error handling via result
+    } finally {
+      if (isRemote) setLoadingRemote(false);
+      else setLoadingSelf(false);
+    }
+  };
+
+  const renderScore = (result: FedResult) => {
+    const { passed, failed, warned, total } = result.score;
+    const pct = Math.round((passed / total) * 100);
+    const color = failed > 0 ? 'text-red-400' : warned > 0 ? 'text-amber-400' : 'text-emerald-400';
+    return (
+      <div className="flex items-center gap-4">
+        <div className={`text-3xl font-heading font-bold ${color}`}>{pct}%</div>
+        <div className="text-xs space-y-0.5">
+          <div className="text-emerald-400">{passed} passed</div>
+          {failed > 0 && <div className="text-red-400">{failed} failed</div>}
+          {warned > 0 && <div className="text-amber-400">{warned} warnings</div>}
+          <div className="text-[var(--text-secondary)]">{total} checks</div>
+        </div>
+        {result.responseTime && (
+          <div className="ml-auto text-right">
+            <div className="text-xs text-[var(--text-secondary)]">Response</div>
+            <div className="text-sm font-mono">{result.responseTime}ms</div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderChecks = (checks: FedCheck[]) => (
+    <div className="space-y-1 mt-4">
+      {checks.map((check) => {
+        const style = STATUS_STYLES[check.status];
+        return (
+          <div
+            key={check.id}
+            className={`flex items-start gap-3 px-3 py-2 rounded-lg ${style.bg}`}
+          >
+            <span className={`text-sm font-mono font-bold w-5 shrink-0 ${style.text}`}>
+              {style.icon}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm text-white">{check.label}</div>
+              <div className="text-[11px] text-[var(--text-secondary)] break-all">{check.detail}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  const renderAgentCardPreview = (card: any) => {
+    if (!card) return null;
+    return (
+      <details className="mt-4">
+        <summary className="text-xs text-[var(--text-secondary)] cursor-pointer hover:text-white transition-colors">
+          View Raw Agent Card JSON
+        </summary>
+        <pre className="mt-2 p-3 bg-black/50 border border-white/[0.06] rounded-lg text-[11px] text-emerald-300 font-mono overflow-x-auto max-h-80 overflow-y-auto">
+          {JSON.stringify(card, null, 2)}
+        </pre>
+      </details>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Introduction */}
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-3">
+          <span className="text-2xl">🌐</span>
+          <div>
+            <h3 className="text-base font-heading font-semibold">Federation Health Checker</h3>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Validate DAWP compliance, agent card structure, relay intents, and federation readiness.
+            </p>
+          </div>
+        </div>
+        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
+          Every DiviDen instance publishes an agent card at <code className="text-brand-400 font-mono">/.well-known/agent-card.json</code>.
+          This checker validates that the card is publicly reachable, CORS-open, and contains all required DAWP/0.1 metadata
+          for discovery, relay routing, and cross-instance federation.
+        </p>
+      </div>
+
+      {/* Self Check */}
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-1">Self Check</div>
+            <h4 className="text-sm font-heading font-semibold">This Instance</h4>
+          </div>
+          <button
+            onClick={() => runCheck()}
+            disabled={loadingSelf}
+            className="px-4 py-2 text-xs font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-500/90 disabled:opacity-50 transition-colors"
+          >
+            {loadingSelf ? 'Checking…' : selfResult ? '↻ Re-check' : 'Run Self-Check'}
+          </button>
+        </div>
+
+        {selfResult && (
+          <div>
+            <div className="text-[11px] text-[var(--text-secondary)] mb-3 font-mono">{selfResult.agentCardUrl}</div>
+            {renderScore(selfResult)}
+            {renderChecks(selfResult.checks)}
+            {renderAgentCardPreview(selfResult.agentCard)}
+          </div>
+        )}
+
+        {!selfResult && !loadingSelf && (
+          <div className="text-center py-6 text-sm text-[var(--text-secondary)]">
+            Click &quot;Run Self-Check&quot; to validate this instance&apos;s agent card
+          </div>
+        )}
+      </div>
+
+      {/* Remote Check */}
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+        <div className="mb-4">
+          <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-1">Remote Instance</div>
+          <h4 className="text-sm font-heading font-semibold mb-3">Probe Another Instance</h4>
+          <p className="text-[11px] text-[var(--text-secondary)] mb-3">
+            Enter the base URL of another DiviDen instance to verify it can be discovered and is ready for federation.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={remoteUrl}
+              onChange={(e) => setRemoteUrl(e.target.value)}
+              placeholder="https://their-instance.example.com"
+              className="flex-1 px-3 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand-500/40 focus:border-brand-500/40 placeholder:text-white/20"
+            />
+            <button
+              onClick={() => runCheck(remoteUrl)}
+              disabled={loadingRemote || !remoteUrl}
+              className="px-4 py-2 text-xs font-medium rounded-lg bg-white/[0.06] border border-white/[0.06] text-white hover:bg-white/[0.1] disabled:opacity-50 transition-colors shrink-0"
+            >
+              {loadingRemote ? 'Probing…' : 'Probe'}
+            </button>
+          </div>
+        </div>
+
+        {remoteResult && (
+          <div className="mt-4 pt-4 border-t border-white/[0.06]">
+            <div className="text-[11px] text-[var(--text-secondary)] mb-3 font-mono">{remoteResult.agentCardUrl}</div>
+            {renderScore(remoteResult)}
+            {renderChecks(remoteResult.checks)}
+            {renderAgentCardPreview(remoteResult.agentCard)}
+          </div>
+        )}
+      </div>
+
+      {/* Quick Reference */}
+      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+        <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">Quick Reference</div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+          <div>
+            <h5 className="font-semibold text-white mb-2">Required for Discovery</h5>
+            <ul className="space-y-1 text-[var(--text-secondary)]">
+              <li>• Public <code className="text-brand-400 font-mono text-[10px]">/.well-known/agent-card.json</code></li>
+              <li>• CORS: <code className="text-brand-400 font-mono text-[10px]">Access-Control-Allow-Origin: *</code></li>
+              <li>• A2A fields: name, url, version, protocol</li>
+              <li>• Authentication scheme declared</li>
+            </ul>
+          </div>
+          <div>
+            <h5 className="font-semibold text-white mb-2">Required for DAWP</h5>
+            <ul className="space-y-1 text-[var(--text-secondary)]">
+              <li>• <code className="text-brand-400 font-mono text-[10px]">dividen.protocolVersion: &quot;DAWP/0.1&quot;</code></li>
+              <li>• Relay intents array (7 standard)</li>
+              <li>• Trust levels declared</li>
+              <li>• Task types for routing</li>
+            </ul>
+          </div>
+          <div>
+            <h5 className="font-semibold text-white mb-2">Required for Federation</h5>
+            <ul className="space-y-1 text-[var(--text-secondary)]">
+              <li>• Federation config (mode, inbound, outbound)</li>
+              <li>• <code className="text-brand-400 font-mono text-[10px]">allowInbound: true</code> to receive relays</li>
+              <li>• Federation endpoints (connect, relay)</li>
+              <li>• Relay skill declared in skills array</li>
+            </ul>
+          </div>
         </div>
       </div>
     </div>
