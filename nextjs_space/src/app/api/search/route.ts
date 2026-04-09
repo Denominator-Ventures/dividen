@@ -40,124 +40,47 @@ export async function GET(request: NextRequest) {
   const perType = Math.ceil(limit / 6); // distribute across types
 
   try {
-    const [cards, contacts, documents, recordings, calendarEvents, emails, comms, queueItems] = await Promise.all([
-      // Kanban Cards
-      prisma.kanbanCard.findMany({
-        where: {
-          userId,
-          OR: [
-            { title: { contains, mode: 'insensitive' } },
-            { description: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, status: true, priority: true, updatedAt: true },
-      }),
-
-      // Contacts
-      prisma.contact.findMany({
-        where: {
-          userId,
-          OR: [
-            { name: { contains, mode: 'insensitive' } },
-            { email: { contains, mode: 'insensitive' } },
-            { company: { contains, mode: 'insensitive' } },
-            { role: { contains, mode: 'insensitive' } },
-            { notes: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true, name: true, email: true, company: true, role: true },
-      }),
-
-      // Documents
-      prisma.document.findMany({
-        where: {
-          userId,
-          OR: [
-            { title: { contains, mode: 'insensitive' } },
-            { content: { contains, mode: 'insensitive' } },
-            { tags: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, type: true, updatedAt: true },
-      }),
-
-      // Recordings
-      prisma.recording.findMany({
-        where: {
-          userId,
-          OR: [
-            { title: { contains, mode: 'insensitive' } },
-            { transcript: { contains, mode: 'insensitive' } },
-            { summary: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { updatedAt: 'desc' },
-        select: { id: true, title: true, source: true, status: true, updatedAt: true },
-      }),
-
-      // Calendar Events
-      prisma.calendarEvent.findMany({
-        where: {
-          userId,
-          OR: [
-            { title: { contains, mode: 'insensitive' } },
-            { description: { contains, mode: 'insensitive' } },
-            { location: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { startTime: 'desc' },
-        select: { id: true, title: true, startTime: true, location: true },
-      }),
-
-      // Emails
-      prisma.emailMessage.findMany({
-        where: {
-          userId,
-          OR: [
-            { subject: { contains, mode: 'insensitive' } },
-            { fromName: { contains, mode: 'insensitive' } },
-            { fromEmail: { contains, mode: 'insensitive' } },
-            { body: { contains, mode: 'insensitive' } },
-            { snippet: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { receivedAt: 'desc' },
-        select: { id: true, subject: true, fromName: true, fromEmail: true, receivedAt: true, isRead: true },
-      }),
-
-      // Comms Messages
-      prisma.commsMessage.findMany({
-        where: {
-          userId,
-          content: { contains, mode: 'insensitive' },
-        },
-        take: perType,
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, content: true, sender: true, state: true, priority: true, createdAt: true },
-      }),
-
-      // Queue Items
-      prisma.queueItem.findMany({
-        where: {
-          OR: [
-            { title: { contains, mode: 'insensitive' } },
-            { description: { contains, mode: 'insensitive' } },
-          ],
-        },
-        take: perType,
-        orderBy: { createdAt: 'desc' },
-        select: { id: true, title: true, type: true, status: true, priority: true, createdAt: true },
-      }),
-    ]);
+    // Serialize queries to avoid connection pool exhaustion
+    const cards = await prisma.kanbanCard.findMany({
+      where: { userId, OR: [{ title: { contains, mode: 'insensitive' } }, { description: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, status: true, priority: true, updatedAt: true },
+    });
+    const contacts = await prisma.contact.findMany({
+      where: { userId, OR: [{ name: { contains, mode: 'insensitive' } }, { email: { contains, mode: 'insensitive' } }, { company: { contains, mode: 'insensitive' } }, { role: { contains, mode: 'insensitive' } }, { notes: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { updatedAt: 'desc' },
+      select: { id: true, name: true, email: true, company: true, role: true },
+    });
+    const documents = await prisma.document.findMany({
+      where: { userId, OR: [{ title: { contains, mode: 'insensitive' } }, { content: { contains, mode: 'insensitive' } }, { tags: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, type: true, updatedAt: true },
+    });
+    const recordings = await prisma.recording.findMany({
+      where: { userId, OR: [{ title: { contains, mode: 'insensitive' } }, { transcript: { contains, mode: 'insensitive' } }, { summary: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { updatedAt: 'desc' },
+      select: { id: true, title: true, source: true, status: true, updatedAt: true },
+    });
+    const calendarEvents = await prisma.calendarEvent.findMany({
+      where: { userId, OR: [{ title: { contains, mode: 'insensitive' } }, { description: { contains, mode: 'insensitive' } }, { location: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { startTime: 'desc' },
+      select: { id: true, title: true, startTime: true, location: true },
+    });
+    const emails = await prisma.emailMessage.findMany({
+      where: { userId, OR: [{ subject: { contains, mode: 'insensitive' } }, { fromName: { contains, mode: 'insensitive' } }, { fromEmail: { contains, mode: 'insensitive' } }, { body: { contains, mode: 'insensitive' } }, { snippet: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { receivedAt: 'desc' },
+      select: { id: true, subject: true, fromName: true, fromEmail: true, receivedAt: true, isRead: true },
+    });
+    const comms = await prisma.commsMessage.findMany({
+      where: { userId, content: { contains, mode: 'insensitive' } },
+      take: perType, orderBy: { createdAt: 'desc' },
+      select: { id: true, content: true, sender: true, state: true, priority: true, createdAt: true },
+    });
+    const queueItems = await prisma.queueItem.findMany({
+      where: { OR: [{ title: { contains, mode: 'insensitive' } }, { description: { contains, mode: 'insensitive' } }] },
+      take: perType, orderBy: { createdAt: 'desc' },
+      select: { id: true, title: true, type: true, status: true, priority: true, createdAt: true },
+    });
 
     // Transform into unified results
     const results: SearchResult[] = [];
