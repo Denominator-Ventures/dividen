@@ -7,7 +7,8 @@
 
 export interface Update {
   id: string;
-  date: string;         // ISO date string
+  date: string;         // ISO date string (YYYY-MM-DD)
+  time?: string;        // Time string for display, e.g. "2:30 PM" — optional for backwards compat
   title: string;
   subtitle?: string;
   tags: string[];
@@ -18,6 +19,7 @@ export const UPDATES: Update[] = [
   {
     id: 'briefs-and-ambient-learning',
     date: '2026-04-08',
+    time: '6:30 PM',
     title: 'The Brief, and the Protocol That Teaches Itself',
     subtitle: 'Orchestration with full transparency. An ambient protocol that gets smarter with every interaction.',
     tags: ['protocol', 'brief', 'learning', 'orchestration'],
@@ -117,6 +119,7 @@ That's what we're building toward.
   {
     id: 'ambient-relay-protocol',
     date: '2026-04-08',
+    time: '11:00 AM',
     title: 'We Built a New Communication Protocol',
     subtitle: 'Ambient Relay — what happens when agents handle the logistics of who knows what and who needs what.',
     tags: ['protocol', 'relay', 'core'],
