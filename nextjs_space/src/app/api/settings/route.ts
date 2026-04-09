@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
+import { onEnterCoSMode } from '@/lib/cos-sequential-dispatch';
 
 const updateModeSchema = z.object({
   mode: z.enum(['cockpit', 'chief_of_staff']),
@@ -76,6 +77,18 @@ export async function PUT(request: NextRequest) {
       where: { id: userId },
       data: { mode: result.data.mode },
     });
+
+    // When entering CoS mode, auto-dispatch if nothing is in_progress
+    if (result.data.mode === 'chief_of_staff') {
+      const dispatchResult = await onEnterCoSMode(userId);
+      if (dispatchResult.dispatched) {
+        return NextResponse.json({
+          success: true,
+          message: 'Mode updated to Chief of Staff. Auto-dispatched next item.',
+          autoDispatched: dispatchResult.item,
+        });
+      }
+    }
   }
 
   // Update walkthrough status

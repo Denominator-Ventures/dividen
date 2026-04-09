@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAgent, isAuthError, jsonSuccess, jsonError } from '@/lib/api-auth';
+import { onTaskComplete } from '@/lib/cos-sequential-dispatch';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,15 +42,25 @@ export async function POST(
       completedAt: new Date().toISOString(),
     };
 
+    const finalStatus = status || 'done_today';
     const updated = await prisma.queueItem.update({
       where: { id: params.id },
       data: {
-        status: status || 'done_today',
+        status: finalStatus,
         metadata: JSON.stringify(updatedMetadata),
       },
     });
 
-    return jsonSuccess(updated);
+    // CoS sequential dispatch on completion
+    let autoDispatched = null;
+    if (finalStatus === 'done_today') {
+      const dispatchResult = await onTaskComplete(auth.userId, params.id);
+      if (dispatchResult.dispatched) {
+        autoDispatched = dispatchResult.item;
+      }
+    }
+
+    return jsonSuccess({ ...updated, autoDispatched });
   } catch (error) {
     return jsonError('Failed to report result', 500);
   }

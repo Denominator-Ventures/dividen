@@ -1,10 +1,9 @@
 import { NextRequest } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { authenticateAgent, isAuthError, jsonSuccess, jsonError } from '@/lib/api-auth';
+import { validateStatusTransition, onTaskComplete } from '@/lib/cos-sequential-dispatch';
 
 export const dynamic = 'force-dynamic';
-
-const VALID_STATUSES = ['ready', 'in_progress', 'done_today', 'blocked'];
 
 // POST /api/v2/queue/:id/status - Update item status
 export async function POST(
@@ -18,10 +17,6 @@ export async function POST(
     const body = await request.json();
     const { status } = body;
 
-    if (!status || !VALID_STATUSES.includes(status)) {
-      return jsonError(`Invalid status. Must be one of: ${VALID_STATUSES.join(', ')}`, 400);
-    }
-
     const item = await prisma.queueItem.findUnique({
       where: { id: params.id },
     });
@@ -30,12 +25,27 @@ export async function POST(
       return jsonError('Queue item not found', 404);
     }
 
+    // Status transition guard
+    const validation = validateStatusTransition(item.status, status);
+    if (!validation.valid) {
+      return jsonError(validation.error!, 400);
+    }
+
     const updated = await prisma.queueItem.update({
       where: { id: params.id },
       data: { status },
     });
 
-    return jsonSuccess(updated);
+    // CoS sequential dispatch on completion
+    let autoDispatched = null;
+    if (status === 'done_today') {
+      const dispatchResult = await onTaskComplete(auth.userId, params.id);
+      if (dispatchResult.dispatched) {
+        autoDispatched = dispatchResult.item;
+      }
+    }
+
+    return jsonSuccess({ ...updated, autoDispatched });
   } catch (error) {
     return jsonError('Failed to update status', 500);
   }

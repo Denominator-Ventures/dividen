@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { deduplicatedQueueCreate } from '@/lib/queue-dedup';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,18 +42,26 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Title is required' }, { status: 400 });
   }
 
-  const item = await prisma.queueItem.create({
-    data: {
-      title,
-      description: description || null,
-      type,
-      priority,
-      status,
-      source,
-      userId,
-      metadata: metadata ? JSON.stringify(metadata) : null,
-    },
+  const result = await deduplicatedQueueCreate({
+    title,
+    description: description || null,
+    type,
+    priority,
+    status,
+    source,
+    userId,
+    metadata: metadata ? JSON.stringify(metadata) : null,
   });
 
-  return NextResponse.json({ success: true, data: item }, { status: 201 });
+  if (!result.created) {
+    return NextResponse.json({
+      success: true,
+      data: result.item,
+      deduplicated: true,
+      reason: result.reason,
+      merged: result.merged || false,
+    });
+  }
+
+  return NextResponse.json({ success: true, data: result.item }, { status: 201 });
 }

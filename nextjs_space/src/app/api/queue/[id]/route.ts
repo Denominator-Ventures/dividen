@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { validateStatusTransition, onTaskComplete } from '@/lib/cos-sequential-dispatch';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,16 +32,33 @@ export async function PATCH(
   const updateData: any = {};
   if (body.title !== undefined) updateData.title = body.title;
   if (body.description !== undefined) updateData.description = body.description;
-  if (body.status !== undefined) updateData.status = body.status;
   if (body.priority !== undefined) updateData.priority = body.priority;
   if (body.type !== undefined) updateData.type = body.type;
+
+  // Status transition guard
+  if (body.status !== undefined) {
+    const validation = validateStatusTransition(existing.status, body.status);
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+    updateData.status = body.status;
+  }
 
   const item = await prisma.queueItem.update({
     where: { id: params.id },
     data: updateData,
   });
 
-  return NextResponse.json({ success: true, data: item });
+  // CoS sequential dispatch: if item just completed, auto-dispatch next
+  let autoDispatched = null;
+  if (body.status === 'done_today') {
+    const result = await onTaskComplete(userId, params.id);
+    if (result.dispatched) {
+      autoDispatched = result.item;
+    }
+  }
+
+  return NextResponse.json({ success: true, data: item, autoDispatched });
 }
 
 export async function DELETE(

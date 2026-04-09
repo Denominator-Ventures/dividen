@@ -4,6 +4,7 @@
 
 import { prisma } from '@/lib/prisma';
 import { parseMappingConfig, type WebhookFieldMap } from '@/lib/webhook-learn';
+import { deduplicatedQueueCreate } from '@/lib/queue-dedup';
 
 export interface WebhookActionResult {
   action: string;
@@ -119,31 +120,29 @@ export async function processCalendarEvent(
       data: { id: calendarEvent.id, title: calendarEvent.title },
     });
 
-    // Also create a queue item
-    const queueItem = await prisma.queueItem.create({
-      data: {
-        type: 'task',
-        title: `📅 ${summary}`,
-        description: [
-          description,
-          startTime ? `Start: ${startTime}` : '',
-          endTime ? `End: ${endTime}` : '',
-          attendees.length > 0
-            ? `Attendees: ${attendees.map((a: any) => a.email || a.name || a).join(', ')}`
-            : '',
-        ].filter(Boolean).join('\n'),
-        priority: 'medium',
-        status: 'ready',
-        source: 'webhook',
-        userId,
-        metadata: JSON.stringify({ webhook_type: 'calendar', original: payload }),
-      },
+    // Also create a queue item (with dedup)
+    const calDesc = [
+      description,
+      startTime ? `Start: ${startTime}` : '',
+      endTime ? `End: ${endTime}` : '',
+      attendees.length > 0
+        ? `Attendees: ${attendees.map((a: any) => a.email || a.name || a).join(', ')}`
+        : '',
+    ].filter(Boolean).join('\n');
+    const queueItem = await deduplicatedQueueCreate({
+      type: 'task',
+      title: `📅 ${summary}`,
+      description: calDesc,
+      priority: 'medium',
+      source: 'webhook',
+      userId,
+      metadata: JSON.stringify({ webhook_type: 'calendar', original: payload }),
     });
 
     results.push({
       action: 'create_queue_item',
       success: true,
-      data: { id: queueItem.id, title: queueItem.title },
+      data: { id: queueItem.item.id, title: queueItem.item.title, dedupCreated: queueItem.created },
     });
 
     // If the event has attendees, create contacts for new ones
@@ -274,24 +273,21 @@ export async function processEmailEvent(
       data: { id: emailRecord.id, subject: emailRecord.subject },
     });
 
-    // Also create a queue item for the email
-    const queueItem = await prisma.queueItem.create({
-      data: {
-        type: 'notification',
-        title: `📧 ${subject}`,
-        description: `From: ${senderName} (${senderEmail || 'unknown'})\n${body.substring(0, 500)}`,
-        priority: 'medium',
-        status: 'ready',
-        source: 'webhook',
-        userId,
-        metadata: JSON.stringify({ webhook_type: 'email', from: senderEmail }),
-      },
+    // Also create a queue item for the email (with dedup)
+    const queueItem = await deduplicatedQueueCreate({
+      type: 'notification',
+      title: `📧 ${subject}`,
+      description: `From: ${senderName} (${senderEmail || 'unknown'})\n${body.substring(0, 500)}`,
+      priority: 'medium',
+      source: 'webhook',
+      userId,
+      metadata: JSON.stringify({ webhook_type: 'email', from: senderEmail }),
     });
 
     results.push({
       action: 'create_queue_item',
       success: true,
-      data: { id: queueItem.id, title: queueItem.title },
+      data: { id: queueItem.item.id, title: queueItem.item.title, dedupCreated: queueItem.created },
     });
   } catch (err: any) {
     results.push({
@@ -443,23 +439,20 @@ export async function processGenericEvent(
       description = payload.description || payload.body || payload.message || JSON.stringify(payload, null, 2).substring(0, 500);
     }
 
-    const queueItem = await prisma.queueItem.create({
-      data: {
-        type: 'notification',
-        title: `🔗 ${title}`,
-        description,
-        priority: 'medium',
-        status: 'ready',
-        source: 'webhook',
-        userId,
-        metadata: JSON.stringify({ webhook_type: 'generic', original: payload }),
-      },
+    const queueItem = await deduplicatedQueueCreate({
+      type: 'notification',
+      title: `🔗 ${title}`,
+      description,
+      priority: 'medium',
+      source: 'webhook',
+      userId,
+      metadata: JSON.stringify({ webhook_type: 'generic', original: payload }),
     });
 
     results.push({
       action: 'create_queue_item',
       success: true,
-      data: { id: queueItem.id, title: queueItem.title },
+      data: { id: queueItem.item.id, title: queueItem.item.title, dedupCreated: queueItem.created },
     });
   } catch (err: any) {
     results.push({
@@ -533,19 +526,16 @@ async function executeCustomMappings(
         }
 
         case 'create_queue_item': {
-          const item = await prisma.queueItem.create({
-            data: {
-              type: mapped.type || 'task',
-              title: mapped.title || 'Webhook Task',
-              description: mapped.description || null,
-              priority: mapped.priority || 'medium',
-              status: 'ready',
-              source: 'webhook',
-              userId,
-              metadata: mapped.metadata || null,
-            },
+          const item = await deduplicatedQueueCreate({
+            type: mapped.type || 'task',
+            title: mapped.title || 'Webhook Task',
+            description: mapped.description || null,
+            priority: mapped.priority || 'medium',
+            source: 'webhook',
+            userId,
+            metadata: mapped.metadata || null,
           });
-          results.push({ action: 'create_queue_item', success: true, data: { id: item.id } });
+          results.push({ action: 'create_queue_item', success: true, data: { id: item.item.id, dedupCreated: item.created } });
           break;
         }
 

@@ -6,6 +6,7 @@
  */
 
 import { prisma } from './prisma';
+import { deduplicatedQueueCreate } from './queue-dedup';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -281,16 +282,24 @@ async function executeTag(
 
       // ── Queue ────────────────────────────────────────────────────────
       case 'dispatch_queue': {
-        const queueItem = await prisma.queueItem.create({
-          data: {
-            type: params.type || 'task',
-            title: params.title || 'Untitled Item',
-            description: params.description || null,
-            priority: params.priority || 'medium',
-            source: 'agent',
-          },
+        const dedupResult = await deduplicatedQueueCreate({
+          type: params.type || 'task',
+          title: params.title || 'Untitled Item',
+          description: params.description || null,
+          priority: params.priority || 'medium',
+          source: 'agent',
+          userId,
         });
-        return { tag: name, success: true, data: { id: queueItem.id, title: queueItem.title } };
+        return {
+          tag: name,
+          success: true,
+          data: {
+            id: dedupResult.item.id,
+            title: dedupResult.item.title,
+            deduplicated: !dedupResult.created,
+            ...(dedupResult.reason ? { reason: dedupResult.reason } : {}),
+          },
+        };
       }
 
       // ── Calendar & Reminders ─────────────────────────────────────────
@@ -298,22 +307,21 @@ async function executeTag(
       case 'set_reminder': {
         // Store as queue items with metadata
         const itemType = name === 'create_event' ? 'task' : 'reminder';
-        const metadata = JSON.stringify({
+        const eventMeta = JSON.stringify({
           date: params.date,
           time: params.time,
           type: name,
         });
-        const item = await prisma.queueItem.create({
-          data: {
-            type: itemType,
-            title: params.title || (name === 'create_event' ? 'New Event' : 'Reminder'),
-            description: params.description || null,
-            priority: params.priority || 'medium',
-            source: 'agent',
-            metadata,
-          },
+        const eventDedup = await deduplicatedQueueCreate({
+          type: itemType,
+          title: params.title || (name === 'create_event' ? 'New Event' : 'Reminder'),
+          description: params.description || null,
+          priority: params.priority || 'medium',
+          source: 'agent',
+          userId,
+          metadata: eventMeta,
         });
-        return { tag: name, success: true, data: { id: item.id, title: item.title } };
+        return { tag: name, success: true, data: { id: eventDedup.item.id, title: eventDedup.item.title, deduplicated: !eventDedup.created } };
       }
 
       // ── Email ────────────────────────────────────────────────────────
@@ -365,7 +373,7 @@ async function executeTag(
             return { tag: name, success: false, error: `SMTP send failed: ${err?.message}` };
           }
         } else {
-          // Fallback: save as draft in queue
+          // Fallback: save as draft in queue (with dedup)
           const emailMeta = JSON.stringify({
             to: params.to,
             subject: params.subject,
@@ -373,17 +381,16 @@ async function executeTag(
             identity: sendIdentity,
             type: 'email_draft',
           });
-          const item = await prisma.queueItem.create({
-            data: {
-              type: 'task',
-              title: `Email draft: ${params.subject || 'No subject'}`,
-              description: `To: ${params.to}\n\n${params.body || ''}`,
-              priority: 'medium',
-              source: 'agent',
-              metadata: emailMeta,
-            },
+          const emailDedup = await deduplicatedQueueCreate({
+            type: 'task',
+            title: `Email draft: ${params.subject || 'No subject'}`,
+            description: `To: ${params.to}\n\n${params.body || ''}`,
+            priority: 'medium',
+            source: 'agent',
+            userId,
+            metadata: emailMeta,
           });
-          return { tag: name, success: true, data: { id: item.id, note: `No email integration for ${sendIdentity}. Saved as draft in queue.` } };
+          return { tag: name, success: true, data: { id: emailDedup.item.id, note: `No email integration for ${sendIdentity}. Saved as draft in queue.`, deduplicated: !emailDedup.created } };
         }
       }
 

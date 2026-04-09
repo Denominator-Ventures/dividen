@@ -17,6 +17,68 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'queue-dedup-and-cos-dispatch',
+    date: '2026-04-08',
+    time: '11:45 PM',
+    title: 'Queue Dedup and the Chief of Staff Loop',
+    subtitle: 'Community-driven hardening. Duplicate protection across every creation path. Sequential dispatch that actually closes the loop.',
+    tags: ['queue', 'dedup', 'chief-of-staff', 'community', 'protocol'],
+    content: `This one came from the community.
+
+One of the devs running their own DiviDen instance flagged two things that have been on my mind since the queue system shipped — but hearing it from someone actually using the protocol in production made it real. They were right. These needed to ship.
+
+## Queue Deduplication — Every Path, Every Time
+
+The problem: multiple agents, webhooks, and action tags can all create queue items. In a busy instance — especially one with calendar webhooks firing alongside an active Divi chat — the same task can land in your queue two, three, four times. Different wording, same intent.
+
+So now every queue creation path runs through a unified deduplication layer.
+
+**How it works:**
+
+The system uses Levenshtein distance to compute title similarity. When a new item comes in, it checks against two pools:
+
+- **Active items** (ready, in_progress, blocked) — if a title matches at 80%+ similarity, the creation is blocked and the existing item's context is merged instead. No duplicate. The original item gets richer metadata.
+- **Recently completed items** (done_today within the last 7 days) — if a match is found here, the system still blocks creation but tells the caller the task was already completed. No zombie tasks coming back from the dead.
+
+This runs across all five creation paths: the queue API, the \`dispatch_queue\` action tag, the \`create_event\`/\`set_reminder\` action tag, the \`send_email\` fallback, and all four webhook-to-queue paths. Unified. No exceptions.
+
+The config is tunable — the similarity threshold, the completed window, all of it lives in \`DEDUP_CONFIG\` if you want to adjust for your use case.
+
+## Chief of Staff Sequential Dispatch — The Full Loop
+
+Chief of Staff mode has always enforced a single-task-in-flight rule. But it was missing the other half: what happens when that task completes?
+
+Before this update: you finish a task, mark it done, and then… nothing. You'd have to manually dispatch the next one. That breaks the whole point of CoS mode — which is that Divi manages your focus for you.
+
+Now the loop is closed:
+
+1. **Task completes → auto-dispatch.** When any item transitions to \`done_today\` (via the dashboard, the API, or an agent reporting results), the system automatically dispatches the next highest-priority READY item. Priority ordering: urgent → high → medium → low, then oldest first within the same tier.
+
+2. **Mode switch → auto-dispatch.** When you flip from Cockpit to Chief of Staff mode, if nothing is currently in_progress, the system immediately dispatches the top item. No dead air. You switch modes and you're already working.
+
+3. **Status protection.** Done items stay done. The \`done_today → ready\` and \`done_today → in_progress\` transitions are now blocked across every status update endpoint — both the dashboard PATCH and the v2 agent API. No more accidentally resurrecting completed work.
+
+This applies to all completion surfaces: \`PATCH /api/queue/:id\`, \`POST /api/v2/queue/:id/result\`, and \`POST /api/v2/queue/:id/status\`.
+
+## For Open Source Builders
+
+Two new modules:
+
+**\`src/lib/queue-dedup.ts\`** — Levenshtein distance, similarity ratio, \`deduplicatedQueueCreate()\`, and \`DEDUP_CONFIG\`. Drop-in replacement for raw \`prisma.queueItem.create\` calls. If you've added custom queue creation paths in your fork, wire them through this.
+
+**\`src/lib/cos-sequential-dispatch.ts\`** — \`onTaskComplete()\`, \`onEnterCoSMode()\`, \`validateStatusTransition()\`. The sequential dispatch engine and status guard. These are already wired into every relevant endpoint.
+
+The status guard exports \`BLOCKED_TRANSITIONS\` if you want to customize which transitions are forbidden. The dedup config exports thresholds you can tune.
+
+## What This Means
+
+The queue system is now self-protecting. Duplicates don't pile up. Completed work doesn't come back. And in CoS mode, the dispatch loop is fully autonomous — finish one thing, the next thing is already waiting.
+
+This is what happens when people actually use the protocol and tell you what's missing. The architecture was right. The edges needed hardening. That's what open source is for.
+
+— Jon`
+  },
+  {
     id: 'briefs-and-ambient-learning',
     date: '2026-04-08',
     time: '6:30 PM',
