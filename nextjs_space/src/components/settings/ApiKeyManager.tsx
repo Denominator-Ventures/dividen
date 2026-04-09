@@ -24,6 +24,25 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [autoDetected, setAutoDetected] = useState(false);
+
+  // Auto-detect provider from key prefix
+  const handleKeyChange = (value: string) => {
+    const trimmed = value.trim();
+    let detectedProvider = form.provider;
+    let detected = false;
+
+    if (trimmed.startsWith('sk-ant-')) {
+      detectedProvider = 'anthropic';
+      detected = true;
+    } else if (trimmed.startsWith('sk-') && !trimmed.startsWith('sk-ant-')) {
+      detectedProvider = 'openai';
+      detected = true;
+    }
+
+    setForm({ ...form, apiKey: value, provider: detectedProvider });
+    setAutoDetected(detected);
+  };
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,29 +133,37 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
           )}
           <div>
             <label className="block text-sm text-[var(--text-secondary)] mb-1">
-              Provider
-            </label>
-            <select
-              value={form.provider}
-              onChange={(e) => setForm({ ...form, provider: e.target.value })}
-              className="input-field"
-            >
-              <option value="openai">OpenAI (GPT-4)</option>
-              <option value="anthropic">Anthropic (Claude)</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm text-[var(--text-secondary)] mb-1">
               API Key
             </label>
             <input
               type="password"
               value={form.apiKey}
-              onChange={(e) => setForm({ ...form, apiKey: e.target.value })}
+              onChange={(e) => handleKeyChange(e.target.value)}
               className="input-field"
-              placeholder="sk-..."
+              placeholder={form.provider === 'anthropic' ? 'sk-ant-api03-...' : 'sk-...'}
               required
             />
+            <p className="text-[11px] text-[var(--text-muted)] mt-1">
+              Paste your OpenAI or Anthropic API key — we&apos;ll auto-detect the provider.
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm text-[var(--text-secondary)] mb-1">
+              Provider
+              {autoDetected && (
+                <span className="ml-2 text-[11px] text-green-400 font-normal">
+                  ✓ auto-detected
+                </span>
+              )}
+            </label>
+            <select
+              value={form.provider}
+              onChange={(e) => { setForm({ ...form, provider: e.target.value }); setAutoDetected(false); }}
+              className="input-field"
+            >
+              <option value="openai">OpenAI (GPT-4)</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+            </select>
           </div>
           <div>
             <label className="block text-sm text-[var(--text-secondary)] mb-1">
@@ -157,7 +184,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
             <button
               type="button"
               className="btn-secondary text-sm"
-              onClick={() => setAdding(false)}
+              onClick={() => { setAdding(false); setAutoDetected(false); }}
             >
               Cancel
             </button>

@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Inter:wght@300;400;500;600;700&display=swap');
+/* Fonts loaded via <link> in layout.tsx for reliable cross-browser rendering */
 
 @layer base {
   :root {
@@ -26,10 +26,12 @@
   body {
     @apply bg-[var(--bg-primary)] text-[var(--text-primary)] antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-style: normal;
   }
 
   h1, h2, h3 {
     font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+    font-style: normal;
     letter-spacing: -0.02em;
   }
 }
