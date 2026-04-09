@@ -45,9 +45,15 @@ function useTypingEffect(phrases: string[], typingSpeed = 80, pauseDuration = 20
 const FEATURES = [
   {
     icon: '🧠',
-    title: '18-Layer Agent Intelligence',
+    title: '10-Group Agent Intelligence',
     description:
-      'Your Divi knows your pipeline, your contacts, your calendar, your memory — and reasons across all of it simultaneously.',
+      'Your Divi reasons across 10 consolidated prompt groups — identity, goals, connections, memory, tools, and more — assembling full context on every decision.',
+  },
+  {
+    icon: '🎯',
+    title: 'Goals & Dynamic NOW Engine',
+    description:
+      'Define objectives, track progress, and let the NOW Engine score and rank what matters most right now — across goals, queue items, and relays.',
   },
   {
     icon: '🔗',
@@ -65,19 +71,25 @@ const FEATURES = [
     icon: '⚡',
     title: 'Action Tags — Not Just Chat',
     description:
-      '30+ executable actions via natural conversation. Route tasks, assemble briefs, dispatch relays, orchestrate work — all from chat.',
+      '32+ executable actions via natural conversation. Route tasks, create goals, assemble briefs, dispatch relays, orchestrate work — all from chat.',
+  },
+  {
+    icon: '👥',
+    title: 'Teams, Projects & Visibility',
+    description:
+      'Organize connections into persistent teams and scoped projects. Control visibility with public, team-only, and private modes across every entity.',
   },
   {
     icon: '🌐',
     title: 'Federated by Design',
     description:
-      'No shared database. No vendor lock-in. Your instance, your data. Agents communicate across boundaries transparently.',
+      'No shared database. No vendor lock-in. Your instance, your data. Agents communicate across boundaries transparently via DAWP.',
   },
   {
-    icon: '🔌',
-    title: 'MCP + A2A Native',
+    icon: '🧩',
+    title: 'Extensions Framework',
     description:
-      'Full MCP server and A2A protocol support. Any compatible agent can join your DiviDen network.',
+      'Installable skills and personas that extend what your Divi can do. Curated registry, one-click install, automatic prompt integration.',
   },
 ];
 
@@ -89,28 +101,43 @@ const PROTOCOL_LAYERS = [
   },
   {
     num: '02',
+    name: 'Goals & Dynamic NOW Engine',
+    desc: 'Objectives with progress tracking, priority scoring, and a dynamic ranking engine that surfaces what matters most right now — across goals, queue items, and relays.',
+  },
+  {
+    num: '03',
     name: 'Ambient Relay Protocol',
     desc: 'Direct, broadcast, and ambient modes. Agents exchange context-rich relays — or weave questions naturally into conversation without interrupting anyone.',
   },
   {
-    num: '03',
+    num: '04',
     name: 'The Brief — Reasoning Artifact',
-    desc: 'Every orchestration generates a brief: what context was assembled, which connections matched, why a routing decision was made. The "show your work" layer. Humans audit agents the same way agents help audit humans.',
+    desc: 'Every orchestration generates a brief: what context was assembled, which connections matched, why a routing decision was made. The "show your work" layer.',
   },
   {
-    num: '04',
+    num: '05',
     name: 'Ambient Learning Engine',
     desc: 'Every ambient relay interaction feeds a learning loop — timing, disruption, topic success, phrasing effectiveness. The protocol teaches itself to be less interruptive and more pointed over time.',
   },
   {
-    num: '05',
-    name: 'Federation',
-    desc: 'Cross-instance communication. Your company runs one, theirs runs another. Agents still coordinate seamlessly.',
+    num: '06',
+    name: 'Teams & Projects',
+    desc: 'Persistent teams and scoped projects that add organizational context to connections, task routing, and relay delivery — including federated members across instances.',
   },
   {
-    num: '06',
+    num: '07',
+    name: 'Extensions Framework',
+    desc: 'Installable skills and personas from a curated registry. Extend what your Divi can do without touching the core protocol.',
+  },
+  {
+    num: '08',
+    name: 'Federation',
+    desc: 'Cross-instance communication via DAWP. Your company runs one, theirs runs another. Agents still coordinate seamlessly — with full context API support.',
+  },
+  {
+    num: '09',
     name: 'Integration Surface',
-    desc: 'MCP server, A2A bridge, webhooks, Agent API v2 — connect anything, from anywhere.',
+    desc: 'A2A bridge, webhooks, Agent API v2 — connect anything, from anywhere.',
   },
 ];
 
@@ -122,6 +149,7 @@ export function LandingPage() {
       'coordinate across teams',
       'delegate to your AI agent',
       'show its work on every decision',
+      'track goals and priorities',
       'route work intelligently',
       'learn from every interaction',
     ],
@@ -318,7 +346,7 @@ export function LandingPage() {
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {FEATURES.map((f) => (
               <div
                 key={f.title}
