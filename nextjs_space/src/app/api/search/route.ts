@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logRequest, logError, getClientIp } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,6 +24,8 @@ interface SearchResult {
 }
 
 export async function GET(request: NextRequest) {
+  const start = Date.now();
+  const ip = getClientIp(request.headers);
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -178,9 +181,12 @@ export async function GET(request: NextRequest) {
       return aExact - bExact;
     });
 
+    logRequest({ userId, ip, method: 'GET', path: '/api/search', statusCode: 200, duration: Date.now() - start });
     return NextResponse.json({ results: results.slice(0, limit) });
   } catch (error: any) {
     console.error('[search] Error:', error.message);
+    logError({ userId, ip, path: '/api/search', method: 'GET', errorMessage: error?.message || 'Unknown', errorStack: error?.stack });
+    logRequest({ userId, ip, method: 'GET', path: '/api/search', statusCode: 500, duration: Date.now() - start });
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }

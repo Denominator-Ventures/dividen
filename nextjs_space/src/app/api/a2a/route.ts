@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateAgent, isAuthError, AgentContext } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
+import { logRequest, logError, getClientIp } from '@/lib/telemetry';
 
 /**
  * POST /api/a2a
@@ -18,6 +19,9 @@ import { prisma } from '@/lib/prisma';
  * Authentication: Bearer token (same as Agent API v2)
  */
 export async function POST(req: NextRequest) {
+  const start = Date.now();
+  const ip = getClientIp(req.headers);
+
   // Authenticate
   const auth = await authenticateAgent(req, 'a2a');
   if (isAuthError(auth)) return auth;
@@ -110,6 +114,7 @@ export async function POST(req: NextRequest) {
         }
 
         // Return A2A task response
+        logRequest({ userId, ip, method: 'POST', path: '/api/a2a', statusCode: 200, duration: Date.now() - start });
         return NextResponse.json({
           id: taskId || relay.id,
           status: { state: 'submitted' },
@@ -197,6 +202,8 @@ export async function POST(req: NextRequest) {
     }
   } catch (error: any) {
     console.error('POST /api/a2a error:', error);
+    logError({ userId, ip, path: '/api/a2a', method: 'POST', errorMessage: error?.message || 'Unknown', errorStack: error?.stack, metadata: { a2aMethod: body?.method } });
+    logRequest({ userId, ip, method: 'POST', path: '/api/a2a', statusCode: 500, duration: Date.now() - start });
     return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
   }
 }

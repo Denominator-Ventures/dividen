@@ -1,17 +1,20 @@
 export const dynamic = 'force-dynamic';
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { scoreAndRankNow } from '@/lib/now-engine';
+import { logRequest, logError, getClientIp } from '@/lib/telemetry';
 
 /**
  * GET /api/now
  * Returns dynamically scored + ranked items for the NOW panel.
  * Combines: queue items, upcoming deadlines, goal urgency, calendar gaps, relay responses.
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const start = Date.now();
+  const ip = getClientIp(req.headers);
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -64,9 +67,12 @@ export async function GET() {
       now,
     });
 
+    logRequest({ userId, ip, method: 'GET', path: '/api/now', statusCode: 200, duration: Date.now() - start });
     return NextResponse.json({ success: true, data: ranked });
   } catch (err: any) {
     console.error('NOW engine error:', err);
+    logError({ ip, path: '/api/now', method: 'GET', errorMessage: err?.message || 'Unknown', errorStack: err?.stack });
+    logRequest({ ip, method: 'GET', path: '/api/now', statusCode: 500, duration: Date.now() - start });
     return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 }

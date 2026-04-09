@@ -1079,3 +1079,28 @@ model AgentExtension {
   @@index([isActive])
   @@map("agent_extensions")
 }
+
+// ─── Telemetry ──────────────────────────────────────────────────────────────
+
+model TelemetryEvent {
+  id        String   @id @default(cuid())
+  type      String   // "request" | "error" | "db_query"
+  userId    String?  // user who triggered (null for unauthenticated)
+  ip        String?  // client IP
+  method    String?  // HTTP method: GET, POST, etc.
+  path      String?  // request path
+  statusCode Int?    // HTTP response status
+  duration  Int?     // request duration in ms
+  dbAction  String?  // "SELECT" | "INSERT" | "UPDATE" | "DELETE"
+  dbModel   String?  // Prisma model name
+  errorMessage String? @db.Text
+  errorStack   String? @db.Text
+  metadata  String?  @db.Text // JSON: extra context
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([userId])
+  @@index([createdAt])
+  @@index([path])
+  @@map("telemetry_events")
+}

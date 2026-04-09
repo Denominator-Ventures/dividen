@@ -192,7 +192,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry'>('overview');
 
   const fetchStats = useCallback(async (t: string) => {
     setLoading(true);
@@ -248,6 +248,7 @@ export default function AdminPage() {
     { id: 'content' as const, label: 'Content', icon: '📦' },
     { id: 'activity' as const, label: 'Activity', icon: '⚡' },
     { id: 'federation' as const, label: 'Federation', icon: '🌐' },
+    { id: 'telemetry' as const, label: 'Telemetry', icon: '📡' },
   ];
 
   return (
@@ -307,6 +308,7 @@ export default function AdminPage() {
         {activeTab === 'content' && <ContentTab stats={stats} />}
         {activeTab === 'activity' && <ActivityTab stats={stats} />}
         {activeTab === 'federation' && <FederationTab token={token} />}
+        {activeTab === 'telemetry' && <TelemetryTab token={token} />}
       </main>
     </div>
   );
@@ -1130,6 +1132,416 @@ function FederationTab({ token }: { token: string | null }) {
 }
 
 // ─── Metric Card ────────────────────────────────────────────────────────────
+// ─── Telemetry Tab ──────────────────────────────────────────────────────────
+interface TelemetryData {
+  range: string;
+  since: string;
+  totals: { requests: number; errors: number; dbQueryBatches: number };
+  uniqueIps: string[];
+  avgResponseTime: number;
+  topPaths: { path: string; count: number }[];
+  statusCounts: Record<string, number>;
+  dbActionCounts: Record<string, number>;
+  dbModelCounts: Record<string, number>;
+  userRequestCounts: Record<string, number>;
+  requestTimeline: { hour: string; count: number }[];
+  recentErrors: {
+    message: string;
+    stack?: string;
+    path?: string;
+    method?: string;
+    userId?: string;
+    ip?: string;
+    createdAt: string;
+  }[];
+  recentRequests: {
+    ip: string | null;
+    method: string | null;
+    path: string | null;
+    statusCode: number | null;
+    duration: number | null;
+    userId: string | null;
+    createdAt: string;
+  }[];
+  schemaChanges: {
+    name: string;
+    appliedAt: string;
+    finishedAt: string | null;
+    steps: number;
+  }[];
+  generatedAt: string;
+}
+
+function TelemetryTab({ token }: { token: string | null }) {
+  const [data, setData] = useState<TelemetryData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [range, setRange] = useState<'24h' | '7d' | '30d'>('24h');
+  const [subTab, setSubTab] = useState<'overview' | 'requests' | 'database' | 'errors' | 'schema'>('overview');
+
+  const fetchTelemetry = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/telemetry?range=${range}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch {
+      /* swallow */
+    } finally {
+      setLoading(false);
+    }
+  }, [token, range]);
+
+  useEffect(() => {
+    fetchTelemetry();
+  }, [fetchTelemetry]);
+
+  if (loading && !data) {
+    return <div className="text-center text-[var(--text-secondary)] py-8">Loading telemetry…</div>;
+  }
+  if (!data) {
+    return <div className="text-center text-[var(--text-secondary)] py-8">No telemetry data yet. Data will appear as requests flow through the system.</div>;
+  }
+
+  const DB_ACTION_COLORS: Record<string, string> = {
+    SELECT: 'text-blue-400 bg-blue-400/10',
+    INSERT: 'text-emerald-400 bg-emerald-400/10',
+    UPDATE: 'text-amber-400 bg-amber-400/10',
+    DELETE: 'text-red-400 bg-red-400/10',
+    OTHER: 'text-gray-400 bg-gray-400/10',
+  };
+
+  const subTabs = [
+    { id: 'overview' as const, label: 'Overview', icon: '📊' },
+    { id: 'requests' as const, label: 'Requests', icon: '🌐' },
+    { id: 'database' as const, label: 'Database', icon: '🗄️' },
+    { id: 'errors' as const, label: 'Errors', icon: '🚨' },
+    { id: 'schema' as const, label: 'Schema', icon: '📐' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      {/* Range selector + sub-tabs */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1">
+          {subTabs.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setSubTab(t.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                subTab === t.id
+                  ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                  : 'text-[var(--text-secondary)] hover:bg-white/[0.04]'
+              }`}
+            >
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1">
+          {(['24h', '7d', '30d'] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                range === r
+                  ? 'bg-white/10 text-white'
+                  : 'text-[var(--text-secondary)] hover:bg-white/[0.04]'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+          <button
+            onClick={fetchTelemetry}
+            className="ml-2 px-2.5 py-1 rounded text-[11px] text-[var(--text-secondary)] hover:bg-white/[0.04]"
+          >
+            ↻
+          </button>
+        </div>
+      </div>
+
+      {/* Overview Sub-Tab */}
+      {subTab === 'overview' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <MetricCard label="Total Requests" value={data.totals.requests} icon="🌐" />
+            <MetricCard label="Unique IPs" value={data.uniqueIps.length} icon="📍" accent />
+            <MetricCard label="Avg Response" value={`${data.avgResponseTime}ms`} icon="⚡" />
+            <MetricCard label="Errors" value={data.totals.errors} icon="🚨" accent={data.totals.errors > 0} />
+            <MetricCard label="DB Batches" value={data.totals.dbQueryBatches} icon="🗄️" />
+          </div>
+
+          {/* Request timeline */}
+          {data.requestTimeline.length > 0 && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+              <MiniBarChart data={data.requestTimeline.map(t => ({ date: t.hour, count: t.count }))} label={`Request Volume — ${range}`} />
+            </div>
+          )}
+
+          {/* IP addresses */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">🔍 Active IP Addresses</div>
+            <div className="flex flex-wrap gap-2">
+              {data.uniqueIps.length === 0 ? (
+                <span className="text-xs text-[var(--text-secondary)]">No IPs recorded yet</span>
+              ) : (
+                data.uniqueIps.map((ip) => (
+                  <span key={ip} className="px-2.5 py-1 bg-white/[0.04] border border-white/[0.06] rounded-lg text-[11px] font-mono">
+                    {ip}
+                  </span>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Status codes */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">HTTP Status Codes</div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(data.statusCounts).map(([code, count]) => {
+                const color = code.startsWith('2') ? 'text-emerald-400 bg-emerald-400/10' :
+                              code.startsWith('4') ? 'text-amber-400 bg-amber-400/10' :
+                              code.startsWith('5') ? 'text-red-400 bg-red-400/10' :
+                              'text-gray-400 bg-gray-400/10';
+                return (
+                  <div key={code} className={`px-3 py-2 rounded-lg ${color} text-center`}>
+                    <div className="text-lg font-heading font-semibold">{count}</div>
+                    <div className="text-[10px] opacity-80">{code}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* DB query breakdown */}
+          {Object.keys(data.dbActionCounts).length > 0 && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+              <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">SQL Query Breakdown</div>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                {Object.entries(data.dbActionCounts).map(([action, count]) => (
+                  <div key={action} className={`px-3 py-2 rounded-lg ${DB_ACTION_COLORS[action] || DB_ACTION_COLORS.OTHER} text-center`}>
+                    <div className="text-xl font-heading font-semibold">{count.toLocaleString()}</div>
+                    <div className="text-[10px] opacity-80 font-mono">{action}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Requests Sub-Tab */}
+      {subTab === 'requests' && (
+        <div className="space-y-4">
+          {/* Top paths */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">Top Endpoints</div>
+            <div className="space-y-1">
+              {data.topPaths.map((p) => {
+                const maxCount = data.topPaths[0]?.count || 1;
+                return (
+                  <div key={p.path} className="flex items-center gap-3">
+                    <div className="text-[11px] font-mono text-[var(--text-secondary)] w-48 truncate">{p.path}</div>
+                    <div className="flex-1 h-4 bg-white/[0.04] rounded overflow-hidden">
+                      <div
+                        className="h-full bg-brand-500/40 rounded"
+                        style={{ width: `${(p.count / maxCount) * 100}%` }}
+                      />
+                    </div>
+                    <div className="text-[11px] font-mono w-12 text-right">{p.count}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* User activity */}
+          {Object.keys(data.userRequestCounts).length > 0 && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+              <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">Requests by User</div>
+              <div className="space-y-1">
+                {Object.entries(data.userRequestCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([uid, count]) => (
+                    <div key={uid} className="flex items-center justify-between py-1 border-b border-white/[0.03]">
+                      <span className="text-[11px] font-mono text-[var(--text-secondary)] truncate max-w-[200px]">
+                        {uid === 'anonymous' ? '🔓 anonymous' : uid}
+                      </span>
+                      <span className="text-[11px] font-mono">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Recent requests table */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] px-4 pt-3 pb-2">Recent Requests (last 100)</div>
+            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-[#0a0a0a]">
+                  <tr className="border-b border-white/[0.06]">
+                    <th className="text-left label-mono text-[10px] px-4 py-2">Time</th>
+                    <th className="text-left label-mono text-[10px] px-4 py-2">Method</th>
+                    <th className="text-left label-mono text-[10px] px-4 py-2">Path</th>
+                    <th className="text-center label-mono text-[10px] px-4 py-2">Status</th>
+                    <th className="text-right label-mono text-[10px] px-4 py-2">Duration</th>
+                    <th className="text-left label-mono text-[10px] px-4 py-2">IP</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recentRequests.map((r, i) => {
+                    const statusColor = (r.statusCode || 0) < 400 ? 'text-emerald-400' :
+                                        (r.statusCode || 0) < 500 ? 'text-amber-400' : 'text-red-400';
+                    return (
+                      <tr key={i} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                        <td className="px-4 py-1.5 text-[11px] text-[var(--text-secondary)]">{timeAgo(r.createdAt)}</td>
+                        <td className="px-4 py-1.5 text-[11px] font-mono">{r.method}</td>
+                        <td className="px-4 py-1.5 text-[11px] font-mono text-[var(--text-secondary)] max-w-[250px] truncate">{r.path}</td>
+                        <td className={`px-4 py-1.5 text-[11px] font-mono text-center ${statusColor}`}>{r.statusCode}</td>
+                        <td className="px-4 py-1.5 text-[11px] font-mono text-right">{r.duration ? `${r.duration}ms` : '—'}</td>
+                        <td className="px-4 py-1.5 text-[11px] font-mono text-[var(--text-secondary)]">{r.ip || '—'}</td>
+                      </tr>
+                    );
+                  })}
+                  {data.recentRequests.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-6 text-center text-xs text-[var(--text-secondary)]">No requests recorded yet</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Database Sub-Tab */}
+      {subTab === 'database' && (
+        <div className="space-y-4">
+          {/* Query type breakdown */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {(['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'OTHER'] as const).map((action) => (
+              <div key={action} className={`rounded-xl p-4 ${DB_ACTION_COLORS[action]}`}>
+                <div className="text-2xl font-heading font-semibold">{(data.dbActionCounts[action] || 0).toLocaleString()}</div>
+                <div className="text-[10px] opacity-80 font-mono mt-1">{action}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Queries by model/table */}
+          {Object.keys(data.dbModelCounts).length > 0 && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+              <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">Queries by Table</div>
+              <div className="space-y-1">
+                {Object.entries(data.dbModelCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .map(([model, count]) => {
+                    const maxCount = Object.values(data.dbModelCounts)[0] || 1;
+                    return (
+                      <div key={model} className="flex items-center gap-3">
+                        <div className="text-[11px] font-mono text-[var(--text-secondary)] w-40 truncate">{model}</div>
+                        <div className="flex-1 h-4 bg-white/[0.04] rounded overflow-hidden">
+                          <div
+                            className="h-full bg-brand-500/30 rounded"
+                            style={{ width: `${(count / maxCount) * 100}%` }}
+                          />
+                        </div>
+                        <div className="text-[11px] font-mono w-16 text-right">{count.toLocaleString()}</div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
+          {Object.keys(data.dbModelCounts).length === 0 && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 text-center py-8">
+              <div className="text-2xl mb-2">🗄️</div>
+              <div className="text-sm text-[var(--text-secondary)]">DB query telemetry will appear here as database operations occur.</div>
+              <div className="text-[10px] text-[var(--text-secondary)] mt-1">Queries are buffered and flushed every 30s to minimize overhead.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Errors Sub-Tab */}
+      {subTab === 'errors' && (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard label="Total Errors" value={data.totals.errors} icon="🚨" accent={data.totals.errors > 0} />
+            <MetricCard label="Error Rate" value={data.totals.requests > 0 ? `${((data.totals.errors / data.totals.requests) * 100).toFixed(1)}%` : '0%'} icon="📉" />
+          </div>
+
+          {data.recentErrors.length > 0 ? (
+            <div className="space-y-2">
+              {data.recentErrors.map((err, i) => (
+                <div key={i} className="bg-red-500/[0.05] border border-red-500/20 rounded-xl p-4">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-red-400 text-xs font-mono">{err.method} {err.path}</span>
+                      {err.ip && <span className="text-[10px] text-[var(--text-secondary)] font-mono">{err.ip}</span>}
+                    </div>
+                    <span className="text-[10px] text-[var(--text-secondary)]">{timeAgo(err.createdAt)}</span>
+                  </div>
+                  <div className="text-sm text-red-300 mb-1">{err.message}</div>
+                  {err.stack && (
+                    <details className="mt-1">
+                      <summary className="text-[10px] text-[var(--text-secondary)] cursor-pointer hover:text-white">Stack trace</summary>
+                      <pre className="text-[10px] text-[var(--text-secondary)] mt-1 p-2 bg-black/30 rounded overflow-x-auto">{err.stack}</pre>
+                    </details>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 text-center py-8">
+              <div className="text-2xl mb-2">✅</div>
+              <div className="text-sm text-[var(--text-secondary)]">No errors recorded in the last {range}.</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Schema Sub-Tab */}
+      {subTab === 'schema' && (
+        <div className="space-y-4">
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">📐 Prisma Migration History</div>
+            {data.schemaChanges.length > 0 ? (
+              <div className="space-y-2">
+                {data.schemaChanges.map((m, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2 border-b border-white/[0.03] last:border-0">
+                    <div className={`w-2 h-2 rounded-full ${m.finishedAt ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-mono text-white truncate">{m.name}</div>
+                      <div className="text-[10px] text-[var(--text-secondary)]">
+                        Applied {timeAgo(m.appliedAt)} · {m.steps} step{m.steps !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                    <div className={`text-[10px] px-2 py-0.5 rounded ${m.finishedAt ? 'bg-emerald-400/10 text-emerald-400' : 'bg-amber-400/10 text-amber-400'}`}>
+                      {m.finishedAt ? 'Applied' : 'Running'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 text-sm text-[var(--text-secondary)]">No migrations found.</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="text-[10px] text-[var(--text-secondary)] text-right">
+        Generated {timeAgo(data.generatedAt)} · Showing {range} window
+      </div>
+    </div>
+  );
+}
+
 function MetricCard({
   label,
   value,
