@@ -550,37 +550,114 @@ const STATUS_STYLES: Record<string, { bg: string; text: string; icon: string }> 
   skip: { bg: 'bg-white/[0.04]', text: 'text-[var(--text-secondary)]', icon: '—' },
 };
 
+// ─── Federation Activity Types ──────────────────────────────────────────────
+
+interface FedActivity {
+  generatedAt: string;
+  apiKeys: {
+    total: number;
+    active: number;
+    totalUsage: number;
+    usedLast7d: number;
+    keys: {
+      id: string; name: string; keyPrefix: string; permissions: string;
+      isActive: boolean; usageCount: number; lastUsedAt: string | null;
+      createdAt: string; expiresAt: string | null;
+      user: { name: string | null; email: string } | null;
+    }[];
+  };
+  connections: {
+    total: number; active: number; pending: number; federated: number; local: number;
+    connections: {
+      id: string; status: string; isFederated: boolean; peerInstanceUrl: string | null;
+      peerUserName: string | null; peerUserEmail: string | null;
+      trustLevel: string; scopes: string[]; relayCount: number;
+      requester: { name: string | null; email: string } | null;
+      accepter: { name: string | null; email: string } | null;
+      createdAt: string; updatedAt: string;
+    }[];
+  };
+  relays: {
+    total: number; last7d: number; federated: number;
+    byDirection: Record<string, number>;
+    byIntent: Record<string, number>;
+    byStatus: Record<string, number>;
+    recent: {
+      id: string; direction: string; type: string; intent: string; subject: string;
+      status: string; priority: string; isFederated: boolean; peerInstanceUrl: string | null;
+      from: { name: string | null; email: string } | null;
+      to: { name: string | null; email: string } | null;
+      connectionPeer: string | null;
+      createdAt: string; resolvedAt: string | null;
+    }[];
+  };
+  externalQueue: {
+    totalExternal: number; last7d: number;
+    bySource: Record<string, number>;
+    recent: {
+      id: string; type: string; title: string; status: string; priority: string;
+      source: string; userId: string | null;
+      createdAt: string;
+    }[];
+  };
+  federation: {
+    instanceName: string; instanceUrl: string | null; mode: string;
+    allowInbound: boolean; allowOutbound: boolean; requireApproval: boolean;
+  } | null;
+}
+
+// ─── Sub-tab type ──────────────────────────────────────────────────────────
+
+type FedSubTab = 'activity' | 'health';
+
 function FederationTab({ token }: { token: string | null }) {
+  const [subTab, setSubTab] = useState<FedSubTab>('activity');
+  const [activity, setActivity] = useState<FedActivity | null>(null);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+
+  // Health checker state
   const [remoteUrl, setRemoteUrl] = useState('');
   const [selfResult, setSelfResult] = useState<FedResult | null>(null);
   const [remoteResult, setRemoteResult] = useState<FedResult | null>(null);
   const [loadingSelf, setLoadingSelf] = useState(false);
   const [loadingRemote, setLoadingRemote] = useState(false);
 
+  const fetchActivity = useCallback(async () => {
+    setLoadingActivity(true);
+    try {
+      const res = await fetch('/api/admin/federation-activity', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setActivity(await res.json());
+    } catch { /* ignore */ }
+    finally { setLoadingActivity(false); }
+  }, [token]);
+
+  useEffect(() => {
+    if (token && !activity) fetchActivity();
+  }, [token, activity, fetchActivity]);
+
   const runCheck = async (url?: string) => {
     const isRemote = !!url;
     if (isRemote) setLoadingRemote(true);
     else setLoadingSelf(true);
-
     try {
       const res = await fetch('/api/admin/federation-check', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ url: url || '' }),
       });
       const data = await res.json();
       if (isRemote) setRemoteResult(data);
       else setSelfResult(data);
-    } catch {
-      // Error handling via result
-    } finally {
+    } catch { /* ignore */ }
+    finally {
       if (isRemote) setLoadingRemote(false);
       else setLoadingSelf(false);
     }
   };
+
+  // ── Rendering helpers ─────────────────────────────────────────────────
 
   const renderScore = (result: FedResult) => {
     const { passed, failed, warned, total } = result.score;
@@ -610,13 +687,8 @@ function FederationTab({ token }: { token: string | null }) {
       {checks.map((check) => {
         const style = STATUS_STYLES[check.status];
         return (
-          <div
-            key={check.id}
-            className={`flex items-start gap-3 px-3 py-2 rounded-lg ${style.bg}`}
-          >
-            <span className={`text-sm font-mono font-bold w-5 shrink-0 ${style.text}`}>
-              {style.icon}
-            </span>
+          <div key={check.id} className={`flex items-start gap-3 px-3 py-2 rounded-lg ${style.bg}`}>
+            <span className={`text-sm font-mono font-bold w-5 shrink-0 ${style.text}`}>{style.icon}</span>
             <div className="flex-1 min-w-0">
               <div className="text-sm text-white">{check.label}</div>
               <div className="text-[11px] text-[var(--text-secondary)] break-all">{check.detail}</div>
@@ -631,9 +703,7 @@ function FederationTab({ token }: { token: string | null }) {
     if (!card) return null;
     return (
       <details className="mt-4">
-        <summary className="text-xs text-[var(--text-secondary)] cursor-pointer hover:text-white transition-colors">
-          View Raw Agent Card JSON
-        </summary>
+        <summary className="text-xs text-[var(--text-secondary)] cursor-pointer hover:text-white transition-colors">View Raw Agent Card JSON</summary>
         <pre className="mt-2 p-3 bg-black/50 border border-white/[0.06] rounded-lg text-[11px] text-emerald-300 font-mono overflow-x-auto max-h-80 overflow-y-auto">
           {JSON.stringify(card, null, 2)}
         </pre>
@@ -641,127 +711,420 @@ function FederationTab({ token }: { token: string | null }) {
     );
   };
 
+  // ── Intent / status pill colors ───────────────────────────────────────
+
+  const INTENT_COLORS: Record<string, string> = {
+    get_info: 'bg-blue-500/10 text-blue-400',
+    assign_task: 'bg-purple-500/10 text-purple-400',
+    request_approval: 'bg-amber-500/10 text-amber-400',
+    share_update: 'bg-emerald-500/10 text-emerald-400',
+    schedule: 'bg-cyan-500/10 text-cyan-400',
+    introduce: 'bg-pink-500/10 text-pink-400',
+    custom: 'bg-white/[0.06] text-white/60',
+  };
+
+  const RELAY_STATUS_COLORS: Record<string, string> = {
+    pending: 'bg-amber-500/10 text-amber-400',
+    delivered: 'bg-blue-500/10 text-blue-400',
+    agent_handling: 'bg-purple-500/10 text-purple-400',
+    user_review: 'bg-cyan-500/10 text-cyan-400',
+    completed: 'bg-emerald-500/10 text-emerald-400',
+    declined: 'bg-red-500/10 text-red-400',
+    expired: 'bg-white/[0.06] text-white/30',
+  };
+
+  const SOURCE_ICONS: Record<string, string> = {
+    api: '🔌',
+    webhook: '🔗',
+    federation: '🌐',
+  };
+
+  // ── Sub-tabs ──────────────────────────────────────────────────────────
+
   return (
     <div className="space-y-6">
-      {/* Introduction */}
-      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <span className="text-2xl">🌐</span>
-          <div>
-            <h3 className="text-base font-heading font-semibold">Federation Health Checker</h3>
-            <p className="text-xs text-[var(--text-secondary)]">
-              Validate DAWP compliance, agent card structure, relay intents, and federation readiness.
-            </p>
-          </div>
-        </div>
-        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">
-          Every DiviDen instance publishes an agent card at <code className="text-brand-400 font-mono">/.well-known/agent-card.json</code>.
-          This checker validates that the card is publicly reachable, CORS-open, and contains all required DAWP/0.1 metadata
-          for discovery, relay routing, and cross-instance federation.
-        </p>
+      {/* Sub-tab navigation */}
+      <div className="flex gap-1 bg-white/[0.02] border border-white/[0.06] rounded-xl p-1">
+        <button
+          onClick={() => setSubTab('activity')}
+          className={`flex-1 px-4 py-2.5 text-xs font-medium rounded-lg transition-colors ${
+            subTab === 'activity' ? 'bg-brand-500/20 text-brand-400' : 'text-[var(--text-secondary)] hover:text-white'
+          }`}
+        >
+          📡 Live Activity
+        </button>
+        <button
+          onClick={() => setSubTab('health')}
+          className={`flex-1 px-4 py-2.5 text-xs font-medium rounded-lg transition-colors ${
+            subTab === 'health' ? 'bg-brand-500/20 text-brand-400' : 'text-[var(--text-secondary)] hover:text-white'
+          }`}
+        >
+          🔍 Health Checker
+        </button>
       </div>
 
-      {/* Self Check */}
-      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-1">Self Check</div>
-            <h4 className="text-sm font-heading font-semibold">This Instance</h4>
-          </div>
-          <button
-            onClick={() => runCheck()}
-            disabled={loadingSelf}
-            className="px-4 py-2 text-xs font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-500/90 disabled:opacity-50 transition-colors"
-          >
-            {loadingSelf ? 'Checking…' : selfResult ? '↻ Re-check' : 'Run Self-Check'}
-          </button>
-        </div>
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/*  ACTIVITY SUB-TAB                                                  */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {subTab === 'activity' && (
+        <>
+          {loadingActivity && !activity && (
+            <div className="text-center py-12 text-sm text-[var(--text-secondary)]">Loading federation activity…</div>
+          )}
 
-        {selfResult && (
-          <div>
-            <div className="text-[11px] text-[var(--text-secondary)] mb-3 font-mono">{selfResult.agentCardUrl}</div>
-            {renderScore(selfResult)}
-            {renderChecks(selfResult.checks)}
-            {renderAgentCardPreview(selfResult.agentCard)}
-          </div>
-        )}
+          {activity && (
+            <>
+              {/* Federation status bar */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xl">🌐</span>
+                    <div>
+                      <h3 className="text-sm font-heading font-semibold">{activity.federation?.instanceName || 'DiviDen'}</h3>
+                      <p className="text-[10px] text-[var(--text-secondary)] font-mono">{activity.federation?.instanceUrl || 'Not configured'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {activity.federation && (
+                      <div className="flex gap-1.5 text-[10px]">
+                        <span className={`px-2 py-0.5 rounded ${activity.federation.mode === 'open' ? 'bg-emerald-500/10 text-emerald-400' : activity.federation.mode === 'allowlist' ? 'bg-amber-500/10 text-amber-400' : 'bg-white/[0.06] text-white/40'}`}>
+                          {activity.federation.mode}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded ${activity.federation.allowInbound ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.06] text-white/40'}`}>
+                          {activity.federation.allowInbound ? '↓ inbound' : '↓ closed'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded ${activity.federation.allowOutbound ? 'bg-emerald-500/10 text-emerald-400' : 'bg-white/[0.06] text-white/40'}`}>
+                          {activity.federation.allowOutbound ? '↑ outbound' : '↑ closed'}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      onClick={fetchActivity}
+                      disabled={loadingActivity}
+                      className="text-xs px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] transition-colors"
+                    >
+                      ↻
+                    </button>
+                  </div>
+                </div>
 
-        {!selfResult && !loadingSelf && (
-          <div className="text-center py-6 text-sm text-[var(--text-secondary)]">
-            Click &quot;Run Self-Check&quot; to validate this instance&apos;s agent card
-          </div>
-        )}
-      </div>
+                {/* Hero metrics */}
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+                    <div className="text-xl font-heading font-semibold">{activity.apiKeys.active}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">API Keys Active</div>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+                    <div className="text-xl font-heading font-semibold">{activity.apiKeys.totalUsage}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">Total API Calls</div>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+                    <div className="text-xl font-heading font-semibold">{activity.connections.active}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">Active Connections</div>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+                    <div className="text-xl font-heading font-semibold">{activity.relays.total}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">Total Relays</div>
+                  </div>
+                  <div className="bg-white/[0.03] rounded-lg p-3 text-center">
+                    <div className="text-xl font-heading font-semibold">{activity.externalQueue.totalExternal}</div>
+                    <div className="text-[10px] text-[var(--text-secondary)]">External Queue Items</div>
+                  </div>
+                </div>
+              </div>
 
-      {/* Remote Check */}
-      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
-        <div className="mb-4">
-          <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-1">Remote Instance</div>
-          <h4 className="text-sm font-heading font-semibold mb-3">Probe Another Instance</h4>
-          <p className="text-[11px] text-[var(--text-secondary)] mb-3">
-            Enter the base URL of another DiviDen instance to verify it can be discovered and is ready for federation.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={remoteUrl}
-              onChange={(e) => setRemoteUrl(e.target.value)}
-              placeholder="https://their-instance.example.com"
-              className="flex-1 px-3 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand-500/40 focus:border-brand-500/40 placeholder:text-white/20"
-            />
-            <button
-              onClick={() => runCheck(remoteUrl)}
-              disabled={loadingRemote || !remoteUrl}
-              className="px-4 py-2 text-xs font-medium rounded-lg bg-white/[0.06] border border-white/[0.06] text-white hover:bg-white/[0.1] disabled:opacity-50 transition-colors shrink-0"
-            >
-              {loadingRemote ? 'Probing…' : 'Probe'}
-            </button>
-          </div>
-        </div>
+              {/* API Keys */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="label-mono text-[10px] text-[var(--text-secondary)]">🔑 API Keys — Who&apos;s Connecting</div>
+                  <div className="text-[10px] text-[var(--text-secondary)]">{activity.apiKeys.usedLast7d} used in last 7d</div>
+                </div>
 
-        {remoteResult && (
-          <div className="mt-4 pt-4 border-t border-white/[0.06]">
-            <div className="text-[11px] text-[var(--text-secondary)] mb-3 font-mono">{remoteResult.agentCardUrl}</div>
-            {renderScore(remoteResult)}
-            {renderChecks(remoteResult.checks)}
-            {renderAgentCardPreview(remoteResult.agentCard)}
-          </div>
-        )}
-      </div>
+                {activity.apiKeys.keys.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-[var(--text-secondary)]">No API keys created yet. OS users need to generate keys in Settings → API Keys.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {activity.apiKeys.keys.map(k => (
+                      <div key={k.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${k.isActive ? (k.lastUsedAt ? 'bg-emerald-400' : 'bg-amber-400') : 'bg-white/20'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-white font-medium truncate">{k.name}</span>
+                            <span className="text-[10px] font-mono text-[var(--text-secondary)]">{k.keyPrefix}…</span>
+                          </div>
+                          <div className="text-[10px] text-[var(--text-secondary)]">
+                            {k.user?.name || k.user?.email || 'Unknown user'} · {k.permissions}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-mono font-semibold text-white">{k.usageCount}</div>
+                          <div className="text-[10px] text-[var(--text-secondary)]">
+                            {k.lastUsedAt ? `Last: ${timeAgo(k.lastUsedAt)}` : 'Never used'}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-      {/* Quick Reference */}
-      <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
-        <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">Quick Reference</div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
-          <div>
-            <h5 className="font-semibold text-white mb-2">Required for Discovery</h5>
-            <ul className="space-y-1 text-[var(--text-secondary)]">
-              <li>• Public <code className="text-brand-400 font-mono text-[10px]">/.well-known/agent-card.json</code></li>
-              <li>• CORS: <code className="text-brand-400 font-mono text-[10px]">Access-Control-Allow-Origin: *</code></li>
-              <li>• A2A fields: name, url, version, protocol</li>
-              <li>• Authentication scheme declared</li>
-            </ul>
+              {/* Connections */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="label-mono text-[10px] text-[var(--text-secondary)]">🤝 Connections</div>
+                  <div className="flex gap-2 text-[10px]">
+                    <span className="text-[var(--text-secondary)]">{activity.connections.local} local</span>
+                    <span className="text-brand-400">{activity.connections.federated} federated</span>
+                    {activity.connections.pending > 0 && <span className="text-amber-400">{activity.connections.pending} pending</span>}
+                  </div>
+                </div>
+
+                {activity.connections.connections.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-[var(--text-secondary)]">No connections yet. Users can connect via the Connections tab in the dashboard.</div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {activity.connections.connections.map(c => (
+                      <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${c.status === 'active' ? 'bg-emerald-400' : c.status === 'pending' ? 'bg-amber-400' : 'bg-red-400'}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-white font-medium">
+                              {c.isFederated ? (c.peerUserName || c.peerUserEmail || 'Remote User') : (c.accepter?.name || c.accepter?.email || 'Local User')}
+                            </span>
+                            {c.isFederated && <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 font-mono">FEDERATED</span>}
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${c.trustLevel === 'full_auto' ? 'bg-emerald-500/10 text-emerald-400' : c.trustLevel === 'supervised' ? 'bg-amber-500/10 text-amber-400' : 'bg-red-500/10 text-red-400'}`}>
+                              {c.trustLevel}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-[var(--text-secondary)]">
+                            {c.isFederated && c.peerInstanceUrl ? c.peerInstanceUrl : `${c.requester?.name || c.requester?.email} ↔ ${c.accepter?.name || c.accepter?.email || '?'}`}
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-sm font-mono font-semibold text-white">{c.relayCount}</div>
+                          <div className="text-[10px] text-[var(--text-secondary)]">relays</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Relay Traffic */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="label-mono text-[10px] text-[var(--text-secondary)]">🔄 Relay Traffic</div>
+                  <div className="flex gap-2 text-[10px]">
+                    <span className="text-[var(--text-secondary)]">{activity.relays.last7d} last 7d</span>
+                    <span className="text-brand-400">{activity.relays.federated} cross-instance</span>
+                  </div>
+                </div>
+
+                {activity.relays.total === 0 ? (
+                  <div className="text-center py-6 text-sm text-[var(--text-secondary)]">No relay traffic yet. Relays flow when connections communicate via their agents.</div>
+                ) : (
+                  <>
+                    {/* Intent breakdown */}
+                    <div className="mb-4">
+                      <div className="text-[10px] text-[var(--text-secondary)] mb-2">By Intent</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(activity.relays.byIntent).map(([intent, count]) => (
+                          <span key={intent} className={`text-[10px] px-2 py-1 rounded ${INTENT_COLORS[intent] || 'bg-white/[0.06] text-white/60'}`}>
+                            {intent}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Status breakdown */}
+                    <div className="mb-4">
+                      <div className="text-[10px] text-[var(--text-secondary)] mb-2">By Status</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(activity.relays.byStatus).map(([status, count]) => (
+                          <span key={status} className={`text-[10px] px-2 py-1 rounded ${RELAY_STATUS_COLORS[status] || 'bg-white/[0.06] text-white/60'}`}>
+                            {status}: {count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Recent relays */}
+                    <div className="text-[10px] text-[var(--text-secondary)] mb-2">Recent Relays</div>
+                    <div className="space-y-1">
+                      {activity.relays.recent.slice(0, 15).map(r => (
+                        <div key={r.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                          <span className="text-sm shrink-0">{r.direction === 'outbound' ? '↑' : '↓'}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-white truncate">{r.subject}</div>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${INTENT_COLORS[r.intent] || ''}`}>{r.intent}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${RELAY_STATUS_COLORS[r.status] || ''}`}>{r.status}</span>
+                              {r.isFederated && <span className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400">federated</span>}
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-[var(--text-secondary)] shrink-0">{timeAgo(r.createdAt)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* External Queue Items */}
+              <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="label-mono text-[10px] text-[var(--text-secondary)]">📥 External Queue Items</div>
+                  <div className="flex gap-2 text-[10px]">
+                    {Object.entries(activity.externalQueue.bySource).map(([src, count]) => (
+                      <span key={src} className="text-[var(--text-secondary)]">{SOURCE_ICONS[src] || '📦'} {src}: {count}</span>
+                    ))}
+                  </div>
+                </div>
+
+                {activity.externalQueue.recent.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-[var(--text-secondary)]">
+                    No queue items from external sources yet. These appear when the v2 API, webhooks, or federation creates queue items.
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {activity.externalQueue.recent.map(q => (
+                      <div key={q.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                        <span className="text-sm shrink-0">{SOURCE_ICONS[q.source] || '📦'}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-white truncate">{q.title}</div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] text-white/60">{q.source}</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded ${
+                              q.status === 'done_today' ? 'bg-emerald-500/10 text-emerald-400' :
+                              q.status === 'in_progress' ? 'bg-blue-500/10 text-blue-400' :
+                              q.status === 'ready' ? 'bg-amber-500/10 text-amber-400' : 'bg-white/[0.06] text-white/40'
+                            }`}>{q.status}</span>
+                            <span className="text-[9px] text-[var(--text-secondary)]">{q.userId || '?'}</span>
+                          </div>
+                        </div>
+                        <div className="text-[10px] text-[var(--text-secondary)] shrink-0">{timeAgo(q.createdAt)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/*  HEALTH CHECKER SUB-TAB                                            */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {subTab === 'health' && (
+        <>
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">🔍</span>
+              <div>
+                <h3 className="text-base font-heading font-semibold">Agent Card Validator</h3>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Validate DAWP compliance, agent card structure, relay intents, and federation readiness for any instance.
+                </p>
+              </div>
+            </div>
           </div>
-          <div>
-            <h5 className="font-semibold text-white mb-2">Required for DAWP</h5>
-            <ul className="space-y-1 text-[var(--text-secondary)]">
-              <li>• <code className="text-brand-400 font-mono text-[10px]">dividen.protocolVersion: &quot;DAWP/0.1&quot;</code></li>
-              <li>• Relay intents array (7 standard)</li>
-              <li>• Trust levels declared</li>
-              <li>• Task types for routing</li>
-            </ul>
+
+          {/* Self Check */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-1">Self Check</div>
+                <h4 className="text-sm font-heading font-semibold">This Instance</h4>
+              </div>
+              <button
+                onClick={() => runCheck()}
+                disabled={loadingSelf}
+                className="px-4 py-2 text-xs font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-500/90 disabled:opacity-50 transition-colors"
+              >
+                {loadingSelf ? 'Checking…' : selfResult ? '↻ Re-check' : 'Run Self-Check'}
+              </button>
+            </div>
+            {selfResult && (
+              <div>
+                <div className="text-[11px] text-[var(--text-secondary)] mb-3 font-mono">{selfResult.agentCardUrl}</div>
+                {renderScore(selfResult)}
+                {renderChecks(selfResult.checks)}
+                {renderAgentCardPreview(selfResult.agentCard)}
+              </div>
+            )}
+            {!selfResult && !loadingSelf && (
+              <div className="text-center py-6 text-sm text-[var(--text-secondary)]">Click &quot;Run Self-Check&quot; to validate this instance&apos;s agent card</div>
+            )}
           </div>
-          <div>
-            <h5 className="font-semibold text-white mb-2">Required for Federation</h5>
-            <ul className="space-y-1 text-[var(--text-secondary)]">
-              <li>• Federation config (mode, inbound, outbound)</li>
-              <li>• <code className="text-brand-400 font-mono text-[10px]">allowInbound: true</code> to receive relays</li>
-              <li>• Federation endpoints (connect, relay)</li>
-              <li>• Relay skill declared in skills array</li>
-            </ul>
+
+          {/* Remote Check */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+            <div className="mb-4">
+              <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-1">Remote Instance</div>
+              <h4 className="text-sm font-heading font-semibold mb-3">Probe Another Instance</h4>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={remoteUrl}
+                  onChange={(e) => setRemoteUrl(e.target.value)}
+                  placeholder="https://their-instance.example.com"
+                  className="flex-1 px-3 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white text-sm font-mono focus:outline-none focus:ring-1 focus:ring-brand-500/40 focus:border-brand-500/40 placeholder:text-white/20"
+                />
+                <button
+                  onClick={() => runCheck(remoteUrl)}
+                  disabled={loadingRemote || !remoteUrl}
+                  className="px-4 py-2 text-xs font-medium rounded-lg bg-white/[0.06] border border-white/[0.06] text-white hover:bg-white/[0.1] disabled:opacity-50 transition-colors shrink-0"
+                >
+                  {loadingRemote ? 'Probing…' : 'Probe'}
+                </button>
+              </div>
+            </div>
+            {remoteResult && (
+              <div className="mt-4 pt-4 border-t border-white/[0.06]">
+                <div className="text-[11px] text-[var(--text-secondary)] mb-3 font-mono">{remoteResult.agentCardUrl}</div>
+                {renderScore(remoteResult)}
+                {renderChecks(remoteResult.checks)}
+                {renderAgentCardPreview(remoteResult.agentCard)}
+              </div>
+            )}
           </div>
-        </div>
-      </div>
+
+          {/* Quick Reference */}
+          <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-5">
+            <div className="label-mono text-[10px] text-[var(--text-secondary)] mb-3">Quick Reference</div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div>
+                <h5 className="font-semibold text-white mb-2">Required for Discovery</h5>
+                <ul className="space-y-1 text-[var(--text-secondary)]">
+                  <li>• Public <code className="text-brand-400 font-mono text-[10px]">/.well-known/agent-card.json</code></li>
+                  <li>• CORS: <code className="text-brand-400 font-mono text-[10px]">Access-Control-Allow-Origin: *</code></li>
+                  <li>• A2A fields: name, url, version, protocol</li>
+                  <li>• Authentication scheme declared</li>
+                </ul>
+              </div>
+              <div>
+                <h5 className="font-semibold text-white mb-2">Required for DAWP</h5>
+                <ul className="space-y-1 text-[var(--text-secondary)]">
+                  <li>• <code className="text-brand-400 font-mono text-[10px]">dividen.protocolVersion: &quot;DAWP/0.1&quot;</code></li>
+                  <li>• Relay intents array (7 standard)</li>
+                  <li>• Trust levels declared</li>
+                  <li>• Task types for routing</li>
+                </ul>
+              </div>
+              <div>
+                <h5 className="font-semibold text-white mb-2">Required for Federation</h5>
+                <ul className="space-y-1 text-[var(--text-secondary)]">
+                  <li>• Federation config (mode, inbound, outbound)</li>
+                  <li>• <code className="text-brand-400 font-mono text-[10px]">allowInbound: true</code> to receive relays</li>
+                  <li>• Federation endpoints (connect, relay)</li>
+                  <li>• Relay skill declared in skills array</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
