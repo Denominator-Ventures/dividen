@@ -393,6 +393,12 @@ export function LandingPage() {
                 Explore the Open Source Project →
               </a>
               <a
+                href="/docs/federation"
+                className="w-full sm:w-auto text-center border border-white/10 hover:border-brand-500/40 text-white/70 hover:text-white font-medium px-8 py-3.5 rounded-xl transition-all"
+              >
+                Federation Guide →
+              </a>
+              <a
                 href="https://github.com/Denominator-Ventures/dividen"
                 target="_blank"
                 rel="noopener noreferrer"

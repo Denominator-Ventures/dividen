@@ -556,6 +556,7 @@ export default function SettingsPage() {
               <h2 className="font-semibold">🌐 Federation</h2>
               <p className="text-xs text-[var(--text-muted)] mt-0.5">
                 Configure cross-instance connections. Allow users from other DiviDen deployments to connect with yours.
+                <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 ml-1">Read the Federation Guide →</a>
               </p>
             </div>
           </div>

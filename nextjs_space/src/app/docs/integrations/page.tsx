@@ -225,11 +225,24 @@ export default function IntegrationDocsPage() {
   YOUR_DIVIDEN_URL/api/v2/kanban`}</pre>
         </section>
 
+        {/* Federation docs link */}
+        <section className="mb-8">
+          <div className="p-4 bg-brand-500/5 border border-brand-500/20 rounded-lg">
+            <h2 className="text-lg font-semibold mb-1 text-brand-400">🌐 Federation &amp; Connections</h2>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Looking to connect with other DiviDen instances, self-host the open source version, or build
+              an agent that speaks DAWP? See the full
+              <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 mx-1 font-medium">Federation Guide →</a>
+            </p>
+          </div>
+        </section>
+
         <div className="border-t border-[var(--border-primary)] pt-6 text-center text-sm text-[var(--text-muted)]">
           <p>Open source: <a href="https://github.com/Denominator-Ventures/dividen" className="text-brand-400 hover:text-brand-300">github.com/Denominator-Ventures/dividen</a></p>
-          <a href="/settings" className="text-brand-400 hover:text-brand-300 mt-2 inline-block">
-            ← Back to Settings
-          </a>
+          <div className="flex items-center justify-center gap-4 mt-2">
+            <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">Federation Guide →</a>
+            <a href="/settings" className="text-brand-400 hover:text-brand-300">← Back to Settings</a>
+          </div>
         </div>
       </div>
     </div>
