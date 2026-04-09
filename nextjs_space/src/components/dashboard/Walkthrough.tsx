@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 interface WalkthroughStep {
   id: string;
@@ -8,9 +8,11 @@ interface WalkthroughStep {
   description: string;
   targetSelector: string;
   position: 'top' | 'bottom' | 'left' | 'right';
+  mobileOnly?: boolean;
+  desktopOnly?: boolean;
 }
 
-const STEPS: WalkthroughStep[] = [
+const ALL_STEPS: WalkthroughStep[] = [
   {
     id: 'welcome',
     title: 'Welcome to DiviDen',
@@ -31,6 +33,7 @@ const STEPS: WalkthroughStep[] = [
     description: 'Your focus zone. See what\'s in progress right now, what\'s done today, and quickly add new tasks. This is your daily command view.',
     targetSelector: '[data-walkthrough="now-panel"]',
     position: 'right',
+    desktopOnly: true,
   },
   {
     id: 'center-panel',
@@ -38,6 +41,7 @@ const STEPS: WalkthroughStep[] = [
     description: 'The main workspace. Chat with Divi, manage your Kanban board, CRM contacts, documents, and recordings. Switch between views using the tabs.',
     targetSelector: '[data-walkthrough="center-panel"]',
     position: 'left',
+    desktopOnly: true,
   },
   {
     id: 'queue-panel',
@@ -45,6 +49,15 @@ const STEPS: WalkthroughStep[] = [
     description: 'Your task queue. Items flow through Ready → In Progress → Done. Divi can add suggestions here, and you can dispatch tasks with a click.',
     targetSelector: '[data-walkthrough="queue-panel"]',
     position: 'left',
+    desktopOnly: true,
+  },
+  {
+    id: 'mobile-panels',
+    title: 'Your Workspace',
+    description: 'Use the tabs at the bottom to switch between NOW (your focus zone), Workspace (chat with Divi, Kanban, CRM, docs), and Queue (your task pipeline). Swipe through to explore.',
+    targetSelector: '[data-walkthrough="center-panel"]',
+    position: 'top',
+    mobileOnly: true,
   },
   {
     id: 'comms',
@@ -63,7 +76,7 @@ const STEPS: WalkthroughStep[] = [
   {
     id: 'settings',
     title: 'Settings & API Keys',
-    description: 'Head to Settings to add your OpenAI or Anthropic API key to enable Divi. You can also configure webhooks, manage memory, federation settings, and more.',
+    description: 'Head to Settings to add your LLM API key (or bring your own via Integrations) to enable Divi. You can also configure webhooks, manage memory, federation settings, your profile, and relay preferences.',
     targetSelector: '[data-walkthrough="settings"]',
     position: 'bottom',
   },
@@ -77,6 +90,24 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile once on mount and on resize
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Filter steps based on viewport
+  const STEPS = useMemo(() => {
+    return ALL_STEPS.filter((s) => {
+      if (isMobile && s.desktopOnly) return false;
+      if (!isMobile && s.mobileOnly) return false;
+      return true;
+    });
+  }, [isMobile]);
 
   const step = STEPS[currentStep];
 
@@ -84,14 +115,29 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
     if (!step) return;
     const el = document.querySelector(step.targetSelector);
     if (el) {
-      setTargetRect(el.getBoundingClientRect());
+      const rect = el.getBoundingClientRect();
+      // Only set if the element is actually visible (has dimensions)
+      if (rect.width > 0 && rect.height > 0) {
+        setTargetRect(rect);
+        return;
+      }
+    }
+    // Element not found or not visible — try to find a fallback
+    // Use the brand logo as a safe fallback so the tooltip still renders
+    const fallback = document.querySelector('[data-walkthrough="brand"]');
+    if (fallback) {
+      setTargetRect(fallback.getBoundingClientRect());
     }
   }, [step]);
 
   useEffect(() => {
-    updateTargetRect();
+    // Small delay to let DOM settle after step change
+    const timer = setTimeout(updateTargetRect, 50);
     window.addEventListener('resize', updateTargetRect);
-    return () => window.removeEventListener('resize', updateTargetRect);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateTargetRect);
+    };
   }, [updateTargetRect]);
 
   useEffect(() => {
@@ -119,8 +165,6 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
   };
 
   if (!step || !targetRect) return null;
-
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   // Calculate tooltip position
   const PADDING = isMobile ? 8 : 12;
