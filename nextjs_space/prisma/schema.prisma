@@ -51,6 +51,7 @@ model User {
   teamMemberships      TeamMember[]
   projectsCreated      Project[]       @relation("ProjectsCreated")
   projectMemberships   ProjectMember[]
+  agentExtensions      AgentExtension[]
 
   @@map("users")
 }
@@ -998,4 +999,40 @@ model ProjectMember {
   @@index([projectId])
   @@index([userId])
   @@map("project_members")
+}
+
+// ─── Agent Extensions ──────────────────────────────────────────────────────
+// Installable skills, personas, and prompt layers from Claw Mart or manual import.
+// Extensions augment Divi's capabilities at user, team, or project scope.
+
+model AgentExtension {
+  id            String   @id @default(cuid())
+  name          String                          // Human-readable name
+  slug          String                          // URL-safe identifier
+  description   String?                         // What this extension does
+  type          String   @default("skill")      // "skill" | "persona" | "prompt_layer"
+  source        String   @default("manual")     // "clawmart" | "manual" | "custom"
+  sourceUrl     String?                         // Link to Claw Mart listing or origin
+  version       String   @default("1.0.0")
+
+  // The extension configuration — prompt text, action tags, parameters, etc.
+  config        String   @db.Text               // JSON: { promptText?, actionTags?, parameters?, model? }
+
+  // Scope: where this extension is active
+  scope         String   @default("user")       // "user" | "team" | "project" | "global"
+  scopeId       String?                         // teamId or projectId (null for user/global scope)
+
+  // Ownership
+  installedById String
+  installedBy   User     @relation(fields: [installedById], references: [id], onDelete: Cascade)
+
+  isActive      Boolean  @default(true)
+  priority      Int      @default(0)            // Higher = loaded earlier in prompt stack
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([installedById])
+  @@index([scope, scopeId])
+  @@index([isActive])
+  @@map("agent_extensions")
 }

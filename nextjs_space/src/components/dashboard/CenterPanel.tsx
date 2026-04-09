@@ -11,6 +11,7 @@ import { CalendarView } from './CalendarView';
 import { InboxView } from './InboxView';
 import { ConnectionsView } from './ConnectionsView';
 import { TeamsView } from './TeamsView';
+import { ExtensionsView } from './ExtensionsView';
 
 interface CenterPanelProps {
   activeTab: CenterTab;
@@ -27,6 +28,7 @@ const tabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'drive', label: 'Drive', icon: '📁' },
   { id: 'connections', label: 'Connections', icon: '🔗' },
   { id: 'teams', label: 'Teams', icon: '👥' },
+  { id: 'extensions', label: 'Extensions', icon: '🧩' },
 ];
 
 export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
@@ -63,6 +65,7 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
         {activeTab === 'drive' && <DriveView />}
         {activeTab === 'connections' && <ConnectionsView />}
         {activeTab === 'teams' && <TeamsView />}
+        {activeTab === 'extensions' && <ExtensionsView />}
       </div>
     </div>
   );
