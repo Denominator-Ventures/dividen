@@ -679,6 +679,62 @@ X-Federation-Token: <token-from-connection-handshake>
         </section>
 
 
+        {/* Teams & Projects */}
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-[var(--text-primary)] font-heading flex items-center gap-2">
+            <span className="text-brand-400">§</span> Teams &amp; Projects
+          </h2>
+          <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+            Teams and Projects add an organizational layer to the federation protocol. Connections gain context
+            by being added to teams (persistent groups) or projects (scoped, goal-based collaborations).
+          </p>
+
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-brand-400 font-mono">Teams</h3>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              A Team is a persistent group of connections — e.g., &ldquo;Denominator Ventures team&rdquo;.
+              Team members can be local users or federated connections from other DiviDen instances.
+              When routing tasks or broadcasting, specifying a <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">teamId</code> restricts
+              the scope to team members and gives them a +5 priority boost in skill matching.
+            </p>
+            <h3 className="text-sm font-semibold text-brand-400 font-mono mt-3">Projects</h3>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              A Project is a scoped collaboration — e.g., &ldquo;Series A fundraise&rdquo;. Projects can belong to a team or be independent.
+              Project members get a +10 priority boost in skill matching. Kanban cards and queue items can be associated
+              with a project via <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">projectId</code>.
+            </p>
+            <h3 className="text-sm font-semibold text-brand-400 font-mono mt-3">Federated Members</h3>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              Federated connections (users on other OS instances) join teams/projects via their <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">connectionId</code>.
+              The system distinguishes between local members (userId) and federated members (connectionId).
+              Both participate equally in scoped broadcasts, task routing, and relay delivery.
+            </p>
+          </div>
+
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">API Endpoints</h3>
+            <div className="space-y-1 text-xs font-mono text-[var(--text-muted)]">
+              <p><span className="text-emerald-400">GET/POST</span> /api/teams — List or create teams</p>
+              <p><span className="text-emerald-400">GET/PUT/DELETE</span> /api/teams/[id] — Manage a team</p>
+              <p><span className="text-amber-400">POST/DELETE</span> /api/teams/[id]/members — Add/remove members (local or federated)</p>
+              <p><span className="text-emerald-400">GET/POST</span> /api/projects — List or create projects</p>
+              <p><span className="text-emerald-400">GET/PUT/DELETE</span> /api/projects/[id] — Manage a project</p>
+              <p><span className="text-amber-400">POST/DELETE</span> /api/projects/[id]/members — Add/remove members</p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--bg-secondary)] border border-[var(--border-primary)] rounded-lg p-4">
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Scoped Relay Routing</h3>
+            <div className="space-y-1 text-xs text-[var(--text-muted)]">
+              <p>• <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">task_route</code> + teamId/projectId → skill matches prioritize scope members</p>
+              <p>• <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">relay_broadcast</code> + teamId/projectId → sends only to scope members</p>
+              <p>• <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">relay_ambient</code> + teamId/projectId → tags relay with scope context</p>
+              <p>• Routing priority: project members (+10) → team members (+5) → all connections (base score)</p>
+            </div>
+          </div>
+        </section>
+
+
         {/* Footer */}
         <div className="border-t border-[var(--border-primary)] pt-6 text-center space-y-2">
           <p className="text-sm text-[var(--text-muted)]">

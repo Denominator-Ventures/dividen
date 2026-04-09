@@ -335,8 +335,9 @@ Embed these tags in your response to execute actions. Use double brackets: [[tag
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-...","label":"optional label"}]] — Save LLM API key
 
 ### Orchestration (Task Routing & Briefs)
-- [[task_route:{"cardId":"card_id","tasks":[{"title":"...","description":"...","requiredSkills":["negotiation","finance"],"requiredTaskTypes":["research","review","finance"],"intent":"assign_task","priority":"normal","to":"optional name/email","route":"direct|ambient|broadcast"}],"routeType":"direct|ambient|broadcast"}]] — Decompose a Kanban card into tasks, match against connection profiles (skills + taskTypes + capacity), and route via relay. Each task generates a reasoning brief. If no "to" is specified, best-match routing is used. If no match exists, the task is recorded as self-assigned.
-- [[assemble_brief:{"cardId":"card_id"}]] — Generate a full context brief for a Kanban card without routing. Shows the assembled context (contacts, pipeline stage, activity, relay history) and potential skill matches among connections. Use when the user wants to "see what Divi sees" about a card.
+- [[task_route:{"cardId":"card_id","tasks":[{"title":"...","description":"...","requiredSkills":["negotiation","finance"],"requiredTaskTypes":["research","review","finance"],"intent":"assign_task","priority":"normal","to":"optional name/email","route":"direct|ambient|broadcast"}],"routeType":"direct|ambient|broadcast","teamId":"optional_team_id","projectId":"optional_project_id"}]] — Decompose a Kanban card into tasks, match against connection profiles (skills + taskTypes + capacity), and route via relay. When teamId/projectId is provided, team/project members are prioritized in skill matching (+10 for project members, +5 for team members). Each task generates a reasoning brief. If no "to" is specified, best-match routing is used. If no match exists, the task is recorded as self-assigned.
+- [[assemble_brief:{"cardId":"card_id","teamId":"optional_team_id","projectId":"optional_project_id"}]] — Generate a full context brief for a Kanban card without routing. When teamId/projectId is provided, skill matches are scoped to team/project members first. Shows the assembled context (contacts, pipeline stage, activity, relay history) and potential skill matches among connections.
+- [[relay_broadcast:{"subject":"...","teamId":"optional_team_id","projectId":"optional_project_id"}]] — When teamId/projectId is provided, broadcast is scoped only to team/project members instead of all connections.
 
 ### Memory & Learning (3-Tier System)
 - [[update_memory:{"tier":1,"category":"general|project|contact","key":"...","value":"...","scope":"optional scope","pinned":false}]] — Explicit fact
@@ -479,35 +480,57 @@ If the action requires info you don't have or involves external services, provid
 }
 
 async function layer17_connectionsRelay(userId: string): Promise<string> {
-  const connections = await prisma.connection.findMany({
-    where: {
-      OR: [{ requesterId: userId }, { accepterId: userId }],
-      status: 'active',
-    },
-    include: {
-      requester: { select: { id: true, name: true, email: true } },
-      accepter: { select: { id: true, name: true, email: true } },
-    },
-    take: 20,
-  });
+  const [connections, pendingRelays, teams, projects] = await Promise.all([
+    prisma.connection.findMany({
+      where: {
+        OR: [{ requesterId: userId }, { accepterId: userId }],
+        status: 'active',
+      },
+      include: {
+        requester: { select: { id: true, name: true, email: true } },
+        accepter: { select: { id: true, name: true, email: true } },
+      },
+      take: 20,
+    }),
+    prisma.agentRelay.findMany({
+      where: {
+        OR: [
+          { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
+          { fromUserId: userId, status: { in: ['pending', 'delivered', 'agent_handling'] } },
+        ],
+      },
+      include: {
+        fromUser: { select: { id: true, name: true, email: true } },
+        toUser: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+    }),
+    prisma.team.findMany({
+      where: {
+        isActive: true,
+        members: { some: { userId } },
+      },
+      include: {
+        _count: { select: { members: true, projects: true } },
+      },
+      take: 10,
+    }),
+    prisma.project.findMany({
+      where: {
+        status: { not: 'archived' },
+        members: { some: { userId } },
+      },
+      include: {
+        team: { select: { id: true, name: true } },
+        _count: { select: { members: true } },
+      },
+      take: 10,
+    }),
+  ]);
 
-  const pendingRelays = await prisma.agentRelay.findMany({
-    where: {
-      OR: [
-        { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
-        { fromUserId: userId, status: { in: ['pending', 'delivered', 'agent_handling'] } },
-      ],
-    },
-    include: {
-      fromUser: { select: { id: true, name: true, email: true } },
-      toUser: { select: { id: true, name: true, email: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 10,
-  });
-
-  let text = `## Layer 17: Connections & Agent Relay
-You have access to a connections system that enables agent-to-agent communication between DiviDen users.
+  let text = `## Layer 17: Connections, Teams, Projects & Agent Relay
+You have access to a connections system that enables agent-to-agent communication between DiviDen users, organized through Teams and Projects.
 
 ### Active Connections (${connections.length})
 `;
@@ -522,6 +545,23 @@ You have access to a connections system that enables agent-to-agent communicatio
       let perms: any = {};
       try { perms = JSON.parse(c.permissions); } catch {}
       text += `- **${c.nickname || peerName}** (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
+    }
+  }
+
+  // Teams section
+  if (teams.length > 0) {
+    text += `\n### Teams (${teams.length})\n`;
+    for (const t of teams) {
+      text += `- **${t.name}** (id: ${t.id}) — ${t._count.members} members, ${t._count.projects} projects${t.description ? ` — ${t.description}` : ''}\n`;
+    }
+  }
+
+  // Projects section
+  if (projects.length > 0) {
+    text += `\n### Projects (${projects.length})\n`;
+    for (const p of projects) {
+      const teamLabel = p.team ? ` [team: ${p.team.name}]` : ' [independent]';
+      text += `- **${p.name}** (id: ${p.id}) — ${p.status}${teamLabel}, ${p._count.members} members${p.description ? ` — ${p.description}` : ''}\n`;
     }
   }
 
@@ -542,12 +582,21 @@ When the user asks you to communicate with a connection, you can:
 - **Accept a connection**: Use [[accept_connection:...]] to accept a pending connection request
 - **Respond to a relay**: Use [[relay_respond:...]] to complete or decline an incoming relay
 
+### Team & Project-Scoped Routing
+When routing tasks or broadcasting relays, you can scope to a team or project:
+- **task_route with teamId/projectId**: Project members get +10 priority boost, team members get +5 in skill matching
+- **relay_broadcast with teamId/projectId**: Only sends to team/project members, not all connections
+- **relay_ambient with teamId/projectId**: Tags the ambient relay with team/project context for scoped delivery
+- When the user says "ask the team" or "broadcast to the project", identify the relevant teamId/projectId and include it
+
 ### Behavioral Rules
 - When the user says "ask [name] for..." or "tell [name] to...", match the name to an active connection and create a relay
 - When an inbound relay arrives that you can auto-handle (trust level = full_auto + scope matches), handle it and respond
 - When an inbound relay arrives under "supervised" trust, queue it for user review
 - When responding to relays, include structured data in the response payload when possible
-- If the user references someone who isn't connected, suggest creating a connection first`;
+- If the user references someone who isn't connected, suggest creating a connection first
+- When the user references a team or project by name, resolve it to the ID and use scoped routing
+- Federated members (connections from other DiviDen instances) can be added to teams/projects — they appear with their instance URL`;
 
   return text;
 }

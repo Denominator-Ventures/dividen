@@ -209,12 +209,46 @@ export async function assembleCardContext(
 
 /**
  * Find connections whose profiles match the required skills/task types.
+ * When teamId/projectId is provided, members of that scope get a ranking boost
+ * so the routing engine prefers team/project members first.
  */
 export async function findSkillMatches(
   userId: string,
   requiredSkills: string[],
   requiredTaskTypes: string[],
+  options?: { teamId?: string; projectId?: string },
 ): Promise<SkillMatch[]> {
+  // Build set of connection IDs that belong to the team/project scope for scoring boost
+  const scopedConnectionIds = new Set<string>();
+  const projectConnectionIds = new Set<string>();
+  const teamConnectionIds = new Set<string>();
+
+  if (options?.projectId) {
+    const projectMembers = await prisma.projectMember.findMany({
+      where: { projectId: options.projectId },
+      select: { connectionId: true },
+    });
+    projectMembers.forEach(m => { if (m.connectionId) { projectConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
+  }
+
+  if (options?.teamId) {
+    const teamMembers = await prisma.teamMember.findMany({
+      where: { teamId: options.teamId },
+      select: { connectionId: true },
+    });
+    teamMembers.forEach(m => { if (m.connectionId) { teamConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
+  } else if (options?.projectId) {
+    // If project belongs to a team, also boost team members
+    const project = await prisma.project.findUnique({ where: { id: options.projectId }, select: { teamId: true } });
+    if (project?.teamId) {
+      const teamMembers = await prisma.teamMember.findMany({
+        where: { teamId: project.teamId },
+        select: { connectionId: true },
+      });
+      teamMembers.forEach(m => { if (m.connectionId) { teamConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
+    }
+  }
+
   // Get all active connections with their profiles
   const connections = await prisma.connection.findMany({
     where: {
@@ -271,7 +305,13 @@ export async function findSkillMatches(
     else if (peerCapacity === 'limited') score += 1;
     else if (peerCapacity === 'busy' || peerCapacity === 'unavailable') score -= 2;
 
+    // Team/Project scope boost — project members get +10, team members get +5
+    if (projectConnectionIds.has(conn.id)) score += 10;
+    else if (teamConnectionIds.has(conn.id)) score += 5;
+
     const reasons: string[] = [];
+    if (projectConnectionIds.has(conn.id)) reasons.push('project member');
+    if (teamConnectionIds.has(conn.id)) reasons.push('team member');
     if (matchedTaskTypes.length > 0) reasons.push(`task types: ${matchedTaskTypes.join(', ')}`);
     if (matchedSkills.length > 0) reasons.push(`skills: ${matchedSkills.join(', ')}`);
     reasons.push(`capacity: ${peerCapacity}`);

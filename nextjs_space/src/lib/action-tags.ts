@@ -841,16 +841,33 @@ async function executeTag(
       }
 
       case 'relay_broadcast': {
-        // params: { subject, payload?, intent?, priority?, context? }
-        // Sends a relay to ALL active connections — "ask the team" / company-wide query
+        // params: { subject, payload?, intent?, priority?, context?, teamId?, projectId? }
+        // Sends a relay to connections — scoped to team/project members when provided, otherwise all connections
         const broadcastSubject = params.subject || params.message || 'Team-wide query';
         const broadcastIntent = params.intent || 'ask';
         const broadcastPriority = params.priority || 'normal';
+
+        // Build scoped connection ID set when team/project is specified
+        let scopedConnIds: Set<string> | null = null;
+        if (params.projectId) {
+          const projMembers = await prisma.projectMember.findMany({
+            where: { projectId: params.projectId },
+            select: { connectionId: true },
+          });
+          scopedConnIds = new Set(projMembers.map(m => m.connectionId).filter(Boolean) as string[]);
+        } else if (params.teamId) {
+          const tmMembers = await prisma.teamMember.findMany({
+            where: { teamId: params.teamId },
+            select: { connectionId: true },
+          });
+          scopedConnIds = new Set(tmMembers.map(m => m.connectionId).filter(Boolean) as string[]);
+        }
 
         const allActiveConns = await prisma.connection.findMany({
           where: {
             OR: [{ requesterId: userId }, { accepterId: userId }],
             status: 'active',
+            ...(scopedConnIds ? { id: { in: Array.from(scopedConnIds) } } : {}),
           },
           include: {
             requester: { select: { id: true, name: true, email: true } },
@@ -909,6 +926,8 @@ async function executeTag(
               status: 'pending',
               priority: broadcastPriority,
               peerInstanceUrl: conn.isFederated ? conn.peerInstanceUrl : null,
+              ...(params.teamId ? { teamId: params.teamId } : {}),
+              ...(params.projectId ? { projectId: params.projectId } : {}),
             },
           });
 
@@ -1036,6 +1055,8 @@ async function executeTag(
             status: 'pending',
             priority: 'low',
             peerInstanceUrl: ambientConn.isFederated ? ambientConn.peerInstanceUrl : null,
+            ...(params.teamId ? { teamId: params.teamId } : {}),
+            ...(params.projectId ? { projectId: params.projectId } : {}),
           },
         });
 
@@ -1227,7 +1248,7 @@ async function executeTag(
       case 'task_route': {
         const { assembleCardContext, findSkillMatches, generateBriefMarkdown, storeBrief } = await import('./brief-assembly');
 
-        const { cardId, tasks, routeType: preferredRoute } = params;
+        const { cardId, tasks, routeType: preferredRoute, teamId: routeTeamId, projectId: routeProjectId } = params;
         if (!cardId || !tasks || !Array.isArray(tasks)) {
           return { tag: name, success: false, error: 'task_route requires cardId and tasks array' };
         }
@@ -1243,8 +1264,8 @@ async function executeTag(
         for (const task of tasks) {
           const { title, description, requiredSkills = [], requiredTaskTypes = [], intent = 'assign_task', priority = 'normal', to, route } = task;
 
-          // Find skill matches
-          const matches = await findSkillMatches(userId, requiredSkills, requiredTaskTypes);
+          // Find skill matches — scope to team/project when provided
+          const matches = await findSkillMatches(userId, requiredSkills, requiredTaskTypes, { teamId: routeTeamId, projectId: routeProjectId });
           const routeMode = route || preferredRoute || 'direct';
 
           // Generate brief markdown
@@ -1357,7 +1378,7 @@ async function executeTag(
       case 'assemble_brief': {
         const { assembleCardContext, findSkillMatches, generateBriefMarkdown, storeBrief } = await import('./brief-assembly');
 
-        const { cardId } = params;
+        const { cardId, teamId: briefTeamId, projectId: briefProjectId } = params;
         if (!cardId) {
           return { tag: name, success: false, error: 'assemble_brief requires cardId' };
         }
@@ -1384,7 +1405,7 @@ async function executeTag(
           if (desc.includes('sales') || desc.includes('pitch')) allTaskTypes.push('sales');
         }
 
-        const matches = await findSkillMatches(userId, allSkills, allTaskTypes);
+        const matches = await findSkillMatches(userId, allSkills, allTaskTypes, { teamId: briefTeamId, projectId: briefProjectId });
         const briefMd = generateBriefMarkdown(context, [], matches);
 
         const brief = await storeBrief({

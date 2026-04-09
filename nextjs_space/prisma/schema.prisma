@@ -47,6 +47,10 @@ model User {
   relaysReceived       AgentRelay[] @relation("RelaysReceived")
   profile              UserProfile?
   invitations          Invitation[]
+  teamsCreated         Team[]          @relation("TeamsCreated")
+  teamMemberships      TeamMember[]
+  projectsCreated      Project[]       @relation("ProjectsCreated")
+  projectMemberships   ProjectMember[]
 
   @@map("users")
 }
@@ -66,7 +70,10 @@ model KanbanCard {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
+  projectId   String?
+
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
   checklist   ChecklistItem[]
   contacts    CardContact[]
   documents   Document[]
@@ -74,6 +81,7 @@ model KanbanCard {
   commsMessages CommsMessage[]
   emailMessages EmailMessage[]
 
+  @@index([projectId])
   @@map("kanban_cards")
 }
 
@@ -102,10 +110,17 @@ model QueueItem {
   status      String   @default("ready")   // "ready" | "in_progress" | "done_today" | "blocked"
   source      String?  // "user" | "agent" | "system"
   userId      String?
+  projectId   String?
+  teamId      String?
   metadata    String?  // JSON string for flexible data
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  team        Team?    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([teamId])
   @@map("queue_items")
 }
 
@@ -587,6 +602,8 @@ model Connection {
   requester       User     @relation("ConnectionsRequested", fields: [requesterId], references: [id], onDelete: Cascade)
   accepter        User?    @relation("ConnectionsAccepted", fields: [accepterId], references: [id], onDelete: Cascade)
   relays          AgentRelay[]
+  teamMemberships TeamMember[]
+  projectMemberships ProjectMember[]
 
   @@unique([requesterId, accepterId])
   @@index([requesterId])
@@ -628,12 +645,18 @@ model AgentRelay {
   peerRelayId     String?   // The relay ID on the remote instance
   peerInstanceUrl String?   // Remote instance URL (for federated relays)
 
+  // Team/Project context
+  teamId          String?
+  projectId       String?
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   connection      Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   fromUser        User       @relation("RelaysSent", fields: [fromUserId], references: [id], onDelete: Cascade)
   toUser          User?      @relation("RelaysReceived", fields: [toUserId], references: [id], onDelete: Cascade)
+  team            Team?      @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  project         Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
 
   @@index([connectionId])
   @@index([fromUserId])
@@ -883,4 +906,94 @@ model FederationConfig {
   updatedAt       DateTime @updatedAt
 
   @@map("federation_config")
+}
+
+// ─── Teams ──────────────────────────────────────────────────────────────────
+// Persistent groups of users who work together across multiple projects.
+// Teams provide shared queue visibility, scoped broadcasts, and role-based trust.
+
+model Team {
+  id          String       @id @default(cuid())
+  name        String
+  description String?
+  avatar      String?      // Emoji or URL
+  isActive    Boolean      @default(true)
+  createdById String
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  createdBy   User         @relation("TeamsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  members     TeamMember[]
+  projects    Project[]
+  queueItems  QueueItem[]
+  relays      AgentRelay[]
+
+  @@index([createdById])
+  @@map("teams")
+}
+
+model TeamMember {
+  id           String      @id @default(cuid())
+  teamId       String
+  userId       String?     // Null if federated member (connected via connectionId)
+  connectionId String?     // For federated members — the connection linking them
+  role         String      @default("member") // "owner" | "admin" | "member"
+  joinedAt     DateTime    @default(now())
+
+  team         Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
+}
+
+// ─── Projects ────────────────────────────────────────────────────────────────
+// Scoped, goal-based collaborations. Can belong to a team or be independent.
+// Projects have shared queues, kanban lanes, and relay context.
+// When a project ends, the grouping dissolves but connections persist.
+
+model Project {
+  id          String          @id @default(cuid())
+  name        String
+  description String?
+  status      String          @default("active") // "active" | "paused" | "completed" | "archived"
+  teamId      String?         // Optional team ownership
+  createdById String
+  color       String?         // Accent color for UI
+  metadata    String?         // JSON for flexible data
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  createdBy   User            @relation("ProjectsCreated", fields: [createdById], references: [id], onDelete: Cascade)
+  team        Team?           @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  members     ProjectMember[]
+  kanbanCards KanbanCard[]
+  queueItems  QueueItem[]
+  relays      AgentRelay[]
+
+  @@index([teamId])
+  @@index([createdById])
+  @@index([status])
+  @@map("projects")
+}
+
+model ProjectMember {
+  id           String      @id @default(cuid())
+  projectId    String
+  userId       String?     // Null if federated member
+  connectionId String?     // For federated members — the connection linking them
+  role         String      @default("contributor") // "lead" | "contributor" | "reviewer" | "observer"
+  joinedAt     DateTime    @default(now())
+
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user         User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  connection   Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, userId])
+  @@index([projectId])
+  @@index([userId])
+  @@map("project_members")
 }
