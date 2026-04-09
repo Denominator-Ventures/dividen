@@ -17,6 +17,97 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'hardening-open-source-community',
+    date: '2026-04-09',
+    time: '4:00 PM',
+    title: 'Hardening the Protocol, Opening the Repo',
+    subtitle: 'Security fixes, performance optimization, production stability, and the first community-driven improvements to the open source setup.',
+    tags: ['security', 'performance', 'open-source', 'community'],
+    content: `This update is a collection of things that don't have flashy demos but matter more than anything we've shipped so far. It's the difference between a prototype and infrastructure people can depend on.
+
+And a big thank you to **Robert** — who pulled down the repo, ran through the full setup on his own machine, and sent back detailed notes on every friction point he hit. This is exactly how open source is supposed to work. You shipped code, someone used it, they told you what was broken, you fixed it. That loop is everything.
+
+## Security — Scoped Data Access
+
+A critical fix that should have shipped earlier: all \`/api/v2/queue\` endpoints now scope queries to the authenticated user's ID. Before this, any authenticated user could theoretically access another user's queue items by ID. The data was never exposed in the UI — but the API allowed it. That's not acceptable.
+
+Every query now includes \`userId\` in the WHERE clause. Same treatment applied across the v2 surface — contacts, kanban, docs. If you're authenticated as user A, you can only see user A's data. No exceptions.
+
+This is a foundational rule for the protocol: **your data lives in your instance, scoped to your identity.** Federation doesn't change that — federated connections see what you explicitly share via relays, briefs, and project context. They never get raw access to your tables.
+
+## Performance — Connection Pool and Query Optimization
+
+Two performance problems that were invisible at low traffic but would have been devastating at scale.
+
+**Connection pool exhaustion.** Several API routes were firing multiple database queries in parallel using \`Promise.all\`. On paper, that's faster. In practice, with a constrained connection pool, it's a denial-of-service against yourself. The \`/api/now\` endpoint — which fires every 2 minutes per active user — was opening 5 parallel connections. The search endpoint opened 8. Stack a few concurrent users and the pool is gone.
+
+Every parallel query batch has been converted to sequential awaits. The latency increase is negligible — we're talking single-digit milliseconds on queries that were already fast. The stability improvement is the difference between "works on my machine" and "works in production with real users."
+
+**System prompt query reduction.** The \`buildSystemPrompt()\` function was making ~25 individual database queries — one for each context layer. That's 25 round trips to Postgres every time someone sends a chat message. We consolidated these into batched fetches where possible, bringing it down to ~15 queries. Still room to improve, but the reduction is meaningful when chat is the primary interaction model.
+
+## Schema Management — Prisma Migrate
+
+We've switched from \`prisma db push\` to \`prisma migrate\`. This matters more than it sounds.
+
+\`db push\` is great for prototyping. It looks at your schema, looks at your database, and makes them match. But it does that by dropping and recreating things when it needs to — including your data. In development, that's fine. In production, with real user data, that's a catastrophe waiting to happen.
+
+\`prisma migrate\` generates versioned migration files. Each migration is a SQL diff that can be reviewed, tested, and rolled back. The migration history lives in the codebase and in the \`_prisma_migrations\` table in your database. You always know exactly what changed and when.
+
+We created a baseline migration from the current schema (1,145 lines of SQL), marked it as applied, and switched all documentation to use \`prisma migrate deploy\`. If you're running your own instance, this is the migration path going forward.
+
+## Open Source Setup — Community-Driven Fixes
+
+Robert's feedback was specific and actionable. Every issue he flagged has been fixed:
+
+**\`.yarnrc.yml\`** — Was hardcoded with Linux-specific paths (\`/opt/hostedapp/...\`) and cache settings that only work in our hosted environment. Stripped all of it. Now it's just \`nodeLinker: node-modules\`. Works on Mac, Windows, Linux.
+
+**\`.env.example\`** — Didn't exist. If you cloned the repo, you had no idea what environment variables were needed. Now there's a fully documented example file covering \`DATABASE_URL\`, \`NEXTAUTH_SECRET\`, \`ADMIN_PASSWORD\`, \`ABACUSAI_API_KEY\`, and optional notification IDs.
+
+**\`.nvmrc\`** — Added. Node 22. Consistent runtime versions across contributors.
+
+**\`.gitignore\`** — Updated with \`.env\` and \`.env.local\`. This was a security gap — environment files with database credentials and API keys should never be committed.
+
+**README** — Expanded significantly. Full prerequisites section, step-by-step setup for both Yarn and npm (\`npm install --legacy-peer-deps\` works fine), environment variable reference table, local database setup instructions (including a Docker one-liner), and a troubleshooting section for common issues.
+
+**npm support** — The project uses Yarn internally, but npm works too. Documented and tested.
+
+## MIT License
+
+Robert also pointed out — correctly — that we had no license file. GitHub's default copyright rules apply without one, but that's ambiguous and not how open source should work.
+
+We've added an **MIT License** (Copyright 2024-2026 Denominator Ventures). MIT because the protocol should be as forkable and composable as possible. If you want to build on DiviDen — extend it, embed it, run it as infrastructure for your own product — you can. Attribution required, liability disclaimed, everything else is fair game.
+
+## Landing Page and Social Sharing
+
+The public landing page got a refresh — updated branding, cleaner navigation, and proper Open Graph metadata so link previews actually look right when shared on LinkedIn, Twitter, or in group chats. The messaging now leads with the protocol, not the product.
+
+## Cockpit Banners — Contextual Notifications
+
+A new notification system surfaces contextual banners in the dashboard based on triggers you define. Meeting starting in 5 minutes? A warning banner slides in. Goal deadline approaching? You'll see it. These are rule-based — you set the event type, conditions, message template, and style in your notification preferences.
+
+The default setup includes a "Meeting Starting Soon" rule that fires 5 minutes before any calendar event. It's a small thing, but it's the kind of ambient awareness that compounds — you stop checking your calendar because Divi already told you.
+
+## Invitation Deep Linking
+
+Connection invitations now support full deep linking. When you invite someone to connect, they get an email with a link that includes an invite token. If they don't have an account, the setup page pre-fills their name and email from the invitation, shows who invited them and their personal message, and after signup automatically accepts the invite and creates the connection. If they already have an account, the login page does the same — sign in and the invite is accepted in the background.
+
+No more "I got an invite email, signed up, and then couldn't find the connection." The flow is seamless from email to connected.
+
+## For Open Source Builders
+
+**Security**: If you've forked DiviDen and added custom API routes, audit them for userId scoping. Every query that touches user-owned data should include \`userId\` in the WHERE clause. We missed this in the v2 endpoints and it's now fixed — learn from our mistake.
+
+**Performance**: If you're running \`Promise.all\` with multiple Prisma queries, convert to sequential awaits unless you've verified your connection pool can handle the concurrency. Our pool limit is 10 connections — yours may be different, but the principle holds.
+
+**Migrations**: Pull the latest and run \`npx prisma migrate deploy\`. The baseline migration will be marked as already applied if your schema is current. All future schema changes will come as versioned migrations.
+
+**Setup**: The README is now your source of truth for getting a local instance running. Docker + Postgres + \`prisma migrate deploy\` + \`prisma db seed\` and you're up.
+
+Thank you again to Robert for testing the setup flow. If you're running your own instance and hit issues, open a GitHub issue or reach out directly. The protocol gets better when people use it and tell us what's broken.
+
+— Jon`
+  },
+  {
     id: 'goals-now-engine-prompt-consolidation',
     date: '2026-04-09',
     time: '1:30 AM',
