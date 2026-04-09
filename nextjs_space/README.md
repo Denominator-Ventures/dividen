@@ -138,27 +138,56 @@ DiviDen is built on these realities. The protocol defines *how* agents coordinat
 
 ## Getting Started
 
-### Run the Reference Frontend
+### Prerequisites
+- **Node.js** ≥ 18 (22 recommended — see `.nvmrc`)
+- **PostgreSQL** — local instance or any hosted Postgres (Supabase, Neon, Railway, etc.)
+- **Yarn** or **npm** — either works
+
+### Setup
+
 ```bash
-# Clone and install
+# Clone
 git clone https://github.com/Denominator-Ventures/dividen.git
 cd dividen/nextjs_space
-yarn install
+
+# Install dependencies (pick one)
+yarn install          # if you use Yarn
+npm install           # if you use npm (works fine)
 
 # Set up environment
 cp .env.example .env
-# Configure your database URL and API keys
+# Edit .env — at minimum, set DATABASE_URL to your Postgres instance:
+#   DATABASE_URL=postgresql://user:password@localhost:5432/dividen
 
-# Initialize database
-yarn prisma generate
-yarn prisma migrate deploy
+# Generate Prisma client
+npx prisma generate
 
-# Seed default data
-yarn ts-node scripts/seed.ts
+# Create database tables
+npx prisma migrate deploy
+
+# Seed default data (creates test users)
+npx tsx scripts/seed.ts
 
 # Run
-yarn dev
+npm run dev   # or: yarn dev
 ```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | ✅ | PostgreSQL connection string |
+| `NEXTAUTH_SECRET` | ✅ | Session encryption key (`openssl rand -base64 32`) |
+| `ADMIN_PASSWORD` | ✅ | Password for the `/admin` dashboard |
+| `ABACUSAI_API_KEY` | ❌ | For AI features (users can also bring their own OpenAI/Anthropic keys in Settings) |
+
+See `.env.example` for the full template.
+
+### Troubleshooting
+
+- **Yarn config errors**: If you see `.yarnrc.yml` issues, you can safely delete it and use npm instead. The project works with both package managers.
+- **`prisma db push` vs `prisma migrate deploy`**: We use **migrations** (not `db push`). Run `npx prisma migrate deploy` to set up your database.
+- **Connection errors**: Make sure your `DATABASE_URL` points to a database you can actually reach. The `.env.example` has a localhost template — replace it with your own Postgres connection string.
 
 ### Build Your Own Frontend
 The protocol is the API. Key endpoints:

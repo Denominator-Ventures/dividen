@@ -3,6 +3,8 @@
 .cache
 .build
 *.nfs*
+.env
+.env.local
 **/.yarn/
 !**/.yarn/patches
 !**/.yarn/plugins
