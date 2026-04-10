@@ -70,14 +70,24 @@ export async function authenticateAgent(
   requiredPermission?: string
 ): Promise<AgentContext | NextResponse> {
   // Extract Bearer token
+  // Derive base URL for RFC 9728 resource_metadata pointer
+  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'dividen.ai';
+  const proto = request.headers.get('x-forwarded-proto') || 'https';
+  const resourceMetadataUrl = `${proto}://${host}/.well-known/oauth-protected-resource`;
+  const wwwAuthHeader = `Bearer resource_metadata="${resourceMetadataUrl}"`;
+
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return jsonError('Missing or invalid Authorization header. Expected: Bearer <api_key>', 401);
+    return jsonError('Missing or invalid Authorization header. Expected: Bearer <api_key>', 401, {
+      'WWW-Authenticate': wwwAuthHeader,
+    });
   }
 
   const token = authHeader.slice(7).trim();
   if (!token) {
-    return jsonError('Empty API key', 401);
+    return jsonError('Empty API key', 401, {
+      'WWW-Authenticate': wwwAuthHeader,
+    });
   }
 
   // Look up the key
@@ -87,7 +97,9 @@ export async function authenticateAgent(
   });
 
   if (!apiKey) {
-    return jsonError('Invalid API key', 401);
+    return jsonError('Invalid API key', 401, {
+      'WWW-Authenticate': wwwAuthHeader,
+    });
   }
 
   if (!apiKey.isActive) {
