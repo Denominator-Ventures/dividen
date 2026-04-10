@@ -1055,6 +1055,11 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 - [[create_goal:{"title":"...","timeframe":"week|month|quarter|year","impact":"low|medium|high|critical","deadline":"YYYY-MM-DD","description":"..."}]]
 - [[update_goal:{"id":"goal_id","progress":0-100,"status":"active|paused|completed|abandoned","title":"..."}]]
 
+### Network Job Board
+Post tasks to the network or find matching work. The job board is DiviDen's marketplace layer.
+- [[post_job:{"title":"Research market sizing for AI agents","description":"Need detailed TAM/SAM/SOM analysis...","taskType":"research","urgency":"medium","compensation":"$500","requiredSkills":"market research, data analysis","estimatedHours":"8"}]]
+- [[find_jobs:{}]] — Find jobs matching this operator's profile skills and availability. **Proactively surface matches when relevant.** If the operator mentions needing help or looking for work, check the job board.
+
 ### Documents & Comms
 - [[create_document:{"title":"...","content":"markdown","type":"note|report|template|meeting_notes"}]]
 - [[send_comms:{"content":"...","priority":"urgent|normal|low"}]]

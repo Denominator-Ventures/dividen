@@ -66,6 +66,9 @@ export const SUPPORTED_TAGS = [
   // ── Goal Actions ──
   'create_goal',       // create a new goal
   'update_goal',       // update goal progress/status/details
+  // ── Job Board Actions ──
+  'post_job',          // post a task to the network job board
+  'find_jobs',         // find matching jobs for this user's profile
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -1509,6 +1512,45 @@ async function executeTag(
 
         const updatedGoal = await prisma.goal.update({ where: { id: goalId }, data: goalUpdates });
         return { tag: name, success: true, data: { goalId: updatedGoal.id, title: updatedGoal.title, status: updatedGoal.status, progress: updatedGoal.progress } };
+      }
+
+      // ── Job Board Actions ──
+      case 'post_job': {
+        const { title: jobTitle, description: jobDesc, taskType, urgency, compensation, requiredSkills, estimatedHours } = params;
+        if (!jobTitle) return { tag: name, success: false, error: 'post_job requires title' };
+
+        const newJob = await prisma.networkJob.create({
+          data: {
+            title: jobTitle,
+            description: jobDesc || jobTitle,
+            taskType: taskType || 'custom',
+            urgency: urgency || 'medium',
+            compensation: compensation || null,
+            requiredSkills: requiredSkills ? JSON.stringify(Array.isArray(requiredSkills) ? requiredSkills : requiredSkills.split(',').map((s: string) => s.trim())) : null,
+            estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
+            visibility: 'network',
+            posterId: userId,
+          },
+        });
+        return { tag: name, success: true, data: { jobId: newJob.id, title: newJob.title, status: newJob.status, message: 'Job posted to the network job board' } };
+      }
+
+      case 'find_jobs': {
+        const { findMatchingJobsForUser } = await import('@/lib/job-matcher');
+        const jobMatches = await findMatchingJobsForUser(userId, 5);
+        if (jobMatches.length === 0) {
+          return { tag: name, success: true, data: { matches: [], message: 'No matching jobs found on the network right now. Check back later or update your profile skills.' } };
+        }
+        // Fetch job details for the matches
+        const matchedJobs = await prisma.networkJob.findMany({
+          where: { id: { in: jobMatches.map(m => m.jobId) } },
+          select: { id: true, title: true, description: true, taskType: true, urgency: true, compensation: true, estimatedHours: true },
+        });
+        const results = jobMatches.map(m => {
+          const job = matchedJobs.find(j => j.id === m.jobId);
+          return { ...m, job };
+        });
+        return { tag: name, success: true, data: { matches: results, message: `Found ${results.length} matching jobs on the network` } };
       }
 
       default:

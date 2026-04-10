@@ -45,6 +45,10 @@ model User {
   connectionsAccepted  Connection[] @relation("ConnectionsAccepted")
   relaysSent           AgentRelay[] @relation("RelaysSent")
   relaysReceived       AgentRelay[] @relation("RelaysReceived")
+  jobsPosted           NetworkJob[] @relation("JobsPosted")
+  jobsAssigned         NetworkJob[] @relation("JobsAssigned")
+  jobApplications      JobApplication[] @relation("JobApplications")
+  reputationScores     ReputationScore[] @relation("ReputationScores")
   profile              UserProfile?
   invitations          Invitation[]
   teamsCreated         Team[]          @relation("TeamsCreated")
@@ -1081,6 +1085,118 @@ model AgentExtension {
   @@index([scope, scopeId])
   @@index([isActive])
   @@map("agent_extensions")
+}
+
+// ─── DEP-013: Network Job Board ─────────────────────────────────────────────
+
+model NetworkJob {
+  id              String    @id @default(cuid())
+  title           String
+  description     String    @db.Text
+  requirements    String?   @db.Text   // JSON array: skills/experience needed
+  taskType        String    @default("custom") // matches UserProfile.taskTypes values
+  urgency         String    @default("medium") // "low" | "medium" | "high" | "critical"
+  status          String    @default("open")   // "open" | "in_progress" | "completed" | "cancelled" | "expired"
+  compensation    String?   // freeform: "equity swap", "$500", "mutual exchange", "volunteer"
+  estimatedHours  Float?    // estimated time commitment
+  deadline        DateTime? // when the task needs to be done by
+  
+  // Poster info
+  posterId        String
+  poster          User      @relation("JobsPosted", fields: [posterId], references: [id], onDelete: Cascade)
+  
+  // Assignment
+  assigneeId      String?
+  assignee        User?     @relation("JobsAssigned", fields: [assigneeId], references: [id], onDelete: SetNull)
+  
+  // Matching metadata
+  requiredSkills  String?   @db.Text  // JSON array: ["python", "negotiation"]
+  preferredSkills String?   @db.Text  // JSON array: nice-to-haves
+  
+  // Visibility
+  visibility      String    @default("network") // "network" (all instances) | "instance" (local only) | "connections" (poster's connections)
+  
+  // Results
+  completionNote  String?   @db.Text
+  
+  applications    JobApplication[]
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  expiresAt       DateTime? // auto-expire
+
+  @@index([posterId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([taskType])
+  @@index([urgency])
+  @@index([createdAt])
+  @@map("network_jobs")
+}
+
+model JobApplication {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         NetworkJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applicantId String
+  applicant   User     @relation("JobApplications", fields: [applicantId], references: [id], onDelete: Cascade)
+  status      String   @default("pending") // "pending" | "accepted" | "rejected" | "withdrawn"
+  coverNote   String?  @db.Text  // why this person is a fit
+  matchScore  Float?   // 0-1 computed match score
+  matchReason String?  @db.Text  // why the match engine suggested this
+  source      String   @default("manual") // "manual" | "agent_match" | "self_apply"
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([jobId, applicantId])
+  @@index([jobId])
+  @@index([applicantId])
+  @@index([status])
+  @@map("job_applications")
+}
+
+model ReputationScore {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("ReputationScores", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Score components
+  jobsCompleted    Int      @default(0)
+  jobsPosted       Int      @default(0)
+  avgRating        Float    @default(0)  // 0-5 star average
+  totalRatings     Int      @default(0)
+  onTimeRate       Float    @default(1)  // 0-1 percentage of on-time completions
+  responseRate     Float    @default(1)  // 0-1 percentage of applications responded to
+  
+  // Composite
+  score            Float    @default(0)  // 0-100 computed reputation score
+  level            String   @default("new") // "new" | "rising" | "established" | "trusted" | "exemplary"
+  
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId])
+  @@index([score])
+  @@index([level])
+  @@map("reputation_scores")
+}
+
+model JobReview {
+  id          String   @id @default(cuid())
+  jobId       String
+  reviewerId  String   // the person leaving the review
+  revieweeId  String   // the person being reviewed
+  rating      Float    // 1-5
+  comment     String?  @db.Text
+  type        String   // "poster_to_worker" | "worker_to_poster"
+  
+  createdAt   DateTime @default(now())
+
+  @@unique([jobId, reviewerId])
+  @@index([revieweeId])
+  @@index([rating])
+  @@map("job_reviews")
 }
 
 // ─── Telemetry ──────────────────────────────────────────────────────────────

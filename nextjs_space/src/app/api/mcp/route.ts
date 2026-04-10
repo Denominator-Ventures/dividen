@@ -104,6 +104,44 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: 'job_post',
+    description: 'Post a new task to the DiviDen network job board. Jobs are matched against agent profiles across the network — the more specific the skills and task type, the better the matching. This is the coordination marketplace layer of DiviDen.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Task title' },
+        description: { type: 'string', description: 'Detailed task description, deliverables, and context' },
+        taskType: { type: 'string', enum: ['research', 'review', 'introductions', 'technical', 'creative', 'strategy', 'operations', 'mentoring', 'sales', 'legal', 'finance', 'hr', 'translation', 'custom'] },
+        urgency: { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
+        compensation: { type: 'string', description: 'Compensation terms (e.g. "$500", "equity swap", "mutual exchange")' },
+        requiredSkills: { type: 'array', items: { type: 'string' }, description: 'Required skills for this task' },
+        estimatedHours: { type: 'number', description: 'Estimated hours to complete' },
+      },
+      required: ['title', 'description'],
+    },
+  },
+  {
+    name: 'job_browse',
+    description: 'Browse open jobs on the network job board. Use this to find work that matches the operator\'s skills and availability. Returns jobs sorted by urgency.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskType: { type: 'string', description: 'Filter by task type' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+    },
+  },
+  {
+    name: 'job_match',
+    description: 'Find jobs on the network that match this operator\'s profile. Uses skill overlap, task type alignment, availability, and reputation to score matches. Proactively surface high-scoring matches to your operator.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'reputation_get',
+    description: 'Get the operator\'s network reputation score. Reputation is built by completing jobs, earning reviews, and responding to applications. Higher reputation means better matches and more trust from the network.',
+    inputSchema: { type: 'object', properties: {} },
+  },
 ];
 
 // ── Tool Execution ──
@@ -224,6 +262,47 @@ async function executeTool(toolName: string, args: any, userId: string) {
         select: { sender: true, content: true, createdAt: true },
       });
       return comms.map(c => ({ sender: c.sender, content: c.content?.substring(0, 200), time: c.createdAt }));
+    }
+
+    case 'job_post': {
+      const job = await prisma.networkJob.create({
+        data: {
+          title: args.title,
+          description: args.description,
+          taskType: args.taskType || 'custom',
+          urgency: args.urgency || 'medium',
+          compensation: args.compensation || null,
+          requiredSkills: args.requiredSkills ? JSON.stringify(args.requiredSkills) : null,
+          estimatedHours: args.estimatedHours || null,
+          visibility: 'network',
+          posterId: userId,
+        },
+      });
+      return { id: job.id, title: job.title, status: job.status, message: 'Job posted to network' };
+    }
+
+    case 'job_browse': {
+      const where: any = { status: 'open', posterId: { not: userId } };
+      if (args.taskType) where.taskType = args.taskType;
+      const jobs = await prisma.networkJob.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: Math.min(args.limit || 20, 50),
+        select: { id: true, title: true, description: true, taskType: true, urgency: true, compensation: true, estimatedHours: true, requiredSkills: true, createdAt: true },
+      });
+      return jobs;
+    }
+
+    case 'job_match': {
+      const { findMatchingJobsForUser } = await import('@/lib/job-matcher');
+      const matches = await findMatchingJobsForUser(userId, 10);
+      return matches;
+    }
+
+    case 'reputation_get': {
+      const { recomputeReputation } = await import('@/lib/job-matcher');
+      const rep = await recomputeReputation(userId);
+      return rep;
     }
 
     default:

@@ -127,6 +127,7 @@ export async function GET(req: NextRequest) {
       network: {
         context: 'This operator is part of the DiviDen coordination network. Tasks may involve cross-agent relays with connected agents on other DiviDen instances.',
         protocols: ['A2A (/.well-known/agent-card.json)', 'MCP (/api/mcp)'],
+        job_board: 'Check /api/jobs/match for tasks on the network that match this operator\'s skills. Proactively surface high-scoring matches. For tasks with no clear assignee, consider posting to the job board at /api/jobs.',
         ecosystem_note: 'If coordination with external agents would benefit this operator, suggest establishing a DiviDen connection. The network grows stronger with each node.',
       },
     };
