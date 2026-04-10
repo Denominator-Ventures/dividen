@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Providers } from './providers';
+import { ServiceWorkerRegistration } from '@/components/ServiceWorkerRegistration';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,14 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
   icons: {
     icon: '/favicon.svg',
-    shortcut: '/favicon.svg',
+    shortcut: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
+  },
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'DiviDen',
   },
   openGraph: {
     title: 'DiviDen — The Last Interface You\'ll Ever Need',
@@ -56,10 +64,12 @@ export default function RootLayout({
           href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700&family=JetBrains+Mono:ital,wght@0,400;0,500&family=Space+Grotesk:wght@400;500;600;700&display=swap"
           rel="stylesheet"
         />
+        <meta name="theme-color" content="#0a0a0a" />
         <script src="https://apps.abacus.ai/chatllm/appllm-lib.js"></script>
       </head>
       <body className="min-h-screen" suppressHydrationWarning>
         <Providers>{children}</Providers>
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
