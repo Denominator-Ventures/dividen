@@ -67,7 +67,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#0a0a0a" />
         <script src="https://apps.abacus.ai/chatllm/appllm-lib.js"></script>
       </head>
-      <body className="min-h-screen" suppressHydrationWarning>
+      <body className="min-h-full" suppressHydrationWarning>
         <Providers>{children}</Providers>
         <ServiceWorkerRegistration />
       </body>

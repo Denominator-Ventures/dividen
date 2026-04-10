@@ -191,7 +191,7 @@ export function ChatView() {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]">
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[var(--text-secondary)]">
             AI Chat
@@ -325,7 +325,7 @@ export function ChatView() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-[var(--border-color)] p-3 md:p-4">
+      <div className="flex-shrink-0 border-t border-[var(--border-color)] p-3 md:p-4">
         <div className="flex gap-2">
           <input
             ref={inputRef}

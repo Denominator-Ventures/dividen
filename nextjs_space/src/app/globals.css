@@ -119,6 +119,20 @@
 /* ── Mobile Utilities ──────────────────────────────────────── */
 
 /* Safe area padding for iOS notch/home indicator */
+/* PWA standalone: lock viewport to prevent bounce/overscroll on dashboard */
+@media (display-mode: standalone) {
+  html {
+    height: 100dvh;
+    height: -webkit-fill-available;
+    overscroll-behavior: none;
+  }
+  body {
+    height: 100dvh;
+    height: -webkit-fill-available;
+    overscroll-behavior: none;
+  }
+}
+
 .safe-bottom {
   padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
 }
