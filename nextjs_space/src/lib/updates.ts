@@ -17,6 +17,61 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'pwa-smithery-install-desktop',
+    date: '2026-04-10',
+    time: '4:30 PM',
+    title: 'Install DiviDen on Your Desktop — Plus: Our First MCP Registry Submission',
+    subtitle: 'DiviDen is now a Progressive Web App. Install it like a native app from your browser. And we took our first shot at getting listed on Smithery.',
+    tags: ['pwa', 'desktop', 'mcp', 'smithery', 'distribution'],
+    content: `Two things shipped today. One is a feature. The other is a lesson.
+
+## DiviDen Is Now Installable
+
+Open dividen.ai in Chrome or Edge. Look at the address bar — you'll see a small install icon (⊕). Click it. DiviDen opens as a standalone desktop window. No browser chrome. No tabs. Just the command center.
+
+This is a **Progressive Web App (PWA)** — the same technology that powers Twitter's desktop app, Figma, and Notion's desktop mode. It's not an Electron wrapper. It's not a download. It's the same web app, running in its own window, with its own icon in your dock or taskbar.
+
+## What It Means
+
+- **One-click install** from the browser — no app store, no download page, no update cycle
+- **Standalone window** — full screen real estate, no URL bar, no tabs, looks and feels native
+- **Offline-capable** — the service worker caches your app shell so it loads instantly, even on spotty connections
+- **Auto-updates** — every time you open it, the service worker checks for changes in the background
+- **Works on macOS, Windows, Linux, ChromeOS** — anywhere Chrome or Edge runs
+
+You'll find the **"📥 Install Desktop"** button in the sidebar and in Settings. If you're already running in standalone mode, the button hides itself — it knows you're home.
+
+## Under the Hood
+
+- \`manifest.json\` with app name, icons, standalone display, start URL → \`/dashboard\`
+- PWA icons at 192×192 and 512×512 (generated from the DiviDen hex logo)
+- Apple touch icon for iOS home screen
+- Service worker (\`sw.js\`) with stale-while-revalidate for static assets, network-first for pages, API routes always fresh
+- \`ServiceWorkerRegistration\` component handles registration on load
+
+## Smithery: Our First Registry Submission
+
+We also made our first attempt at listing DiviDen on **[Smithery](https://smithery.ai)** — the MCP server registry. This is part of the distribution play: get DiviDen's tools discoverable where developers are already looking.
+
+The submission hit some friction. Smithery's CLI does an OAuth discovery flow before it reads the server card:
+
+1. POST to \`/api/mcp\` → gets 401 (expected)
+2. Checks \`.well-known/oauth-protected-resource\` → if it returns 200 with an empty \`authorization_servers\` array, Smithery interprets that as "broken OAuth" and errors out
+3. Only if that endpoint returns **404** does it cleanly fall back to the server card at \`.well-known/mcp/server-card.json\`
+
+Our first fix returned 200 with an empty array — wrong move. Smithery flagged it as a broken OAuth configuration. Second fix: return 404 from the OAuth discovery endpoint, which tells Smithery "no OAuth here, move on." That unblocked the server card read.
+
+The server card itself lists all 13 DiviDen MCP tools — from \`send_relay\` to \`post_network_job\` to \`manage_calendar\`. Full tool descriptions, input schemas, the works.
+
+**Current status**: The OAuth fix is deployed. The Smithery listing needs to be re-published as \`jon-81d7/dividen\`. We also have submission kits ready for four other registries: MCP Registry (GitHub), Glama, PulseMCP, and mcp.so.
+
+## Why This Matters
+
+Distribution is the game. Building the protocol is necessary but not sufficient — you have to be where the tools are discovered. PWA gets us on desktops without an app store. MCP registries get us in front of every developer building AI agents. Both are zero-cost distribution channels with compounding returns.
+
+The install button is live. The registry submissions are queued. The protocol is the product.`,
+  },
+  {
     id: 'dep-013-network-job-board',
     date: '2026-04-10',
     time: '12:00 AM',

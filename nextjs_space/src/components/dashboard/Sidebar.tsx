@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { cn } from '@/lib/utils';
+import { InstallDesktopButton } from '@/components/InstallDesktopButton';
 
 interface SidebarProps {
   user: {
@@ -50,6 +51,13 @@ export function Sidebar({ user }: SidebarProps) {
           </Link>
         ))}
       </nav>
+
+      {/* Install Desktop */}
+      <div className="px-2 pb-1">
+        <InstallDesktopButton
+          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-[var(--text-secondary)] hover:text-brand-400 hover:bg-[var(--bg-surface)] w-full text-left"
+        />
+      </div>
 
       {/* User */}
       <div className="p-3 border-t border-[var(--border-color)]">

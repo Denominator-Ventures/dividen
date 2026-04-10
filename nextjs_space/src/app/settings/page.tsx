@@ -8,6 +8,7 @@ import { ExternalKeyManager } from '@/components/settings/ExternalKeyManager';
 import { WebhookManager } from '@/components/settings/WebhookManager';
 import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager';
 import { IntegrationManager } from '@/components/settings/IntegrationManager';
+import { InstallDesktopButton } from '@/components/InstallDesktopButton';
 import { NotificationManager } from '@/components/settings/NotificationManager';
 import { FederationManager } from '@/components/settings/FederationManager';
 import ProfileEditor from '@/components/settings/ProfileEditor';
@@ -584,6 +585,8 @@ export default function SettingsPage() {
             <a href="/docs/integrations" className="hover:text-brand-400 transition-colors">
               Docs
             </a>
+            <span>·</span>
+            <InstallDesktopButton className="hover:text-brand-400 transition-colors" />
           </div>
         </div>
       </div>
