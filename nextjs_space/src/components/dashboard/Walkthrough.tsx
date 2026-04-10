@@ -146,6 +146,17 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
     return () => clearTimeout(timer);
   }, [currentStep]);
 
+  // Keyboard navigation: Escape to skip, Enter/Right to next, Left to prev
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') handleSkip();
+      else if (e.key === 'ArrowRight' || e.key === 'Enter') handleNext();
+      else if (e.key === 'ArrowLeft') handlePrev();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
+
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {
       setCurrentStep(currentStep + 1);
@@ -166,9 +177,12 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
 
   if (!step || !targetRect) return null;
 
-  // Calculate tooltip position
+  // Calculate tooltip position — always clamped to viewport
   const PADDING = isMobile ? 8 : 12;
   const TOOLTIP_GAP = isMobile ? 12 : 16;
+  const TOOLTIP_HEIGHT_ESTIMATE = 200; // approximate tooltip height
+  const TOOLTIP_MAX_W = 360;
+
   const getTooltipStyle = (): React.CSSProperties => {
     const base: React.CSSProperties = {
       position: 'fixed',
@@ -176,48 +190,88 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
       transition: 'all 0.3s ease',
     };
 
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
     // On mobile: always position below or above, full width with margins
     if (isMobile) {
-      const spaceBelow = window.innerHeight - targetRect.bottom;
+      const spaceBelow = vh - targetRect.bottom;
       const spaceAbove = targetRect.top;
-      if (spaceBelow > 200 || spaceBelow > spaceAbove) {
-        return { ...base, top: targetRect.bottom + TOOLTIP_GAP, left: 12, right: 12 };
+      if (spaceBelow > TOOLTIP_HEIGHT_ESTIMATE || spaceBelow > spaceAbove) {
+        return { ...base, top: Math.min(targetRect.bottom + TOOLTIP_GAP, vh - TOOLTIP_HEIGHT_ESTIMATE - 16), left: 12, right: 12 };
       }
-      return { ...base, bottom: window.innerHeight - targetRect.top + TOOLTIP_GAP, left: 12, right: 12 };
+      return { ...base, bottom: Math.min(vh - targetRect.top + TOOLTIP_GAP, vh - 16), left: 12, right: 12 };
     }
 
-    // Desktop: position based on step config
-    switch (step.position) {
+    // Desktop: try step config position, but fall back if off-screen
+    const spaceBelow = vh - targetRect.bottom;
+    const spaceAbove = targetRect.top;
+    const spaceRight = vw - targetRect.right;
+    const spaceLeft = targetRect.left;
+
+    // Determine best position: prefer configured, fall back to where there's room
+    let pos = step.position;
+    if (pos === 'bottom' && spaceBelow < TOOLTIP_HEIGHT_ESTIMATE) {
+      pos = spaceAbove > spaceBelow ? 'top' : 'bottom';
+    }
+    if (pos === 'top' && spaceAbove < TOOLTIP_HEIGHT_ESTIMATE) {
+      pos = spaceBelow > spaceAbove ? 'bottom' : 'top';
+    }
+    if (pos === 'right' && spaceRight < TOOLTIP_MAX_W + TOOLTIP_GAP) {
+      pos = spaceLeft > spaceRight ? 'left' : 'right';
+    }
+    if (pos === 'left' && spaceLeft < TOOLTIP_MAX_W + TOOLTIP_GAP) {
+      pos = spaceRight > spaceLeft ? 'right' : 'left';
+    }
+
+    // Clamp horizontal left so tooltip never overflows right edge
+    const clampLeft = (left: number) => Math.max(16, Math.min(left, vw - TOOLTIP_MAX_W - 16));
+    // Clamp vertical top so tooltip never overflows bottom edge
+    const clampTop = (top: number) => Math.max(16, Math.min(top, vh - TOOLTIP_HEIGHT_ESTIMATE - 16));
+
+    // For large target elements (e.g., center-panel filling the whole viewport),
+    // anchor to the center of the visible portion instead of the edge
+    const centerY = Math.max(80, Math.min(targetRect.top + targetRect.height / 2, vh - 80));
+    const centerX = Math.max(80, Math.min(targetRect.left + targetRect.width / 2, vw - 80));
+
+    switch (pos) {
       case 'bottom':
         return {
           ...base,
-          maxWidth: 360,
-          top: targetRect.bottom + TOOLTIP_GAP,
-          left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 376)),
+          maxWidth: TOOLTIP_MAX_W,
+          top: clampTop(targetRect.bottom + TOOLTIP_GAP),
+          left: clampLeft(targetRect.left),
         };
       case 'top':
         return {
           ...base,
-          maxWidth: 360,
-          bottom: window.innerHeight - targetRect.top + TOOLTIP_GAP,
-          left: Math.max(16, Math.min(targetRect.left, window.innerWidth - 376)),
+          maxWidth: TOOLTIP_MAX_W,
+          bottom: Math.max(16, vh - targetRect.top + TOOLTIP_GAP),
+          left: clampLeft(targetRect.left),
         };
       case 'right':
         return {
           ...base,
-          maxWidth: 360,
-          top: targetRect.top,
-          left: targetRect.right + TOOLTIP_GAP,
+          maxWidth: TOOLTIP_MAX_W,
+          top: clampTop(centerY - TOOLTIP_HEIGHT_ESTIMATE / 2),
+          left: Math.min(targetRect.right + TOOLTIP_GAP, vw - TOOLTIP_MAX_W - 16),
         };
       case 'left':
         return {
           ...base,
-          maxWidth: 360,
-          top: targetRect.top,
-          right: window.innerWidth - targetRect.left + TOOLTIP_GAP,
+          maxWidth: TOOLTIP_MAX_W,
+          top: clampTop(centerY - TOOLTIP_HEIGHT_ESTIMATE / 2),
+          right: Math.max(16, vw - targetRect.left + TOOLTIP_GAP),
         };
       default:
-        return base;
+        // Absolute fallback: center of screen
+        return {
+          ...base,
+          maxWidth: TOOLTIP_MAX_W,
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+        };
     }
   };
 
@@ -256,8 +310,8 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
           height="100%"
           fill="rgba(0, 0, 0, 0.75)"
           mask="url(#walkthrough-mask)"
-          style={{ pointerEvents: 'auto' }}
-          onClick={(e) => e.stopPropagation()}
+          style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+          onClick={handleNext}
         />
       </svg>
 
@@ -302,6 +356,9 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed mb-4">
           {step.description}
         </p>
+
+        {/* Tap hint */}
+        <p className="text-[10px] text-[var(--text-muted)] mb-3 italic">Tap anywhere or press → to continue</p>
 
         {/* Progress dots + navigation */}
         <div className="flex items-center justify-between">
