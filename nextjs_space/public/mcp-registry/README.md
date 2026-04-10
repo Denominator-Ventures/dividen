@@ -46,7 +46,7 @@ DiviDen is an open-source (MIT) Human-AI Command Center. Each instance is a node
 ```bash
 npm install -g @smithery/cli@latest
 smithery auth login
-smithery mcp publish "https://dividen.ai/api/mcp" -n denominator-ventures/dividen
+smithery mcp publish "https://dividen.ai/api/mcp" -n jon-81d7/dividen
 ```
 
 Then visit dashboard to add tags: `coordination`, `agents`, `task-management`, `job-board`, `a2a`, `open-source`
