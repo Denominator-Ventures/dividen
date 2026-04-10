@@ -21,11 +21,11 @@ export const UPDATES: Update[] = [
     date: '2026-04-09',
     time: '5:30 PM',
     title: '12 Extension Proposals, One Session — The FVP Contribution',
-    subtitle: 'Alvaro and the Fractional Venture Partners team submitted a complete DEP package. All 12 proposals are now implemented. DiviDen can now run with an external execution agent.',
+    subtitle: 'Alvaro and the [Fractional Venture Partners](https://fractionalventure.partners) team submitted a complete DEP package. All 12 proposals are now implemented. DiviDen can now run with an external execution agent.',
     tags: ['federation', 'agent-protocol', 'open-source', 'community', 'dep'],
     content: `This is the update I've been most excited to write. Not because of the feature count — though it's significant — but because of what it represents. Someone outside our core team read the protocol, understood the architecture, and came back with a coherent package of 12 extension proposals that fit together like a system design doc.
 
-**Thank you to Alvaro and the entire Fractional Venture Partners team.** You didn't just suggest features — you submitted structured DEPs (DiviDen Extension Proposals) with specs, integration points, and dependency graphs. This is the kind of contribution that makes an open-source protocol real. You saw what DiviDen could be and drew the map to get there.
+**Thank you to Alvaro and the entire [Fractional Venture Partners](https://fractionalventure.partners) team.** You didn't just suggest features — you submitted structured DEPs (DiviDen Extension Proposals) with specs, integration points, and dependency graphs. This is the kind of contribution that makes an open-source protocol real. You saw what DiviDen could be and drew the map to get there.
 
 ## What Are DEPs?
 
@@ -43,7 +43,7 @@ External agents now have a formal way to connect. \`POST /api/main-connect\` run
 
 There's a matching \`POST /api/main-disconnect\` for graceful teardown — cancels in-flight relays, deactivates the instance, and logs the disconnection.
 
-This is how mAIn (the FVP execution agent) connects to DiviDen. But it's not FVP-specific — any agent that speaks the protocol can use the same ceremony.
+This is how [mAIn](https://fractionalventure.partners) (the FVP execution agent) connects to DiviDen. But it's not FVP-specific — any agent that speaks the protocol can use the same ceremony.
 
 ## The Relay↔Queue Bridge (DEP-003)
 
@@ -71,7 +71,7 @@ Integrated into the mode toggle: when auto-dispatch fires in CoS mode, you'll se
 
 ## MCP Server (DEP-010)
 
-DiviDen now exposes a Model Context Protocol endpoint at \`/api/mcp\`. This means any MCP-compatible client can discover and invoke DiviDen tools — queue management, relay sending, calendar access — through a standardized interface. \`tools/list\` returns available tools, \`tools/call\` executes them.
+DiviDen now exposes a [Model Context Protocol](https://modelcontextprotocol.io/) endpoint at \`/api/mcp\`. This means any MCP-compatible client can discover and invoke DiviDen tools — queue management, relay sending, calendar access — through a standardized interface. \`tools/list\` returns available tools, \`tools/call\` executes them.
 
 ## Operational Playbook (DEP-011)
 
@@ -140,7 +140,7 @@ Every parallel query batch has been converted to sequential awaits. The latency 
 
 **System prompt query reduction.** The \`buildSystemPrompt()\` function was making ~25 individual database queries — one for each context layer. That's 25 round trips to Postgres every time someone sends a chat message. We consolidated these into batched fetches where possible, bringing it down to ~15 queries. Still room to improve, but the reduction is meaningful when chat is the primary interaction model.
 
-## Schema Management — Prisma Migrate
+## Schema Management — [Prisma](https://www.prisma.io/) Migrate
 
 We've switched from \`prisma db push\` to \`prisma migrate\`. This matters more than it sounds.
 
@@ -162,7 +162,7 @@ Robert's feedback was specific and actionable. Every issue he flagged has been f
 
 **\`.gitignore\`** — Updated with \`.env\` and \`.env.local\`. This was a security gap — environment files with database credentials and API keys should never be committed.
 
-**README** — Expanded significantly. Full prerequisites section, step-by-step setup for both Yarn and npm (\`npm install --legacy-peer-deps\` works fine), environment variable reference table, local database setup instructions (including a Docker one-liner), and a troubleshooting section for common issues.
+**README** — Expanded significantly. Full prerequisites section, step-by-step setup for both Yarn and npm (\`npm install --legacy-peer-deps\` works fine), environment variable reference table, local database setup instructions (including a [Docker](https://www.docker.com/) one-liner), and a troubleshooting section for common issues.
 
 **npm support** — The project uses Yarn internally, but npm works too. Documented and tested.
 
@@ -170,11 +170,11 @@ Robert's feedback was specific and actionable. Every issue he flagged has been f
 
 Robert also pointed out — correctly — that we had no license file. GitHub's default copyright rules apply without one, but that's ambiguous and not how open source should work.
 
-We've added an **MIT License** (Copyright 2024-2026 Denominator Ventures). MIT because the protocol should be as forkable and composable as possible. If you want to build on DiviDen — extend it, embed it, run it as infrastructure for your own product — you can. Attribution required, liability disclaimed, everything else is fair game.
+We've added an **[MIT License](https://opensource.org/licenses/MIT)** (Copyright 2024-2026 [Denominator Ventures](https://denominator.ventures/)). MIT because the protocol should be as forkable and composable as possible. If you want to build on DiviDen — extend it, embed it, run it as infrastructure for your own product — you can. Attribution required, liability disclaimed, everything else is fair game.
 
 ## Landing Page and Social Sharing
 
-The public landing page got a refresh — updated branding, cleaner navigation, and proper Open Graph metadata so link previews actually look right when shared on LinkedIn, Twitter, or in group chats. The messaging now leads with the protocol, not the product.
+The public landing page got a refresh — updated branding, cleaner navigation, and proper [Open Graph](https://ogp.me/) metadata so link previews actually look right when shared on LinkedIn, Twitter, or in group chats. The messaging now leads with the protocol, not the product.
 
 ## Cockpit Banners — Contextual Notifications
 
@@ -198,7 +198,7 @@ No more "I got an invite email, signed up, and then couldn't find the connection
 
 **Setup**: The README is now your source of truth for getting a local instance running. Docker + Postgres + \`prisma migrate deploy\` + \`prisma db seed\` and you're up.
 
-Thank you again to Robert for testing the setup flow. If you're running your own instance and hit issues, open a GitHub issue or reach out directly. The protocol gets better when people use it and tell us what's broken.
+Thank you again to Robert for testing the setup flow. If you're running your own instance and hit issues, open a [GitHub issue](https://github.com/Denominator-Ventures/dividen/issues) or reach out directly. The protocol gets better when people use it and tell us what's broken.
 
 — Jon`
   },
@@ -273,7 +273,7 @@ The old layer functions are still in the codebase as dead code — they don't af
 
 ## Claw Mart Removal
 
-I also removed the Claw Mart extension marketplace integration. It was premature — the marketplace isn't ready for consumer API access yet, and having an import flow that pointed to a marketplace you couldn't actually browse from inside DiviDen was confusing. Extensions still support manual import (paste JSON) and custom configurations. When the marketplace is ready, it'll come back properly.
+I also removed the [Claw Mart](https://www.shopclawmart.com/) extension marketplace integration. It was premature — the marketplace isn't ready for consumer API access yet, and having an import flow that pointed to a marketplace you couldn't actually browse from inside DiviDen was confusing. Extensions still support manual import (paste JSON) and custom configurations. When the marketplace is ready, it'll come back properly.
 
 ## For Open Source Builders
 
@@ -337,7 +337,7 @@ The extension config is a JSON blob: \`promptText\` for raw instructions, \`acti
 
 **The APIs**: Standard CRUD at \`/api/extensions\` and \`/api/extensions/[id]\` with scope validation — you can only see extensions you own, plus team/project/global ones you have access to.
 
-This is the foundation for a marketplace. For now, extensions are manual — you write the JSON, you paste it in. But the architecture supports remote loading, versioning, and scoped activation. When the time is right, a marketplace plugs into this directly.
+This is the foundation for a marketplace — think [Claw Mart](https://www.shopclawmart.com/) for agent skills. For now, extensions are manual — you write the JSON, you paste it in. But the architecture supports remote loading, versioning, and scoped activation. When the time is right, a marketplace plugs into this directly.
 
 ## For Open Source Builders
 
@@ -484,7 +484,7 @@ So now every queue creation path runs through a unified deduplication layer.
 
 **How it works:**
 
-The system uses Levenshtein distance to compute title similarity. When a new item comes in, it checks against two pools:
+The system uses [Levenshtein distance](https://en.wikipedia.org/wiki/Levenshtein_distance) to compute title similarity. When a new item comes in, it checks against two pools:
 
 - **Active items** (ready, in_progress, blocked) — if a title matches at 80%+ similarity, the creation is blocked and the existing item's context is merged instead. No duplicate. The original item gets richer metadata.
 - **Recently completed items** (done_today within the last 7 days) — if a match is found here, the system still blocks creation but tells the caller the task was already completed. No zombie tasks coming back from the dead.
@@ -609,7 +609,7 @@ If you're running your own DiviDen instance — or building on the protocol — 
 
 When your instance connects to the network via federation, the learning engine runs locally on your data. Your patterns stay on your instance. But the protocol improvement compounds — every self-hosted node that uses ambient relays generates learnings that make its own ambient protocol better over time.
 
-The action tag count is now 30+. The system prompt is 18 layers. The protocol spec on os.dividen.ai will be updated to reflect all of this.
+The action tag count is now 30+. The system prompt is 18 layers. The protocol spec on [os.dividen.ai](https://os.dividen.ai) will be updated to reflect all of this.
 
 ## What This Means
 
@@ -689,7 +689,7 @@ If you're building on the DiviDen protocol or running your own instance, the rel
 
 **The profile system** (\`src/components/settings/ProfileEditor.tsx\`) gives users rich identity data — skills, languages, countries lived in, task types — that the relay protocol uses for intelligent routing. This isn't a résumé. It's a routing manifest.
 
-The action tag count is now 26+. The system prompt is 18 layers. The Kanban pipeline now has 8 stages. All of it open, all of it forkable. The protocol spec on os.dividen.ai will be updated shortly.
+The action tag count is now 26+. The system prompt is 18 layers. The Kanban pipeline now has 8 stages. All of it open, all of it forkable. The protocol spec on [os.dividen.ai](https://os.dividen.ai) will be updated shortly.
 
 This is the beginning of what we've been building toward. DiviDen isn't a dashboard. It isn't a messaging app. It's a protocol — a new way for the people inside organizations to coordinate through agents that understand context, timing, and intent.
 

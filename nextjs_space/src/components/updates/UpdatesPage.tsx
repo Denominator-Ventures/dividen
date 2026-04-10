@@ -25,13 +25,13 @@ function renderContent(content: string) {
     if (line.startsWith('## ')) {
       elements.push(
         <h3 key={key} className="font-heading text-xl font-bold text-white mt-10 mb-4">
-          {line.slice(3)}
+          {renderInlineFormatting(line.slice(3))}
         </h3>
       );
     } else if (line.startsWith('**') && line.endsWith('**')) {
       elements.push(
         <p key={key} className="text-white font-semibold mt-4 mb-1">
-          {line.slice(2, -2)}
+          {renderInlineFormatting(line.slice(2, -2))}
         </p>
       );
     } else if (line.startsWith('- ')) {
@@ -56,16 +56,20 @@ function renderContent(content: string) {
 }
 
 function renderInlineFormatting(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|"[^"]+")/);
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|"[^"]+"|\[[^\]]+\]\([^)]+\))/);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="text-white font-medium">{part.slice(2, -2)}</strong>;
+      return <strong key={i} className="text-white font-medium">{renderInlineFormatting(part.slice(2, -2))}</strong>;
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return <code key={i} className="text-brand-400/80 bg-white/[0.04] px-1.5 py-0.5 rounded text-[13px] font-mono">{part.slice(1, -1)}</code>;
     }
     if (part.startsWith('"') && part.endsWith('"')) {
       return <em key={i} className="text-white/50">{part}</em>;
+    }
+    const linkMatch = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+    if (linkMatch) {
+      return <a key={i} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors">{linkMatch[1]}</a>;
     }
     return part;
   });
@@ -150,7 +154,7 @@ function UpdateEntry({
             </h2>
             {update.subtitle && (
               <p className="text-sm text-white/40 mt-2 leading-relaxed max-w-3xl">
-                {update.subtitle}
+                {renderInlineFormatting(update.subtitle)}
               </p>
             )}
           </div>
