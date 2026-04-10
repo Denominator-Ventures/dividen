@@ -70,11 +70,12 @@ export async function authenticateAgent(
   requiredPermission?: string
 ): Promise<AgentContext | NextResponse> {
   // Extract Bearer token
-  // Derive base URL for RFC 9728 resource_metadata pointer
-  const host = request.headers.get('x-forwarded-host') || request.headers.get('host') || 'dividen.ai';
-  const proto = request.headers.get('x-forwarded-proto') || 'https';
-  const resourceMetadataUrl = `${proto}://${host}/.well-known/oauth-protected-resource`;
-  const wwwAuthHeader = `Bearer resource_metadata="${resourceMetadataUrl}"`;
+  // Simple WWW-Authenticate header — no resource_metadata pointer.
+  // We intentionally omit the RFC 9728 resource_metadata URL because
+  // DiviDen uses API key bearer auth, not OAuth. Pointing to
+  // oauth-protected-resource would cause MCP clients/registries
+  // (Smithery) to attempt OAuth discovery and fail.
+  const wwwAuthHeader = 'Bearer realm="DiviDen API"';
 
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
