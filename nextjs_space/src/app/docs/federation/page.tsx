@@ -582,7 +582,36 @@ X-Federation-Token: <token-from-connection-handshake>
          │    6. POST /api/federation/relay
          │ <─────────────────────────────
          │   (response relay)           │
+         │                              │
+    7. GET /api/federation/jobs         │
+         │ ─────────────────────────────>
+         │   (fetch network-visible jobs)│
+         │                              │
+    8. POST /api/federation/jobs        │
+         │ <─────────────────────────────
+         │   (push local jobs to peer)  │
          │                              │`}</pre>
+            </div>
+
+            {/* Job Gossip */}
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] mt-4">
+              <h3 className="font-semibold text-sm mb-2">💼 Federated Job Gossip (Phase B)</h3>
+              <p className="text-[var(--text-secondary)] text-xs mb-3 leading-relaxed">
+                Federated instances can share open job listings across the network. Jobs with <code className="text-[11px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">visibility: &quot;network&quot;</code> are eligible for cross-instance discovery.
+              </p>
+              <div className="space-y-2">
+                <div className="p-2 bg-white/[0.04] rounded text-[11px]">
+                  <span className="text-green-400 font-mono">GET /api/federation/jobs</span>
+                  <span className="text-[var(--text-muted)] ml-2">— Fetch open network-visible jobs from a peer instance</span>
+                </div>
+                <div className="p-2 bg-white/[0.04] rounded text-[11px]">
+                  <span className="text-green-400 font-mono">POST /api/federation/jobs</span>
+                  <span className="text-[var(--text-muted)] ml-2">— Push local open jobs to a peer instance (gossip ingest)</span>
+                </div>
+              </div>
+              <p className="text-[var(--text-muted)] text-[10px] mt-2">
+                Auth: <code className="font-mono">x-federation-token</code> header. Federated jobs appear locally with a [InstanceName] prefix and source provenance.
+              </p>
             </div>
           </div>
         </section>

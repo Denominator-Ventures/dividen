@@ -159,6 +159,7 @@ export async function GET(req: NextRequest) {
         federation: {
           connect: `${baseUrl}/api/federation/connect`,
           relay: `${baseUrl}/api/federation/relay`,
+          jobs: `${baseUrl}/api/federation/jobs`,
         },
         agentApi: `${baseUrl}/api/v2`,
         docs: `${baseUrl}/api/v2/docs`,
