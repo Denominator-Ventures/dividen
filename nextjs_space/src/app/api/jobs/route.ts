@@ -16,8 +16,7 @@ export async function GET(req: NextRequest) {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const { searchParams } = new URL(req.url);
   const status = searchParams.get('status') || 'open';
@@ -29,9 +28,9 @@ export async function GET(req: NextRequest) {
   const where: any = {};
   
   if (mine) {
-    where.posterId = user.id;
+    where.posterId = userId;
   } else if (assigned) {
-    where.assigneeId = user.id;
+    where.assigneeId = userId;
   }
   
   if (status !== 'all') where.status = status;
@@ -60,8 +59,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   let body: any;
   try { body = await req.json(); } catch {
@@ -86,7 +84,7 @@ export async function POST(req: NextRequest) {
       requiredSkills: requiredSkills ? JSON.stringify(requiredSkills) : null,
       preferredSkills: preferredSkills ? JSON.stringify(preferredSkills) : null,
       visibility: visibility || 'network',
-      posterId: user.id,
+      posterId: userId,
     },
     include: {
       poster: { select: { id: true, name: true } },
@@ -95,8 +93,8 @@ export async function POST(req: NextRequest) {
 
   // Update poster's reputation (jobs posted count)
   await prisma.reputationScore.upsert({
-    where: { userId: user.id },
-    create: { userId: user.id, jobsPosted: 1 },
+    where: { userId: userId },
+    create: { userId: userId, jobsPosted: 1 },
     update: { jobsPosted: { increment: 1 } },
   }).catch(() => {});
 

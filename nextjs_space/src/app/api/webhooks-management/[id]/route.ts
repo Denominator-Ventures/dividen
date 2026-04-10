@@ -16,11 +16,10 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const webhook = await prisma.webhook.findFirst({
-    where: { id: params.id, userId: user.id },
+    where: { id: params.id, userId: userId },
     include: { _count: { select: { logs: true } } },
   });
 
@@ -47,11 +46,10 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const existing = await prisma.webhook.findFirst({
-    where: { id: params.id, userId: user.id },
+    where: { id: params.id, userId: userId },
   });
   if (!existing) return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
 
@@ -98,11 +96,10 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const existing = await prisma.webhook.findFirst({
-    where: { id: params.id, userId: user.id },
+    where: { id: params.id, userId: userId },
   });
   if (!existing) return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
 

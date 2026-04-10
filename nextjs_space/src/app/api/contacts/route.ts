@@ -15,8 +15,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const url = new URL(req.url);
   const search = url.searchParams.get('search') || '';
@@ -26,7 +25,7 @@ export async function GET(req: NextRequest) {
   const limitParam = url.searchParams.get('limit');
   const take = limitParam ? Math.min(parseInt(limitParam, 10) || 100, 200) : undefined;
 
-  const where: any = { userId: user.id };
+  const where: any = { userId: userId };
 
   if (search) {
     where.OR = [
@@ -66,8 +65,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const body = await req.json();
 
@@ -85,7 +83,7 @@ export async function POST(req: NextRequest) {
       notes: body.notes || null,
       tags: body.tags || null,
       source: body.source || 'manual',
-      userId: user.id,
+      userId: userId,
     },
   });
 

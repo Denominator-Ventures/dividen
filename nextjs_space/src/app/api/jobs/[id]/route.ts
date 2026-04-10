@@ -14,8 +14,7 @@ import { prisma } from '@/lib/prisma';
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const job = await prisma.networkJob.findUnique({
     where: { id: params.id },
@@ -37,12 +36,11 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const job = await prisma.networkJob.findUnique({ where: { id: params.id } });
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-  if (job.posterId !== user.id) return NextResponse.json({ error: 'Not your job posting' }, { status: 403 });
+  if (job.posterId !== userId) return NextResponse.json({ error: 'Not your job posting' }, { status: 403 });
 
   let body: any;
   try { body = await req.json(); } catch {
@@ -72,12 +70,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const job = await prisma.networkJob.findUnique({ where: { id: params.id } });
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
-  if (job.posterId !== user.id) return NextResponse.json({ error: 'Not your job posting' }, { status: 403 });
+  if (job.posterId !== userId) return NextResponse.json({ error: 'Not your job posting' }, { status: 403 });
 
   await prisma.networkJob.update({ where: { id: params.id }, data: { status: 'cancelled' } });
   return NextResponse.json({ success: true });

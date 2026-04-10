@@ -46,21 +46,18 @@ export async function POST(
   ).length;
 
   // Check for memory items related to this contact
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (user) {
-    const relatedMemories = await prisma.memoryItem.findMany({
-      where: {
-        userId: user.id,
-        OR: [
-          { scope: { contains: contact.name } },
-          { value: { contains: contact.name } },
-        ],
-      },
-      take: 10,
-    });
-    enrichment.relatedMemories = relatedMemories.length;
-    enrichment.notes = relatedMemories.map((m) => `${m.key}: ${m.value}`).slice(0, 5);
-  }
+  const relatedMemories = await prisma.memoryItem.findMany({
+    where: {
+      userId,
+      OR: [
+        { scope: { contains: contact.name } },
+        { value: { contains: contact.name } },
+      ],
+    },
+    take: 10,
+  });
+  enrichment.relatedMemories = relatedMemories.length;
+  enrichment.notes = relatedMemories.map((m) => `${m.key}: ${m.value}`).slice(0, 5);
 
   // Update contact with enrichment data
   const updated = await prisma.contact.update({

@@ -24,11 +24,10 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const webhook = await prisma.webhook.findFirst({
-    where: { id: params.id, userId: user.id },
+    where: { id: params.id, userId: userId },
   });
   if (!webhook) return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
 
@@ -58,17 +57,17 @@ export async function POST(
   let results;
   switch (webhook.type) {
     case 'calendar':
-      results = await processCalendarEvent(payload, user.id, mappingRules, fieldMap);
+      results = await processCalendarEvent(payload, userId, mappingRules, fieldMap);
       break;
     case 'email':
-      results = await processEmailEvent(payload, user.id, mappingRules, fieldMap);
+      results = await processEmailEvent(payload, userId, mappingRules, fieldMap);
       break;
     case 'transcript':
-      results = await processTranscriptEvent(payload, user.id, mappingRules, fieldMap);
+      results = await processTranscriptEvent(payload, userId, mappingRules, fieldMap);
       break;
     case 'generic':
     default:
-      results = await processGenericEvent(payload, user.id, mappingRules, fieldMap);
+      results = await processGenericEvent(payload, userId, mappingRules, fieldMap);
       break;
   }
 

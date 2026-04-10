@@ -13,11 +13,10 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const webhooks = await prisma.webhook.findMany({
-    where: { userId: user.id },
+    where: { userId: userId },
     include: {
       _count: { select: { logs: true } },
     },
@@ -65,8 +64,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   let body: any;
   try {
@@ -94,7 +92,7 @@ export async function POST(req: NextRequest) {
       type,
       secret,
       mappingRules: mappingRules ? JSON.stringify(mappingRules) : null,
-      userId: user.id,
+      userId: userId,
     },
   });
 

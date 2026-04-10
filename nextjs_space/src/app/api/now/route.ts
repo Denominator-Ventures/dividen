@@ -26,36 +26,38 @@ export async function GET(req: NextRequest) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(23, 59, 59, 999);
 
-    // Serialize queries to avoid connection pool exhaustion (max 10 connections)
-    const queueItems = await prisma.queueItem.findMany({
-      where: { userId, status: { in: ['ready', 'in_progress', 'blocked'] } },
-      orderBy: { createdAt: 'desc' },
-    });
-    const goals = await prisma.goal.findMany({
-      where: { userId, status: 'active' },
-      include: {
-        subGoals: { select: { id: true, title: true, status: true, progress: true } },
-        project: { select: { id: true, name: true } },
-      },
-    });
-    const kanbanCards = await prisma.kanbanCard.findMany({
-      where: { userId, status: { in: ['active', 'development', 'planning', 'leads', 'qualifying', 'proposal', 'negotiation'] } },
-      select: { id: true, title: true, status: true, priority: true, dueDate: true, projectId: true },
-    });
-    const calendarEvents = await prisma.calendarEvent.findMany({
-      where: { userId, startTime: { gte: now, lte: tomorrow } },
-      orderBy: { startTime: 'asc' },
-      select: { id: true, title: true, startTime: true, endTime: true },
-    });
-    const relays = await prisma.agentRelay.findMany({
-      where: {
-        OR: [{ fromUserId: userId }, { toUserId: userId }],
-        status: { in: ['completed', 'pending'] },
-      },
-      orderBy: { updatedAt: 'desc' },
-      take: 20,
-      select: { id: true, type: true, subject: true, status: true, fromUserId: true, toUserId: true, updatedAt: true },
-    });
+    // Parallel queries — 5 concurrent is fine within our pool limit
+    const [queueItems, goals, kanbanCards, calendarEvents, relays] = await Promise.all([
+      prisma.queueItem.findMany({
+        where: { userId, status: { in: ['ready', 'in_progress', 'blocked'] } },
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.goal.findMany({
+        where: { userId, status: 'active' },
+        include: {
+          subGoals: { select: { id: true, title: true, status: true, progress: true } },
+          project: { select: { id: true, name: true } },
+        },
+      }),
+      prisma.kanbanCard.findMany({
+        where: { userId, status: { in: ['active', 'development', 'planning', 'leads', 'qualifying', 'proposal', 'negotiation'] } },
+        select: { id: true, title: true, status: true, priority: true, dueDate: true, projectId: true },
+      }),
+      prisma.calendarEvent.findMany({
+        where: { userId, startTime: { gte: now, lte: tomorrow } },
+        orderBy: { startTime: 'asc' },
+        select: { id: true, title: true, startTime: true, endTime: true },
+      }),
+      prisma.agentRelay.findMany({
+        where: {
+          OR: [{ fromUserId: userId }, { toUserId: userId }],
+          status: { in: ['completed', 'pending'] },
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: { id: true, type: true, subject: true, status: true, fromUserId: true, toUserId: true, updatedAt: true },
+      }),
+    ]);
 
     const ranked = scoreAndRankNow({
       queueItems,

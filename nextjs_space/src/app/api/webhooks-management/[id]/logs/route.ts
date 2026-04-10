@@ -15,12 +15,11 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   // Verify webhook belongs to user
   const webhook = await prisma.webhook.findFirst({
-    where: { id: params.id, userId: user.id },
+    where: { id: params.id, userId: userId },
   });
   if (!webhook) return NextResponse.json({ error: 'Webhook not found' }, { status: 404 });
 

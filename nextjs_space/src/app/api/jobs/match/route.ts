@@ -13,8 +13,7 @@ import { findMatchingJobsForUser, findMatchesForJob } from '@/lib/job-matcher';
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const { searchParams } = new URL(req.url);
   const jobId = searchParams.get('jobId');
@@ -25,7 +24,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ matches });
   } else {
     // Find matching jobs for this user
-    const matches = await findMatchingJobsForUser(user.id);
+    const matches = await findMatchingJobsForUser(userId);
     return NextResponse.json({ matches });
   }
 }

@@ -13,14 +13,13 @@ import { recomputeReputation } from '@/lib/job-matcher';
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const job = await prisma.networkJob.findUnique({ where: { id: params.id } });
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   if (job.status !== 'in_progress') return NextResponse.json({ error: 'Job must be in_progress to complete' }, { status: 400 });
   
-  const isParty = job.posterId === user.id || job.assigneeId === user.id;
+  const isParty = job.posterId === userId || job.assigneeId === userId;
   if (!isParty) return NextResponse.json({ error: 'Only poster or assignee can complete' }, { status: 403 });
 
   let body: any = {};

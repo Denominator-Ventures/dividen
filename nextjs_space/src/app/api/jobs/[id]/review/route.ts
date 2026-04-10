@@ -12,15 +12,14 @@ import { recomputeReputation } from '@/lib/job-matcher';
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const job = await prisma.networkJob.findUnique({ where: { id: params.id } });
   if (!job) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
   if (job.status !== 'completed') return NextResponse.json({ error: 'Can only review completed jobs' }, { status: 400 });
 
-  const isPoster = job.posterId === user.id;
-  const isAssignee = job.assigneeId === user.id;
+  const isPoster = job.posterId === userId;
+  const isAssignee = job.assigneeId === userId;
   if (!isPoster && !isAssignee) return NextResponse.json({ error: 'Only poster or assignee can review' }, { status: 403 });
 
   let body: any;
@@ -38,14 +37,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Check for existing review
   const existing = await prisma.jobReview.findUnique({
-    where: { jobId_reviewerId: { jobId: params.id, reviewerId: user.id } },
+    where: { jobId_reviewerId: { jobId: params.id, reviewerId: userId } },
   });
   if (existing) return NextResponse.json({ error: 'Already reviewed' }, { status: 409 });
 
   const review = await prisma.jobReview.create({
     data: {
       jobId: params.id,
-      reviewerId: user.id,
+      reviewerId: userId,
       revieweeId,
       rating,
       comment: comment || null,

@@ -155,7 +155,8 @@ export function Walkthrough({ onComplete }: WalkthroughProps) {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep, STEPS.length]);
 
   const handleNext = () => {
     if (currentStep < STEPS.length - 1) {

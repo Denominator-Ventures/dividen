@@ -15,14 +15,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const url = new URL(req.url);
   const tierParam = url.searchParams.get('tier');
   const search = url.searchParams.get('search') || '';
 
-  const where: any = { userId: user.id };
+  const where: any = { userId: userId };
 
   if (tierParam) {
     where.tier = parseInt(tierParam, 10);
@@ -49,8 +48,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
-  const user = await prisma.user.findUnique({ where: { email: session.user.email } });
-  if (!user) return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
+  const userId = (session.user as any).id;
 
   const body = await req.json();
 
@@ -72,7 +70,7 @@ export async function POST(req: NextRequest) {
       confidence: body.confidence ?? (tier === 3 ? 0.5 : null),
       approved: tier === 3 ? null : undefined,
       source: body.source || 'user',
-      userId: user.id,
+      userId: userId,
     },
   });
 
