@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { UPDATES } from '@/lib/updates';
 
 // ─── Animated typing effect ─────────────────────────────────────────────────
 function useTypingEffect(phrases: string[], typingSpeed = 80, pauseDuration = 2000) {
@@ -158,7 +159,13 @@ export function LandingPage() {
   );
 
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [todayUpdateCount, setTodayUpdateCount] = useState(0);
+  useEffect(() => {
+    setMounted(true);
+    // Compute today's update count client-side to avoid hydration mismatch
+    const today = new Date().toISOString().slice(0, 10);
+    setTodayUpdateCount(UPDATES.filter(u => u.date === today).length);
+  }, []);
 
   return (
     <div className="min-h-dvh bg-[#050505] text-white overflow-x-hidden overflow-y-auto">
@@ -196,8 +203,13 @@ export function LandingPage() {
             >
               GitHub
             </a>
-            <Link href="/updates" className="text-sm text-white/50 hover:text-white transition-colors">
+            <Link href="/updates" className="relative text-sm text-white/50 hover:text-white transition-colors">
               Updates
+              {todayUpdateCount > 0 && (
+                <span className="absolute -top-2 -right-4 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                  {todayUpdateCount}
+                </span>
+              )}
             </Link>
           </div>
 
@@ -484,8 +496,13 @@ export function LandingPage() {
               >
                 GitHub
               </a>
-              <Link href="/updates" className="hover:text-white/60 transition-colors">
+              <Link href="/updates" className="relative hover:text-white/60 transition-colors">
                 Updates
+                {todayUpdateCount > 0 && (
+                  <span className="ml-1.5 inline-flex items-center justify-center bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1">
+                    {todayUpdateCount}
+                  </span>
+                )}
               </Link>
               <Link href="/docs/integrations" className="hover:text-white/60 transition-colors">
                 Docs
