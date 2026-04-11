@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { UPDATES } from '@/lib/updates';
 
@@ -92,6 +92,12 @@ const FEATURES = [
     description:
       'Installable skills and personas that extend what your Divi can do. Curated registry, one-click install, automatic prompt integration.',
   },
+  {
+    icon: '🏪',
+    title: 'Agent Marketplace',
+    description:
+      'Discover, execute, and pay for AI agents built by other developers. List your own agents and earn 97% of every transaction. Powered by Stripe.',
+  },
 ];
 
 const PROTOCOL_LAYERS = [
@@ -140,6 +146,19 @@ const PROTOCOL_LAYERS = [
     name: 'Integration Surface',
     desc: 'A2A bridge, webhooks, Agent API v2 — connect anything, from anywhere.',
   },
+  {
+    num: '10',
+    name: 'Agent Marketplace & Payments',
+    desc: 'Discover and execute agents built by other developers. Stripe Connect handles payouts, saved cards enable one-click purchases, and a 97/3 revenue split rewards builders.',
+  },
+];
+
+// ─── Marketplace stats (static for now) ─────────────────────────────────────
+const MARKETPLACE_STATS = [
+  { label: 'Developer Revenue Share', value: '97%' },
+  { label: 'Platform Routing Fee', value: '3%' },
+  { label: 'Payment Processing', value: 'Stripe' },
+  { label: 'Self-Hosted Fee', value: '0%' },
 ];
 
 // ─── Download App Hero Button (PWA install prompt) ───────────────────────────
@@ -206,9 +225,11 @@ export function LandingPage() {
       'manage your pipeline',
       'coordinate across teams',
       'delegate to your AI agent',
+      'monetize your AI agents',
       'show its work on every decision',
       'track goals and priorities',
       'route work intelligently',
+      'earn from every execution',
       'learn from every interaction',
     ],
     70,
@@ -219,8 +240,7 @@ export function LandingPage() {
   const [todayUpdateCount, setTodayUpdateCount] = useState(0);
   useEffect(() => {
     setMounted(true);
-    // Compute today's update count client-side using Central Time (America/Chicago)
-    const todayCT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); // YYYY-MM-DD format
+    const todayCT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
     setTodayUpdateCount(UPDATES.filter(u => u.date === todayCT).length);
   }, []);
 
@@ -240,6 +260,9 @@ export function LandingPage() {
           <div className="hidden md:flex items-center justify-center gap-8 absolute left-1/2 -translate-x-1/2">
             <a href="#features" className="text-sm text-white/50 hover:text-white transition-colors">
               Features
+            </a>
+            <a href="#marketplace" className="text-sm text-white/50 hover:text-white transition-colors">
+              Marketplace
             </a>
             <a href="#protocol" className="text-sm text-white/50 hover:text-white transition-colors">
               Protocol
@@ -313,6 +336,7 @@ export function LandingPage() {
             <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-4 leading-relaxed">
               Your personal AI agent that manages your pipeline, coordinates with other agents,
               and acts on your behalf — across every team, tool, and company boundary.
+              Now with a marketplace where you can discover, execute, and monetize AI agents.
             </p>
 
             {/* Typing effect */}
@@ -416,7 +440,7 @@ export function LandingPage() {
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {FEATURES.map((f) => (
               <div
                 key={f.title}
@@ -427,6 +451,101 @@ export function LandingPage() {
                 <p className="text-sm text-white/40 leading-relaxed">{f.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Agent Marketplace ──────────────────────────────────────────── */}
+      <section id="marketplace" className="py-20 md:py-32 border-t border-white/[0.04]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-green-400/80 mb-4">
+              Now Live
+            </p>
+            <h2 className="font-heading text-3xl md:text-5xl font-bold mb-4">
+              The Agent Marketplace
+            </h2>
+            <p className="text-white/40 max-w-2xl mx-auto leading-relaxed text-lg">
+              Build agents. List them. Get paid. — Or discover and execute agents built by others.
+              Stripe handles the money. You keep 97%.
+            </p>
+          </div>
+
+          {/* Two-column layout: Developers / Buyers */}
+          <div className="grid md:grid-cols-2 gap-8 mb-16">
+            {/* For Developers */}
+            <div className="p-8 rounded-2xl border border-green-500/20 bg-green-500/[0.03]">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="text-2xl">🛠️</span>
+                <h3 className="font-heading text-xl font-semibold">For Developers</h3>
+              </div>
+              <div className="space-y-4">
+                {[
+                  'List agents with custom pricing on the marketplace',
+                  'Onboard to Stripe Connect Express in minutes',
+                  'Earn 97% of every execution — paid directly to your account',
+                  'Track earnings in your real-time developer dashboard',
+                  'Self-hosted? Set MARKETPLACE_FEE_PERCENT=0 and keep everything',
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="text-green-400/70 mt-0.5 shrink-0">✓</span>
+                    <p className="text-sm text-white/50 leading-relaxed">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* For Buyers */}
+            <div className="p-8 rounded-2xl border border-brand-500/20 bg-brand-500/[0.03]">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="text-2xl">⚡</span>
+                <h3 className="font-heading text-xl font-semibold">For Buyers</h3>
+              </div>
+              <div className="space-y-4">
+                {[
+                  'Browse agents by category, rating, and price',
+                  'Save payment methods for one-click execution purchases',
+                  'Execute agents instantly — results delivered in your workspace',
+                  'Rate and review agents to build community trust',
+                  'Full execution history with payment receipts',
+                ].map((item, i) => (
+                  <div key={i} className="flex items-start gap-3">
+                    <span className="text-brand-400/70 mt-0.5 shrink-0">✓</span>
+                    <p className="text-sm text-white/50 leading-relaxed">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Stats row */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12">
+            {MARKETPLACE_STATS.map((stat) => (
+              <div
+                key={stat.label}
+                className="text-center p-6 rounded-xl border border-white/[0.06] bg-white/[0.02]"
+              >
+                <div className="font-heading text-2xl md:text-3xl font-bold text-white mb-1">
+                  {stat.value}
+                </div>
+                <div className="text-xs text-white/30 uppercase tracking-wider">
+                  {stat.label}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Marketplace CTA */}
+          <div className="text-center">
+            <p className="text-white/30 text-sm mb-6">
+              The marketplace is available to all registered users. Sign up to start browsing, buying, or listing agents.
+            </p>
+            <Link
+              href="/setup"
+              className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-base"
+            >
+              Sign Up to Access the Marketplace →
+            </Link>
           </div>
         </div>
       </section>
@@ -513,21 +632,31 @@ export function LandingPage() {
       <section className="py-24 md:py-36 border-t border-white/[0.04]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold mb-6 leading-tight">
-            Welcome to the
-            <br />
+            Your agent.{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-300">
-              future of work.
+              Your marketplace.
             </span>
+            <br />
+            Your terms.
           </h2>
           <p className="text-white/40 max-w-lg mx-auto mb-10 leading-relaxed">
             One agent. One protocol. Every collaboration — handled.
+            Sign up to access the Agent Marketplace, list your own agents, and start earning.
           </p>
-          <Link
-            href="/setup"
-            className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-lg"
-          >
-            Get Started — It&apos;s Free
-          </Link>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link
+              href="/setup"
+              className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-lg"
+            >
+              Get Started — It&apos;s Free
+            </Link>
+            <Link
+              href="/login"
+              className="inline-block border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium px-10 py-4 rounded-xl transition-all text-lg"
+            >
+              Log In
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -562,8 +691,8 @@ export function LandingPage() {
                   </span>
                 )}
               </Link>
-              <Link href="/docs/integrations" className="hover:text-white/60 transition-colors">
-                Docs
+              <Link href="/terms" className="hover:text-white/60 transition-colors">
+                Terms
               </Link>
               <a href="https://denominator.ventures" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">© 2026 Denominator Ventures</a>
             </div>

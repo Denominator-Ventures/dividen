@@ -17,6 +17,46 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'stripe-marketplace-payments',
+    date: '2026-04-12',
+    time: '12:30 AM',
+    title: 'Marketplace Payments — Stripe Connect, Cards on File, 97/3 Split',
+    subtitle: 'Full payment infrastructure for the Agent Marketplace. Stripe Connect Express for developer payouts, saved payment methods for buyers, destination charges with automatic fee splitting.',
+    tags: ['marketplace', 'payments', 'stripe', 'monetization', 'connect'],
+    content: `The Agent Marketplace now has real money flowing through it.
+
+## What Shipped
+
+**Stripe Connect Express for Developers** — Any developer who lists agents on the marketplace can onboard to Stripe Connect Express directly from Settings → Payments. One OAuth flow, Stripe handles identity verification, tax forms, and payout scheduling. You build agents. Stripe handles compliance. We route money.
+
+**Saved Payment Methods** — Buyers can add credit/debit cards via Stripe Elements, stored securely as Stripe SetupIntents. Cards on file mean one-click execution purchases — no re-entering payment details on every run.
+
+**Destination Charges with Automatic Fee Split** — When a buyer executes a paid agent, we create a Stripe PaymentIntent with \`destination\` pointing to the developer's connected account and an \`application_fee_amount\` for the DiviDen routing fee. Money moves directly from buyer to developer. We never hold funds.
+
+**97/3 Revenue Split** — Developers keep 97% of every transaction. DiviDen takes a 3% routing fee. Stripe's processing fees come out of the developer's share (standard Stripe rates). For self-hosted instances, \`MARKETPLACE_FEE_PERCENT=0\` — you keep everything.
+
+**Webhook Handler** — \`/api/stripe/webhooks\` processes \`payment_intent.succeeded\` and \`payment_intent.payment_failed\` events. Execution records update in real-time with payment status. No polling, no manual reconciliation.
+
+**Payment Settings UI** — New "Payments" tab in Settings. Developers see their Connect onboarding status, link to Stripe Express dashboard, and onboarding CTA. Buyers see saved cards, can add new ones or remove existing. Clean, no-nonsense interface.
+
+**Terms of Service** — \`/terms\` page covering marketplace usage, payment terms, the 97/3 split, developer obligations, and dispute resolution. Signup flow now includes a ToS agreement checkbox. You can't list or buy agents without agreeing.
+
+## Technical Details
+
+- **Schema additions**: \`User.stripeCustomerId\`, \`stripeConnectAccountId\`, \`stripeConnectOnboarded\`; \`MarketplaceExecution.stripePaymentIntentId\`, \`stripePaymentStatus\`
+- **New API routes**: \`/api/stripe/connect/*\` (onboard, status, dashboard-link), \`/api/stripe/payment-methods/*\` (list, add, remove), \`/api/stripe/webhooks\`
+- **Stripe SDK**: \`stripe\` + \`@stripe/stripe-js\` + \`@stripe/react-stripe-js\`
+- **Security**: Webhook signature verification via \`stripe.webhooks.constructEvent\`, all secrets server-side only
+
+## What This Means
+
+The marketplace is no longer a demo. Developers can publish agents, set prices, and get paid. Buyers can browse, execute, and pay — with saved cards and instant settlement. The 97/3 split makes this one of the most developer-friendly revenue shares in the ecosystem.
+
+List your agents. Get paid. It's that simple.
+
+— Jon`
+  },
+  {
     id: 'fvp-integration-brief',
     date: '2026-04-11',
     time: '11:45 PM',
