@@ -277,6 +277,30 @@ export function TeamProfileView({
               )}
             </div>
 
+            {/* Team Agent (visible to members) */}
+            {isMember && team.agentEnabled && (
+              <div className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/15">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="label-mono text-emerald-400 flex items-center gap-1.5" style={{ fontSize: '10px' }}>
+                    <span>🤖</span> Team Agent
+                  </h4>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Active</span>
+                </div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  This team has an AI coordinator agent that synthesizes updates, surfaces blockers,
+                  and suggests task routing across team members. It operates as a peer to your individual Divi — it suggests, never assigns.
+                </p>
+                {isOwner && (
+                  <button
+                    onClick={() => router.push(`/settings?tab=teams`)}
+                    className="mt-2 text-[10px] text-emerald-400 hover:text-emerald-300 transition-colors"
+                  >
+                    Configure Agent →
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Subscription info (visible to members) */}
             {isMember && team.subscription && (
               <div className="p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-primary)]">
