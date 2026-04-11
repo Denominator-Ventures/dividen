@@ -1,5 +1,7 @@
 // DiviDen Service Worker — App Shell + Runtime Caching
-const CACHE_NAME = 'dividen-v1';
+// Version: 2026-04-10-cos-view — change this on each deploy to trigger SW update
+const SW_VERSION = '2026-04-10-cos-view';
+const CACHE_NAME = `dividen-${SW_VERSION}`;
 const APP_SHELL = [
   '/dashboard',
   '/manifest.json',

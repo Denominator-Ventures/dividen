@@ -18,8 +18,8 @@ export interface Update {
 export const UPDATES: Update[] = [
   {
     id: 'chief-of-staff-view-overhaul',
-    date: '2026-04-11',
-    time: '12:30 AM',
+    date: '2026-04-10',
+    time: '7:30 PM',
     title: 'Chief of Staff Mode — Your Away View Is Now a Real Dashboard',
     subtitle: 'When you flip to Chief of Staff mode, the entire interface locks down to an observer cockpit. Queue progress, relay tracking, intervention controls. No distractions.',
     tags: ['chief-of-staff', 'dashboard', 'pwa', 'observer-mode', 'ux'],

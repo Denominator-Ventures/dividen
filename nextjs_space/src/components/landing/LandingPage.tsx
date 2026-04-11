@@ -162,9 +162,9 @@ export function LandingPage() {
   const [todayUpdateCount, setTodayUpdateCount] = useState(0);
   useEffect(() => {
     setMounted(true);
-    // Compute today's update count client-side to avoid hydration mismatch
-    const today = new Date().toISOString().slice(0, 10);
-    setTodayUpdateCount(UPDATES.filter(u => u.date === today).length);
+    // Compute today's update count client-side using Central Time (America/Chicago)
+    const todayCT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' }); // YYYY-MM-DD format
+    setTodayUpdateCount(UPDATES.filter(u => u.date === todayCT).length);
   }, []);
 
   return (
