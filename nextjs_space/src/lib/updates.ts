@@ -17,6 +17,131 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'founder-letter-individual-first',
+    date: '2026-04-11',
+    time: '6:00 PM',
+    title: 'A Founder Letter — The Shift to Individual-First',
+    subtitle: 'How flying kites, a conversation with Jaron, and six phases of building changed how I think about DiviDen. This is the most important update I\'ve written.',
+    tags: ['founder-letter', 'philosophy', 'individual-first', 'platform', 'open-core', 'marketplace', 'network', 'ux'],
+    content: `This one is different from the other updates. It's not a changelog — it's a letter. If you've been following along, you've watched DiviDen evolve from a protocol spec into a real platform over the past week. But something shifted today that I want to document, because it changes how everything else should be read.
+
+## The Shift
+
+When I started building DiviDen, the pitch was: *"The Agentic Working Protocol."* Open source. Federated. Agent-to-agent coordination. The vision was infrastructure — plumbing that developers would run, extend, and build on top of.
+
+That's still true. But it's not the story anymore.
+
+Today, after a conversation with Jaron that forced me to rethink some assumptions, and after spending the afternoon flying kites with Laura and Jon Bruce (which is when the best thinking happens), I landed on something clearer:
+
+**DiviDen is a tool for individuals first.**
+
+Not teams. Not enterprises. Not developers-who-want-to-self-host. Individuals. One person, one AI agent, compounding value over time.
+
+Teams are real. Federation is real. The marketplace is real. But they're all *secondary* to the core loop:
+
+> You connect your tools. Divi learns how you work. It handles what it can, surfaces only what needs you. The more you connect, the more it compounds.
+
+That's the product. Everything else — the marketplace, the relay protocol, the team subscriptions, the federation layer — those are things that emerge *after* the individual experience delivers value.
+
+## What This Means for the Platform
+
+If you sign up at [dividen.ai](https://dividen.ai) today, here's what you get:
+
+**The Core Loop**
+- An AI agent (Divi) that knows your identity, goals, contacts, calendar, and communication patterns
+- A dynamic NOW Engine that scores and ranks what matters most *right now* across all your surfaces
+- 32+ action tags — meaning you don't just chat with Divi, you work through it: create goals, dispatch tasks, assemble briefs, manage contacts, navigate the whole platform by asking
+- The Brief — every decision Divi makes generates a reasoning artifact. Full transparency. The "show your work" contract between you and your agent.
+
+**The Dashboard**
+We rebuilt the entire interface this week. Three-column layout: NOW (what to do), Center (where you work), Queue (what's loading). The center panel has drag-to-scroll tabs across every surface — Chat, Board, CRM, Calendar, Goals, Network, Messages, Drive, Extensions, Earnings.
+
+The onboarding now starts you with "Chat with Divi" as your very first action. Not "connect your email" — that's #2. I realized that asking someone to trust an AI with their inbox before they've even talked to it is backwards. Let them feel the agent first. Build trust. Then connect the tools.
+
+**The Network**
+Six phases of architecture went into this:
+1. Teams & Projects with federated member support
+2. Rich profile pages — routing manifests, not résumés
+3. CRM integration with relationship mapping and activity timelines
+4. Feature gates & team subscriptions (Team Starter $29/mo, Team Pro $79/mo + $9/seat)
+5. Connection ceremonies — the handshake that establishes trust between two agents
+6. Network discovery — browse people, teams, agents, and jobs across the entire network
+
+**The Agent Marketplace**
+List agents. Set your price. Get paid 97% of every execution through Stripe Connect. We built the install/uninstall lifecycle so Divi only learns what you need — install loads the integration kit into memory, uninstall clears it. Your agent stays lean.
+
+The Earnings tab is now a top-level surface. If you're building agents, you can see revenue distribution, execution success rates, and per-agent breakdowns — all without leaving the dashboard.
+
+**Comms — The Agent Relay Channel**
+This is the one that confused people at first, including me. Comms is not a place for you to talk to Divi. That's Chat. Comms is where your Divi communicates with *other agents*. Relays, marketplace dispatches, cross-agent coordination — it all flows through Comms. When you send a queue item to Comms, you're telling Divi: "delegate this."
+
+## What This Means for Open Source
+
+DiviDen's core remains MIT-licensed. If you clone the repo and run \`bash scripts/setup.sh\`, you get a fully functional command center. Your data stays on your machine. Your agent runs on your infra.
+
+What's changed is the *framing*. We're no longer positioning the open source as the primary experience. It's the engine. The primary experience is the managed platform — because that's where the network effects live.
+
+But we are committed to making self-hosted instances first-class citizens of the network. Federation isn't theoretical — it's implemented. Your self-hosted DiviDen can federate with the platform, join the relay network, and participate in the marketplace. The protocol spec at [os.dividen.ai/docs](https://os.dividen.ai/docs) covers every layer.
+
+What still needs work for self-hosted users:
+- A streamlined federation onboarding flow (right now it requires manual config)
+- A "Connect to Network" wizard that handles instance registration and key exchange
+- Better documentation on integrating a self-hosted instance with the managed marketplace
+
+Those are next.
+
+## What Shipped This Week (The Technical Summary)
+
+For the builders who want the specifics, here's what went into the platform across Phases 1–7.5:
+
+**Architecture & Data**
+- Full network schema: Teams, Projects, Connections, Jobs, Contracts, Federation members
+- CRM overhaul: relationship mapping, activity timelines, enrichment, contact-platform bridging
+- Feature gates for premium team features with subscription lifecycle
+- Connection ceremony protocol with agent-to-agent trust establishment
+- User profiles as routing manifests (skills, capacity, availability, reputation)
+
+**UX & Interface**
+- Three-column dashboard: NOW | Center | Queue
+- Drag-to-scroll tabs with 5px click threshold (so tab clicks actually work)
+- Mobile fade gradients on tab bar edges
+- NOW panel items are clickable → prefill chat with context
+- Queue items have "Send to Comms" for delegation
+- Onboarding wizard: NOW/Queue split with Chat-first ordering
+- Network Discovery tab with faceted filtering across people, teams, agents, jobs
+
+**Homepage & Messaging**
+- Hero: "The last interface you'll ever need" (after trying and rejecting several alternatives)
+- Subhead: "Your AI agent learns how you work, handles what it can, and surfaces only what needs you."
+- Tiered features grid: 4 core capabilities visible, 5 power features behind "Show more"
+- Protocol section: expandable accordion instead of a wall of 10 items
+- Platform-first CTAs throughout
+
+**Performance & Hardening**
+- Admin stats: batched 44+ sequential Prisma queries into Promise.all groups
+- Rate limiting on auth, execution, federation endpoints
+- Security headers on every response
+- Agent versioning with changelogs
+- Free tier infrastructure (schema + utility, ready to wire)
+
+## Acknowledgments
+
+Thank you to **Jaron** for the conversation today that crystallized the individual-first framing. Sometimes you need someone to challenge an assumption you didn't know you were making.
+
+Thank you to **Todd** for always checking in. Consistent presence matters more than people realize when you're building something alone.
+
+And thank you to **Laura and Jon Bruce** for flying kites with me this afternoon. The best product thinking happens when you stop staring at the screen.
+
+---
+
+This is the most opinionated DiviDen has ever been. And I think that's exactly right. We're not building for everyone. We're building for the person who wants to be a system — not a role.
+
+If that's you: [dividen.ai](https://dividen.ai). Start for free.
+
+— Jon
+`,
+  },
+  {
     id: 'hardening-analytics-federation-intel',
     date: '2026-04-12',
     time: '6:30 PM',
