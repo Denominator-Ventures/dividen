@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,8 @@ export async function POST(
       }
     },
   });
+
+  logActivity({ userId, action: 'card_moved', summary: `Moved "${updated.title}" from ${card.status} → ${status}`, metadata: { cardId: updated.id, from: card.status, to: status } });
 
   return NextResponse.json({ success: true, data: updated });
 }

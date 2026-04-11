@@ -9,6 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { deduplicatedQueueCreate } from '@/lib/queue-dedup';
 import { pushQueueChanged } from '@/lib/webhook-push';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +72,8 @@ export async function POST(request: Request) {
     itemTitle: result.item.title,
     newStatus: result.item.status,
   });
+
+  logActivity({ userId, action: 'queue_added', summary: `Added "${result.item.title}" to queue`, metadata: { itemId: result.item.id, type, priority } });
 
   return NextResponse.json({ success: true, data: result.item }, { status: 201 });
 }

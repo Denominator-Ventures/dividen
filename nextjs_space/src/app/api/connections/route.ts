@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { logActivity } from '@/lib/activity';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
 
@@ -114,6 +115,8 @@ export async function POST(req: NextRequest) {
         // Connection still created locally — will sync when remote comes online
       }
 
+      logActivity({ userId, action: 'connection_created', summary: `Initiated federated connection to ${peerUserName || peerUserEmail} on ${peerInstanceUrl}`, actor: 'user', metadata: { connectionId: connection.id, federated: true } });
+
       return NextResponse.json(connection, { status: 201 });
     }
 
@@ -169,6 +172,8 @@ export async function POST(req: NextRequest) {
         metadata: JSON.stringify({ type: 'connection_request', connectionId: connection.id }),
       },
     });
+
+    logActivity({ userId, action: 'connection_created', summary: `Connection request sent to ${targetUser.name || targetUser.email}`, metadata: { connectionId: connection.id } });
 
     return NextResponse.json(connection, { status: 201 });
   } catch (error: any) {

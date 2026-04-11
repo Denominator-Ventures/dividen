@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,6 +86,9 @@ export async function PATCH(
     },
   });
 
+  const changes = Object.keys(updateData).join(', ');
+  logActivity({ userId, action: 'card_updated', summary: `Updated card "${card.title}" (${changes})`, metadata: { cardId: card.id, changes: updateData } });
+
   return NextResponse.json({ success: true, data: card });
 }
 
@@ -104,6 +108,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'Card not found' }, { status: 404 });
   }
   await prisma.kanbanCard.delete({ where: { id: params.id } });
+
+  logActivity({ userId, action: 'card_deleted', summary: `Deleted card "${existing.title}"`, metadata: { cardId: params.id } });
 
   return NextResponse.json({ success: true });
 }

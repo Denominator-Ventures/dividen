@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 /**
  * GET /api/goals
@@ -84,6 +85,8 @@ export async function POST(req: NextRequest) {
         team: { select: { id: true, name: true, avatar: true } },
       },
     });
+
+    logActivity({ userId, action: 'goal_created', summary: `Created goal "${goal.title}"`, metadata: { goalId: goal.id, impact: impact || 'medium', timeframe: timeframe || 'quarter' } });
 
     return NextResponse.json({ success: true, data: goal });
   } catch (err: any) {

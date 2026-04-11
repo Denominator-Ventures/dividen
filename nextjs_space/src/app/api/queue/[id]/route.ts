@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { validateStatusTransition, onTaskComplete } from '@/lib/cos-sequential-dispatch';
 import { syncRelayWithQueueCompletion } from '@/lib/relay-queue-bridge';
 import { pushQueueChanged } from '@/lib/webhook-push';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,12 @@ export async function PATCH(
     });
   }
 
+  if (body.status !== undefined) {
+    logActivity({ userId, action: 'queue_status_changed', summary: `Task "${item.title}" → ${body.status}`, metadata: { itemId: params.id, from: existing.status, to: body.status } });
+  } else {
+    logActivity({ userId, action: 'queue_updated', summary: `Updated task "${item.title}"`, metadata: { itemId: params.id } });
+  }
+
   return NextResponse.json({ success: true, data: item, autoDispatched });
 }
 
@@ -97,6 +104,8 @@ export async function DELETE(
     return NextResponse.json({ error: 'Item not found' }, { status: 404 });
   }
   await prisma.queueItem.delete({ where: { id: params.id } });
+
+  logActivity({ userId, action: 'queue_deleted', summary: `Removed "${existing.title}" from queue`, metadata: { itemId: params.id } });
 
   return NextResponse.json({ success: true });
 }

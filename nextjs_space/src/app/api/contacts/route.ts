@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -86,6 +87,8 @@ export async function POST(req: NextRequest) {
       userId: userId,
     },
   });
+
+  logActivity({ userId, action: 'contact_added', summary: `Added contact "${contact.name}"${contact.company ? ` (${contact.company})` : ''}`, metadata: { contactId: contact.id } });
 
   return NextResponse.json({ success: true, data: contact }, { status: 201 });
 }

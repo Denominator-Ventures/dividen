@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,7 @@ export async function PATCH(
     if (body.attendees !== undefined) updateData.attendees = JSON.stringify(body.attendees);
 
     const updated = await prisma.calendarEvent.update({ where: { id }, data: updateData });
+    logActivity({ userId, action: 'event_updated', summary: `Updated event "${updated.title}"`, metadata: { eventId: id } });
     return NextResponse.json({ success: true, data: updated });
   } catch (error) {
     console.error('Calendar PATCH error:', error);
@@ -57,6 +59,7 @@ export async function DELETE(
     }
 
     await prisma.calendarEvent.delete({ where: { id } });
+    logActivity({ userId, action: 'event_deleted', summary: `Deleted event "${existing.title}"`, metadata: { eventId: id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Calendar DELETE error:', error);

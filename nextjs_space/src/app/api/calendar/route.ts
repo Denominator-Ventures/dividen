@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -67,6 +68,8 @@ export async function POST(req: NextRequest) {
         userId,
       },
     });
+
+    logActivity({ userId, action: 'event_created', summary: `Created event "${event.title}"`, metadata: { eventId: event.id } });
 
     return NextResponse.json({ success: true, data: event });
   } catch (error) {

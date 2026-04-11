@@ -266,11 +266,15 @@ export function QueuePanel() {
   const [activeView, setActiveView] = useState<'queue' | 'activity'>('queue');
   const [activities, setActivities] = useState<Array<{ id: string; action: string; actor: string; summary: string; createdAt: string }>>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<string>('all');
 
-  const fetchActivities = useCallback(async () => {
+  const fetchActivities = useCallback(async (filter?: string) => {
     setActivitiesLoading(true);
     try {
-      const res = await fetch('/api/activity');
+      const params = new URLSearchParams({ limit: '100' });
+      const cat = filter ?? activityFilter;
+      if (cat && cat !== 'all') params.set('category', cat);
+      const res = await fetch(`/api/activity?${params}`);
       const data = await res.json();
       if (data.success) setActivities(data.data);
     } catch {
@@ -278,18 +282,43 @@ export function QueuePanel() {
     } finally {
       setActivitiesLoading(false);
     }
-  }, []);
+  }, [activityFilter]);
 
+  // Fetch on tab switch or filter change
   useEffect(() => {
-    if (activeView === 'activity' && activities.length === 0) fetchActivities();
-  }, [activeView, activities.length, fetchActivities]);
+    if (activeView === 'activity') fetchActivities();
+  }, [activeView, activityFilter, fetchActivities]);
+
+  // Auto-refresh activity every 30s when visible
+  useEffect(() => {
+    if (activeView !== 'activity') return;
+    const iv = setInterval(() => fetchActivities(), 30000);
+    return () => clearInterval(iv);
+  }, [activeView, fetchActivities]);
 
   const ACTOR_ICONS: Record<string, string> = { user: '👤', divi: '🤖', system: '⚙️' };
   const ACTION_ICONS: Record<string, string> = {
-    card_created: '📋', card_moved: '↗️', task_dispatched: '🚀', contact_added: '👥',
+    card_created: '📋', card_moved: '↗️', card_updated: '✏️', card_deleted: '🗑️',
+    task_dispatched: '🚀', queue_added: '📥', queue_status_changed: '🔄', queue_updated: '✏️', queue_deleted: '🗑️', queue_dispatched: '🚀',
+    contact_added: '👥', contact_updated: '✏️', contact_deleted: '🗑️',
+    event_created: '📅', event_updated: '✏️', event_deleted: '🗑️',
+    goal_created: '🎯', goal_updated: '✏️', goal_deleted: '🗑️',
+    connection_created: '🔗', connection_accepted: '🤝', connection_removed: '❌',
     mode_changed: '🔄', recording_created: '🎙️', recording_processed: '✅',
-    document_created: '📝', queue_dispatched: '🚀',
+    document_created: '📝', relay_sent: '📡', relay_responded: '📨', relay_broadcast: '📢',
+    comms_replied: '💬', comms_created: '💬',
   };
+  const ACTIVITY_CATEGORIES = [
+    { id: 'all', label: 'All' },
+    { id: 'queue', label: 'Queue' },
+    { id: 'board', label: 'Board' },
+    { id: 'crm', label: 'CRM' },
+    { id: 'calendar', label: 'Cal' },
+    { id: 'goals', label: 'Goals' },
+    { id: 'comms', label: 'Comms' },
+    { id: 'connections', label: 'Network' },
+    { id: 'drive', label: 'Drive' },
+  ];
 
   return (
     <div className="panel h-full flex flex-col">
@@ -410,31 +439,64 @@ export function QueuePanel() {
           </div>
         </>
       ) : (
-        /* Activity Feed */
-        <div className="flex-1 overflow-y-auto p-3">
-          {activitiesLoading ? (
-            <div className="flex items-center justify-center h-full">
-              <span className="text-sm text-[var(--text-muted)]">Loading activity...</span>
-            </div>
-          ) : activities.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="text-4xl mb-3 opacity-30">📊</div>
-              <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">No activity yet</h3>
-              <p className="text-xs text-[var(--text-muted)]">Actions like card moves, dispatches, and contact changes will appear here.</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {activities.map(a => (
-                <div key={a.id} className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors">
-                  <span className="text-sm flex-shrink-0">{ACTION_ICONS[a.action] || ACTOR_ICONS[a.actor] || '📌'}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{a.summary}</p>
-                    <span className="text-[10px] text-[var(--text-muted)]">{timeAgo(a.createdAt)}</span>
+        /* Activity Feed — universal event log */
+        <div className="flex flex-col flex-1 min-h-0">
+          {/* Category filter chips */}
+          <div className="flex items-center gap-1 px-3 pt-2 pb-1 overflow-x-auto scrollbar-hide flex-shrink-0">
+            {ACTIVITY_CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setActivityFilter(cat.id)}
+                className={cn(
+                  'px-2 py-0.5 text-[10px] font-medium rounded-full transition-colors whitespace-nowrap flex-shrink-0',
+                  activityFilter === cat.id
+                    ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]'
+                )}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Event list */}
+          <div className="flex-1 overflow-y-auto px-3 pb-3">
+            {activitiesLoading && activities.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <span className="text-sm text-[var(--text-muted)]">Loading activity...</span>
+              </div>
+            ) : activities.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-center">
+                <div className="text-4xl mb-3 opacity-30">📊</div>
+                <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">No activity yet</h3>
+                <p className="text-xs text-[var(--text-muted)]">
+                  Every event — tasks, cards, goals, relays, contacts — from you and your Divi will appear here.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-0.5">
+                {activities.map(a => (
+                  <div key={a.id} className="flex items-start gap-2 py-1.5 px-2 rounded-md hover:bg-[var(--bg-surface)] transition-colors group">
+                    <span className="text-sm flex-shrink-0 mt-0.5">{ACTION_ICONS[a.action] || ACTOR_ICONS[a.actor] || '📌'}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{a.summary}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className={cn(
+                          'text-[10px] px-1 py-px rounded font-medium',
+                          a.actor === 'divi' ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                            : a.actor === 'system' ? 'bg-amber-500/10 text-amber-400'
+                            : 'text-[var(--text-muted)]'
+                        )}>
+                          {a.actor === 'divi' ? '🤖 Divi' : a.actor === 'system' ? '⚙️ System' : '👤 You'}
+                        </span>
+                        <span className="text-[10px] text-[var(--text-muted)]">{timeAgo(a.createdAt)}</span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

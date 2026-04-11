@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 /**
  * GET /api/goals/:id
@@ -67,6 +68,9 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       },
     });
 
+    const changedFields = Object.keys(updates).join(', ');
+    logActivity({ userId, action: 'goal_updated', summary: `Updated goal "${goal.title}" (${changedFields})`, metadata: { goalId: goal.id, changes: updates } });
+
     return NextResponse.json({ success: true, data: goal });
   } catch (err: any) {
     console.error('Goal PUT error:', err);
@@ -87,6 +91,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     await prisma.goal.delete({ where: { id: params.id } });
+    logActivity({ userId, action: 'goal_deleted', summary: `Deleted goal "${existing.title}"`, metadata: { goalId: params.id } });
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('Goal DELETE error:', err);

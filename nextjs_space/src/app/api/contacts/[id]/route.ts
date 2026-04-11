@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,8 @@ export async function PATCH(
     data: updateData,
   });
 
+  logActivity({ userId, action: 'contact_updated', summary: `Updated contact "${contact.name}"`, metadata: { contactId: contact.id, fields: Object.keys(updateData) } });
+
   return NextResponse.json({ success: true, data: contact });
 }
 
@@ -84,6 +87,8 @@ export async function DELETE(
     return NextResponse.json({ success: false, error: 'Contact not found' }, { status: 404 });
   }
   await prisma.contact.delete({ where: { id: params.id } });
+
+  logActivity({ userId, action: 'contact_deleted', summary: `Deleted contact "${existing.name}"`, metadata: { contactId: params.id } });
 
   return NextResponse.json({ success: true });
 }
