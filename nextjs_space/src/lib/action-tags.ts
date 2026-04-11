@@ -1698,11 +1698,37 @@ async function executeTag(
         if (params.category) where.category = params.category;
         const agents = await prisma.marketplaceAgent.findMany({
           where,
-          select: { id: true, name: true, description: true, category: true, pricingModel: true, pricePerTask: true, avgRating: true, totalExecutions: true, developerName: true },
+          select: {
+            id: true, name: true, description: true, category: true,
+            pricingModel: true, pricePerTask: true, avgRating: true,
+            totalExecutions: true, developerName: true, developerId: true,
+            taskTypes: true,
+          },
           orderBy: { avgRating: 'desc' },
           take: 20,
         });
-        return { tag: name, success: true, data: { count: agents.length, agents } };
+        // Check which agents the user has installed
+        const userSubs = await prisma.marketplaceSubscription.findMany({
+          where: { userId, agentId: { in: agents.map(a => a.id) } },
+          select: { agentId: true, installed: true, status: true },
+        });
+        const subMap = new Map(userSubs.map(s => [s.agentId, s]));
+        const enriched = agents.map(a => {
+          const sub = subMap.get(a.id);
+          let taskTypes: string[] = [];
+          try { taskTypes = a.taskTypes ? JSON.parse(a.taskTypes) : []; } catch {}
+          return {
+            id: a.id, name: a.name, description: a.description, category: a.category,
+            pricingModel: a.pricingModel, pricePerTask: a.pricePerTask,
+            avgRating: a.avgRating, totalExecutions: a.totalExecutions,
+            developerName: a.developerName,
+            isOwnAgent: a.developerId === userId,
+            installed: sub?.installed ?? false,
+            subscribed: sub?.status === 'active',
+            taskTypes,
+          };
+        });
+        return { tag: name, success: true, data: { count: enriched.length, agents: enriched } };
       }
 
       case 'execute_agent': {
@@ -1827,12 +1853,26 @@ async function executeTag(
         const agent = await prisma.marketplaceAgent.findUnique({ where: { id: agentId } });
         if (!agent || agent.status !== 'active') return { tag: name, success: false, error: 'Agent not found or inactive' };
 
-        // Upsert subscription with installed flag
-        await prisma.marketplaceSubscription.upsert({
-          where: { agentId_userId: { agentId, userId } },
-          create: { agentId, userId, status: 'active', installed: true, installedAt: new Date() },
-          update: { installed: true, installedAt: new Date(), uninstalledAt: null },
-        });
+        // For paid agents, require existing active subscription
+        if (agent.pricingModel !== 'free') {
+          const existingSub = await prisma.marketplaceSubscription.findUnique({
+            where: { agentId_userId: { agentId, userId } },
+          });
+          if (!existingSub || existingSub.status !== 'active') {
+            return { tag: name, success: false, error: `This is a ${agent.pricingModel} agent. Subscribe first with [[subscribe_agent:{"agentId":"${agentId}"}]], then install.` };
+          }
+          await prisma.marketplaceSubscription.update({
+            where: { id: existingSub.id },
+            data: { installed: true, installedAt: new Date(), uninstalledAt: null },
+          });
+        } else {
+          // Free agents — upsert subscription with installed flag
+          await prisma.marketplaceSubscription.upsert({
+            where: { agentId_userId: { agentId, userId } },
+            create: { agentId, userId, status: 'active', installed: true, installedAt: new Date() },
+            update: { installed: true, installedAt: new Date(), uninstalledAt: null },
+          });
+        }
 
         // Build memory entries from Integration Kit
         const prefix = `agent:${agentId}`;

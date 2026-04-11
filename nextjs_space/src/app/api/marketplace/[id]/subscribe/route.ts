@@ -85,12 +85,27 @@ export async function DELETE(
       return NextResponse.json({ error: 'No subscription found' }, { status: 404 });
     }
 
+    // If agent was installed, also uninstall — Divi forgets when access is lost
+    const wasInstalled = sub.installed;
+
     await prisma.marketplaceSubscription.update({
       where: { id: sub.id },
-      data: { status: 'cancelled', cancelledAt: new Date() },
+      data: {
+        status: 'cancelled',
+        cancelledAt: new Date(),
+        installed: false,
+        uninstalledAt: wasInstalled ? new Date() : sub.uninstalledAt,
+      },
     });
 
-    return NextResponse.json({ success: true });
+    // Clear memory entries if was installed
+    if (wasInstalled) {
+      await prisma.memoryItem.deleteMany({
+        where: { userId, key: { startsWith: `agent:${params.id}` } },
+      });
+    }
+
+    return NextResponse.json({ success: true, wasInstalled });
   } catch (error: any) {
     console.error('Marketplace unsubscribe error:', error);
     return NextResponse.json({ error: 'Failed to unsubscribe' }, { status: 500 });

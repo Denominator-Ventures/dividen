@@ -33,22 +33,41 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found or inactive' }, { status: 404 });
     }
 
-    // Upsert subscription (handles both free agents and paid ones that are already subscribed)
-    const sub = await prisma.marketplaceSubscription.upsert({
-      where: { agentId_userId: { agentId: agent.id, userId } },
-      create: {
-        agentId: agent.id,
-        userId,
-        status: 'active',
-        installed: true,
-        installedAt: new Date(),
-      },
-      update: {
-        installed: true,
-        installedAt: new Date(),
-        uninstalledAt: null, // Clear any previous uninstall
-      },
-    });
+    // For paid agents, require an existing active subscription before installing
+    // Free agents can be installed directly (upsert creates subscription if needed)
+    if (agent.pricingModel !== 'free') {
+      const existingSub = await prisma.marketplaceSubscription.findUnique({
+        where: { agentId_userId: { agentId: agent.id, userId } },
+      });
+      if (!existingSub || existingSub.status !== 'active') {
+        return NextResponse.json(
+          { error: `This is a ${agent.pricingModel} agent. Subscribe first, then install.` },
+          { status: 402 }
+        );
+      }
+      // Update existing subscription to installed
+      await prisma.marketplaceSubscription.update({
+        where: { id: existingSub.id },
+        data: { installed: true, installedAt: new Date(), uninstalledAt: null },
+      });
+    } else {
+      // Free agents — upsert subscription with installed flag
+      await prisma.marketplaceSubscription.upsert({
+        where: { agentId_userId: { agentId: agent.id, userId } },
+        create: {
+          agentId: agent.id,
+          userId,
+          status: 'active',
+          installed: true,
+          installedAt: new Date(),
+        },
+        update: {
+          installed: true,
+          installedAt: new Date(),
+          uninstalledAt: null,
+        },
+      });
+    }
 
     // Build memory entries from Integration Kit
     const memoryEntries: { key: string; value: string; category: string; tier: number }[] = [];

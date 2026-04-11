@@ -145,6 +145,42 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Auto-install own agent into developer's Divi toolkit
+    // Your own agents should always be in Divi's active toolkit
+    try {
+      await prisma.marketplaceSubscription.create({
+        data: {
+          agentId: agent.id,
+          userId,
+          status: 'active',
+          installed: true,
+          installedAt: new Date(),
+        },
+      });
+      // Load Integration Kit into memory
+      const prefix = `agent:${agent.id}`;
+      const memEntries: { key: string; value: string; category: string; tier: number }[] = [
+        { key: `${prefix}:identity`, value: JSON.stringify({ name: agent.name, slug: agent.slug, category: agent.category, inputFormat: agent.inputFormat, outputFormat: agent.outputFormat, pricingModel: agent.pricingModel, developerName: agent.developerName, isOwnAgent: true }), category: 'agent_toolkit', tier: 1 },
+      ];
+      if (agent.taskTypes) memEntries.push({ key: `${prefix}:task_types`, value: agent.taskTypes, category: 'agent_toolkit', tier: 1 });
+      if (agent.contextInstructions) memEntries.push({ key: `${prefix}:context_instructions`, value: agent.contextInstructions, category: 'agent_toolkit', tier: 2 });
+      if (agent.contextPreparation) memEntries.push({ key: `${prefix}:preparation_steps`, value: agent.contextPreparation, category: 'agent_toolkit', tier: 2 });
+      if (agent.requiredInputSchema) memEntries.push({ key: `${prefix}:input_schema`, value: agent.requiredInputSchema, category: 'agent_toolkit', tier: 1 });
+      if (agent.outputSchema) memEntries.push({ key: `${prefix}:output_schema`, value: agent.outputSchema, category: 'agent_toolkit', tier: 1 });
+      if (agent.usageExamples) memEntries.push({ key: `${prefix}:usage_examples`, value: typeof agent.usageExamples === 'string' ? agent.usageExamples : JSON.stringify(agent.usageExamples), category: 'agent_toolkit', tier: 3 });
+      if (agent.executionNotes) memEntries.push({ key: `${prefix}:execution_notes`, value: agent.executionNotes, category: 'agent_toolkit', tier: 2 });
+
+      for (const entry of memEntries) {
+        await prisma.memoryItem.upsert({
+          where: { userId_key: { userId, key: entry.key } },
+          create: { userId, key: entry.key, value: entry.value, category: entry.category, tier: entry.tier, source: 'system' },
+          update: { value: entry.value, category: entry.category, tier: entry.tier },
+        });
+      }
+    } catch (autoInstallErr) {
+      console.error('Auto-install own agent failed (non-critical):', autoInstallErr);
+    }
+
     return NextResponse.json(agent, { status: 201 });
   } catch (error: any) {
     console.error('Marketplace registration error:', error);

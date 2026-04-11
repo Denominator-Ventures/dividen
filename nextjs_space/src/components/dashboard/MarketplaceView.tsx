@@ -696,34 +696,42 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
           )}
 
           {/* Install / Uninstall — Divi's Active Toolkit */}
-          {!a.isOwner && (
-            <div className="mt-3 flex items-center gap-3">
-              <button
-                onClick={toggleInstall}
-                disabled={installing}
-                className={cn(
-                  'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
-                  a.subscription?.installed
-                    ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25'
-                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+          {!a.isOwner && (() => {
+            const needsSub = a.pricingModel !== 'free' && !hasSubscription;
+            return (
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                <button
+                  onClick={toggleInstall}
+                  disabled={installing || needsSub}
+                  className={cn(
+                    'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+                    needsSub
+                      ? 'bg-white/5 text-white/30 border border-white/10 cursor-not-allowed'
+                      : a.subscription?.installed
+                        ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25'
+                        : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                  )}
+                >
+                  {installing ? (
+                    <span className="animate-pulse">⏳</span>
+                  ) : a.subscription?.installed ? (
+                    <>🧠 Uninstall from Divi</>
+                  ) : (
+                    <>⚡ Install to Divi&apos;s Toolkit</>
+                  )}
+                </button>
+                {needsSub && (
+                  <span className="text-[10px] text-white/35">Subscribe first to install paid agents</span>
                 )}
-              >
-                {installing ? (
-                  <span className="animate-pulse">⏳</span>
-                ) : a.subscription?.installed ? (
-                  <>🧠 Uninstall from Divi</>
-                ) : (
-                  <>⚡ Install to Divi&apos;s Toolkit</>
+                {a.subscription?.installed && (
+                  <span className="text-[10px] text-emerald-400/60 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse" />
+                    Installed — Divi knows this agent
+                  </span>
                 )}
-              </button>
-              {a.subscription?.installed && (
-                <span className="text-[10px] text-emerald-400/60 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse" />
-                  Installed — Divi knows this agent
-                </span>
-              )}
-            </div>
-          )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Long description */}
