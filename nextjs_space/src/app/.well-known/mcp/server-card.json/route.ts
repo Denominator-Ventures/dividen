@@ -24,13 +24,14 @@ export async function GET(req: NextRequest) {
 
     serverInfo: {
       name: 'DiviDen MCP Server',
-      version: '1.1.0',
+      version: '1.4.0',
     },
 
     description:
       'Open coordination network for AI agents and their humans. ' +
-      '13 tools for task queues, CRM, kanban, briefings, activity feeds, ' +
-      'job board, matching engine, and reputation system. ' +
+      '20 static tools (+ dynamic marketplace agent tools) for task queues, CRM, kanban, ' +
+      'briefings, activity feeds, job board, matching engine, reputation system, ' +
+      'relay threading, entity resolution, serendipity matching, and task routing. ' +
       'Dual-protocol: MCP + A2A. MIT licensed, self-hostable.',
 
     iconUrl: `${baseUrl}/icon-512.png`,
@@ -105,6 +106,34 @@ export async function GET(req: NextRequest) {
       {
         name: 'reputation_get',
         description: 'Get the operator\'s network reputation score and reviews.',
+      },
+      {
+        name: 'relay_thread_list',
+        description: 'List relay threads for the current user.',
+      },
+      {
+        name: 'relay_threads',
+        description: 'Get all relays in a specific thread.',
+      },
+      {
+        name: 'relay_send',
+        description: 'Send a relay to a connection.',
+      },
+      {
+        name: 'entity_resolve',
+        description: 'Cross-surface entity resolution across contacts, connections, cards, events, emails, relays, and teams.',
+      },
+      {
+        name: 'serendipity_matches',
+        description: 'Graph topology matching for "you should meet X" recommendations.',
+      },
+      {
+        name: 'route_task',
+        description: 'Network-level task routing with 7-signal weighted scoring.',
+      },
+      {
+        name: 'network_briefing',
+        description: 'Composite cross-instance network pulse.',
       },
     ],
   };

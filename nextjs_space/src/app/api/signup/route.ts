@@ -1,12 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
+import { authLimiter, getRateLimitKey } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 const TERMS_VERSION = '1.0';
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 10 signup attempts per minute per IP
+  const rlKey = getRateLimitKey(request, 'signup');
+  const rlResult = authLimiter.check(rlKey);
+  if (!rlResult.allowed) {
+    return NextResponse.json(
+      { error: 'Too many signup attempts. Please try again shortly.' },
+      { status: 429, headers: authLimiter.headers(rlResult) }
+    );
+  }
+
   try {
     const body = await request.json();
     const { email, password, name, acceptedTerms } = body;

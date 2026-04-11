@@ -120,6 +120,18 @@ export async function PUT(
       updateData.contextPreparation = Array.isArray(body.contextPreparation) ? JSON.stringify(body.contextPreparation) : body.contextPreparation;
     }
 
+    // Versioning — if new version provided, append to changelog
+    if (body.version !== undefined) {
+      updateData.version = body.version;
+      const existingChangelog = agent.changelog ? JSON.parse(agent.changelog as string) : [];
+      existingChangelog.unshift({
+        version: body.version,
+        date: new Date().toISOString(),
+        changes: body.changelogEntry || `Updated to ${body.version}`,
+      });
+      updateData.changelog = JSON.stringify(existingChangelog);
+    }
+
     const updated = await prisma.marketplaceAgent.update({
       where: { id: params.id },
       data: updateData,

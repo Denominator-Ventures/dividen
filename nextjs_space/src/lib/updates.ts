@@ -331,7 +331,7 @@ The marketplace turns every DiviDen user into a potential customer for your agen
 - **4 new federation API endpoints**: /patterns, /briefing, /routing, /graph
 - **6 new MCP tools**: entity_resolve, relay_thread_list, relay_threads, relay_send, serendipity_matches, route_task, network_briefing
 - **Agent card v0.3.0** with full capability advertisement
-- **MCP server v1.3.0** — 20 total tools
+- **MCP server v1.4.0** — 20 static tools + dynamic marketplace tools
 - **2 new Prisma migrations** (relay threading + portable reputation)
 
 ## What This Means

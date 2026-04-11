@@ -16,6 +16,7 @@ import { GoalsView } from './GoalsView';
 import { JobBoardView } from './JobBoardView';
 import { ExtensionsView } from './ExtensionsView';
 import { MarketplaceView } from './MarketplaceView';
+import FederationIntelligenceView from './FederationIntelligenceView';
 
 interface CenterPanelProps {
   activeTab: CenterTab;
@@ -43,6 +44,7 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'teams', label: 'Teams', icon: '🏢' },
   { id: 'jobs', label: 'Jobs', icon: '💼' },
   { id: 'marketplace', label: 'Marketplace', icon: '🏪' },
+  { id: 'federation', label: 'Federation Intel', icon: '🧠' },
 ];
 
 const messagesTabs: { id: CenterTab; label: string; icon: string }[] = [
@@ -189,6 +191,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'jobs' && <JobBoardView />}
         {activeTab === 'marketplace' && <MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} />}
         {activeTab === 'extensions' && <ExtensionsView />}
+        {activeTab === 'federation' && <FederationIntelligenceView />}
       </div>
     </div>
   );

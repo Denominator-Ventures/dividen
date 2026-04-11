@@ -7,13 +7,13 @@ export const metadata: Metadata = {
   description: 'FVP Integration Brief + Agent Marketplace Build. MCP v1.4.0, Agent Install/Uninstall, Integration Kit, federation intelligence.',
   openGraph: {
     title: 'DiviDen Release Notes — FVP + Marketplace Build',
-    description: 'MCP v1.4.0 (22+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
+    description: 'MCP v1.4.0 (20+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
     images: [{ url: '/api/og?title=Release+Notes&subtitle=FVP+%2B+Marketplace+Build&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes — FVP + Marketplace Build',
-    description: 'MCP v1.4.0 (22+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
+    description: 'MCP v1.4.0 (20+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
     images: ['/api/og?title=Release+Notes&subtitle=FVP+%2B+Marketplace+Build&tag=release'],
   },
 };
@@ -34,7 +34,7 @@ export default function ReleaseNotesPage() {
           <h1 className="text-3xl font-bold mb-2 font-heading">📋 os.dividen.ai — Release Update</h1>
           <div className="flex flex-wrap gap-2 mt-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Date: April 11, 2026</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.4.0 (22+ dynamic)</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.4.0 (20+ dynamic)</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.3.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Protocol: DAWP/0.1</span>
             <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">NEW: Agent Install/Uninstall</span>
@@ -271,8 +271,8 @@ domain proximity: 10%`}</pre>
             </ul>
           </div>
 
-          <h3 className="text-lg font-semibold mb-3 mt-6">Full Tool Inventory (22 static + dynamic)</h3>
-          <CodeBlock>{`# Static tools (22)
+          <h3 className="text-lg font-semibold mb-3 mt-6">Full Tool Inventory (20 static + dynamic)</h3>
+          <CodeBlock>{`# Static tools (20)
 queue_list, queue_add, queue_update,
 contacts_list, contacts_search,
 cards_list, mode_get, briefing_get, activity_recent,
@@ -651,7 +651,7 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
               <li>• <code className="code-inline">/api/status</code> → 200 with all checks passing</li>
               <li>• Agent card version → <code className="code-inline">0.3.0</code></li>
               <li>• MCP server version → <code className="code-inline">1.4.0</code></li>
-              <li>• <code className="code-inline">tools/list</code> → 22 static tools + dynamic marketplace tools</li>
+              <li>• <code className="code-inline">tools/list</code> → 20 static tools + dynamic marketplace tools</li>
             </ul>
           </div>
         </Section>

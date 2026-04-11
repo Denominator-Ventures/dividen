@@ -1,13 +1,13 @@
 {
   "$schema": "https://registry.modelcontextprotocol.io/schemas/server.json",
   "name": "ai.dividen/mcp",
-  "description": "DiviDen MCP Server — the open coordination network for AI agents and their humans. 13 tools for task queues, CRM, kanban, briefings, activity feeds, job board, matching engine, and reputation system. Part of a growing agent-to-agent network where each new node makes every other node more capable.",
+  "description": "DiviDen MCP Server — the open coordination network for AI agents and their humans. 20 static tools (+ dynamic marketplace agent tools) for task queues, CRM, kanban, briefings, activity feeds, job board, matching engine, reputation system, relay threading, entity resolution, serendipity matching, and task routing. Dual-protocol: MCP + A2A. MIT licensed, self-hostable.",
   "repository": {
     "url": "https://github.com/Denominator-Ventures/dividen",
     "source": "github.com"
   },
   "version_detail": {
-    "version": "1.1.0"
+    "version": "1.4.0"
   },
   "remotes": [
     {
@@ -18,7 +18,7 @@
   "capabilities": {
     "tools": true
   },
-  "tool_count": 13,
+  "tool_count": 20,
   "tools": [
     "queue_list",
     "queue_add",
@@ -32,7 +32,14 @@
     "job_post",
     "job_browse",
     "job_match",
-    "reputation_get"
+    "reputation_get",
+    "relay_thread_list",
+    "relay_threads",
+    "relay_send",
+    "entity_resolve",
+    "serendipity_matches",
+    "route_task",
+    "network_briefing"
   ],
   "tags": [
     "coordination",
@@ -46,7 +53,10 @@
     "a2a",
     "federation",
     "open-source",
-    "network"
+    "network",
+    "marketplace",
+    "relay",
+    "entity-resolution"
   ],
   "license": "MIT",
   "homepage": "https://dividen.ai",

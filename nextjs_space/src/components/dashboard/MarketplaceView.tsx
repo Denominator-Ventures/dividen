@@ -49,6 +49,8 @@ interface MarketplaceAgent {
   contextPreparation?: string | null;
   executionNotes?: string | null;
   developerId?: string;
+  version?: string;
+  changelog?: string | null;
 }
 
 interface Execution {
@@ -666,12 +668,41 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
             </div>
           )}
 
-          {/* Protocol badges */}
-          <div className="flex gap-2 mt-3">
+          {/* Protocol badges + version */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            {a.version && <span className="px-2 py-0.5 bg-brand-500/10 text-brand-400 border border-brand-500/20 rounded text-[10px] font-mono">v{a.version}</span>}
             {a.supportsA2A && <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded text-[10px]">A2A Compatible</span>}
             {a.supportsMCP && <span className="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded text-[10px]">MCP Compatible</span>}
             <span className="px-2 py-0.5 bg-white/5 text-white/40 border border-white/10 rounded text-[10px]">In: {a.inputFormat} → Out: {a.outputFormat}</span>
           </div>
+
+          {/* Changelog (if available) */}
+          {a.changelog && (() => {
+            try {
+              const entries = JSON.parse(a.changelog);
+              if (Array.isArray(entries) && entries.length > 0) {
+                return (
+                  <details className="mt-3 group">
+                    <summary className="text-[10px] text-white/30 cursor-pointer hover:text-white/50 transition-colors">
+                      📝 Changelog ({entries.length} {entries.length === 1 ? 'entry' : 'entries'})
+                    </summary>
+                    <div className="mt-2 space-y-1 pl-3 border-l border-white/[0.06]">
+                      {entries.slice(0, 5).map((entry: any, i: number) => (
+                        <div key={i} className="text-[10px] text-white/40">
+                          <span className="text-brand-400 font-mono">v{entry.version}</span>
+                          <span className="text-white/20 mx-1">·</span>
+                          <span className="text-white/25">{new Date(entry.date).toLocaleDateString()}</span>
+                          <span className="text-white/20 mx-1">—</span>
+                          <span>{entry.changes}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                );
+              }
+              return null;
+            } catch { return null; }
+          })()}
 
           {/* Subscription button for subscription agents */}
           {a.pricingModel === 'subscription' && !a.isOwner && (
@@ -1648,40 +1679,93 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
           ))}
         </div>
 
-        {/* Agent breakdown */}
+        {/* Agent breakdown with visual bars */}
         <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
-          <h3 className="text-sm font-medium text-white/70 mb-3">📊 Agent Performance</h3>
-          <div className="space-y-2">
-            {earnings.agents?.map((a: any) => (
-              <div key={a.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="text-sm">{CATEGORIES.find(c => c.id === a.category)?.icon || '🤖'}</span>
-                  <div className="min-w-0">
-                    <div className="text-sm text-white/80 truncate">{a.name}</div>
-                    <div className="text-[10px] text-white/35">{a.totalExecutions} runs · {a._count?.subscriptions || 0} subs</div>
+          <h3 className="text-sm font-medium text-white/70 mb-4">📊 Agent Performance</h3>
+          <div className="space-y-3">
+            {earnings.agents?.map((a: any) => {
+              const maxExec = Math.max(...(earnings.agents?.map((x: any) => x.totalExecutions || 0) || [1]));
+              const execPct = maxExec > 0 ? ((a.totalExecutions || 0) / maxExec) * 100 : 0;
+              const successRate = a.totalExecutions > 0 ? Math.round(((a.completedExecutions || a.totalExecutions) / a.totalExecutions) * 100) : 0;
+              const maxRev = Math.max(...(earnings.agents?.map((x: any) => (x.developerPayout || 0)) || [1]));
+              const revPct = maxRev > 0 ? ((a.developerPayout || 0) / maxRev) * 100 : 0;
+              return (
+                <div key={a.id} className="p-3 bg-white/[0.02] rounded-lg border border-white/[0.04]">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-sm">{CATEGORIES.find(c => c.id === a.category)?.icon || '🤖'}</span>
+                      <div className="min-w-0">
+                        <div className="text-sm text-white/80 truncate">{a.name}</div>
+                        <div className="text-[10px] text-white/35">{a._count?.subscriptions || 0} subscribers</div>
+                      </div>
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-3">
+                      <div className={cn('text-sm font-medium', a.pricingModel === 'free' ? 'text-white/40' : 'text-emerald-400')}>
+                        {a.pricingModel === 'free' ? 'Free' : `$${(a.developerPayout || 0).toLocaleString()}`}
+                      </div>
+                      <div className={cn('text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block', a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40')}>
+                        {a.status}
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right flex-shrink-0 ml-3">
-                  <div className={cn(
-                    'text-sm font-medium',
-                    a.pricingModel === 'free' ? 'text-white/40' : 'text-emerald-400'
-                  )}>
-                    {a.pricingModel === 'free' ? 'Free' : `$${a.developerPayout || 0}`}
+                  {/* Execution bar */}
+                  <div className="mb-1.5">
+                    <div className="flex items-center justify-between text-[10px] mb-0.5">
+                      <span className="text-white/35">Executions: {a.totalExecutions || 0}</span>
+                      <span className={cn('font-medium', successRate >= 90 ? 'text-emerald-400' : successRate >= 70 ? 'text-amber-400' : 'text-red-400')}>
+                        {successRate}% success
+                      </span>
+                    </div>
+                    <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-500/60 rounded-full transition-all duration-500" style={{ width: `${Math.max(execPct, 2)}%` }} />
+                    </div>
                   </div>
-                  {a.pricingModel !== 'free' && a.grossRevenue > 0 && (
-                    <div className="text-[9px] text-white/25">gross ${a.grossRevenue}</div>
+                  {/* Revenue bar (only for paid) */}
+                  {a.pricingModel !== 'free' && (
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] mb-0.5">
+                        <span className="text-white/35">Revenue share</span>
+                        {a.grossRevenue > 0 && <span className="text-white/25">gross ${(a.grossRevenue || 0).toLocaleString()}</span>}
+                      </div>
+                      <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500/60 rounded-full transition-all duration-500" style={{ width: `${Math.max(revPct, 2)}%` }} />
+                      </div>
+                    </div>
                   )}
-                  <div className={cn(
-                    'text-[10px] px-1.5 py-0.5 rounded mt-0.5',
-                    a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'
-                  )}>
-                    {a.status}
-                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
+
+        {/* Execution success breakdown chart */}
+        {t.totalExecutions > 0 && (
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">⚙️ Execution Breakdown</h3>
+            <div className="flex items-end gap-1 h-24">
+              {(() => {
+                const completed = t.completedExecutions || 0;
+                const failed = t.failedExecutions || 0;
+                const pending = t.totalExecutions - completed - failed;
+                const total = t.totalExecutions;
+                return [
+                  { label: 'Completed', count: completed, color: 'bg-emerald-500' },
+                  { label: 'Failed', count: failed, color: 'bg-red-500' },
+                  { label: 'Pending', count: pending > 0 ? pending : 0, color: 'bg-amber-500' },
+                ].filter(s => s.count > 0).map((s, i) => (
+                  <div key={i} className="flex-1 flex flex-col items-center gap-1">
+                    <div className="text-[10px] text-white/50 font-medium">{s.count}</div>
+                    <div
+                      className={cn('w-full rounded-t-md', s.color, 'opacity-60')}
+                      style={{ height: `${Math.max((s.count / total) * 80, 4)}px` }}
+                    />
+                    <div className="text-[9px] text-white/30">{s.label}</div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Recent activity */}
         {earnings.recentExecutions && earnings.recentExecutions.length > 0 && (

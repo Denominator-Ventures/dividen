@@ -181,7 +181,7 @@ export interface ApiResponse<T = unknown> {
 
 // ─── Dashboard Tab Types ────────────────────────────────────────────────────
 
-export type CenterTab = 'chat' | 'kanban' | 'crm' | 'recordings' | 'drive' | 'calendar' | 'inbox' | 'connections' | 'teams' | 'goals' | 'jobs' | 'marketplace' | 'extensions';
+export type CenterTab = 'chat' | 'kanban' | 'crm' | 'recordings' | 'drive' | 'calendar' | 'inbox' | 'connections' | 'teams' | 'goals' | 'jobs' | 'marketplace' | 'extensions' | 'federation';
 
 // ─── Calendar Types ──────────────────────────────────────────────────────────
 

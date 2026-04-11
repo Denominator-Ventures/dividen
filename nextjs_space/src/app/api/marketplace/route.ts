@@ -91,6 +91,8 @@ export async function POST(req: NextRequest) {
       // Agent Integration Kit
       taskTypes, contextInstructions, requiredInputSchema, outputSchema,
       usageExamples, contextPreparation, executionNotes,
+      // Versioning
+      version,
     } = body;
 
     if (!name || !description || !endpointUrl || !developerName) {
@@ -141,6 +143,8 @@ export async function POST(req: NextRequest) {
         usageExamples: usageExamples ? JSON.stringify(usageExamples) : null,
         contextPreparation: contextPreparation ? JSON.stringify(contextPreparation) : null,
         executionNotes: executionNotes || null,
+        version: version || '1.0.0',
+        changelog: JSON.stringify([{ version: version || '1.0.0', date: new Date().toISOString(), changes: 'Initial release' }]),
         status: 'active', // auto-approve for Phase 1
       },
     });

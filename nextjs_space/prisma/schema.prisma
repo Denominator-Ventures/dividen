@@ -1444,6 +1444,10 @@ model MarketplaceAgent {
   supportsMCP     Boolean   @default(false)
   agentCardUrl    String?   // URL to .well-known/agent-card.json
 
+  // Versioning
+  version             String    @default("1.0.0")  // semver
+  changelog           String?   @db.Text  // JSON array of {version, date, changes} entries
+
   // Agent Integration Kit — knowledge transfer for consuming Divis
   taskTypes           String?   @db.Text  // JSON array: what this agent handles (e.g. ["research", "summarization", "code-review"])
   contextInstructions String?   @db.Text  // Markdown: how Divi should prepare context before calling this agent
@@ -1487,6 +1491,7 @@ model MarketplaceSubscription {
   installed       Boolean   @default(false)  // true = agent is active in Divi's toolkit
   installedAt     DateTime?                  // when it was installed
   uninstalledAt   DateTime?                  // when it was last uninstalled
+  pinnedVersion   String?                    // null = always latest; "1.2.0" = locked to specific version
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

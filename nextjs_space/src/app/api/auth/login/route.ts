@@ -2,12 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { logRequest, logError, getClientIp } from '@/lib/telemetry';
+import { authLimiter, getRateLimitKey } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   const start = Date.now();
   const ip = getClientIp(request.headers);
+
+  // Rate limit: 10 login attempts per minute per IP
+  const rlKey = getRateLimitKey(request, 'login');
+  const rlResult = authLimiter.check(rlKey);
+  if (!rlResult.allowed) {
+    return NextResponse.json(
+      { success: false, error: 'Too many login attempts. Please try again shortly.' },
+      { status: 429, headers: authLimiter.headers(rlResult) }
+    );
+  }
+
   try {
     const body = await request.json();
     const { email, password } = body;

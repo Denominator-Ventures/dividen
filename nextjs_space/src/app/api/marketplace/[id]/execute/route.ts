@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueSplit } from '@/lib/marketplace-config';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { heavyLimiter, getRateLimitKey } from '@/lib/rate-limit';
 
 const EXECUTION_TIMEOUT = 30000; // 30s
 
@@ -15,6 +16,16 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
+    // Rate limit: 20 executions per minute per IP
+    const rlKey = getRateLimitKey(req, 'execute');
+    const rlResult = heavyLimiter.check(rlKey);
+    if (!rlResult.allowed) {
+      return NextResponse.json(
+        { error: 'Too many execution requests. Please slow down.' },
+        { status: 429, headers: heavyLimiter.headers(rlResult) }
+      );
+    }
+
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
