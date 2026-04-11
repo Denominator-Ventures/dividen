@@ -107,6 +107,17 @@ export type AgentMessageType = 'status_update' | 'suggestion' | 'alert' | 'compl
 
 // ─── Contact / CRM Types ────────────────────────────────────────────────────
 
+export interface ContactPlatformUser {
+  id: string;
+  name: string | null;
+  email: string;
+  profile?: {
+    headline: string | null;
+    capacity: string | null;
+    visibility: string | null;
+  } | null;
+}
+
 export interface ContactData {
   id: string;
   name: string;
@@ -122,6 +133,10 @@ export interface ContactData {
   createdAt: string;
   updatedAt: string;
   cards?: CardContactData[];
+  platformUserId?: string | null;
+  platformUserStatus?: string | null;
+  matchedAt?: string | null;
+  platformUser?: ContactPlatformUser | null;
 }
 
 export type ContactSource = 'manual' | 'chat' | 'enriched';

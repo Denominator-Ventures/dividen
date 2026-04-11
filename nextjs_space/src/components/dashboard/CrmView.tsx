@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { ContactDetailModal } from './ContactDetailModal';
-import type { ContactData } from '@/types';
+import type { ContactData, ContactPlatformUser } from '@/types';
 
 interface ContactCardLink {
   id: string;
@@ -15,16 +15,24 @@ interface ContactCardLink {
 
 interface ContactWithCards extends Omit<ContactData, 'cards'> {
   cards?: ContactCardLink[];
+  platformUserId?: string | null;
+  platformUserStatus?: string | null;
+  matchedAt?: string | null;
+  platformUser?: ContactPlatformUser | null;
 }
+
+type PlatformFilter = 'all' | 'on_dividen' | 'invite';
 
 export function CrmView() {
   const [contacts, setContacts] = useState<ContactWithCards[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [tagFilter, setTagFilter] = useState('');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilter>('all');
   const [selectedContact, setSelectedContact] = useState<ContactWithCards | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [newContact, setNewContact] = useState({ name: '', email: '', phone: '', company: '', role: '', tags: '' });
+  const [invitingId, setInvitingId] = useState<string | null>(null);
 
   const fetchContacts = useCallback(async () => {
     try {
@@ -54,6 +62,41 @@ export function CrmView() {
         .filter(Boolean)
     )
   );
+
+  // Platform-filtered contacts
+  const filteredContacts = contacts.filter((c) => {
+    if (platformFilter === 'on_dividen') return !!c.platformUserId;
+    if (platformFilter === 'invite') return !c.platformUserId && !!c.email;
+    return true;
+  });
+
+  // Platform stats
+  const onDiviDenCount = contacts.filter((c) => !!c.platformUserId).length;
+  const invitableCount = contacts.filter((c) => !c.platformUserId && !!c.email).length;
+
+  const handleInviteContact = async (contact: ContactWithCards) => {
+    if (!contact.email || invitingId) return;
+    setInvitingId(contact.id);
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inviteeEmail: contact.email,
+          inviteeName: contact.name,
+          message: `Hey ${contact.name.split(' ')[0]}, I'd like to connect with you on DiviDen.`,
+        }),
+      });
+      if (res.ok) {
+        // Refresh contacts to pick up status change
+        fetchContacts();
+      }
+    } catch (err) {
+      console.error('Failed to invite contact:', err);
+    } finally {
+      setInvitingId(null);
+    }
+  };
 
   const handleCreateContact = async () => {
     if (!newContact.name.trim()) return;
@@ -109,9 +152,18 @@ export function CrmView() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="font-medium">Contacts</h3>
-          <p className="text-sm text-[var(--text-secondary)]">
-            {contacts.length} contact{contacts.length !== 1 ? 's' : ''}
-          </p>
+          <div className="flex items-center gap-3 text-sm text-[var(--text-secondary)]">
+            <span>{contacts.length} contact{contacts.length !== 1 ? 's' : ''}</span>
+            {onDiviDenCount > 0 && (
+              <span className="flex items-center gap-1 text-emerald-400 text-xs">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                {onDiviDenCount} on DiviDen
+              </span>
+            )}
+            {invitableCount > 0 && (
+              <span className="text-xs text-[var(--text-muted)]">{invitableCount} invitable</span>
+            )}
+          </div>
         </div>
         <button
           onClick={() => setShowNewForm(!showNewForm)}
@@ -173,7 +225,7 @@ export function CrmView() {
       )}
 
       {/* Search & Filter Bar */}
-      <div className="flex gap-2 mb-3">
+      <div className="flex gap-2 mb-2">
         <input
           className="input-field text-sm flex-1"
           placeholder="Search contacts..."
@@ -196,6 +248,29 @@ export function CrmView() {
         )}
       </div>
 
+      {/* Platform Filter Pills */}
+      <div className="flex gap-1.5 mb-3">
+        {([
+          { id: 'all' as PlatformFilter, label: 'All', count: contacts.length },
+          { id: 'on_dividen' as PlatformFilter, label: '🟢 On DiviDen', count: onDiviDenCount },
+          { id: 'invite' as PlatformFilter, label: '✉️ Invitable', count: invitableCount },
+        ]).map((pill) => (
+          <button
+            key={pill.id}
+            onClick={() => setPlatformFilter(pill.id)}
+            className={cn(
+              'text-[11px] px-2.5 py-1 rounded-full transition-colors flex items-center gap-1',
+              platformFilter === pill.id
+                ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'
+            )}
+          >
+            {pill.label}
+            <span className="text-[10px] opacity-70">{pill.count}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Contact List */}
       <div className="flex-1 overflow-y-auto space-y-2">
         {loading ? (
@@ -213,11 +288,13 @@ export function CrmView() {
             </p>
           </div>
         ) : (
-          contacts.map((contact) => (
+          filteredContacts.map((contact) => (
             <ContactCard
               key={contact.id}
               contact={contact}
               onClick={() => setSelectedContact(contact)}
+              onInvite={() => handleInviteContact(contact)}
+              inviting={invitingId === contact.id}
             />
           ))
         )}
@@ -242,9 +319,13 @@ export function CrmView() {
 function ContactCard({
   contact,
   onClick,
+  onInvite,
+  inviting,
 }: {
   contact: ContactWithCards;
   onClick: () => void;
+  onInvite: () => void;
+  inviting: boolean;
 }) {
   const tags = (contact.tags || '')
     .split(',')
@@ -258,15 +339,36 @@ function ContactCard({
     .toUpperCase()
     .slice(0, 2);
 
+  const isOnPlatform = !!contact.platformUserId;
+  const isInvited = contact.platformUserStatus === 'invited';
+  const canInvite = !isOnPlatform && !!contact.email && !isInvited;
+
   return (
     <button
       onClick={onClick}
-      className="w-full text-left p-3 bg-[var(--bg-secondary)] rounded-lg border border-[var(--border-primary)] hover:border-brand-500/40 transition-colors"
+      className={cn(
+        'w-full text-left p-3 bg-[var(--bg-secondary)] rounded-lg border transition-colors',
+        isOnPlatform
+          ? 'border-emerald-500/20 hover:border-emerald-500/40'
+          : 'border-[var(--border-primary)] hover:border-brand-500/40'
+      )}
     >
       <div className="flex items-center gap-3">
-        {/* Avatar */}
-        <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)]/20 flex items-center justify-center text-brand-400 text-xs font-bold flex-shrink-0">
-          {initials}
+        {/* Avatar with platform indicator */}
+        <div className="relative flex-shrink-0">
+          <div className={cn(
+            'w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold',
+            isOnPlatform
+              ? 'bg-emerald-500/20 text-emerald-400'
+              : 'bg-[var(--brand-primary)]/20 text-brand-400'
+          )}>
+            {initials}
+          </div>
+          {isOnPlatform && (
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-emerald-500 rounded-full border-2 border-[var(--bg-secondary)] flex items-center justify-center">
+              <span className="text-[7px] text-white font-bold">✓</span>
+            </div>
+          )}
         </div>
 
         {/* Info */}
@@ -276,10 +378,24 @@ function ContactCard({
             {contact.company && (
               <span className="text-xs text-[var(--text-muted)] truncate">@ {contact.company}</span>
             )}
+            {/* Platform badge inline */}
+            {isOnPlatform && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-medium flex-shrink-0">
+                On DiviDen
+              </span>
+            )}
+            {isInvited && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-medium flex-shrink-0">
+                Invited
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 text-xs text-[var(--text-secondary)]">
             {contact.email && <span className="truncate">{contact.email}</span>}
             {contact.role && <span className="truncate">{contact.role}</span>}
+            {isOnPlatform && contact.platformUser?.profile?.headline && (
+              <span className="truncate text-emerald-400/70">{contact.platformUser.profile.headline}</span>
+            )}
           </div>
         </div>
 
@@ -303,6 +419,26 @@ function ContactCard({
           <span className="text-[10px] px-1.5 py-0.5 bg-[var(--bg-surface)] rounded text-[var(--text-muted)]">
             📋 {contact.cards.length}
           </span>
+        )}
+
+        {/* Invite CTA or Profile link */}
+        {canInvite && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onInvite(); }}
+            disabled={inviting}
+            className="text-[10px] px-2 py-1 rounded bg-brand-500/15 text-brand-400 hover:bg-brand-500/25 transition-colors flex-shrink-0 disabled:opacity-50"
+          >
+            {inviting ? '...' : '✉️ Invite'}
+          </button>
+        )}
+        {isOnPlatform && contact.platformUserId && (
+          <a
+            href={`/profile/${contact.platformUserId}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-[10px] px-2 py-1 rounded bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 transition-colors flex-shrink-0"
+          >
+            View Profile →
+          </a>
         )}
       </div>
     </button>

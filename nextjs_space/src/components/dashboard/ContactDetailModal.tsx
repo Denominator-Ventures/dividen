@@ -17,6 +17,17 @@ interface LinkedCard {
   };
 }
 
+interface PlatformUserInfo {
+  id: string;
+  name: string | null;
+  email: string;
+  profile?: {
+    headline: string | null;
+    capacity: string | null;
+    visibility: string | null;
+  } | null;
+}
+
 interface ContactInfo {
   id: string;
   name: string;
@@ -30,6 +41,10 @@ interface ContactInfo {
   enrichedData: string | null;
   createdAt: string;
   updatedAt: string;
+  platformUserId?: string | null;
+  platformUserStatus?: string | null;
+  matchedAt?: string | null;
+  platformUser?: PlatformUserInfo | null;
 }
 
 interface TimelineItem {
@@ -382,6 +397,97 @@ export function ContactDetailModal({
                   </div>
                 )}
               </div>
+
+              {/* Platform Profile Section */}
+              {contact.platformUserId && contact.platformUser && (
+                <div className="p-3 bg-emerald-500/5 rounded-lg border border-emerald-500/15">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="label-mono text-emerald-400 flex items-center gap-1.5" style={{ fontSize: '10px' }}>
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      DiviDen Profile
+                    </h4>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 capitalize">
+                      {contact.platformUserStatus || 'matched'}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-[var(--text-primary)]">
+                        {contact.platformUser.name || contact.name}
+                      </span>
+                      {contact.platformUser.profile?.capacity && (
+                        <span className={cn(
+                          'text-[9px] px-1.5 py-0.5 rounded-full font-medium',
+                          contact.platformUser.profile.capacity === 'available' ? 'bg-emerald-500/15 text-emerald-400' :
+                          contact.platformUser.profile.capacity === 'busy' ? 'bg-amber-500/15 text-amber-400' :
+                          'bg-red-500/15 text-red-400'
+                        )}>
+                          {contact.platformUser.profile.capacity}
+                        </span>
+                      )}
+                    </div>
+                    {contact.platformUser.profile?.headline && (
+                      <p className="text-xs text-[var(--text-secondary)]">{contact.platformUser.profile.headline}</p>
+                    )}
+                    {contact.matchedAt && (
+                      <p className="text-[10px] text-[var(--text-muted)]">
+                        Linked {timeAgo(contact.matchedAt)}
+                      </p>
+                    )}
+                  </div>
+                  <a
+                    href={`/profile/${contact.platformUserId}`}
+                    className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                  >
+                    View Full Profile →
+                  </a>
+                </div>
+              )}
+
+              {/* Invite CTA (no platform user) */}
+              {!contact.platformUserId && contact.email && contact.platformUserStatus !== 'invited' && (
+                <div className="p-3 bg-brand-500/5 rounded-lg border border-brand-500/15">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="label-mono text-brand-400 mb-1" style={{ fontSize: '10px' }}>Not on DiviDen yet</h4>
+                      <p className="text-xs text-[var(--text-muted)]">Invite {contact.name.split(' ')[0]} to connect on the platform.</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await fetch('/api/invites', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              inviteeEmail: contact.email,
+                              inviteeName: contact.name,
+                              message: `Hey ${contact.name.split(' ')[0]}, I'd like to connect with you on DiviDen.`,
+                            }),
+                          });
+                        } catch (err) {
+                          console.error('Invite failed:', err);
+                        }
+                      }}
+                      className="text-xs px-3 py-1.5 bg-brand-500/15 text-brand-400 rounded hover:bg-brand-500/25 transition-colors"
+                    >
+                      ✉️ Send Invite
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Invited status banner */}
+              {!contact.platformUserId && contact.platformUserStatus === 'invited' && (
+                <div className="p-3 bg-amber-500/5 rounded-lg border border-amber-500/15">
+                  <div className="flex items-center gap-2">
+                    <span className="text-amber-400 text-sm">✉️</span>
+                    <div>
+                      <h4 className="label-mono text-amber-400" style={{ fontSize: '10px' }}>Invitation Sent</h4>
+                      <p className="text-xs text-[var(--text-muted)]">{contact.name.split(' ')[0]} has been invited to DiviDen.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Linked Cards */}
               <div>
