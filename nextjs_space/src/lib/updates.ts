@@ -17,6 +17,103 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'teams-federation-apis',
+    date: '2026-04-11',
+    time: '11:00 PM',
+    title: 'Teams for Individuals, Federation for Everyone',
+    subtitle: 'Full team infrastructure with subscriptions, spending policies, and team agents — plus public federation APIs that let any self-hosted instance join the network in two minutes.',
+    tags: ['teams', 'federation', 'api', 'open-core', 'marketplace', 'network', 'self-hosted', 'individual-first'],
+    content: `DiviDen is individual-first. That hasn't changed. But individuals work on teams, lead teams, join teams, leave teams. The platform needs to support that without making "team" the default unit. So here's the deal: you're always an individual on DiviDen. Teams are a thing you step into when you need to coordinate, and step out of when you don't.
+
+## Teams — Built for Leaders Who Are Still Individuals
+
+The full team layer is live. Here's what shipped:
+
+**Schema & Data Model**
+
+Every team is a first-class entity with its own identity: name, headline, type (work / community / hybrid), visibility (private / network / public), industry, location, website. Teams have members with roles (owner / admin / member), and members can be local users OR federated connections — meaning someone on a different DiviDen instance can be on your team.
+
+\`\`\`
+Team → TeamMember → User (local) | Connection (federated)
+Team → TeamSubscription (starter $29/mo | pro $79/mo + $9/seat)
+Team → TeamBilling → TeamSpendingPolicy (per_member | per_project | per_agent)
+Team → TeamAgentAccess (shared marketplace agents with optional usage limits)
+Team → TeamFollow (network followers)
+\`\`\`
+
+**Subscription Tiers**
+
+- **Starter** — $29/month, 5 members, 3 projects. Enough for a small crew.
+- **Pro** — $79/month + $9/seat (beyond 10 base), unlimited projects. Team agent enabled. Spending policies. The works.
+- 14-day free trial on both tiers. Stripe-backed billing. Real enforcement — hit your member limit and the API blocks the invite.
+
+**Team Agents — Coordinators, Not Commanders**
+
+This is the part I care about most. When a team enables its agent (Pro tier), Divi becomes aware of the team context. But the agent doesn't manage people. It coordinates.
+
+The system prompt (Group 12: Team Agent Context) loads the team's members, active projects, goal/queue/relay counts, and the agent's personality config. Then it follows strict rules:
+
+- Suggest, never assign
+- Surface blockers proactively (two members on conflicting tasks → flag it)
+- Coordinate cross-member handoffs via ambient relay
+- Never make decisions for the team — only inform
+
+The team agent config is JSON: personality, check-in frequency, auto-suggest tasks, auto-surface blockers, synthesize updates, notification triggers. All configurable from the Team Profile page.
+
+**Team Profiles**
+
+Every team gets a public profile page at \`/team/[id]\` — headline, members, projects, agent status. Followable from the network. Discoverable in search.
+
+**Spending Policies**
+
+Pro teams can set granular spending limits: per-member, per-project, or per-agent. Monthly or weekly cycles. The billing model tracks current spend against limits. If you're running a team of contractors hitting the marketplace, you control the budget.
+
+**Shared Agent Access**
+
+Team admins can grant marketplace agents to the whole team. \`TeamAgentAccess\` tracks which agent, who granted it, and optional usage limits per member per billing cycle. The agent shows up in every team member's toolkit.
+
+---
+
+## Federation APIs — Self-Hosted Instances Join the Network
+
+The other half of this update is about the open-core promise. If you self-host DiviDen, you should be able to participate in the managed network — not just run in isolation.
+
+Five new public API endpoints went live today:
+
+**\`GET /api/v2/updates\`** — The unified changelog feed. No auth required. CORS enabled. 5-minute cache. Supports \`?limit\`, \`?since\`, \`?tag\` filters. Self-hosted instances and os.dividen.ai can poll this to stay in sync with the managed platform.
+
+**\`GET /api/v2/network/discover\`** — The network discovery feed. Returns public profiles, teams, and marketplace agents. Optional Bearer token (platform token) unlocks richer profile data. Supports \`?type=profiles|teams|agents|all\`, \`?q=search\`, pagination.
+
+**\`POST /api/v2/federation/register\`** — The "Connect to Network" endpoint. A self-hosted instance sends its name, URL, and API key → gets back a \`platformToken\` and a map of all available endpoints. This is the handshake.
+
+**\`POST /api/v2/federation/marketplace-link\`** — Enable marketplace participation. Once registered, a self-hosted instance can list its agents on the managed marketplace and receive payouts. Supports enable / disable / status actions.
+
+**\`POST /api/v2/federation/heartbeat\`** — Periodic health check. Self-hosted instances report their version, user count, agent count, and health status. The managed platform returns current network stats so federated instances can display them locally.
+
+**The InstanceRegistry schema** now tracks platform link state: \`platformLinked\`, \`platformToken\`, \`marketplaceEnabled\`, \`discoveryEnabled\`, \`updatesEnabled\`, \`version\`, \`userCount\`, \`agentCount\`, \`lastSyncAt\`.
+
+**Connect to Network Wizard**
+
+The Settings → Federation page now has a guided wizard:
+
+1. Pre-flight check — validates instance name, public URL, API key are set
+2. Feature selection — toggle marketplace, discovery, and updates participation
+3. One-click registration — calls the managed platform's register endpoint
+4. Token display — shows the platform token with copy-to-clipboard and next steps
+
+The whole flow takes about 30 seconds. No manual config of instance URLs, API keys, or DAWP endpoints anymore.
+
+---
+
+## The Philosophy
+
+An individual can create a team. Lead it. Configure its agent. Set its budget. Then close the laptop and go back to being just themselves — their own Divi, their own queue, their own NOW panel.
+
+A self-hosted user can run DiviDen completely independently. Or they can click one button and join the network — browse the marketplace, discover people, pull the changelog. Their instance stays theirs. The network is opt-in.
+
+Both of these are the same design principle: **the individual is the atomic unit. Everything else is a choice they make.**`,
+  },
+  {
     id: 'founder-letter-individual-first',
     date: '2026-04-11',
     time: '6:00 PM',
