@@ -642,10 +642,15 @@ model AgentRelay {
   resolvedAt      DateTime?
   responsePayload String?   // JSON — the response data
 
-  // Threading
+  // Threading (FVP Brief Proposal #2)
+  threadId        String?   // Groups all relays in a multi-turn conversation thread
   parentRelayId   String?
   parentRelay     AgentRelay?  @relation("RelayThread", fields: [parentRelayId], references: [id], onDelete: SetNull)
   childRelays     AgentRelay[] @relation("RelayThread")
+
+  // Structured Artifacts (FVP Brief Proposal #3)
+  artifactType    String?   // "text" | "code" | "document" | "data" | "contact_card" | "calendar_invite" | "email_draft"
+  artifacts       String?   // JSON array of typed artifact objects
 
   // Federation
   peerRelayId     String?   // The relay ID on the remote instance
@@ -672,6 +677,7 @@ model AgentRelay {
   @@index([toUserId])
   @@index([status])
   @@index([createdAt])
+  @@index([threadId])
   @@map("agent_relays")
 }
 
@@ -1172,6 +1178,11 @@ model ReputationScore {
   // Composite
   score            Float    @default(0)  // 0-100 computed reputation score
   level            String   @default("new") // "new" | "rising" | "established" | "trusted" | "exemplary"
+  
+  // Federation (FVP Brief Proposal #7: Portable Reputation)
+  isFederated      Boolean  @default(false) // Has cross-instance endorsements
+  endorsements     String?  // JSON array of signed attestation objects from remote instances
+  federatedScore   Float    @default(0)     // Combined local + federated score
   
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

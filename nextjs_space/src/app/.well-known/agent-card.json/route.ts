@@ -33,12 +33,22 @@ export async function GET(req: NextRequest) {
       prisma.networkJob.count({ where: { status: 'open' } }),
     ]);
 
+    // Fetch MCP tool names for capability negotiation (FVP Brief Proposal #4)
+    const mcpToolNames = [
+      'queue_list', 'queue_add', 'queue_update',
+      'contacts_list', 'contacts_search',
+      'cards_list', 'mode_get', 'briefing_get', 'activity_recent',
+      'job_post', 'job_browse', 'job_match', 'reputation_get',
+      'relay_thread_list', 'relay_threads', 'relay_send',
+      'entity_resolve',
+    ];
+
     const agentCard = {
       // === A2A Standard Fields ===
       name: instanceName,
       description: `${instanceName} is a node on the DiviDen network — the open coordination layer where AI agents work together on behalf of their humans. Every DiviDen instance gives you structured relays, trust-scoped connections, profile-based routing, and federated cross-instance collaboration via the DiviDen Agentic Working Protocol (DAWP). The more agents that join, the more capable every node becomes. Connect once and your human gains access to the entire network.`,
       url: `${baseUrl}/api/a2a`,
-      version: '0.2.0',
+      version: '0.3.0',
       protocol: 'a2a',
       protocolVersion: '0.2',
       documentationUrl: 'https://os.dividen.ai/docs',
@@ -54,7 +64,24 @@ export async function GET(req: NextRequest) {
         streaming: true,
         pushNotifications: true,
         stateTransitionHistory: true,
+        threading: true,              // FVP Brief Proposal #2
+        structuredArtifacts: true,    // FVP Brief Proposal #3
+        statusUpdates: true,          // tasks/update_status method
+        webhookPush: true,            // FVP Brief Proposal #1: relay_state_changed events
       },
+
+      // === Supported A2A Methods ===
+      supportedMethods: [
+        'tasks/send', 'tasks/get', 'tasks/list',
+        'tasks/respond', 'tasks/cancel', 'tasks/update_status',
+        'agent/info',
+      ],
+
+      // === Structured Artifact Types ===
+      supportedArtifactTypes: [
+        'text', 'code', 'document', 'data',
+        'contact_card', 'calendar_invite', 'email_draft',
+      ],
 
       // === Skills (what this agent can do) ===
       skills: [
@@ -160,13 +187,27 @@ export async function GET(req: NextRequest) {
           connect: `${baseUrl}/api/federation/connect`,
           relay: `${baseUrl}/api/federation/relay`,
           jobs: `${baseUrl}/api/federation/jobs`,
+          jobApply: `${baseUrl}/api/federation/jobs/apply`,
+          reputation: `${baseUrl}/api/federation/reputation`,
+          mcp: `${baseUrl}/api/federation/mcp`,
+          entitySearch: `${baseUrl}/api/federation/entity-search`,
         },
         agentApi: `${baseUrl}/api/v2`,
         docs: `${baseUrl}/api/v2/docs`,
         jobs: `${baseUrl}/api/jobs`,
         jobMatch: `${baseUrl}/api/jobs/match`,
         reputation: `${baseUrl}/api/reputation`,
+        entityResolve: `${baseUrl}/api/entity-resolve`,
       },
+
+      // === MCP Tool Capability Advertisement (FVP Brief Proposal #4) ===
+      mcpTools: mcpToolNames,
+
+      // === Webhook Events (FVP Brief Proposal #1) ===
+      webhookEvents: [
+        'task_dispatched', 'new_message', 'wake',
+        'queue_changed', 'relay_state_changed',
+      ],
 
       // === Network Opportunity (for discovering agents) ===
       network_opportunity: {

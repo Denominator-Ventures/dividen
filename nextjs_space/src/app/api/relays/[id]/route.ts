@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { pushRelayStateChanged } from '@/lib/webhook-push';
 
 // PATCH /api/relays/[id] — update relay status, respond, etc.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -72,6 +73,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           userId: relay.fromUserId,
           metadata: JSON.stringify({ type: 'relay_response', relayId: id, status: body.status }),
         },
+      });
+    }
+
+    // Push relay state change webhook (FVP Brief Proposal #1)
+    if (body.status && body.status !== relay.status) {
+      pushRelayStateChanged(relay.fromUserId, {
+        relayId: id,
+        threadId: updated.threadId,
+        previousState: relay.status,
+        newState: body.status,
+        subject: relay.subject,
       });
     }
 

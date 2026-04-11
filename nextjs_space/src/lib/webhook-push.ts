@@ -9,7 +9,7 @@
 
 import { prisma } from '@/lib/prisma';
 
-export type WebhookEvent = 'task_dispatched' | 'new_message' | 'wake' | 'queue_changed';
+export type WebhookEvent = 'task_dispatched' | 'new_message' | 'wake' | 'queue_changed' | 'relay_state_changed';
 
 interface WebhookConfig {
   url: string;
@@ -97,4 +97,21 @@ export async function pushQueueChanged(userId: string, data: {
   newStatus?: string;
 }) {
   return pushWebhookEvent(userId, 'queue_changed', data);
+}
+
+/**
+ * FVP Brief Proposal #1: Relay state change push
+ * Fires when any relay transitions state — eliminates polling for real-time A2A.
+ */
+export async function pushRelayStateChanged(userId: string, data: {
+  relayId: string;
+  threadId?: string | null;
+  previousState: string | null;
+  newState: string;
+  subject: string;
+  message?: string;
+  hasArtifacts?: boolean;
+  artifactType?: string;
+}) {
+  return pushWebhookEvent(userId, 'relay_state_changed', data);
 }

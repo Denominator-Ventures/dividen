@@ -7,6 +7,7 @@
 
 import { prisma } from './prisma';
 import { deduplicatedQueueCreate } from './queue-dedup';
+import { pushRelayStateChanged } from './webhook-push';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -69,6 +70,8 @@ export const SUPPORTED_TAGS = [
   // ── Job Board Actions ──
   'post_job',          // post a task to the network job board
   'find_jobs',         // find matching jobs for this user's profile
+  // ── Entity Resolution (FVP Brief #5) ──
+  'entity_resolve',    // cross-surface entity resolution: find all info about a person/company
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -803,6 +806,13 @@ async function executeTag(
 
         const toUserId_relay = connection.requesterId === userId ? connection.accepterId : connection.requesterId;
 
+        // Threading: inherit threadId if continuing a thread, or generate new
+        let relayThreadId = params.threadId || null;
+        if (!relayThreadId && params.parentRelayId) {
+          const parentRelay = await prisma.agentRelay.findUnique({ where: { id: params.parentRelayId }, select: { threadId: true } });
+          relayThreadId = parentRelay?.threadId || null;
+        }
+
         const relay = await prisma.agentRelay.create({
           data: {
             connectionId: connection.id,
@@ -815,6 +825,8 @@ async function executeTag(
             payload: params.payload ? (typeof params.payload === 'string' ? params.payload : JSON.stringify(params.payload)) : null,
             status: 'pending',
             priority,
+            threadId: relayThreadId,
+            parentRelayId: params.parentRelayId || null,
             peerInstanceUrl: connection.isFederated ? connection.peerInstanceUrl : null,
           },
         });
@@ -844,7 +856,10 @@ async function executeTag(
           },
         });
 
-        return { tag: name, success: true, data: { relayId: relay.id, subject, intent, status: 'delivered' } };
+        // Push relay state webhook
+        pushRelayStateChanged(userId, { relayId: relay.id, threadId: relayThreadId, previousState: null, newState: 'pending', subject });
+
+        return { tag: name, success: true, data: { relayId: relay.id, threadId: relayThreadId, subject, intent, status: 'delivered' } };
       }
 
       case 'relay_broadcast': {
@@ -1188,6 +1203,15 @@ async function executeTag(
             },
           });
         }
+        // Push relay state webhook
+        pushRelayStateChanged(relayToRespond.fromUserId, {
+          relayId: params.relayId,
+          threadId: relayToRespond.threadId,
+          previousState: relayToRespond.status,
+          newState: params.status,
+          subject: relayToRespond.subject,
+        });
+
         return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status, ambientSignalCaptured: isAmbient } };
       }
 
@@ -1551,6 +1575,19 @@ async function executeTag(
           return { ...m, job };
         });
         return { tag: name, success: true, data: { matches: results, message: `Found ${results.length} matching jobs on the network` } };
+      }
+
+      case 'entity_resolve': {
+        // params: { query, surfaces? }
+        if (!params.query) {
+          return { tag: name, success: false, error: 'query is required (email, name, or domain)' };
+        }
+        const { resolveEntity } = await import('./entity-resolution');
+        const resolution = await resolveEntity(userId, params.query, {
+          surfaces: params.surfaces,
+          limit: 30,
+        });
+        return { tag: name, success: true, data: resolution };
       }
 
       default:

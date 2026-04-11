@@ -142,6 +142,59 @@ const TOOLS = [
     description: 'Get the operator\'s network reputation score. Reputation is built by completing jobs, earning reviews, and responding to applications. Higher reputation means better matches and more trust from the network.',
     inputSchema: { type: 'object', properties: {} },
   },
+  {
+    name: 'relay_thread_list',
+    description: 'List all relay messages in a specific conversation thread. Threads group multi-turn agent interactions — use this to review conversation history before continuing a thread.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        threadId: { type: 'string', description: 'The thread ID to list messages for' },
+        limit: { type: 'number', description: 'Max results (default 20)' },
+      },
+      required: ['threadId'],
+    },
+  },
+  {
+    name: 'relay_threads',
+    description: 'List active relay threads. Shows the most recent message in each thread, grouped by conversation. Use this to see ongoing multi-turn agent interactions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: ['active', 'completed', 'all'], description: 'Filter threads by status. Active = has pending relays. Default: all.' },
+        limit: { type: 'number', description: 'Max threads (default 10)' },
+      },
+    },
+  },
+  {
+    name: 'entity_resolve',
+    description: 'Universal entity resolution. Given an email, name, or domain, finds all matching entities across contacts, connections, kanban cards, calendar events, emails, relays, and team members. This is the cross-surface intelligence function — one query that answers "what do we know about this person/company?"',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Email, name, or domain to search for' },
+        surfaces: { type: 'array', items: { type: 'string', enum: ['contacts', 'connections', 'cards', 'events', 'emails', 'relays', 'team_members'] }, description: 'Limit search to specific surfaces (default: all)' },
+        limit: { type: 'number', description: 'Max results per surface (default 50)' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'relay_send',
+    description: 'Send a relay message to a connection, optionally continuing an existing thread. This creates a new A2A task that will be routed to the specified connection\'s agent.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        connectionId: { type: 'string', description: 'Connection ID to route through' },
+        subject: { type: 'string', description: 'Relay subject / task title' },
+        intent: { type: 'string', enum: ['get_info', 'assign_task', 'request_approval', 'share_update', 'schedule', 'introduce', 'custom'] },
+        priority: { type: 'string', enum: ['urgent', 'normal', 'low'] },
+        threadId: { type: 'string', description: 'Continue an existing thread (optional)' },
+        parentRelayId: { type: 'string', description: 'Reply to a specific relay (optional)' },
+        payload: { type: 'object', description: 'Structured data payload (optional)' },
+      },
+      required: ['connectionId', 'subject'],
+    },
+  },
 ];
 
 // ── Tool Execution ──
@@ -305,6 +358,101 @@ async function executeTool(toolName: string, args: any, userId: string) {
       return rep;
     }
 
+    case 'relay_thread_list': {
+      if (!args.threadId) return { error: 'threadId is required' };
+      const relays = await prisma.agentRelay.findMany({
+        where: { threadId: args.threadId, OR: [{ fromUserId: userId }, { toUserId: userId }] },
+        orderBy: { createdAt: 'asc' },
+        take: Math.min(args.limit || 20, 50),
+        select: {
+          id: true, subject: true, status: true, intent: true, direction: true,
+          priority: true, artifactType: true, parentRelayId: true,
+          createdAt: true, resolvedAt: true,
+          fromUser: { select: { name: true, email: true } },
+        },
+      });
+      return { threadId: args.threadId, messageCount: relays.length, messages: relays };
+    }
+
+    case 'relay_threads': {
+      const statusFilter = args.status || 'all';
+      // Get distinct threadIds with their latest relay
+      const threads = await prisma.$queryRaw`
+        SELECT DISTINCT ON ("threadId")
+          "threadId", id, subject, status, intent, priority, "createdAt"
+        FROM agent_relays
+        WHERE "threadId" IS NOT NULL
+          AND ("fromUserId" = ${userId} OR "toUserId" = ${userId})
+        ORDER BY "threadId", "createdAt" DESC
+        LIMIT ${Math.min(args.limit || 10, 30)}
+      ` as any[];
+
+      let filtered = threads;
+      if (statusFilter === 'active') {
+        filtered = threads.filter(t => !['completed', 'declined', 'expired'].includes(t.status));
+      } else if (statusFilter === 'completed') {
+        filtered = threads.filter(t => ['completed', 'declined', 'expired'].includes(t.status));
+      }
+
+      // Get message counts per thread
+      const result = await Promise.all(filtered.map(async (t) => {
+        const count = await prisma.agentRelay.count({ where: { threadId: t.threadId } });
+        return { ...t, messageCount: count };
+      }));
+
+      return result;
+    }
+
+    case 'entity_resolve': {
+      if (!args.query) return { error: 'query is required' };
+      const { resolveEntity } = await import('@/lib/entity-resolution');
+      const result = await resolveEntity(userId, args.query, {
+        limit: args.limit || 50,
+        surfaces: args.surfaces,
+      });
+      return result;
+    }
+
+    case 'relay_send': {
+      if (!args.connectionId || !args.subject) return { error: 'connectionId and subject are required' };
+      const connection = await prisma.connection.findFirst({
+        where: { id: args.connectionId, status: 'active', OR: [{ requesterId: userId }, { accepterId: userId }] },
+      });
+      if (!connection) return { error: 'Connection not found or not active' };
+
+      const toUserId = connection.requesterId === userId ? connection.accepterId : connection.requesterId;
+
+      // Threading: reuse provided threadId or inherit from parent
+      let threadId = args.threadId || null;
+      if (!threadId && args.parentRelayId) {
+        const parent = await prisma.agentRelay.findUnique({ where: { id: args.parentRelayId }, select: { threadId: true } });
+        threadId = parent?.threadId || null;
+      }
+      if (!threadId) {
+        const { randomUUID } = await import('crypto');
+        threadId = `thread_${randomUUID().replace(/-/g, '').substring(0, 16)}`;
+      }
+
+      const relay = await prisma.agentRelay.create({
+        data: {
+          connectionId: args.connectionId,
+          fromUserId: userId,
+          toUserId,
+          direction: 'outbound',
+          type: 'request',
+          intent: args.intent || 'custom',
+          subject: args.subject,
+          payload: args.payload ? JSON.stringify(args.payload) : null,
+          status: 'pending',
+          priority: args.priority || 'normal',
+          threadId,
+          parentRelayId: args.parentRelayId || null,
+        },
+      });
+
+      return { id: relay.id, threadId, subject: relay.subject, status: 'pending', message: 'Relay sent' };
+    }
+
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -356,7 +504,7 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     name: 'DiviDen MCP Server',
-    version: '1.1.0',
+    version: '1.2.0',
     description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, and activity tools. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
     tools: TOOLS,
     authentication: {

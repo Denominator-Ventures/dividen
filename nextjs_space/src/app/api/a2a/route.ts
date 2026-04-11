@@ -5,21 +5,57 @@ import { authenticateAgent, isAuthError, AgentContext } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { logRequest, logError, getClientIp } from '@/lib/telemetry';
 import { syncQueueWithRelayCompletion } from '@/lib/relay-queue-bridge';
-import { pushTaskDispatched, pushQueueChanged } from '@/lib/webhook-push';
+import { pushTaskDispatched, pushQueueChanged, pushRelayStateChanged } from '@/lib/webhook-push';
+import { randomUUID } from 'crypto';
 
 /**
  * POST /api/a2a
- * 
+ *
  * A2A (Agent-to-Agent) Protocol endpoint.
- * Receives A2A tasks and maps them to DiviDen relays.
- * 
- * Per Google A2A spec:
- * - Tasks are the unit of work
- * - Messages carry content parts
- * - Artifacts are output products
- * 
- * Authentication: Bearer token (same as Agent API v2)
+ * Full implementation per FVP Integration Brief:
+ *   - tasks/send        — Create a task (relay), with optional threadId
+ *   - tasks/get          — Get task status + artifacts
+ *   - tasks/respond       — Complete a task with optional typed artifacts
+ *   - tasks/cancel        — Cancel a pending task
+ *   - tasks/list          — List tasks (filter by thread, status, connection)
+ *   - tasks/update_status — Update task status with progress message
+ *   - agent/info          — Return agent metadata
+ *
+ * Authentication: Bearer token (DiviDen API key)
  */
+
+// ── Artifact Type Validation ──
+const ARTIFACT_TYPES = ['text', 'code', 'document', 'data', 'contact_card', 'calendar_invite', 'email_draft'] as const;
+type ArtifactType = typeof ARTIFACT_TYPES[number];
+
+interface A2AArtifact {
+  type: ArtifactType;
+  title?: string;
+  mimeType?: string;
+  parts: Array<{ type: 'text'; text: string } | { type: 'data'; data: any }>;
+}
+
+function validateArtifacts(artifacts: any[]): A2AArtifact[] | null {
+  if (!Array.isArray(artifacts)) return null;
+  return artifacts.map(a => ({
+    type: ARTIFACT_TYPES.includes(a.type) ? a.type : 'text',
+    title: a.title || undefined,
+    mimeType: a.mimeType || undefined,
+    parts: Array.isArray(a.parts) ? a.parts : [{ type: 'text', text: String(a.data || a.text || '') }],
+  }));
+}
+
+// ── A2A State Mapping ──
+const RELAY_TO_A2A_STATE: Record<string, string> = {
+  pending: 'submitted',
+  delivered: 'working',
+  agent_handling: 'working',
+  user_review: 'input-required',
+  completed: 'completed',
+  declined: 'failed',
+  expired: 'failed',
+};
+
 export async function POST(req: NextRequest) {
   const start = Date.now();
   const ip = getClientIp(req.headers);
@@ -34,18 +70,32 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    return NextResponse.json({ jsonrpc: '2.0', error: { code: -32700, message: 'Invalid JSON' } }, { status: 400 });
   }
 
-  const { method, params } = body;
+  const { jsonrpc, id: rpcId, method, params } = body;
+
+  // Wrap response in JSON-RPC envelope if client sent jsonrpc field
+  const respond = (result: any, status = 200) => {
+    if (jsonrpc === '2.0') {
+      return NextResponse.json({ jsonrpc: '2.0', id: rpcId ?? null, result }, { status });
+    }
+    return NextResponse.json(result, { status });
+  };
+  const respondError = (code: number, message: string, status = 400) => {
+    if (jsonrpc === '2.0') {
+      return NextResponse.json({ jsonrpc: '2.0', id: rpcId ?? null, error: { code, message } }, { status });
+    }
+    return NextResponse.json({ error: message }, { status });
+  };
 
   try {
     switch (method) {
       // ── Send Task (A2A → DiviDen Relay) ─────────────────────────────────
       case 'tasks/send': {
-        const { id: taskId, message, metadata } = params || {};
+        const { id: taskId, message, metadata, threadId: requestedThreadId } = params || {};
         if (!message) {
-          return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+          return respondError(-32602, 'Message is required');
         }
 
         // Extract content from A2A message parts
@@ -54,9 +104,7 @@ export async function POST(req: NextRequest) {
         const subject = textParts[0]?.text || 'A2A Task';
         const payload = dataParts[0]?.data || null;
 
-        // Find the connection to route through
-        // If metadata.connectionId is provided, use it directly
-        // Otherwise, find the first active connection
+        // Resolve connection
         let connectionId = metadata?.connectionId;
         if (!connectionId) {
           const firstConnection = await prisma.connection.findFirst({
@@ -66,7 +114,7 @@ export async function POST(req: NextRequest) {
             },
           });
           if (!firstConnection) {
-            return NextResponse.json({ error: 'No active connections to route task through' }, { status: 400 });
+            return respondError(-32000, 'No active connections to route task through');
           }
           connectionId = firstConnection.id;
         }
@@ -79,12 +127,25 @@ export async function POST(req: NextRequest) {
           },
         });
         if (!connection) {
-          return NextResponse.json({ error: 'Connection not found or not active' }, { status: 404 });
+          return respondError(-32001, 'Connection not found or not active', 404);
         }
 
         const toUserId = connection.requesterId === userId ? connection.accepterId : connection.requesterId;
 
-        // Map A2A task to DiviDen relay
+        // Threading: use provided threadId, inherit from parent, or generate new
+        let threadId = requestedThreadId || null;
+        if (!threadId && metadata?.parentRelayId) {
+          const parent = await prisma.agentRelay.findUnique({
+            where: { id: metadata.parentRelayId },
+            select: { threadId: true },
+          });
+          threadId = parent?.threadId || null;
+        }
+        if (!threadId) {
+          threadId = `thread_${randomUUID().replace(/-/g, '').substring(0, 16)}`;
+        }
+
+        // Create relay
         const relay = await prisma.agentRelay.create({
           data: {
             connectionId,
@@ -98,6 +159,10 @@ export async function POST(req: NextRequest) {
             status: 'pending',
             priority: metadata?.priority || 'normal',
             dueDate: metadata?.dueDate ? new Date(metadata.dueDate) : null,
+            threadId,
+            parentRelayId: metadata?.parentRelayId || null,
+            teamId: metadata?.teamId || null,
+            projectId: metadata?.projectId || null,
           },
         });
 
@@ -110,17 +175,26 @@ export async function POST(req: NextRequest) {
               state: 'new',
               priority: metadata?.priority || 'normal',
               userId: toUserId,
-              metadata: JSON.stringify({ type: 'a2a_task', relayId: relay.id }),
+              metadata: JSON.stringify({ type: 'a2a_task', relayId: relay.id, threadId }),
             },
           });
         }
 
-        // Return A2A task response
+        // Push webhook
+        pushRelayStateChanged(userId, {
+          relayId: relay.id,
+          threadId,
+          previousState: null,
+          newState: 'pending',
+          subject,
+        });
+
         logRequest({ userId, ip, method: 'POST', path: '/api/a2a', statusCode: 200, duration: Date.now() - start });
-        return NextResponse.json({
+        return respond({
           id: taskId || relay.id,
           status: { state: 'submitted' },
           relayId: relay.id,
+          threadId,
         });
       }
 
@@ -128,7 +202,7 @@ export async function POST(req: NextRequest) {
       case 'tasks/get': {
         const { id: relayId } = params || {};
         if (!relayId) {
-          return NextResponse.json({ error: 'Task ID (relayId) is required' }, { status: 400 });
+          return respondError(-32602, 'Task ID (relayId) is required');
         }
 
         const relay = await prisma.agentRelay.findFirst({
@@ -139,44 +213,180 @@ export async function POST(req: NextRequest) {
         });
 
         if (!relay) {
-          return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+          return respondError(-32001, 'Task not found', 404);
         }
-
-        // Map relay status to A2A task states
-        const stateMap: Record<string, string> = {
-          pending: 'submitted',
-          delivered: 'working',
-          agent_handling: 'working',
-          user_review: 'input-required',
-          completed: 'completed',
-          declined: 'failed',
-          expired: 'failed',
-        };
 
         const response: any = {
           id: relay.id,
-          status: { state: stateMap[relay.status] || 'working' },
+          status: { state: RELAY_TO_A2A_STATE[relay.status] || 'working' },
+          threadId: relay.threadId,
+          parentRelayId: relay.parentRelayId,
+          intent: relay.intent,
+          priority: relay.priority,
+          createdAt: relay.createdAt,
+          resolvedAt: relay.resolvedAt,
         };
 
-        // If completed, include artifacts
-        if (relay.status === 'completed' && relay.responsePayload) {
-          let responseData: any;
-          try { responseData = JSON.parse(relay.responsePayload); } catch { responseData = relay.responsePayload; }
-          response.artifacts = [{
-            parts: [
-              { type: 'data', data: responseData },
-            ],
-          }];
+        // Include typed artifacts if completed
+        if (relay.status === 'completed') {
+          if (relay.artifacts) {
+            try {
+              response.artifacts = JSON.parse(relay.artifacts);
+            } catch {
+              response.artifacts = [{ type: 'text', parts: [{ type: 'text', text: relay.artifacts }] }];
+            }
+          } else if (relay.responsePayload) {
+            let responseData: any;
+            try { responseData = JSON.parse(relay.responsePayload); } catch { responseData = relay.responsePayload; }
+            response.artifacts = [{
+              type: relay.artifactType || 'data',
+              parts: [{ type: 'data', data: responseData }],
+            }];
+          }
         }
 
-        return NextResponse.json(response);
+        // Thread context: how many messages in this thread
+        if (relay.threadId) {
+          const threadCount = await prisma.agentRelay.count({ where: { threadId: relay.threadId } });
+          response.thread = { id: relay.threadId, messageCount: threadCount };
+        }
+
+        return respond(response);
+      }
+
+      // ── List Tasks ──────────────────────────────────────────────────────
+      case 'tasks/list': {
+        const { threadId, status: filterStatus, connectionId, limit, cursor } = params || {};
+        const where: any = { OR: [{ fromUserId: userId }, { toUserId: userId }] };
+        if (threadId) where.threadId = threadId;
+        if (filterStatus) {
+          // Accept A2A states or relay states
+          const reverseMap: Record<string, string[]> = {
+            submitted: ['pending'],
+            working: ['delivered', 'agent_handling'],
+            'input-required': ['user_review'],
+            completed: ['completed'],
+            failed: ['declined', 'expired'],
+          };
+          where.status = { in: reverseMap[filterStatus] || [filterStatus] };
+        }
+        if (connectionId) where.connectionId = connectionId;
+        if (cursor) where.createdAt = { lt: new Date(cursor) };
+
+        const take = Math.min(limit || 20, 50);
+        const relays = await prisma.agentRelay.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+          take,
+          select: {
+            id: true,
+            threadId: true,
+            subject: true,
+            status: true,
+            priority: true,
+            intent: true,
+            direction: true,
+            artifactType: true,
+            createdAt: true,
+            resolvedAt: true,
+            parentRelayId: true,
+          },
+        });
+
+        return respond({
+          tasks: relays.map(r => ({
+            id: r.id,
+            threadId: r.threadId,
+            subject: r.subject,
+            status: { state: RELAY_TO_A2A_STATE[r.status] || 'working' },
+            priority: r.priority,
+            intent: r.intent,
+            direction: r.direction,
+            artifactType: r.artifactType,
+            parentRelayId: r.parentRelayId,
+            createdAt: r.createdAt,
+            resolvedAt: r.resolvedAt,
+          })),
+          nextCursor: relays.length === take ? relays[relays.length - 1].createdAt.toISOString() : null,
+        });
+      }
+
+      // ── Update Task Status ─────────────────────────────────────────────
+      case 'tasks/update_status': {
+        const { id: relayId, status: newStatus, message: statusMessage } = params || {};
+        if (!relayId) {
+          return respondError(-32602, 'Task ID is required');
+        }
+
+        const relay = await prisma.agentRelay.findFirst({
+          where: {
+            id: relayId,
+            OR: [{ fromUserId: userId }, { toUserId: userId }],
+            status: { notIn: ['completed', 'declined', 'expired'] },
+          },
+        });
+
+        if (!relay) {
+          return respondError(-32001, 'Task not found or already terminal', 404);
+        }
+
+        // Map A2A states to relay states
+        const a2aToRelay: Record<string, string> = {
+          working: 'agent_handling',
+          'input-required': 'user_review',
+          submitted: 'pending',
+        };
+        const mappedStatus = a2aToRelay[newStatus] || newStatus;
+        const validStatuses = ['pending', 'delivered', 'agent_handling', 'user_review'];
+        if (!validStatuses.includes(mappedStatus)) {
+          return respondError(-32602, `Invalid non-terminal status: ${newStatus}. Use tasks/respond for completion.`);
+        }
+
+        const previousState = relay.status;
+        await prisma.agentRelay.update({
+          where: { id: relayId },
+          data: { status: mappedStatus },
+        });
+
+        // Log progress message as comms if provided
+        if (statusMessage) {
+          const recipientId = relay.fromUserId === userId ? relay.toUserId : relay.fromUserId;
+          if (recipientId) {
+            await prisma.commsMessage.create({
+              data: {
+                sender: 'system',
+                content: `📊 Task update [${relay.subject}]: ${statusMessage}`,
+                state: 'new',
+                priority: 'normal',
+                userId: recipientId,
+                metadata: JSON.stringify({ type: 'a2a_status_update', relayId, threadId: relay.threadId }),
+              },
+            });
+          }
+        }
+
+        // Push webhook
+        pushRelayStateChanged(userId, {
+          relayId,
+          threadId: relay.threadId,
+          previousState,
+          newState: mappedStatus,
+          subject: relay.subject,
+          message: statusMessage,
+        });
+
+        return respond({
+          id: relayId,
+          status: { state: RELAY_TO_A2A_STATE[mappedStatus] || mappedStatus },
+          threadId: relay.threadId,
+        });
       }
 
       // ── Cancel Task ────────────────────────────────────────────────────
       case 'tasks/cancel': {
         const { id: relayId } = params || {};
         if (!relayId) {
-          return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
+          return respondError(-32602, 'Task ID is required');
         }
 
         const relay = await prisma.agentRelay.findFirst({
@@ -188,28 +398,57 @@ export async function POST(req: NextRequest) {
         });
 
         if (!relay) {
-          return NextResponse.json({ error: 'Task not found or cannot be cancelled' }, { status: 404 });
+          return respondError(-32001, 'Task not found or cannot be cancelled', 404);
         }
 
+        const previousState = relay.status;
         await prisma.agentRelay.update({
           where: { id: relayId },
           data: { status: 'declined', resolvedAt: new Date() },
         });
 
-        return NextResponse.json({ id: relayId, status: { state: 'canceled' } });
+        pushRelayStateChanged(userId, {
+          relayId,
+          threadId: relay.threadId,
+          previousState,
+          newState: 'declined',
+          subject: relay.subject,
+        });
+
+        return respond({ id: relayId, status: { state: 'canceled' }, threadId: relay.threadId });
       }
 
-      // ── Respond to Task (DEP-003: agent reports completion) ──────────────
+      // ── Respond to Task (with typed artifacts) ──────────────────────────
       case 'tasks/respond': {
-        const { id: relayId, result, status: taskStatus } = params || {};
+        const { id: relayId, result, status: taskStatus, artifacts: rawArtifacts, artifactType } = params || {};
         if (!relayId) {
-          return NextResponse.json({ error: 'Task ID (relayId) is required' }, { status: 400 });
+          return respondError(-32602, 'Task ID (relayId) is required');
+        }
+
+        // Process typed artifacts if provided
+        let validatedArtifacts: A2AArtifact[] | null = null;
+        if (rawArtifacts) {
+          validatedArtifacts = validateArtifacts(rawArtifacts);
+        }
+
+        // Store artifacts on the relay before bridge sync
+        if (validatedArtifacts || artifactType) {
+          await prisma.agentRelay.update({
+            where: { id: relayId },
+            data: {
+              ...(validatedArtifacts ? { artifacts: JSON.stringify(validatedArtifacts) } : {}),
+              ...(artifactType && ARTIFACT_TYPES.includes(artifactType) ? { artifactType } : {}),
+            },
+          });
         }
 
         // Sync relay completion → queue via bridge
         const bridgeResult = await syncQueueWithRelayCompletion(relayId, userId, result);
 
-        // DEP-008: push webhook if auto-dispatched
+        // Get relay for webhook context
+        const relay = await prisma.agentRelay.findUnique({ where: { id: relayId }, select: { threadId: true, subject: true, status: true } });
+
+        // Push webhooks
         if (bridgeResult.dispatched && bridgeResult.itemTitle) {
           pushQueueChanged(userId, {
             changeType: 'status_changed',
@@ -218,37 +457,84 @@ export async function POST(req: NextRequest) {
             newStatus: 'done_today',
           });
         }
+        pushRelayStateChanged(userId, {
+          relayId,
+          threadId: relay?.threadId,
+          previousState: 'agent_handling',
+          newState: taskStatus === 'failed' ? 'declined' : 'completed',
+          subject: relay?.subject || 'Unknown',
+          hasArtifacts: !!validatedArtifacts,
+          artifactType: artifactType || validatedArtifacts?.[0]?.type,
+        });
 
         logRequest({ userId, ip, method: 'POST', path: '/api/a2a', statusCode: 200, duration: Date.now() - start });
-        return NextResponse.json({
+        return respond({
           id: relayId,
           status: { state: taskStatus === 'failed' ? 'failed' : 'completed' },
+          threadId: relay?.threadId,
           autoDispatched: bridgeResult.dispatched,
+          artifacts: validatedArtifacts ? validatedArtifacts.length : 0,
+        });
+      }
+
+      // ── Agent Info ──────────────────────────────────────────────────────
+      case 'agent/info': {
+        const fedConfig = await prisma.federationConfig.findFirst();
+        const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
+        const proto = req.headers.get('x-forwarded-proto') || 'https';
+        const baseUrl = fedConfig?.instanceUrl || `${proto}://${host}`;
+
+        return respond({
+          name: fedConfig?.instanceName || 'DiviDen',
+          version: '0.3.0',
+          protocol: 'a2a',
+          protocolVersion: '0.2',
+          capabilities: {
+            threading: true,
+            structuredArtifacts: true,
+            statusUpdates: true,
+            webhookPush: true,
+          },
+          supportedArtifactTypes: ARTIFACT_TYPES,
+          methods: ['tasks/send', 'tasks/get', 'tasks/list', 'tasks/respond', 'tasks/cancel', 'tasks/update_status', 'agent/info'],
+          endpoints: {
+            a2a: `${baseUrl}/api/a2a`,
+            mcp: `${baseUrl}/api/mcp`,
+            agentCard: `${baseUrl}/.well-known/agent-card.json`,
+            playbook: `${baseUrl}/api/a2a/playbook`,
+          },
         });
       }
 
       default:
-        return NextResponse.json({ error: `Unknown method: ${method}` }, { status: 400 });
+        return respondError(-32601, `Unknown method: ${method}`);
     }
   } catch (error: any) {
     console.error('POST /api/a2a error:', error);
     logError({ userId, ip, path: '/api/a2a', method: 'POST', errorMessage: error?.message || 'Unknown', errorStack: error?.stack, metadata: { a2aMethod: body?.method } });
     logRequest({ userId, ip, method: 'POST', path: '/api/a2a', statusCode: 500, duration: Date.now() - start });
-    return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
+    return respondError(-32603, error.message || 'Internal error', 500);
   }
 }
 
 /**
  * GET /api/a2a
- * 
+ *
  * Returns A2A endpoint metadata for discovery.
  */
 export async function GET() {
   return NextResponse.json({
     name: 'DiviDen A2A Endpoint',
-    version: '0.1.0',
-    description: 'Agent-to-Agent protocol endpoint for DiviDen. Send tasks, check status, cancel tasks.',
-    methods: ['tasks/send', 'tasks/get', 'tasks/cancel', 'tasks/respond'],
+    version: '0.3.0',
+    description: 'Agent-to-Agent protocol endpoint for DiviDen. Supports threaded conversations, typed artifacts, status updates, and webhook push.',
+    methods: ['tasks/send', 'tasks/get', 'tasks/list', 'tasks/respond', 'tasks/cancel', 'tasks/update_status', 'agent/info'],
+    capabilities: {
+      threading: true,
+      structuredArtifacts: true,
+      statusUpdates: true,
+      webhookPush: true,
+    },
+    supportedArtifactTypes: ARTIFACT_TYPES,
     authentication: {
       type: 'bearer',
       description: 'Use a DiviDen API key as Bearer token.',
