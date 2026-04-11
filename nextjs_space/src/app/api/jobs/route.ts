@@ -66,11 +66,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { title, description, taskType, urgency, compensation, estimatedHours, deadline, requiredSkills, preferredSkills, visibility } = body;
+  const { title, description, taskType, urgency, compensation, estimatedHours, deadline, requiredSkills, preferredSkills, visibility, compensationType, compensationAmount, compensationCurrency } = body;
 
   if (!title || !description) {
     return NextResponse.json({ error: 'Title and description are required' }, { status: 400 });
   }
+
+  // Determine if this is a paid job based on structured compensation
+  const amount = compensationAmount ? parseFloat(compensationAmount) : null;
+  const isPaid = !!compensationType && compensationType !== 'volunteer' && !!amount && amount > 0;
 
   const job = await prisma.networkJob.create({
     data: {
@@ -79,6 +83,10 @@ export async function POST(req: NextRequest) {
       taskType: taskType || 'custom',
       urgency: urgency || 'medium',
       compensation: compensation || null,
+      compensationType: compensationType || null,
+      compensationAmount: amount,
+      compensationCurrency: compensationCurrency || 'USD',
+      isPaid,
       estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
       deadline: deadline ? new Date(deadline) : null,
       requiredSkills: requiredSkills ? JSON.stringify(requiredSkills) : null,

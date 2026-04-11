@@ -47,28 +47,63 @@ export async function POST(req: NextRequest) {
       }
 
       case 'payment_intent.succeeded': {
-        // Payment succeeded — update execution record
         const paymentIntent = event.data.object;
-        const executionId = paymentIntent.metadata?.executionId;
-        if (executionId) {
-          await prisma.marketplaceExecution.updateMany({
-            where: { id: executionId },
-            data: { stripePaymentStatus: 'succeeded' },
-          });
-          console.log(`Payment for execution ${executionId} succeeded`);
+        const paymentType = paymentIntent.metadata?.type;
+        
+        if (paymentType === 'job_recruiting') {
+          // Job recruiting payment succeeded
+          const contractId = paymentIntent.metadata?.contractId;
+          if (contractId) {
+            await prisma.jobPayment.updateMany({
+              where: { stripePaymentIntentId: paymentIntent.id },
+              data: { stripePaymentStatus: 'succeeded' },
+            });
+            await prisma.jobContract.updateMany({
+              where: { id: contractId, stripePaymentIntentId: paymentIntent.id },
+              data: { stripePaymentStatus: 'succeeded' },
+            });
+            console.log(`Job recruiting payment for contract ${contractId} succeeded`);
+          }
+        } else {
+          // Marketplace execution payment
+          const executionId = paymentIntent.metadata?.executionId;
+          if (executionId) {
+            await prisma.marketplaceExecution.updateMany({
+              where: { id: executionId },
+              data: { stripePaymentStatus: 'succeeded' },
+            });
+            console.log(`Payment for execution ${executionId} succeeded`);
+          }
         }
         break;
       }
 
       case 'payment_intent.payment_failed': {
         const paymentIntent = event.data.object;
-        const executionId = paymentIntent.metadata?.executionId;
-        if (executionId) {
-          await prisma.marketplaceExecution.updateMany({
-            where: { id: executionId },
-            data: { stripePaymentStatus: 'failed' },
-          });
-          console.log(`Payment for execution ${executionId} failed`);
+        const paymentType = paymentIntent.metadata?.type;
+
+        if (paymentType === 'job_recruiting') {
+          const contractId = paymentIntent.metadata?.contractId;
+          if (contractId) {
+            await prisma.jobPayment.updateMany({
+              where: { stripePaymentIntentId: paymentIntent.id },
+              data: { stripePaymentStatus: 'failed' },
+            });
+            await prisma.jobContract.updateMany({
+              where: { id: contractId, stripePaymentIntentId: paymentIntent.id },
+              data: { stripePaymentStatus: 'failed' },
+            });
+            console.log(`Job recruiting payment for contract ${contractId} failed`);
+          }
+        } else {
+          const executionId = paymentIntent.metadata?.executionId;
+          if (executionId) {
+            await prisma.marketplaceExecution.updateMany({
+              where: { id: executionId },
+              data: { stripePaymentStatus: 'failed' },
+            });
+            console.log(`Payment for execution ${executionId} failed`);
+          }
         }
         break;
       }

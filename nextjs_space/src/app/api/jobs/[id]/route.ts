@@ -47,7 +47,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const allowedFields = ['title', 'description', 'taskType', 'urgency', 'compensation', 'estimatedHours', 'deadline', 'requiredSkills', 'preferredSkills', 'visibility', 'status', 'assigneeId'];
+  const allowedFields = ['title', 'description', 'taskType', 'urgency', 'compensation', 'estimatedHours', 'deadline', 'requiredSkills', 'preferredSkills', 'visibility', 'status', 'assigneeId', 'compensationType', 'compensationAmount', 'compensationCurrency'];
   const data: any = {};
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
@@ -55,12 +55,19 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         data[field] = JSON.stringify(body[field]);
       } else if (field === 'deadline') {
         data[field] = body[field] ? new Date(body[field]) : null;
-      } else if (field === 'estimatedHours') {
+      } else if (field === 'estimatedHours' || field === 'compensationAmount') {
         data[field] = body[field] ? parseFloat(body[field]) : null;
       } else {
         data[field] = body[field];
       }
     }
+  }
+
+  // Recompute isPaid if compensation fields changed
+  if (data.compensationType !== undefined || data.compensationAmount !== undefined) {
+    const ct = data.compensationType ?? job.compensationType;
+    const ca = data.compensationAmount ?? job.compensationAmount;
+    data.isPaid = !!ct && ct !== 'volunteer' && !!ca && ca > 0;
   }
 
   const updated = await prisma.networkJob.update({ where: { id: params.id }, data });

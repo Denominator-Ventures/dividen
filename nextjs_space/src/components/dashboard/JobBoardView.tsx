@@ -12,6 +12,10 @@ interface Job {
   urgency: string;
   status: string;
   compensation?: string;
+  compensationType?: string | null;
+  compensationAmount?: number | null;
+  compensationCurrency?: string;
+  isPaid?: boolean;
   estimatedHours?: number;
   deadline?: string;
   requiredSkills?: string;
@@ -23,6 +27,26 @@ interface Job {
   assignee?: { id: string; name: string; email: string } | null;
   _count?: { applications: number };
   applications?: any[];
+}
+
+interface Contract {
+  id: string;
+  jobId: string;
+  job: { id: string; title: string; taskType: string };
+  client: { id: string; name: string; email: string };
+  worker: { id: string; name: string; email: string };
+  compensationType: string;
+  compensationAmount: number;
+  currency: string;
+  status: string;
+  recruitingFeePercent: number;
+  totalPaid: number;
+  totalRecruitingFee: number;
+  startDate: string;
+  endDate?: string | null;
+  createdAt: string;
+  payments: any[];
+  _count?: { payments: number };
 }
 
 interface MatchResult {
@@ -42,12 +66,21 @@ interface Reputation {
   responseRate: number;
 }
 
-type ViewMode = 'browse' | 'my_jobs' | 'assigned' | 'matches' | 'reputation';
+type ViewMode = 'browse' | 'my_jobs' | 'assigned' | 'matches' | 'contracts' | 'reputation';
 
 const TASK_TYPES = [
   'research', 'review', 'introductions', 'technical', 'creative',
   'strategy', 'operations', 'mentoring', 'sales', 'legal',
   'finance', 'hr', 'translation', 'custom',
+];
+
+const COMPENSATION_TYPES = [
+  { value: '', label: 'Select pay structure...' },
+  { value: 'flat', label: 'Flat Fee' },
+  { value: 'hourly', label: 'Hourly' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'volunteer', label: 'Volunteer / Unpaid' },
 ];
 
 const URGENCY_COLORS: Record<string, string> = {
@@ -63,6 +96,14 @@ const STATUS_COLORS: Record<string, string> = {
   completed: 'bg-zinc-500/20 text-zinc-400',
   cancelled: 'bg-red-500/20 text-red-400',
   expired: 'bg-zinc-700/20 text-zinc-500',
+};
+
+const CONTRACT_STATUS_COLORS: Record<string, string> = {
+  active: 'bg-emerald-500/20 text-emerald-400',
+  paused: 'bg-amber-500/20 text-amber-400',
+  completed: 'bg-zinc-500/20 text-zinc-400',
+  cancelled: 'bg-red-500/20 text-red-400',
+  disputed: 'bg-red-500/20 text-red-400',
 };
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -86,22 +127,42 @@ function timeAgo(date: string) {
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
+function formatComp(type?: string | null, amount?: number | null, currency: string = 'USD'): string {
+  if (!type || !amount || amount <= 0) return '';
+  const fmt = new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(amount);
+  switch (type) {
+    case 'flat': return `${fmt} flat`;
+    case 'hourly': return `${fmt}/hr`;
+    case 'weekly': return `${fmt}/wk`;
+    case 'monthly': return `${fmt}/mo`;
+    default: return fmt;
+  }
+}
+
 export function JobBoardView() {
   const [view, setView] = useState<ViewMode>('browse');
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [matches, setMatches] = useState<MatchResult[]>([]);
   const [reputation, setReputation] = useState<Reputation | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDetail, setShowDetail] = useState(false);
+  const [feeInfo, setFeeInfo] = useState<{ feePercent: number; workerPercent: number; isSelfHosted: boolean } | null>(null);
 
   // Create form
   const [form, setForm] = useState({
     title: '', description: '', taskType: 'custom', urgency: 'medium',
     compensation: '', estimatedHours: '', deadline: '',
     requiredSkills: '', preferredSkills: '', visibility: 'network',
+    compensationType: '', compensationAmount: '',
   });
+
+  // Fetch fee info once
+  useEffect(() => {
+    fetch('/api/recruiting/fee-info').then(r => r.json()).then(setFeeInfo).catch(() => {});
+  }, []);
 
   const fetchJobs = useCallback(async () => {
     setLoading(true);
@@ -117,6 +178,16 @@ export function JobBoardView() {
     } catch (e) { console.error('Failed to fetch jobs:', e); }
     setLoading(false);
   }, [view]);
+
+  const fetchContracts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/contracts?status=all');
+      const data = await res.json();
+      setContracts(data.contracts || []);
+    } catch (e) { console.error('Failed to fetch contracts:', e); }
+    setLoading(false);
+  }, []);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
@@ -141,8 +212,9 @@ export function JobBoardView() {
   useEffect(() => {
     if (view === 'matches') fetchMatches();
     else if (view === 'reputation') fetchReputation();
+    else if (view === 'contracts') fetchContracts();
     else fetchJobs();
-  }, [view, fetchJobs, fetchMatches, fetchReputation]);
+  }, [view, fetchJobs, fetchMatches, fetchReputation, fetchContracts]);
 
   const createJob = async () => {
     const payload: any = {
@@ -151,11 +223,13 @@ export function JobBoardView() {
       preferredSkills: form.preferredSkills ? form.preferredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
       estimatedHours: form.estimatedHours || undefined,
       deadline: form.deadline || undefined,
+      compensationType: form.compensationType || undefined,
+      compensationAmount: form.compensationAmount || undefined,
     };
     const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (res.ok) {
       setShowCreate(false);
-      setForm({ title: '', description: '', taskType: 'custom', urgency: 'medium', compensation: '', estimatedHours: '', deadline: '', requiredSkills: '', preferredSkills: '', visibility: 'network' });
+      setForm({ title: '', description: '', taskType: 'custom', urgency: 'medium', compensation: '', estimatedHours: '', deadline: '', requiredSkills: '', preferredSkills: '', visibility: 'network', compensationType: '', compensationAmount: '' });
       fetchJobs();
     }
   };
@@ -175,27 +249,6 @@ export function JobBoardView() {
     }
   };
 
-  const acceptApplication = async (jobId: string, applicantId: string) => {
-    // Accept = assign the job to this applicant
-    const res = await fetch(`/api/jobs/${jobId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'in_progress' }),
-    });
-    if (res.ok) {
-      // Also update the assignment
-      await fetch(`/api/jobs/${jobId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'in_progress' }),
-      });
-      // Note: assigneeId set through a direct update isn't in PATCH allowed fields
-      // We'll handle this properly — for now just update status
-      fetchJobs();
-      setShowDetail(false);
-    }
-  };
-
   const completeJob = async (jobId: string) => {
     const note = prompt('Completion notes (optional):');
     const res = await fetch(`/api/jobs/${jobId}/complete`, {
@@ -211,6 +264,10 @@ export function JobBoardView() {
       alert(data.error || 'Failed');
     }
   };
+
+  // Fee preview for create form
+  const compAmount = parseFloat(form.compensationAmount);
+  const showFeePreview = form.compensationType && form.compensationType !== 'volunteer' && compAmount > 0 && feeInfo;
 
   return (
     <div className="flex flex-col h-full">
@@ -231,10 +288,11 @@ export function JobBoardView() {
       {/* Sub-tabs */}
       <div className="flex gap-1 px-4 py-2 border-b border-white/5 overflow-x-auto">
         {[
-          { id: 'browse' as ViewMode, label: '🌐 Browse', },
+          { id: 'browse' as ViewMode, label: '🌐 Browse' },
           { id: 'matches' as ViewMode, label: '✨ Matches' },
           { id: 'my_jobs' as ViewMode, label: '📤 My Posts' },
           { id: 'assigned' as ViewMode, label: '📥 Assigned' },
+          { id: 'contracts' as ViewMode, label: '📄 Contracts' },
           { id: 'reputation' as ViewMode, label: '⭐ Reputation' },
         ].map(tab => (
           <button
@@ -250,6 +308,14 @@ export function JobBoardView() {
         ))}
       </div>
 
+      {/* Recruiting fee banner */}
+      {feeInfo && !feeInfo.isSelfHosted && (view === 'browse' || view === 'my_jobs') && (
+        <div className="mx-4 mt-3 p-2.5 rounded-lg bg-amber-500/[0.06] border border-amber-500/10 text-xs text-amber-400/80">
+          💰 Paid jobs include a {feeInfo.feePercent}% recruiting fee when hiring outside your network. Workers keep {feeInfo.workerPercent}%.
+          {feeInfo.isSelfHosted && ' Self-hosted: 0% fee.'}
+        </div>
+      )}
+
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {loading ? (
@@ -258,20 +324,18 @@ export function JobBoardView() {
           </div>
         ) : view === 'reputation' ? (
           <ReputationView reputation={reputation} />
+        ) : view === 'contracts' ? (
+          contracts.length === 0 ? (
+            <EmptyState icon="📄" title="No contracts yet" subtitle="Contracts are created when you hire someone for a paid job" />
+          ) : (
+            contracts.map(c => <ContractCard key={c.id} contract={c} onRefresh={fetchContracts} />)
+          )
         ) : view === 'matches' ? (
           matches.length === 0 ? (
-            <EmptyState
-              icon="✨"
-              title="No matches yet"
-              subtitle="Complete your profile with skills and task types to get matched with relevant jobs"
-            />
+            <EmptyState icon="✨" title="No matches yet" subtitle="Complete your profile with skills and task types to get matched with relevant jobs" />
           ) : (
             matches.map(m => (
-              <MatchCard
-                key={m.jobId}
-                match={m}
-                onApply={() => applyToJob(m.jobId)}
-              />
+              <MatchCard key={m.jobId} match={m} onApply={() => applyToJob(m.jobId)} />
             ))
           )
         ) : jobs.length === 0 ? (
@@ -335,25 +399,70 @@ export function JobBoardView() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Compensation</label>
-                <input value={form.compensation} onChange={e => setForm(f => ({ ...f, compensation: e.target.value }))}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500"
-                  placeholder="e.g. $500, equity swap, mutual" />
+            {/* ── Structured Compensation ── */}
+            <div className="p-4 rounded-lg border border-white/5 bg-zinc-800/30 space-y-3">
+              <label className="text-xs font-semibold text-zinc-300 block">💰 Compensation</label>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-zinc-500 mb-1 block">Pay Structure</label>
+                  <select value={form.compensationType} onChange={e => setForm(f => ({ ...f, compensationType: e.target.value }))}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white">
+                    {COMPENSATION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                {form.compensationType && form.compensationType !== 'volunteer' && (
+                  <div>
+                    <label className="text-[10px] text-zinc-500 mb-1 block">
+                      Amount (USD){form.compensationType === 'flat' ? '' : ` / ${form.compensationType === 'hourly' ? 'hour' : form.compensationType === 'weekly' ? 'week' : 'month'}`}
+                    </label>
+                    <input type="number" min="0" step="0.01" value={form.compensationAmount}
+                      onChange={e => setForm(f => ({ ...f, compensationAmount: e.target.value }))}
+                      className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500"
+                      placeholder="e.g. 500" />
+                  </div>
+                )}
               </div>
+              {form.compensationType && form.compensationType !== 'volunteer' && (
+                <div>
+                  <label className="text-[10px] text-zinc-500 mb-1 block">Or freeform (legacy)</label>
+                  <input value={form.compensation} onChange={e => setForm(f => ({ ...f, compensation: e.target.value }))}
+                    className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500"
+                    placeholder="e.g. equity swap, mutual exchange (optional)" />
+                </div>
+              )}
+              {showFeePreview && feeInfo && (
+                <div className="p-2.5 rounded-md bg-amber-500/[0.06] border border-amber-500/10 text-xs space-y-1">
+                  <div className="flex justify-between text-zinc-300">
+                    <span>{form.compensationType === 'flat' ? 'Total' : `Per ${form.compensationType === 'hourly' ? 'hour' : form.compensationType === 'weekly' ? 'week' : 'month'}`}</span>
+                    <span>${compAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-400/80">
+                    <span>Recruiting fee ({feeInfo.feePercent}%)</span>
+                    <span>-${(compAmount * feeInfo.feePercent / 100).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-emerald-400 font-medium border-t border-white/5 pt-1">
+                    <span>Worker receives</span>
+                    <span>${(compAmount * (1 - feeInfo.feePercent / 100)).toFixed(2)}</span>
+                  </div>
+                  {feeInfo.isSelfHosted && (
+                    <p className="text-[10px] text-zinc-500 mt-1">Self-hosted instance — 0% fee applied.</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-zinc-400 mb-1 block">Est. Hours</label>
                 <input type="number" value={form.estimatedHours} onChange={e => setForm(f => ({ ...f, estimatedHours: e.target.value }))}
                   className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500"
                   placeholder="e.g. 4" />
               </div>
-            </div>
-
-            <div>
-              <label className="text-xs text-zinc-400 mb-1 block">Deadline</label>
-              <input type="date" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
-                className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white" />
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">Deadline</label>
+                <input type="date" value={form.deadline} onChange={e => setForm(f => ({ ...f, deadline: e.target.value }))}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white" />
+              </div>
             </div>
 
             <div>
@@ -397,7 +506,7 @@ export function JobBoardView() {
         <JobDetailModal
           job={selectedJob}
           onClose={() => { setShowDetail(false); setSelectedJob(null); }}
-          onRefresh={fetchJobs}
+          onRefresh={() => { fetchJobs(); if (view === 'contracts') fetchContracts(); }}
         />
       )}
     </div>
@@ -411,6 +520,7 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
   onApply: () => void; onComplete: () => void; onSelect: () => void;
 }) {
   const skills = parseSkills(job.requiredSkills);
+  const compDisplay = formatComp(job.compensationType, job.compensationAmount, job.compensationCurrency);
   return (
     <div
       onClick={onSelect}
@@ -418,7 +528,7 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <h3 className="text-sm font-semibold text-white truncate">{job.title}</h3>
             <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded-full border', URGENCY_COLORS[job.urgency] || URGENCY_COLORS.medium)}>
               {job.urgency}
@@ -426,6 +536,11 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
             <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded-full', STATUS_COLORS[job.status] || STATUS_COLORS.open)}>
               {job.status.replace('_', ' ')}
             </span>
+            {job.isPaid && (
+              <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-500/20 text-emerald-400">
+                💰 Paid
+              </span>
+            )}
           </div>
           <p className="text-xs text-zinc-400 line-clamp-2">{job.description}</p>
         </div>
@@ -433,7 +548,8 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
 
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-[10px] text-zinc-500">📋 {job.taskType}</span>
-        {job.compensation && <span className="text-[10px] text-emerald-400">💰 {job.compensation}</span>}
+        {compDisplay && <span className="text-[10px] text-emerald-400 font-medium">💰 {compDisplay}</span>}
+        {!compDisplay && job.compensation && <span className="text-[10px] text-emerald-400">💰 {job.compensation}</span>}
         {job.estimatedHours && <span className="text-[10px] text-zinc-500">⏱️ {job.estimatedHours}h</span>}
         {job.deadline && <span className="text-[10px] text-zinc-500">📅 {new Date(job.deadline).toLocaleDateString()}</span>}
         <span className="text-[10px] text-zinc-600">by {job.poster?.name || 'Unknown'}</span>
@@ -470,6 +586,152 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
   );
 }
 
+function ContractCard({ contract, onRefresh }: { contract: Contract; onRefresh: () => void }) {
+  const [showPayment, setShowPayment] = useState(false);
+  const [payAmount, setPayAmount] = useState(contract.compensationAmount.toString());
+  const [payDesc, setPayDesc] = useState('');
+  const [paying, setPaying] = useState(false);
+
+  const makePayment = async () => {
+    setPaying(true);
+    try {
+      const res = await fetch(`/api/contracts/${contract.id}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: payAmount, description: payDesc || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Payment recorded!');
+        setShowPayment(false);
+        onRefresh();
+      } else {
+        alert(data.error || 'Payment failed');
+      }
+    } catch { alert('Payment failed'); }
+    setPaying(false);
+  };
+
+  const updateStatus = async (status: string) => {
+    if (!confirm(`${status === 'completed' ? 'Complete' : status === 'cancelled' ? 'Cancel' : 'Pause'} this contract?`)) return;
+    const res = await fetch(`/api/contracts/${contract.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (res.ok) onRefresh();
+    else alert('Failed to update contract');
+  };
+
+  const compDisplay = formatComp(contract.compensationType, contract.compensationAmount, contract.currency);
+
+  return (
+    <div className="p-4 bg-zinc-900/50 border border-white/5 rounded-xl space-y-3">
+      <div className="flex items-start justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-white">{contract.job.title}</h3>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded-full', CONTRACT_STATUS_COLORS[contract.status])}>
+              {contract.status}
+            </span>
+            <span className="text-[10px] text-emerald-400 font-medium">{compDisplay}</span>
+            <span className="text-[10px] text-amber-400/70">{contract.recruitingFeePercent}% fee</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div><span className="text-zinc-500">Client:</span> <span className="text-white">{contract.client.name}</span></div>
+        <div><span className="text-zinc-500">Worker:</span> <span className="text-white">{contract.worker.name}</span></div>
+        <div><span className="text-zinc-500">Total paid:</span> <span className="text-emerald-400">${contract.totalPaid.toFixed(2)}</span></div>
+        <div><span className="text-zinc-500">Fees collected:</span> <span className="text-amber-400">${contract.totalRecruitingFee.toFixed(2)}</span></div>
+        <div><span className="text-zinc-500">Started:</span> <span className="text-white">{new Date(contract.startDate).toLocaleDateString()}</span></div>
+        {contract.endDate && (
+          <div><span className="text-zinc-500">Ended:</span> <span className="text-white">{new Date(contract.endDate).toLocaleDateString()}</span></div>
+        )}
+      </div>
+
+      {/* Recent payments */}
+      {contract.payments.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-[10px] text-zinc-500 font-medium">Recent payments:</p>
+          {contract.payments.slice(0, 3).map((p: any) => (
+            <div key={p.id} className="flex items-center justify-between text-[10px] px-2 py-1 bg-zinc-800/50 rounded">
+              <span className="text-zinc-300">{p.description || 'Payment'}</span>
+              <div className="flex items-center gap-2">
+                <span className="text-emerald-400">${p.amount.toFixed(2)}</span>
+                <span className={cn('px-1.5 py-0.5 rounded-full text-[9px]',
+                  p.stripePaymentStatus === 'succeeded' ? 'bg-emerald-500/20 text-emerald-400' :
+                  p.stripePaymentStatus === 'failed' ? 'bg-red-500/20 text-red-400' :
+                  'bg-zinc-500/20 text-zinc-400'
+                )}>{p.stripePaymentStatus}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Actions */}
+      <div className="flex gap-2 flex-wrap">
+        {contract.status === 'active' && contract.compensationType !== 'flat' && (
+          <button onClick={() => setShowPayment(!showPayment)}
+            className="px-3 py-1 text-xs font-medium rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors">
+            💳 Make Payment
+          </button>
+        )}
+        {contract.status === 'active' && (
+          <>
+            <button onClick={() => updateStatus('completed')}
+              className="px-3 py-1 text-xs font-medium rounded-md bg-zinc-500/20 text-zinc-400 hover:bg-zinc-500/30 transition-colors">
+              ✅ Complete
+            </button>
+            <button onClick={() => updateStatus('paused')}
+              className="px-3 py-1 text-xs font-medium rounded-md bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors">
+              ⏸ Pause
+            </button>
+          </>
+        )}
+        {contract.status === 'paused' && (
+          <button onClick={() => updateStatus('active')}
+            className="px-3 py-1 text-xs font-medium rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors">
+            ▶ Resume
+          </button>
+        )}
+      </div>
+
+      {/* Payment form */}
+      {showPayment && (
+        <div className="p-3 bg-zinc-800/50 border border-white/5 rounded-lg space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[10px] text-zinc-500 block mb-1">Amount ($)</label>
+              <input type="number" min="0" step="0.01" value={payAmount}
+                onChange={e => setPayAmount(e.target.value)}
+                className="w-full px-2 py-1.5 bg-zinc-800 border border-white/10 rounded text-sm text-white" />
+            </div>
+            <div>
+              <label className="text-[10px] text-zinc-500 block mb-1">Description</label>
+              <input value={payDesc} onChange={e => setPayDesc(e.target.value)}
+                className="w-full px-2 py-1.5 bg-zinc-800 border border-white/10 rounded text-sm text-white placeholder-zinc-500"
+                placeholder="e.g. Week of Apr 7-13" />
+            </div>
+          </div>
+          {parseFloat(payAmount) > 0 && (
+            <div className="text-[10px] text-zinc-400">
+              Fee: ${(parseFloat(payAmount) * contract.recruitingFeePercent / 100).toFixed(2)} ({contract.recruitingFeePercent}%)
+              · Worker gets: ${(parseFloat(payAmount) * (1 - contract.recruitingFeePercent / 100)).toFixed(2)}
+            </div>
+          )}
+          <button onClick={makePayment} disabled={paying || !payAmount}
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-500 text-white hover:bg-emerald-600 transition-colors disabled:opacity-50">
+            {paying ? 'Processing...' : 'Submit Payment'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function MatchCard({ match, onApply }: { match: MatchResult; onApply: () => void }) {
   return (
     <div className="p-4 bg-zinc-900/50 border border-amber-500/10 rounded-xl space-y-2">
@@ -496,7 +758,6 @@ function ReputationView({ reputation }: { reputation: Reputation | null }) {
 
   return (
     <div className="space-y-6">
-      {/* Score card */}
       <div className="p-6 bg-zinc-900/50 border border-white/5 rounded-xl text-center space-y-3">
         <div className="text-4xl font-bold text-white">{Math.round(reputation.score)}</div>
         <div className={cn('text-lg font-semibold capitalize', LEVEL_COLORS[reputation.level] || 'text-zinc-400')}>
@@ -505,7 +766,6 @@ function ReputationView({ reputation }: { reputation: Reputation | null }) {
         <p className="text-xs text-zinc-500">Network Reputation Score</p>
       </div>
 
-      {/* Stats grid */}
       <div className="grid grid-cols-2 gap-3">
         {[
           { label: 'Jobs Completed', value: reputation.jobsCompleted, icon: '✅' },
@@ -522,7 +782,6 @@ function ReputationView({ reputation }: { reputation: Reputation | null }) {
         ))}
       </div>
 
-      {/* Level progression */}
       <div className="p-4 bg-zinc-900/50 border border-white/5 rounded-xl space-y-2">
         <h4 className="text-xs font-semibold text-zinc-400">Reputation Levels</h4>
         <div className="space-y-1">
@@ -551,12 +810,34 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
   const [detail, setDetail] = useState<Job | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
+  const [hiring, setHiring] = useState(false);
 
   useEffect(() => {
     fetch(`/api/jobs/${job.id}`).then(r => r.json()).then(d => setDetail(d.job)).catch(() => {});
   }, [job.id]);
 
-  const submitReview = async (revieweeType: 'poster' | 'assignee') => {
+  const hireApplicant = async (applicantId: string) => {
+    if (!confirm('Hire this applicant? A contract will be created with the posted compensation terms.')) return;
+    setHiring(true);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/hire`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ applicantId }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(data.message || 'Hired!');
+        onRefresh();
+        onClose();
+      } else {
+        alert(data.error || 'Failed to hire');
+      }
+    } catch { alert('Failed to hire'); }
+    setHiring(false);
+  };
+
+  const submitReview = async () => {
     const res = await fetch(`/api/jobs/${job.id}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -574,6 +855,7 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
 
   const skills = parseSkills(job.requiredSkills);
   const prefSkills = parseSkills(job.preferredSkills);
+  const compDisplay = formatComp(job.compensationType, job.compensationAmount, job.compensationCurrency);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
@@ -581,10 +863,13 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-lg font-semibold text-white">{job.title}</h3>
-            <div className="flex items-center gap-2 mt-1">
+            <div className="flex items-center gap-2 mt-1 flex-wrap">
               <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded-full border', URGENCY_COLORS[job.urgency])}>{job.urgency}</span>
               <span className={cn('px-2 py-0.5 text-[10px] font-medium rounded-full', STATUS_COLORS[job.status])}>{job.status.replace('_', ' ')}</span>
               <span className="text-[10px] text-zinc-500">📋 {job.taskType}</span>
+              {job.isPaid && (
+                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-emerald-500/20 text-emerald-400">💰 Paid</span>
+              )}
             </div>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-white text-lg">✕</button>
@@ -593,7 +878,8 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
         <div className="text-sm text-zinc-300 whitespace-pre-wrap">{job.description}</div>
 
         <div className="grid grid-cols-2 gap-3">
-          {job.compensation && <div className="text-xs"><span className="text-zinc-500">Compensation:</span> <span className="text-emerald-400">{job.compensation}</span></div>}
+          {compDisplay && <div className="text-xs"><span className="text-zinc-500">Compensation:</span> <span className="text-emerald-400 font-medium">{compDisplay}</span></div>}
+          {!compDisplay && job.compensation && <div className="text-xs"><span className="text-zinc-500">Compensation:</span> <span className="text-emerald-400">{job.compensation}</span></div>}
           {job.estimatedHours && <div className="text-xs"><span className="text-zinc-500">Est. Hours:</span> <span className="text-white">{job.estimatedHours}h</span></div>}
           {job.deadline && <div className="text-xs"><span className="text-zinc-500">Deadline:</span> <span className="text-white">{new Date(job.deadline).toLocaleDateString()}</span></div>}
           <div className="text-xs"><span className="text-zinc-500">Posted by:</span> <span className="text-white">{job.poster?.name || 'Unknown'}</span></div>
@@ -619,24 +905,35 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
           </div>
         )}
 
-        {/* Applications */}
+        {/* Applications with Hire button */}
         {detail?.applications && detail.applications.length > 0 && (
           <div>
             <h4 className="text-xs font-semibold text-zinc-400 mb-2">Applications ({detail.applications.length})</h4>
             <div className="space-y-2">
               {detail.applications.map((app: any) => (
-                <div key={app.id} className="p-3 bg-zinc-800/50 border border-white/5 rounded-lg flex items-center justify-between">
-                  <div>
+                <div key={app.id} className="p-3 bg-zinc-800/50 border border-white/5 rounded-lg flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <span className="text-sm text-white font-medium">{app.applicant?.name}</span>
                     {app.matchScore && <span className="text-xs text-amber-400 ml-2">{Math.round(app.matchScore * 100)}% match</span>}
                     {app.coverNote && <p className="text-xs text-zinc-400 mt-1">{app.coverNote}</p>}
                     {app.matchReason && <p className="text-[10px] text-zinc-500 mt-0.5">{app.matchReason}</p>}
                   </div>
-                  <span className={cn('px-2 py-0.5 text-[10px] rounded-full', 
-                    app.status === 'accepted' ? 'bg-emerald-500/20 text-emerald-400' :
-                    app.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
-                    'bg-zinc-500/20 text-zinc-400'
-                  )}>{app.status}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className={cn('px-2 py-0.5 text-[10px] rounded-full',
+                      app.status === 'accepted' ? 'bg-emerald-500/20 text-emerald-400' :
+                      app.status === 'rejected' ? 'bg-red-500/20 text-red-400' :
+                      'bg-zinc-500/20 text-zinc-400'
+                    )}>{app.status}</span>
+                    {app.status === 'pending' && job.status === 'open' && (
+                      <button
+                        onClick={() => hireApplicant(app.applicant.id)}
+                        disabled={hiring}
+                        className="px-3 py-1 text-xs font-medium rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+                      >
+                        {hiring ? '...' : '✓ Hire'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -658,7 +955,7 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
             <textarea value={reviewComment} onChange={e => setReviewComment(e.target.value)}
               className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500 h-16 resize-none mb-2"
               placeholder="How was the experience?" />
-            <button onClick={() => submitReview('assignee')}
+            <button onClick={submitReview}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-amber-500/20 text-amber-400 hover:bg-amber-500/30 transition-colors">
               Submit Review
             </button>

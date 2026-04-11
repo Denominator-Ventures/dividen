@@ -17,6 +17,49 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'job-recruiting-monetization',
+    date: '2026-04-12',
+    time: '2:00 AM',
+    title: 'Job Recruiting — Flat Fee, Hourly, Weekly, Monthly + 7% Recruiting Fee',
+    subtitle: 'Structured compensation for network job postings. Hire people outside your network for paid projects. Stripe handles payment. DiviDen takes a 7% recruiting fee. Self-hosted: 0%.',
+    tags: ['jobs', 'recruiting', 'payments', 'stripe', 'contracts', 'monetization'],
+    content: `The job board just became a recruiting engine.
+
+## What Shipped
+
+**Structured Compensation** — When posting a job, you now choose a pay structure: flat fee, hourly, weekly, or monthly. Enter a dollar amount per unit. The old freeform compensation field still works for non-monetary arrangements (equity swap, mutual exchange, volunteer).
+
+**7% Recruiting Fee** — When you hire someone through the DiviDen network who isn't already in your project or team, DiviDen takes a 7% recruiting fee. The worker keeps 93%. This is separate from the 3% Agent Marketplace routing fee — that's for AI agents, this is for humans. Self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` and keep everything.
+
+**Job Contracts** — When you hire an applicant for a paid job, a \`JobContract\` is created that tracks: compensation terms, both parties, payment history, recruiting fee collected, and contract status (active / paused / completed / cancelled). Contracts live in a new "📄 Contracts" tab on the job board.
+
+**Hire Button** — Job detail modal now shows a "✓ Hire" button next to each pending applicant. Click it: the applicant is assigned, other applicants are rejected, and a contract is created. For flat-fee jobs with Stripe configured, payment is initiated immediately.
+
+**Recurring Payments** — For hourly/weekly/monthly contracts, the client can submit payments from the Contracts tab. Each payment records the gross amount, recruiting fee, and worker payout. Stripe handles the money if both parties are connected.
+
+**Destination Charges** — Same pattern as the Agent Marketplace: if the worker has a Stripe Connect Express account, payments go directly to them via destination charges with the recruiting fee as the application fee. Worker gets paid. DiviDen collects the routing cut. Nobody holds funds.
+
+**Live Fee Preview** — When creating a job with structured compensation, the form shows a real-time breakdown: total amount, recruiting fee, and what the worker actually receives.
+
+## Technical Details
+
+- **New Prisma models**: \`JobContract\`, \`JobPayment\`
+- **Schema additions**: \`NetworkJob.compensationType\`, \`compensationAmount\`, \`compensationCurrency\`, \`isPaid\`
+- **New API routes**: \`/api/jobs/[id]/hire\`, \`/api/contracts\` (GET), \`/api/contracts/[id]\` (GET/PATCH), \`/api/contracts/[id]/pay\` (POST), \`/api/recruiting/fee-info\` (GET)
+- **Config**: \`RECRUITING_FEE_PERCENT\` env var (default 7, set to 0 for self-hosted)
+- **Webhook**: Stripe webhook handler now processes \`job_recruiting\` payment type alongside existing marketplace payments
+
+## Why 7%
+
+The Agent Marketplace charges 3% because it's a routing fee for automated execution. This is different — it's a recruiting fee for matching a human to a project. You're paying for the network effect: DiviDen surfaced someone capable that you didn't already have access to. That's worth more than 3%.
+
+Still the lowest recruiting fee in the industry. Traditional recruiters charge 15-25% of annual salary. We charge 7% of the contract value.
+
+Self-hosted? \`RECRUITING_FEE_PERCENT=0\`. You keep everything.
+
+— Jon`
+  },
+  {
     id: 'stripe-marketplace-payments',
     date: '2026-04-12',
     time: '12:30 AM',

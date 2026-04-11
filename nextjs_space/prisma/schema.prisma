@@ -56,6 +56,8 @@ model User {
   jobsPosted           NetworkJob[] @relation("JobsPosted")
   jobsAssigned         NetworkJob[] @relation("JobsAssigned")
   jobApplications      JobApplication[] @relation("JobApplications")
+  jobContractsAsClient JobContract[] @relation("JobContractsAsClient")
+  jobContractsAsWorker JobContract[] @relation("JobContractsAsWorker")
   reputationScores     ReputationScore[] @relation("ReputationScores")
   profile              UserProfile?
   invitations          Invitation[]
@@ -1114,9 +1116,15 @@ model NetworkJob {
   taskType        String    @default("custom") // matches UserProfile.taskTypes values
   urgency         String    @default("medium") // "low" | "medium" | "high" | "critical"
   status          String    @default("open")   // "open" | "in_progress" | "completed" | "cancelled" | "expired"
-  compensation    String?   // freeform: "equity swap", "$500", "mutual exchange", "volunteer"
+  compensation    String?   // freeform (legacy): "equity swap", "$500", "mutual exchange", "volunteer"
   estimatedHours  Float?    // estimated time commitment
   deadline        DateTime? // when the task needs to be done by
+  
+  // ─── Structured Compensation ──────────────────────────────────────
+  compensationType   String?  // "flat" | "hourly" | "weekly" | "monthly" | "volunteer" | null (freeform/legacy)
+  compensationAmount Float?   // Dollar amount per unit (flat total, or per hour/week/month)
+  compensationCurrency String @default("USD") // ISO currency code
+  isPaid             Boolean  @default(false) // true if compensationType is flat/hourly/weekly/monthly with amount > 0
   
   // Poster info
   posterId        String
@@ -1137,6 +1145,7 @@ model NetworkJob {
   completionNote  String?   @db.Text
   
   applications    JobApplication[]
+  contracts       JobContract[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1148,7 +1157,85 @@ model NetworkJob {
   @@index([taskType])
   @@index([urgency])
   @@index([createdAt])
+  @@index([isPaid])
   @@map("network_jobs")
+}
+
+// ─── Job Contracts & Recruiting Payments ────────────────────────────────────
+
+model JobContract {
+  id              String    @id @default(cuid())
+  jobId           String
+  job             NetworkJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  
+  // Parties
+  clientId        String    // the person who posted the job (paying)
+  client          User      @relation("JobContractsAsClient", fields: [clientId], references: [id], onDelete: Cascade)
+  workerId        String    // the person hired
+  worker          User      @relation("JobContractsAsWorker", fields: [workerId], references: [id], onDelete: Cascade)
+  
+  // Contract terms
+  compensationType   String    // "flat" | "hourly" | "weekly" | "monthly"
+  compensationAmount Float     // Dollar amount per unit
+  currency           String    @default("USD")
+  
+  // Status tracking
+  status          String    @default("active") // "active" | "paused" | "completed" | "cancelled" | "disputed"
+  startDate       DateTime  @default(now())
+  endDate         DateTime? // When contract ended
+  
+  // Recruiting fee (7% default, configurable via RECRUITING_FEE_PERCENT)
+  recruitingFeePercent Float  @default(7)
+  
+  // Payment tracking
+  totalPaid          Float    @default(0)  // Total paid to worker so far
+  totalRecruitingFee Float    @default(0)  // Total recruiting fees collected
+  
+  // Stripe payment tracking
+  stripePaymentIntentId String?  // For flat-fee: single payment intent
+  stripePaymentStatus   String?  // "pending" | "succeeded" | "failed"
+  
+  // For recurring: track billing cycles
+  lastPaymentAt    DateTime?
+  nextPaymentDue   DateTime?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  payments        JobPayment[]
+
+  @@index([jobId])
+  @@index([clientId])
+  @@index([workerId])
+  @@index([status])
+  @@map("job_contracts")
+}
+
+model JobPayment {
+  id              String    @id @default(cuid())
+  contractId      String
+  contract        JobContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  
+  // Payment details
+  amount          Float     // Gross amount
+  recruitingFee   Float     // Platform recruiting fee
+  workerPayout    Float     // Amount to worker (amount - recruitingFee)
+  feePercent      Float     // Fee % at time of payment
+  
+  // Billing period (for recurring)
+  periodStart     DateTime?
+  periodEnd       DateTime?
+  description     String?   // "Week of Apr 7-13" or "April 2026" or "Flat fee"
+  
+  // Stripe
+  stripePaymentIntentId String?
+  stripePaymentStatus   String  @default("pending") // "pending" | "succeeded" | "failed" | "refunded"
+  
+  createdAt       DateTime  @default(now())
+
+  @@index([contractId])
+  @@index([stripePaymentStatus])
+  @@map("job_payments")
 }
 
 model JobApplication {
