@@ -1708,9 +1708,36 @@ async function executeTag(
         }
         const agent = await prisma.marketplaceAgent.findUnique({ where: { id: params.agentId } });
         if (!agent || agent.status !== 'active') return { tag: name, success: false, error: 'Agent not found or inactive' };
-        // Create execution record
+
+        // Determine if this is the user's own agent (no platform fees)
+        const isOwnAgent = agent.developerId === userId;
+
+        // Build Integration Kit context for the response
+        let integrationKitContext = '';
+        if (agent.contextInstructions) {
+          integrationKitContext += `\n[Integration Kit — Context Instructions]: ${agent.contextInstructions}`;
+        }
+        if (agent.contextPreparation) {
+          try {
+            const steps = JSON.parse(agent.contextPreparation);
+            if (Array.isArray(steps) && steps.length > 0) {
+              integrationKitContext += `\n[Pre-flight Checklist]: ${steps.map((s: string, i: number) => `${i + 1}. ${s}`).join(' → ')}`;
+            }
+          } catch { /* ignore */ }
+        }
+        if (agent.executionNotes) {
+          integrationKitContext += `\n[Execution Notes]: ${agent.executionNotes}`;
+        }
+
+        // Create execution record (no fees for own agents)
         const execution = await prisma.marketplaceExecution.create({
-          data: { agentId: params.agentId, userId, taskInput: params.prompt, status: 'pending' },
+          data: {
+            agentId: params.agentId,
+            userId,
+            taskInput: params.prompt,
+            status: 'pending',
+            feePercent: isOwnAgent ? 0 : (parseFloat(process.env.MARKETPLACE_FEE_PERCENT || '3')),
+          },
         });
         // Call the agent endpoint
         try {
@@ -1721,7 +1748,15 @@ async function executeTag(
           const resp = await fetch(agent.endpointUrl, { method: 'POST', headers, body: JSON.stringify({ prompt: params.prompt, userId }), signal: AbortSignal.timeout(30000) });
           const result = await resp.text();
           await prisma.marketplaceExecution.update({ where: { id: execution.id }, data: { status: 'completed', taskOutput: result, completedAt: new Date() } });
-          return { tag: name, success: true, data: { executionId: execution.id, result: result.substring(0, 2000) } };
+          return {
+            tag: name, success: true,
+            data: {
+              executionId: execution.id,
+              result: result.substring(0, 2000),
+              isOwnAgent,
+              ...(integrationKitContext ? { integrationKit: integrationKitContext } : {}),
+            },
+          };
         } catch (err: any) {
           await prisma.marketplaceExecution.update({ where: { id: execution.id }, data: { status: 'failed', errorMessage: err.message } });
           return { tag: name, success: false, error: `Agent execution failed: ${err.message}` };

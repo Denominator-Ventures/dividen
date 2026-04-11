@@ -40,6 +40,15 @@ interface MarketplaceAgent {
   authMethod?: string;
   samplePrompts?: string;
   pricingDetails?: string;
+  // Agent Integration Kit
+  taskTypes?: string | null;
+  contextInstructions?: string | null;
+  requiredInputSchema?: string | null;
+  outputSchema?: string | null;
+  usageExamples?: string | null;
+  contextPreparation?: string | null;
+  executionNotes?: string | null;
+  developerId?: string;
 }
 
 interface Execution {
@@ -190,6 +199,14 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
     samplePrompts: '',
     pricingModel: 'free', pricePerTask: '', subscriptionPrice: '', taskLimit: '',
     supportsA2A: false, supportsMCP: false, agentCardUrl: '',
+    // Agent Integration Kit
+    taskTypes: '',
+    contextInstructions: '',
+    requiredInputSchema: '',
+    outputSchema: '',
+    usageExamples: '',
+    contextPreparation: '',
+    executionNotes: '',
   });
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState('');
@@ -325,6 +342,16 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
         ...regForm,
         tags: regForm.tags ? regForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         samplePrompts: regForm.samplePrompts ? regForm.samplePrompts.split('\n').filter(Boolean) : [],
+        // Agent Integration Kit
+        taskTypes: regForm.taskTypes ? regForm.taskTypes.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+        contextInstructions: regForm.contextInstructions || null,
+        requiredInputSchema: regForm.requiredInputSchema || null,
+        outputSchema: regForm.outputSchema || null,
+        usageExamples: regForm.usageExamples ? (() => {
+          try { return JSON.parse(regForm.usageExamples); } catch { return []; }
+        })() : [],
+        contextPreparation: regForm.contextPreparation ? regForm.contextPreparation.split('\n').filter(Boolean) : [],
+        executionNotes: regForm.executionNotes || null,
       };
       const res = await fetch('/api/marketplace', {
         method: 'POST',
@@ -346,6 +373,8 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
         samplePrompts: '',
         pricingModel: 'free', pricePerTask: '', subscriptionPrice: '', taskLimit: '',
         supportsA2A: false, supportsMCP: false, agentCardUrl: '',
+        taskTypes: '', contextInstructions: '', requiredInputSchema: '',
+        outputSchema: '', usageExamples: '', contextPreparation: '', executionNotes: '',
       });
       openDetail(agent.id);
     } catch (e: any) {
@@ -489,7 +518,27 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
                 </div>
               </div>
 
-              <p className="text-xs text-white/50 line-clamp-2 mb-3">{agent.description}</p>
+              <p className="text-xs text-white/50 line-clamp-2 mb-2">{agent.description}</p>
+
+              {/* Task types from Integration Kit */}
+              {agent.taskTypes && (() => {
+                try {
+                  const types = JSON.parse(agent.taskTypes as string);
+                  if (Array.isArray(types) && types.length > 0) {
+                    return (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {types.slice(0, 3).map((t: string, i: number) => (
+                          <span key={i} className="px-1.5 py-0.5 bg-brand-500/10 text-brand-300/70 rounded text-[10px] border border-brand-500/10">
+                            {t}
+                          </span>
+                        ))}
+                        {types.length > 3 && <span className="text-[10px] text-white/25">+{types.length - 3}</span>}
+                      </div>
+                    );
+                  }
+                } catch { /* ignore */ }
+                return null;
+              })()}
 
               {/* Tags */}
               {parseTags(agent.tags).length > 0 && (
@@ -623,6 +672,123 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
           <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
             <h3 className="text-sm font-medium text-white/70 mb-2">About</h3>
             <div className="text-xs text-white/50 whitespace-pre-wrap">{a.longDescription}</div>
+          </div>
+        )}
+
+        {/* Agent Integration Kit */}
+        {(a.taskTypes || a.contextInstructions || a.contextPreparation || a.requiredInputSchema || a.outputSchema || a.usageExamples || a.executionNotes) && (
+          <div className="bg-gradient-to-br from-brand-500/[0.04] to-emerald-500/[0.04] border border-brand-500/[0.12] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-brand-400 mb-3">🧠 Agent Integration Kit</h3>
+            <p className="text-[10px] text-white/35 mb-3">This is what your Divi needs to know to work with this agent effectively.</p>
+
+            {/* Task Types */}
+            {a.taskTypes && (() => {
+              try {
+                const types = JSON.parse(a.taskTypes as string);
+                if (Array.isArray(types) && types.length > 0) {
+                  return (
+                    <div className="mb-3">
+                      <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">Handles</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {types.map((t: string, i: number) => (
+                          <span key={i} className="px-2 py-0.5 bg-brand-500/15 text-brand-300 rounded-full text-[11px] border border-brand-500/20">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+              } catch { /* ignore parse errors */ }
+              return null;
+            })()}
+
+            {/* Context Instructions */}
+            {a.contextInstructions && (
+              <div className="mb-3">
+                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">How Divi Should Prepare Context</div>
+                <div className="bg-black/20 rounded-lg p-3 text-xs text-white/60 whitespace-pre-wrap">{a.contextInstructions}</div>
+              </div>
+            )}
+
+            {/* Preparation Steps */}
+            {a.contextPreparation && (() => {
+              try {
+                const steps = JSON.parse(a.contextPreparation as string);
+                if (Array.isArray(steps) && steps.length > 0) {
+                  return (
+                    <div className="mb-3">
+                      <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">Pre-Flight Checklist</div>
+                      <div className="bg-black/20 rounded-lg p-3 space-y-1.5">
+                        {steps.map((step: string, i: number) => (
+                          <div key={i} className="flex items-start gap-2 text-xs text-white/55">
+                            <span className="text-brand-400 font-mono text-[10px] mt-0.5 shrink-0">{i + 1}.</span>
+                            <span>{step}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+              } catch { /* ignore parse errors */ }
+              return null;
+            })()}
+
+            {/* Input/Output Schema */}
+            {(a.requiredInputSchema || a.outputSchema) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                {a.requiredInputSchema && (
+                  <div>
+                    <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">Expected Input</div>
+                    <pre className="bg-black/30 rounded-lg p-2.5 text-[10px] text-emerald-300/70 overflow-x-auto font-mono">{a.requiredInputSchema}</pre>
+                  </div>
+                )}
+                {a.outputSchema && (
+                  <div>
+                    <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">Returns</div>
+                    <pre className="bg-black/30 rounded-lg p-2.5 text-[10px] text-amber-300/70 overflow-x-auto font-mono">{a.outputSchema}</pre>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Usage Examples */}
+            {a.usageExamples && (() => {
+              try {
+                const examples = JSON.parse(a.usageExamples as string);
+                if (Array.isArray(examples) && examples.length > 0) {
+                  return (
+                    <div className="mb-3">
+                      <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">Usage Examples</div>
+                      <div className="space-y-2">
+                        {examples.map((ex: any, i: number) => (
+                          <div key={i} className="bg-black/20 rounded-lg p-3 border border-white/[0.04]">
+                            {ex.description && <div className="text-[10px] text-white/40 mb-1.5 font-medium">{ex.description}</div>}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              <div>
+                                <div className="text-[9px] text-white/30 uppercase mb-0.5">Input</div>
+                                <div className="text-[11px] text-white/60 bg-black/20 rounded p-2 font-mono">{ex.input}</div>
+                              </div>
+                              <div>
+                                <div className="text-[9px] text-white/30 uppercase mb-0.5">Output</div>
+                                <div className="text-[11px] text-white/60 bg-black/20 rounded p-2 font-mono">{ex.output}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+              } catch { /* ignore parse errors */ }
+              return null;
+            })()}
+
+            {/* Execution Notes */}
+            {a.executionNotes && (
+              <div>
+                <div className="text-[10px] text-white/40 uppercase tracking-wider mb-1.5">⚠️ Notes</div>
+                <div className="text-xs text-amber-300/60 bg-amber-500/5 border border-amber-500/10 rounded-lg p-2.5">{a.executionNotes}</div>
+              </div>
+            )}
           </div>
         )}
 
@@ -935,6 +1101,98 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
                 rows={3}
                 className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
               />
+            </div>
+          </div>
+
+          {/* Agent Integration Kit */}
+          <div className="border-t border-white/[0.06] pt-4">
+            <h3 className="text-sm font-medium text-white/60 mb-1">🧠 Agent Integration Kit</h3>
+            <p className="text-[10px] text-white/30 mb-3">
+              This is how other users&apos; Divis learn to work with your agent. The better you define this, the better the results.
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Task Types (comma-separated)</label>
+                <input
+                  value={regForm.taskTypes}
+                  onChange={e => setRegForm(p => ({ ...p, taskTypes: e.target.value }))}
+                  placeholder="research, summarization, code-review, data-analysis"
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">What kinds of work this agent handles. Other Divis match tasks to agents using these.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Context Instructions</label>
+                <textarea
+                  value={regForm.contextInstructions}
+                  onChange={e => setRegForm(p => ({ ...p, contextInstructions: e.target.value }))}
+                  placeholder={"Before calling this agent, gather:\n- The full text or URL of the document to analyze\n- Specify the desired output format (bullet points, narrative, table)\n- Include any domain-specific terminology or context\n\nDo NOT send raw HTML — extract clean text first."}
+                  rows={5}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">Tell other Divis exactly how to prepare context before calling your agent. Markdown supported.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Preparation Steps (one per line)</label>
+                <textarea
+                  value={regForm.contextPreparation}
+                  onChange={e => setRegForm(p => ({ ...p, contextPreparation: e.target.value }))}
+                  placeholder={"Collect the source material URL or text\nIdentify the target audience\nSpecify output length preference\nNote any topics to exclude"}
+                  rows={4}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">Step-by-step checklist Divi follows before executing. Think of it as a pre-flight checklist.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider">Input Schema (JSON)</label>
+                  <textarea
+                    value={regForm.requiredInputSchema}
+                    onChange={e => setRegForm(p => ({ ...p, requiredInputSchema: e.target.value }))}
+                    placeholder={'{\n  "prompt": "string (required)",\n  "format": "bullet|narrative|table",\n  "maxLength": "number (optional)"\n}'}
+                    rows={5}
+                    className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider">Output Schema (JSON)</label>
+                  <textarea
+                    value={regForm.outputSchema}
+                    onChange={e => setRegForm(p => ({ ...p, outputSchema: e.target.value }))}
+                    placeholder={'{\n  "summary": "string",\n  "keyPoints": ["string"],\n  "confidence": "number 0-1"\n}'}
+                    rows={5}
+                    className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Usage Examples (JSON array)</label>
+                <textarea
+                  value={regForm.usageExamples}
+                  onChange={e => setRegForm(p => ({ ...p, usageExamples: e.target.value }))}
+                  placeholder={'[\n  {\n    "input": "Summarize this paper on quantum computing",\n    "output": "A 3-paragraph summary covering...",\n    "description": "Basic summarization task"\n  }\n]'}
+                  rows={5}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">Real input/output examples teach other Divis the pattern. The more, the better.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Execution Notes</label>
+                <textarea
+                  value={regForm.executionNotes}
+                  onChange={e => setRegForm(p => ({ ...p, executionNotes: e.target.value }))}
+                  placeholder={"Rate limit: 10 requests/minute. Best results with prompts under 2000 chars. Agent may take 15-30s for complex queries."}
+                  rows={2}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">Rate limits, quirks, best practices — anything Divi should know at execution time.</p>
+              </div>
             </div>
           </div>
 

@@ -1160,9 +1160,56 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
     if (marketplaceAgents.length > 0) {
       text += `\n### Your Marketplace Agents\n`;
       for (const a of marketplaceAgents) {
-        text += `- **${a.name}** (${a.category}) — ${a.pricingModel} | ⭐ ${a.avgRating?.toFixed(1) || 'N/A'} | ${a.totalExecutions} executions\n`;
+        text += `- **${a.name}** (${a.category}) — ${a.pricingModel} | ⭐ ${(a.avgRating as number)?.toFixed(1) || 'N/A'} | ${a.totalExecutions} executions\n`;
       }
     }
+
+    // Subscribed/available marketplace agents with Integration Kit
+    try {
+      const subscribedAgents = await prisma.marketplaceSubscription.findMany({
+        where: { userId, status: 'active' },
+        include: {
+          agent: {
+            select: {
+              id: true, name: true, category: true, taskTypes: true,
+              contextInstructions: true, contextPreparation: true,
+              requiredInputSchema: true, outputSchema: true,
+              executionNotes: true, inputFormat: true, outputFormat: true,
+              developerId: true,
+            },
+          },
+        },
+        take: 10,
+      });
+
+      if (subscribedAgents.length > 0) {
+        text += `\n### Available Agent Tools (Subscribed)\nYou have access to these marketplace agents. Use their Integration Kit to prepare context correctly before executing.\n`;
+        for (const sub of subscribedAgents) {
+          const ag = sub.agent;
+          const isOwn = ag.developerId === userId;
+          text += `\n#### ${ag.name} (${ag.category})${isOwn ? ' [YOUR OWN — no fees]' : ''}\n`;
+          text += `- ID: \`${ag.id}\` | Format: ${ag.inputFormat} → ${ag.outputFormat}\n`;
+          if (ag.taskTypes) {
+            try { const tt = JSON.parse(ag.taskTypes); text += `- Handles: ${tt.join(', ')}\n`; } catch {}
+          }
+          if (ag.contextInstructions) {
+            text += `- **Context prep**: ${ag.contextInstructions.slice(0, 500)}\n`;
+          }
+          if (ag.contextPreparation) {
+            try {
+              const steps = JSON.parse(ag.contextPreparation);
+              if (Array.isArray(steps) && steps.length > 0) {
+                text += `- **Pre-flight**: ${steps.map((s: string, i: number) => `${i + 1}. ${s}`).join(' | ')}\n`;
+              }
+            } catch {}
+          }
+          if (ag.executionNotes) {
+            text += `- **Notes**: ${ag.executionNotes.slice(0, 200)}\n`;
+          }
+        }
+        text += `\nWhen the operator's task matches an available agent's task types, proactively suggest using it. Follow the Integration Kit instructions to prepare context before calling [[execute_agent:...]]. For the operator's OWN agents, execution is always free.\n`;
+      }
+    } catch { /* subscribed agents lookup failed — non-critical */ }
 
     // Business-specific behavioral rules
     text += `\n### Business Operations Rules

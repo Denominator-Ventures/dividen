@@ -36,6 +36,9 @@ export async function POST(
       return NextResponse.json({ error: 'Agent not found or not active' }, { status: 404 });
     }
 
+    // Self-owned agents are always free — skip payment entirely
+    const isOwnAgent = agent.developerId === userId;
+
     // Check subscription / rate limits for paid agents
     if (agent.pricingModel === 'subscription') {
       const sub = await prisma.marketplaceSubscription.findUnique({
@@ -55,8 +58,8 @@ export async function POST(
       }
     }
 
-    // For paid per_task agents, verify payment can be processed
-    const isPaidExecution = agent.pricingModel === 'per_task' && agent.pricePerTask && agent.pricePerTask > 0;
+    // For paid per_task agents, verify payment can be processed (skip for own agents)
+    const isPaidExecution = !isOwnAgent && agent.pricingModel === 'per_task' && agent.pricePerTask && agent.pricePerTask > 0;
     let stripePaymentIntentId: string | null = null;
 
     if (isPaidExecution && stripe) {
@@ -181,13 +184,15 @@ export async function POST(
         output = await response.text();
       }
 
-      // Calculate revenue split for paid agents
+      // Calculate revenue split for paid agents (zero for own agents)
       let grossAmount = 0;
-      if (agent.pricingModel === 'per_task' && agent.pricePerTask) {
+      if (!isOwnAgent && agent.pricingModel === 'per_task' && agent.pricePerTask) {
         grossAmount = agent.pricePerTask;
       }
       // Subscription revenue is tracked at subscription level, not per-execution
-      const revSplit = calculateRevenueSplit(grossAmount);
+      const revSplit = isOwnAgent
+        ? { grossAmount: 0, platformFee: 0, developerPayout: 0, feePercent: 0 }
+        : calculateRevenueSplit(grossAmount);
 
       // Process Stripe payment for paid executions
       if (isPaidExecution && stripe && grossAmount > 0 && agent.developer?.stripeConnectAccountId && agent.developer?.stripeConnectOnboarded) {
@@ -285,6 +290,7 @@ export async function POST(
         status: 'completed',
         output,
         responseTimeMs,
+        isOwnAgent,
         revenue: revSplit.grossAmount > 0 ? {
           gross: revSplit.grossAmount,
           developerPayout: revSplit.developerPayout,

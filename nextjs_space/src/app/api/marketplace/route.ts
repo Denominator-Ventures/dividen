@@ -56,6 +56,7 @@ export async function GET(req: NextRequest) {
           successRate: true, developerName: true, developerUrl: true,
           supportsA2A: true, supportsMCP: true,
           inputFormat: true, outputFormat: true,
+          taskTypes: true, contextInstructions: true,
           createdAt: true,
           _count: { select: { subscriptions: true } },
         },
@@ -87,6 +88,9 @@ export async function POST(req: NextRequest) {
       category, tags, inputFormat, outputFormat, samplePrompts,
       pricingModel, pricePerTask, subscriptionPrice, taskLimit, pricingDetails,
       supportsA2A, supportsMCP, agentCardUrl,
+      // Agent Integration Kit
+      taskTypes, contextInstructions, requiredInputSchema, outputSchema,
+      usageExamples, contextPreparation, executionNotes,
     } = body;
 
     if (!name || !description || !endpointUrl || !developerName) {
@@ -129,6 +133,14 @@ export async function POST(req: NextRequest) {
         supportsA2A: supportsA2A || false,
         supportsMCP: supportsMCP || false,
         agentCardUrl: agentCardUrl || null,
+        // Agent Integration Kit
+        taskTypes: taskTypes ? JSON.stringify(taskTypes) : null,
+        contextInstructions: contextInstructions || null,
+        requiredInputSchema: requiredInputSchema || null,
+        outputSchema: outputSchema || null,
+        usageExamples: usageExamples ? JSON.stringify(usageExamples) : null,
+        contextPreparation: contextPreparation ? JSON.stringify(contextPreparation) : null,
+        executionNotes: executionNotes || null,
         status: 'active', // auto-approve for Phase 1
       },
     });

@@ -90,6 +90,8 @@ export async function PUT(
       'category', 'inputFormat', 'outputFormat',
       'pricingModel', 'pricePerTask', 'subscriptionPrice', 'taskLimit',
       'supportsA2A', 'supportsMCP', 'agentCardUrl', 'status',
+      // Agent Integration Kit (string fields)
+      'contextInstructions', 'requiredInputSchema', 'outputSchema', 'executionNotes',
     ];
 
     for (const field of allowedFields) {
@@ -106,6 +108,16 @@ export async function PUT(
     }
     if (body.pricingDetails !== undefined) {
       updateData.pricingDetails = JSON.stringify(body.pricingDetails);
+    }
+    // Agent Integration Kit (JSON fields)
+    if (body.taskTypes !== undefined) {
+      updateData.taskTypes = Array.isArray(body.taskTypes) ? JSON.stringify(body.taskTypes) : body.taskTypes;
+    }
+    if (body.usageExamples !== undefined) {
+      updateData.usageExamples = Array.isArray(body.usageExamples) ? JSON.stringify(body.usageExamples) : body.usageExamples;
+    }
+    if (body.contextPreparation !== undefined) {
+      updateData.contextPreparation = Array.isArray(body.contextPreparation) ? JSON.stringify(body.contextPreparation) : body.contextPreparation;
     }
 
     const updated = await prisma.marketplaceAgent.update({

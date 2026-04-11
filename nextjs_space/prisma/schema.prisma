@@ -1444,6 +1444,15 @@ model MarketplaceAgent {
   supportsMCP     Boolean   @default(false)
   agentCardUrl    String?   // URL to .well-known/agent-card.json
 
+  // Agent Integration Kit — knowledge transfer for consuming Divis
+  taskTypes           String?   @db.Text  // JSON array: what this agent handles (e.g. ["research", "summarization", "code-review"])
+  contextInstructions String?   @db.Text  // Markdown: how Divi should prepare context before calling this agent
+  requiredInputSchema String?   @db.Text  // JSON schema: structured input the agent expects
+  outputSchema        String?   @db.Text  // JSON schema: structured output the agent returns
+  usageExamples       String?   @db.Text  // JSON array of {input, output, description} examples
+  contextPreparation  String?   @db.Text  // JSON array of preparation steps Divi should follow
+  executionNotes      String?   @db.Text  // Free-form notes about quirks, rate limits, best practices
+
   subscriptions   MarketplaceSubscription[]
   executions      MarketplaceExecution[]
 
