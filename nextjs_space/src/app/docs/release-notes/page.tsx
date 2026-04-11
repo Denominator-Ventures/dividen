@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'FVP Integration Brief — 14 proposals implemented. Schema changes, new APIs, MCP v1.3.0, agent card v0.3.0, federation intelligence.',
+  description: 'FVP Integration Brief + Agent Marketplace Build. MCP v1.4.0, Agent Install/Uninstall, Integration Kit, federation intelligence.',
   openGraph: {
-    title: 'DiviDen Release Notes — FVP Build',
-    description: '14 proposals across 4 tiers. MCP v1.3.0 (22 tools), Agent Card v0.3.0, federation intelligence layer.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=FVP+Integration+Brief+%E2%80%94+14+Proposals%2C+One+Build&tag=release', width: 1200, height: 630 }],
+    title: 'DiviDen Release Notes — FVP + Marketplace Build',
+    description: 'MCP v1.4.0 (22+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=FVP+%2B+Marketplace+Build&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'DiviDen Release Notes — FVP Build',
-    description: '14 proposals across 4 tiers. MCP v1.3.0 (22 tools), Agent Card v0.3.0, federation intelligence layer.',
-    images: ['/api/og?title=Release+Notes&subtitle=FVP+Integration+Brief+%E2%80%94+14+Proposals%2C+One+Build&tag=release'],
+    title: 'DiviDen Release Notes — FVP + Marketplace Build',
+    description: 'MCP v1.4.0 (22+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
+    images: ['/api/og?title=Release+Notes&subtitle=FVP+%2B+Marketplace+Build&tag=release'],
   },
 };
 
@@ -34,13 +34,14 @@ export default function ReleaseNotesPage() {
           <h1 className="text-3xl font-bold mb-2 font-heading">📋 os.dividen.ai — Release Update</h1>
           <div className="flex flex-wrap gap-2 mt-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Date: April 11, 2026</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.3.0 (22 tools)</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.4.0 (22+ dynamic)</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.3.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Protocol: DAWP/0.1</span>
+            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">NEW: Agent Install/Uninstall</span>
           </div>
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-4">
-            FVP Integration Brief + DX Overhaul + Intelligence Layer. Everything that needs to be added or
-            changed on <strong>os.dividen.ai</strong> to bring it current with the latest DiviDen Command Center build.
+            FVP Integration Brief + Agent Marketplace Build. Everything on <strong>os.dividen.ai</strong> — 14 FVP proposals,
+            Agent Integration Kit, Install/Uninstall lifecycle, dynamic MCP tools, and marketplace coherence fixes.
           </p>
         </div>
 
@@ -52,11 +53,12 @@ export default function ReleaseNotesPage() {
               { id: 'schema', label: 'Database Schema Changes' },
               { id: 'libraries', label: 'New Library Files' },
               { id: 'routes', label: 'New API Routes' },
-              { id: 'mcp', label: 'MCP Server Updates (v1.3.0)' },
+              { id: 'mcp', label: 'MCP Server Updates (v1.4.0)' },
               { id: 'agent-card', label: 'Agent Card Updates (v0.3.0)' },
               { id: 'system-prompt', label: 'System Prompt Changes' },
               { id: 'action-tags', label: 'Action Tags Updates' },
               { id: 'webhook', label: 'Webhook Push System' },
+              { id: 'marketplace', label: 'Agent Marketplace System (NEW)' },
               { id: 'changelog', label: 'Changelog Entry' },
               { id: 'pwa', label: 'PWA / Layout Fixes' },
               { id: 'dx', label: 'Developer Experience (DX) Additions' },
@@ -75,7 +77,7 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════ */}
         <Section id="schema" num={1} title="Database Schema Changes">
           <h3 className="text-lg font-semibold mb-3">New Migrations to Apply</h3>
-          <p className="text-sm text-[var(--text-secondary)] mb-4">Two new migrations since last push:</p>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Four migrations since last push:</p>
 
           <CodeBlock title="Migration: 20260411_add_relay_threading_and_artifacts">{`-- FVP Brief Proposals #2 and #3: Relay Threading + Structured Artifacts
 ALTER TABLE "agent_relays" ADD COLUMN "threadId" TEXT;
@@ -87,6 +89,20 @@ CREATE INDEX "agent_relays_threadId_idx" ON "agent_relays"("threadId");`}</CodeB
 ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "isFederated" BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "endorsements" TEXT;
 ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "federatedScore" DOUBLE PRECISION NOT NULL DEFAULT 0;`}</CodeBlock>
+
+          <CodeBlock title="Migration: 20260411_add_agent_integration_kit">{`-- Agent Integration Kit: 7 new fields on MarketplaceAgent
+ALTER TABLE "marketplace_agents" ADD COLUMN "taskTypes" TEXT;
+ALTER TABLE "marketplace_agents" ADD COLUMN "contextInstructions" TEXT;
+ALTER TABLE "marketplace_agents" ADD COLUMN "requiredInputSchema" TEXT;
+ALTER TABLE "marketplace_agents" ADD COLUMN "outputSchema" TEXT;
+ALTER TABLE "marketplace_agents" ADD COLUMN "usageExamples" TEXT;
+ALTER TABLE "marketplace_agents" ADD COLUMN "contextPreparation" TEXT;
+ALTER TABLE "marketplace_agents" ADD COLUMN "executionNotes" TEXT;`}</CodeBlock>
+
+          <CodeBlock title="Migration: 20260411_add_agent_install_management">{`-- Agent Install/Uninstall lifecycle on MarketplaceSubscription
+ALTER TABLE "marketplace_subscriptions" ADD COLUMN "installed" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "marketplace_subscriptions" ADD COLUMN "installedAt" TIMESTAMP(3);
+ALTER TABLE "marketplace_subscriptions" ADD COLUMN "uninstalledAt" TIMESTAMP(3);`}</CodeBlock>
 
           <h3 className="text-lg font-semibold mb-3 mt-6">Prisma Schema Updates</h3>
 
@@ -100,6 +116,20 @@ ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "federatedScore" DOUBLE
               { name: 'isFederated Boolean @default(false)', desc: 'Whether score includes cross-instance data' },
               { name: 'endorsements String?', desc: 'JSON array of HMAC-signed attestation objects' },
               { name: 'federatedScore Float @default(0)', desc: 'Weighted federation reputation score' },
+            ]} />
+            <FieldGroup model="MarketplaceAgent — Integration Kit" fields={[
+              { name: 'taskTypes String?', desc: 'JSON array of task type strings this agent handles' },
+              { name: 'contextInstructions String?', desc: 'How to prepare context before invoking this agent' },
+              { name: 'requiredInputSchema String?', desc: 'JSON schema describing required input fields' },
+              { name: 'outputSchema String?', desc: 'JSON schema describing output format' },
+              { name: 'usageExamples String?', desc: 'JSON array of example invocations with expected results' },
+              { name: 'contextPreparation String?', desc: 'Steps Divi should take before delegating to this agent' },
+              { name: 'executionNotes String?', desc: 'Runtime notes — timeouts, retries, known limitations' },
+            ]} />
+            <FieldGroup model="MarketplaceSubscription — Install Lifecycle" fields={[
+              { name: 'installed Boolean @default(false)', desc: 'Whether agent is actively installed in user memory' },
+              { name: 'installedAt DateTime?', desc: 'Timestamp of last install' },
+              { name: 'uninstalledAt DateTime?', desc: 'Timestamp of last uninstall' },
             ]} />
           </div>
         </Section>
@@ -125,7 +155,7 @@ ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "federatedScore" DOUBLE
             ['cos-sequential-dispatch.ts', 'Sequential task dispatch in CoS mode'],
           ]} />
 
-          <h3 className="text-lg font-semibold mb-3 mt-8">Federation Intelligence Layer (NEW — FVP Tier 4)</h3>
+          <h3 className="text-lg font-semibold mb-3 mt-8">Federation Intelligence Layer (FVP Tier 4)</h3>
           <Table headers={['File', 'Purpose', 'Key Exports']} rows={[
             ['federation/pattern-sharing.ts', 'Cross-instance ambient learning pattern exchange', 'exportShareablePatterns(), importSharedPatterns(), getNetworkLearningDigest()'],
             ['federation/graph-matching.ts', 'Serendipity engine — triadic closure, complementary expertise, structural bridges', 'buildLocalGraph(), findSerendipityMatches(), exportGraphTopology()'],
@@ -160,7 +190,7 @@ domain proximity: 10%`}</pre>
         {/* 3. API ROUTES */}
         {/* ═══════════════════════════════════════════════ */}
         <Section id="routes" num={3} title="New API Routes">
-          <h3 className="text-lg font-semibold mb-3">Federation Endpoints (NEW)</h3>
+          <h3 className="text-lg font-semibold mb-3">Federation Endpoints</h3>
           <Table headers={['Route', 'Methods', 'Auth', 'Purpose']} rows={[
             ['/api/federation/patterns', 'GET, POST', 'x-federation-token', 'Exchange anonymized ambient learning patterns'],
             ['/api/federation/briefing', 'GET, POST', 'Session / x-federation-token', 'Network briefing aggregation'],
@@ -171,6 +201,18 @@ domain proximity: 10%`}</pre>
             ['/api/federation/jobs/apply', 'POST', 'x-federation-token', 'Remote job application routing'],
             ['/api/federation/reputation', 'GET, POST', 'x-federation-token', 'Portable reputation with HMAC-signed attestations'],
             ['/api/federation/project/[id]/context', 'GET', 'x-federation-token', 'Cross-instance project dashboard'],
+          ]} />
+
+          <h3 className="text-lg font-semibold mb-3 mt-8">Marketplace Endpoints (NEW)</h3>
+          <Table headers={['Route', 'Methods', 'Auth', 'Purpose']} rows={[
+            ['/api/marketplace', 'GET, POST', 'Session', 'List / register marketplace agents (POST auto-installs own agents)'],
+            ['/api/marketplace/[id]', 'GET, PUT, DELETE', 'Session', 'Agent detail, update, remove'],
+            ['/api/marketplace/[id]/install', 'POST, DELETE', 'Session', 'Install (POST) / Uninstall (DELETE) — payment-gated for paid agents'],
+            ['/api/marketplace/[id]/execute', 'POST', 'Session', 'Execute agent task with input payload'],
+            ['/api/marketplace/[id]/subscribe', 'POST, DELETE', 'Session', 'Subscribe/unsubscribe — unsubscribe cascades to uninstall + memory clear'],
+            ['/api/marketplace/[id]/rate', 'POST', 'Session', 'Rate an agent (1-5 stars)'],
+            ['/api/marketplace/earnings', 'GET', 'Session', 'Agent creator earnings dashboard'],
+            ['/api/marketplace/fee-info', 'GET', 'Public', 'Platform fee structure'],
           ]} />
 
           <h3 className="text-lg font-semibold mb-3 mt-8">Other Endpoints (confirm present)</h3>
@@ -185,7 +227,7 @@ domain proximity: 10%`}</pre>
             ['/api/now', 'GET', 'Dynamic NOW engine scored items'],
             ['/api/activity', 'GET', 'Universal activity feed (filterable by category)'],
             ['/api/ambient-learning/synthesize', 'GET, POST', 'Trigger pattern synthesis'],
-            ['/api/mcp', 'GET, POST', 'MCP Server v1.3.0'],
+            ['/api/mcp', 'GET, POST', 'MCP Server v1.4.0'],
             ['/api/a2a', 'POST', 'A2A protocol endpoint'],
             ['/api/a2a/playbook', 'GET', 'Operational playbook'],
             ['/api/main-connect', 'POST', 'Connection ceremony'],
@@ -198,10 +240,10 @@ domain proximity: 10%`}</pre>
         {/* ═══════════════════════════════════════════════ */}
         {/* 4. MCP SERVER */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="mcp" num={4} title="MCP Server Updates (v1.3.0)">
+        <Section id="mcp" num={4} title="MCP Server Updates (v1.4.0)">
           <p className="text-sm text-[var(--text-secondary)] mb-4">File: <code className="code-inline">src/app/api/mcp/route.ts</code></p>
 
-          <h3 className="text-lg font-semibold mb-3">New Tools Added</h3>
+          <h3 className="text-lg font-semibold mb-3">New Tools Added (FVP Build)</h3>
           <Table headers={['Tool', 'Description']} rows={[
             ['relay_thread_list', 'List relay threads for the current user'],
             ['relay_threads', 'Get all relays in a specific thread'],
@@ -212,14 +254,35 @@ domain proximity: 10%`}</pre>
             ['network_briefing', 'Composite cross-instance network pulse'],
           ]} />
 
-          <h3 className="text-lg font-semibold mb-3 mt-6">Full Tool Inventory (22 tools)</h3>
-          <CodeBlock>{`queue_list, queue_add, queue_update,
+          <h3 className="text-lg font-semibold mb-3 mt-6">Dynamic Marketplace Tools (v1.4.0 — NEW)</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-3">
+            <code className="code-inline">tools/list</code> now dynamically includes installed marketplace agents as tools.
+            Each installed agent becomes a <code className="code-inline">marketplace_&#123;slug&#125;</code> tool.
+            <code className="code-inline">tools/call</code> handles <code className="code-inline">marketplace_*</code> prefixed tools — proxies to agent endpoint.
+          </p>
+          <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] mb-4">
+            <h4 className="text-sm font-semibold text-brand-400 mb-2">How It Works</h4>
+            <ul className="text-xs text-[var(--text-secondary)] space-y-1">
+              <li>• Install an agent → it appears as an MCP tool</li>
+              <li>• Uninstall → tool disappears from <code className="code-inline">tools/list</code></li>
+              <li>• Tool name: <code className="code-inline">marketplace_&#123;slug&#125;</code> (e.g., <code className="code-inline">marketplace_research_agent</code>)</li>
+              <li>• Input schema pulled from agent&apos;s Integration Kit <code className="code-inline">requiredInputSchema</code></li>
+              <li>• External MCP clients see your installed agents as native tools</li>
+            </ul>
+          </div>
+
+          <h3 className="text-lg font-semibold mb-3 mt-6">Full Tool Inventory (22 static + dynamic)</h3>
+          <CodeBlock>{`# Static tools (22)
+queue_list, queue_add, queue_update,
 contacts_list, contacts_search,
 cards_list, mode_get, briefing_get, activity_recent,
 job_post, job_browse, job_match, reputation_get,
 relay_thread_list, relay_threads, relay_send,
 entity_resolve,
-serendipity_matches, route_task, network_briefing`}</CodeBlock>
+serendipity_matches, route_task, network_briefing
+
+# Dynamic tools (per-user, based on installed agents)
+marketplace_{slug}  — one per installed agent`}</CodeBlock>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
@@ -250,6 +313,12 @@ tasks/update_status
 agent/info`}</CodeBlock>
             </div>
           </div>
+
+          <h3 className="text-sm font-semibold text-brand-400 mb-2 mt-4">Dynamic Skills Array (v1.4.0 — NEW)</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-3">
+            Skills array now dynamically includes installed marketplace agents. Each installed agent becomes a skill entry
+            with its task types, and <code className="code-inline">mcpTools</code> includes <code className="code-inline">marketplace_&#123;slug&#125;</code> entries.
+          </p>
 
           <h3 className="text-sm font-semibold text-brand-400 mb-2 mt-4">Artifact Types</h3>
           <div className="flex flex-wrap gap-2">
@@ -283,20 +352,23 @@ federation.graph        /api/federation/graph`}</CodeBlock>
         {/* 6. SYSTEM PROMPT */}
         {/* ═══════════════════════════════════════════════ */}
         <Section id="system-prompt" num={6} title="System Prompt Changes">
-          <p className="text-sm text-[var(--text-secondary)] mb-4">New section added: <strong>Federation Intelligence (FVP Brief)</strong></p>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">New sections added: <strong>Federation Intelligence (FVP Brief)</strong> + <strong>Marketplace Agent Loading (Layer 11)</strong></p>
           <Table headers={['Action Tag', 'Syntax', 'Purpose']} rows={[
             ['entity_resolve', '[[entity_resolve:{"query":"email/name/domain"}]]', 'Cross-surface entity resolution'],
             ['serendipity_matches', '[[serendipity_matches:{}]]', 'Graph topology matching for connection recommendations'],
             ['route_task', '[[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]]', 'Network-level intelligent task routing'],
             ['network_briefing', '[[network_briefing:{}]]', 'Composite cross-instance network pulse'],
           ]} />
+
           <div className="mt-4 p-4 bg-brand-500/5 border border-brand-500/20 rounded-lg text-sm text-[var(--text-secondary)]">
-            <strong className="text-brand-400">Divi is instructed to:</strong>
+            <strong className="text-brand-400">Layer 11 — Marketplace Agent Loading (NEW):</strong>
             <ul className="mt-2 space-y-1">
+              <li>• System prompt loads only agents with <code className="code-inline">installed: true</code></li>
+              <li>• Each installed agent&apos;s identity, task types, and context instructions loaded into prompt</li>
+              <li>• Non-installed agents: Divi suggests <code className="code-inline">[[install_agent:...]]</code> when relevant</li>
               <li>• Proactively surface serendipity matches when relevant</li>
               <li>• Use route_task for skill-matched delegation</li>
               <li>• Pull network briefings to stay current on federation activity</li>
-              <li>• Resolve entities across all surfaces before making assumptions</li>
             </ul>
           </div>
         </Section>
@@ -311,9 +383,17 @@ federation.graph        /api/federation/graph`}</CodeBlock>
             ['relay_broadcast', 'Checks recipient relay preferences before sending'],
             ['relay_ambient', 'Checks recipient relay preferences before sending'],
           ]} />
-          <h3 className="text-sm font-semibold mb-2 mt-4">New Tag</h3>
+          <h3 className="text-sm font-semibold mb-2 mt-4">New Tags (FVP)</h3>
           <Table headers={['Tag', 'Purpose']} rows={[
             ['entity_resolve', 'Resolves entities across all data surfaces'],
+          ]} />
+          <h3 className="text-sm font-semibold mb-2 mt-4">New Tags (Marketplace — NEW)</h3>
+          <Table headers={['Tag', 'Syntax', 'Purpose']} rows={[
+            ['install_agent', '[[install_agent:{"agentId":"..."}]]', 'Install a marketplace agent — payment-gated for paid agents, loads Integration Kit into memory'],
+            ['uninstall_agent', '[[uninstall_agent:{"agentId":"..."}]]', 'Uninstall agent — clears all memory keys for the agent'],
+            ['list_marketplace', '[[list_marketplace:{"category?":"...","search?":"..."}]]', 'Browse marketplace — enriched with installed/subscribed/isOwnAgent/taskTypes'],
+            ['execute_agent', '[[execute_agent:{"agentId":"...","input":{}}]]', 'Execute a marketplace agent task with structured input'],
+            ['subscribe_agent', '[[subscribe_agent:{"agentId":"...","tier":"..."}]]', 'Subscribe to a paid agent — required before install for paid agents'],
           ]} />
         </Section>
 
@@ -335,14 +415,95 @@ federation.graph        /api/federation/graph`}</CodeBlock>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 9. CHANGELOG */}
+        {/* 9. AGENT MARKETPLACE SYSTEM (NEW) */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="changelog" num={9} title="Changelog Entry">
-          <p className="text-sm text-[var(--text-secondary)] mb-3">New entry at top of <code className="code-inline">src/lib/updates.ts</code>:</p>
+        <Section id="marketplace" num={9} title="Agent Marketplace System (NEW)">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">
+            Complete agent lifecycle: register → browse → subscribe → install → execute → uninstall.
+            Agents are only loaded into Divi&apos;s context when explicitly installed.
+          </p>
+
+          <h3 className="text-lg font-semibold mb-3">Agent Integration Kit</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-3">
+            Seven new fields on <code className="code-inline">MarketplaceAgent</code> that tell Divi <em>how</em> to use an agent — not just that it exists.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-4 mb-6">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <h4 className="text-sm font-semibold text-brand-400 mb-2">What the Kit Contains</h4>
+              <ul className="text-xs text-[var(--text-secondary)] space-y-1">
+                <li>• <code className="font-mono">taskTypes</code> — what this agent can do</li>
+                <li>• <code className="font-mono">contextInstructions</code> — how to prepare context</li>
+                <li>• <code className="font-mono">requiredInputSchema</code> — JSON schema for input</li>
+                <li>• <code className="font-mono">outputSchema</code> — JSON schema for output</li>
+                <li>• <code className="font-mono">usageExamples</code> — example invocations</li>
+                <li>• <code className="font-mono">contextPreparation</code> — pre-delegation steps</li>
+                <li>• <code className="font-mono">executionNotes</code> — timeouts, retries, limits</li>
+              </ul>
+            </div>
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <h4 className="text-sm font-semibold text-brand-400 mb-2">Memory Keys (per agent)</h4>
+              <pre className="text-xs text-[var(--text-secondary)] font-mono">{`agent:{id}:identity        (tier 1)
+agent:{id}:task_types      (tier 1)
+agent:{id}:context_instructions (tier 2)
+agent:{id}:preparation_steps    (tier 2)
+agent:{id}:input_schema    (tier 2)
+agent:{id}:output_schema   (tier 2)
+agent:{id}:usage_examples  (tier 3)
+agent:{id}:execution_notes (tier 3)`}</pre>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-semibold mb-3">Install / Uninstall Lifecycle</h3>
+          <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] mb-4">
+            <div className="flex items-center gap-3 text-xs font-mono text-[var(--text-secondary)]">
+              <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400">browse</span>
+              <span>→</span>
+              <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400">subscribe (if paid)</span>
+              <span>→</span>
+              <span className="px-2 py-1 rounded bg-green-500/10 text-green-400">install</span>
+              <span>→</span>
+              <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400">execute</span>
+              <span>→</span>
+              <span className="px-2 py-1 rounded bg-red-500/10 text-red-400">uninstall</span>
+            </div>
+          </div>
+          <Table headers={['Action', 'What Happens']} rows={[
+            ['Install (free agent)', 'Auto-creates subscription + sets installed=true + loads all Integration Kit memory keys'],
+            ['Install (paid agent)', 'Requires active subscription — sets installed=true + loads memory'],
+            ['Uninstall', 'Sets installed=false + uninstalledAt timestamp + deletes all memory keys for agent'],
+            ['Unsubscribe', 'Cascades to uninstall + clears memory + removes subscription'],
+            ['Register own agent', 'Auto-installs immediately — your own agents are always available'],
+          ]} />
+
+          <h3 className="text-lg font-semibold mb-3 mt-6">Coherence Rules</h3>
+          <ul className="text-sm text-[var(--text-secondary)] space-y-1">
+            <li>• <strong>Own agents:</strong> Auto-installed on registration, <code className="code-inline">isOwnAgent: true</code> flag in list responses</li>
+            <li>• <strong>MCP dynamic tools:</strong> Only installed agents appear as <code className="code-inline">marketplace_&#123;slug&#125;</code> tools</li>
+            <li>• <strong>A2A dynamic skills:</strong> Agent card skills array reflects installed agents</li>
+            <li>• <strong>System prompt:</strong> Layer 11 loads only <code className="code-inline">installed: true</code> agents into context</li>
+            <li>• <strong>UI:</strong> Install/Uninstall toggle, green &quot;Installed&quot; badge with pulse animation</li>
+          </ul>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 10. CHANGELOG */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="changelog" num={10} title="Changelog Entry">
+          <p className="text-sm text-[var(--text-secondary)] mb-3">Two entries in <code className="code-inline">src/lib/updates.ts</code>:</p>
+
+          <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-green-500/20 mb-4">
+            <p className="font-semibold">Install / Uninstall — Divi Only Learns What You Need (NEW)</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">April 11, 2026</p>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {['marketplace', 'agents', 'memory', 'mcp', 'a2a', 'integration-kit'].map((tag) => (
+                <span key={tag} className="px-1.5 py-0.5 rounded bg-green-500/10 text-green-400 text-[10px] font-mono">{tag}</span>
+              ))}
+            </div>
+          </div>
+
           <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
             <p className="font-semibold">FVP Integration Brief — 14 Proposals, One Build</p>
             <p className="text-sm text-[var(--text-secondary)] mt-1">April 11, 2026 @ 11:45 PM</p>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">Full Tier 1-4 breakdown with implementation details for users.</p>
             <div className="flex flex-wrap gap-1 mt-2">
               {['federation', 'protocol', 'a2a', 'mcp', 'intelligence', 'fvp', 'network'].map((tag) => (
                 <span key={tag} className="px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 text-[10px] font-mono">{tag}</span>
@@ -352,9 +513,9 @@ federation.graph        /api/federation/graph`}</CodeBlock>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 10. PWA */}
+        {/* 11. PWA */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="pwa" num={10} title="PWA / Layout Fixes">
+        <Section id="pwa" num={11} title="PWA / Layout Fixes">
           <h3 className="text-sm font-semibold mb-2">globals.css — PWA standalone mode</h3>
           <CodeBlock>{`@media (display-mode: standalone) {
   html {
@@ -382,9 +543,9 @@ federation.graph        /api/federation/graph`}</CodeBlock>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 11. DX */}
+        {/* 12. DX */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="dx" num={11} title="Developer Experience (DX) Additions">
+        <Section id="dx" num={12} title="Developer Experience (DX) Additions">
           <Table headers={['File', 'Purpose']} rows={[
             ['scripts/setup.sh', 'One-command setup for macOS/Linux/WSL'],
             ['scripts/setup.ps1', 'One-command setup for Windows PowerShell'],
@@ -401,9 +562,9 @@ federation.graph        /api/federation/graph`}</CodeBlock>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 12. MCP REGISTRY */}
+        {/* 13. MCP REGISTRY */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="mcp-registry" num={12} title="MCP Registry Submission Kit">
+        <Section id="mcp-registry" num={13} title="MCP Registry Submission Kit">
           <Table headers={['File', 'Purpose']} rows={[
             ['public/mcp-registry/server.json', 'Official MCP Registry format'],
             ['public/mcp-registry/README.md', 'Copy-paste submission kit for 5 registries (Official, Smithery, PulseMCP, Glama, mcp.so)'],
@@ -411,11 +572,12 @@ federation.graph        /api/federation/graph`}</CodeBlock>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 13. FILES */}
+        {/* 14. FILES */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="files" num={13} title="Files Changed Summary">
+        <Section id="files" num={14} title="Files Changed Summary">
           <h3 className="text-sm font-semibold mb-2">New Files</h3>
-          <CodeBlock>{`src/lib/federation/pattern-sharing.ts
+          <CodeBlock>{`# Federation Intelligence (FVP)
+src/lib/federation/pattern-sharing.ts
 src/lib/federation/graph-matching.ts
 src/lib/federation/composite-prompts.ts
 src/lib/federation/task-routing.ts
@@ -430,17 +592,27 @@ src/app/api/federation/entity-search/route.ts
 src/app/api/federation/jobs/apply/route.ts
 src/app/api/federation/reputation/route.ts
 src/app/api/entity-resolve/route.ts
+
+# Marketplace Install/Uninstall
+src/app/api/marketplace/[id]/install/route.ts
+
+# Migrations
 prisma/migrations/20260411_add_relay_threading_and_artifacts/
-prisma/migrations/20260411_add_portable_reputation/`}</CodeBlock>
+prisma/migrations/20260411_add_portable_reputation/
+prisma/migrations/20260411_add_agent_integration_kit/
+prisma/migrations/20260411_add_agent_install_management/`}</CodeBlock>
 
           <h3 className="text-sm font-semibold mb-2 mt-4">Modified Files</h3>
-          <CodeBlock>{`prisma/schema.prisma              — AgentRelay (3 fields), ReputationScore (3 fields)
-src/app/api/mcp/route.ts           — v1.3.0, 7 new tools
-src/app/.well-known/agent-card.json/route.ts — v0.3.0, capabilities, endpoints
-src/lib/system-prompt.ts           — Federation Intelligence section + 4 action tags
-src/lib/action-tags.ts             — Threading support + entity_resolve
+          <CodeBlock>{`prisma/schema.prisma              — AgentRelay (3), ReputationScore (3), MarketplaceAgent (7), MarketplaceSubscription (3)
+src/app/api/mcp/route.ts           — v1.4.0, dynamic marketplace tools
+src/app/.well-known/agent-card.json/route.ts — dynamic skills + marketplace MCP tools
+src/app/api/marketplace/route.ts   — auto-install on registration, Integration Kit memory loading
+src/app/api/marketplace/[id]/subscribe/route.ts — unsubscribe cascades to uninstall + memory clear
+src/lib/system-prompt.ts           — Layer 11 marketplace agent loading + install suggestions
+src/lib/action-tags.ts             — install_agent, uninstall_agent, list_marketplace, execute_agent, subscribe_agent
 src/lib/webhook-push.ts            — relay_state_changed event
-src/lib/updates.ts                 — FVP changelog entry
+src/lib/updates.ts                 — Install/Uninstall changelog entry
+src/components/dashboard/MarketplaceView.tsx — Install/Uninstall toggle, Installed badge
 src/app/globals.css                — PWA viewport fix
 src/app/layout.tsx                 — overflow-x-hidden on body
 src/app/dashboard/page.tsx         — Mobile flex layout fix
@@ -448,9 +620,9 @@ src/components/dashboard/ChatView.tsx — flex-shrink-0 on header/input`}</CodeB
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 14. DEPLOY */}
+        {/* 15. DEPLOY */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="deploy" num={14} title="Deployment Checklist">
+        <Section id="deploy" num={15} title="Deployment Checklist">
           <CodeBlock>{`# 1. Pull latest code
 git pull origin main
 
@@ -478,27 +650,30 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
             <ul className="text-sm text-[var(--text-secondary)] space-y-1">
               <li>• <code className="code-inline">/api/status</code> → 200 with all checks passing</li>
               <li>• Agent card version → <code className="code-inline">0.3.0</code></li>
-              <li>• MCP server version → <code className="code-inline">1.3.0</code></li>
+              <li>• MCP server version → <code className="code-inline">1.4.0</code></li>
+              <li>• <code className="code-inline">tools/list</code> → 22 static tools + dynamic marketplace tools</li>
             </ul>
           </div>
         </Section>
 
         {/* ═══════════════════════════════════════════════ */}
-        {/* 15. FUTURE */}
+        {/* 16. FUTURE */}
         {/* ═══════════════════════════════════════════════ */}
-        <Section id="future" num={15} title="What's NOT in This Build (Future)">
+        <Section id="future" num={16} title="What's NOT in This Build (Future)">
           <ul className="text-sm text-[var(--text-secondary)] space-y-2">
             <li>• No UI for federation intelligence (patterns, graph, briefing, routing are API + MCP only — Divi surfaces them conversationally)</li>
             <li>• No admin dashboard for federation analytics (telemetry captures data, dashboard TBD)</li>
             <li>• No automated pattern sharing schedule (manual or Divi-initiated only)</li>
             <li>• No multi-instance graph visualization (topology data is exportable, viz TBD)</li>
+            <li>• No marketplace analytics dashboard (earnings endpoint exists, UI TBD)</li>
+            <li>• No agent versioning (agents update in place — versioning planned for future)</li>
           </ul>
         </Section>
 
         {/* Footer */}
         <div className="mt-16 pt-6 border-t border-[var(--border-color)] text-center">
           <p className="text-xs text-[var(--text-muted)]">
-            Generated from DiviDen Command Center build <code className="code-inline">FVP all 14 proposals complete</code> — April 11, 2026
+            Generated from DiviDen Command Center build <code className="code-inline">FVP + Marketplace + Install/Uninstall</code> — April 11, 2026
           </p>
         </div>
       </div>
