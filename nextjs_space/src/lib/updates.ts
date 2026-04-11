@@ -17,6 +17,72 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'universal-activity-feed',
+    date: '2026-04-11',
+    time: '3:15 PM',
+    title: 'The Activity Feed Is Now the Universal Event Log',
+    subtitle: 'Every action — from you, from Divi, from the system — across every surface in the platform. One timeline. The single source of truth for what happened.',
+    tags: ['activity', 'observability', 'queue', 'board', 'crm', 'calendar', 'goals', 'comms', 'ux'],
+    content: `DiviDen has always had an activity feed. But it was shallow — a handful of events from action tags and comms, missing the majority of what actually happens on the platform. If you created a contact, moved a card, added a goal, or deleted a queue item — silence. No record.
+
+That's fixed now. The Activity Feed is the universal event log it was always supposed to be.
+
+## What Changed
+
+Every mutation endpoint in the platform now emits an activity event through a shared **logActivity()** helper. Fire-and-forget, never blocks the caller, never breaks anything if logging fails. Here's the full coverage:
+
+- **Board** — card created, updated, moved between columns, deleted
+- **Queue** — task added, status changed (ready → in progress → done → blocked), updated, removed
+- **Goals** — created, updated, deleted
+- **CRM** — contact added, updated, deleted
+- **Calendar** — event created, updated, deleted
+- **Connections** — local and federated connections created
+- **Comms** — messages sent, state changes (already wired)
+- **Relays** — sent, responded, broadcast, ambient (already wired via action-tags)
+- **Drive** — documents created, recordings processed (already wired)
+- **Divi actions** — everything Divi does via action tags (already wired)
+
+That's the full loop. User actions, Divi actions, system actions. Inside the platform and outside via the comms channel. One timeline.
+
+## The Conceptual Model
+
+This solidifies how DiviDen's three core surfaces work together:
+
+- **Queue** — your private task workspace with Divi. You and your agent assemble work here. Divi proposes, you approve, work gets done.
+- **Comms Channel** — where you watch your Divi interact with outside agents and other users' Divis. Relays, ambient asks, broadcasts. The user→agent→agent→user loop.
+- **Activity Feed** — the universal log across both. Every event from any user or their Divi, inside the platform and outside via comms. The single timeline of everything.
+
+## Enhanced API
+
+\`GET /api/activity\` now supports:
+- **Category filtering** — \`?category=queue\`, \`board\`, \`crm\`, \`calendar\`, \`goals\`, \`comms\`, \`connections\`, \`drive\`
+- **Actor filtering** — \`?actor=user\`, \`divi\`, \`system\`
+- **Cursor-based pagination** — \`?cursor=ISO_DATE&limit=100\` for efficient loading
+
+## The UI
+
+The Activity tab in the Workspace panel got a full upgrade:
+
+- **Category filter chips** at the top — tap to slice into Board, Queue, CRM, Calendar, Goals, Comms, Network, or Drive events
+- **Actor badges** on every event — 🤖 Divi, ⚙️ System, or 👤 You, color-coded
+- **Auto-refresh** every 30 seconds while the tab is open
+- **Richer icon set** — every event type has its own distinct icon
+
+## Also in This Build
+
+**Tab bar fixes (PWA):**
+- The tab header now sits at \`z-20\`, so sub-tab rows (Network, Messages) don't slip behind the content area
+- The tab bar supports **drag-to-scroll** — swipe or click-drag horizontally to reach all tabs on narrower screens
+- Hidden scrollbar for a cleaner native feel
+
+**Download button moved to hero:**
+- The PWA install prompt was removed from the nav bar and placed as a styled CTA in the hero section, matching the "Start for Free" and "View on GitHub" button row
+
+## Why This Matters
+
+Observability is the foundation. You can't trust an autonomous agent if you can't see what it did. The Activity Feed is DiviDen's audit trail — every decision, every action, every interaction, timestamped and attributed. It's how you stay informed without having to be in control.`,
+  },
+  {
     id: 'chief-of-staff-view-overhaul',
     date: '2026-04-10',
     time: '7:30 PM',
