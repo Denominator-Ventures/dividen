@@ -17,6 +17,124 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'divi-full-platform-awareness',
+    date: '2026-04-12',
+    time: '4:00 AM',
+    title: 'Divi Now Sees Everything — Full Platform Awareness',
+    subtitle: 'Your AI agent now has real-time context on contracts, earnings, marketplace agents, recordings, reputation, integrations, and can take action across the entire platform.',
+    tags: ['divi', 'ai', 'system-prompt', 'action-tags', 'intelligence'],
+    content: `Divi just went from "helpful assistant" to "full operating system."
+
+## What Changed
+
+Until now, Divi knew about your kanban board, contacts, calendar, inbox, connections, and relays. Good fundamentals. But the platform has grown — jobs, contracts, marketplace agents, recordings, reputation, integrations — and Divi was blind to all of it.
+
+Not anymore.
+
+## New: Business Operations Layer
+
+Divi now dynamically loads your entire business context every time you chat:
+
+- **Active contracts** — who you're working with, compensation terms, payment status, whether you're the client or the worker
+- **Posted jobs** — status, how many applicants you have
+- **Pending applications** — flagged as ACTION REQUIRED when someone applies to your posted job
+- **Your applications** — status of jobs you've applied to
+- **Earnings** — 90-day rolling total from job payments
+- **Reputation** — your level, score, avg rating, on-time rate, jobs completed
+- **Recordings** — recent meetings with status and card linkage
+- **Integration accounts** — what email/calendar services are connected
+- **Marketplace agents** — your listed agents with execution stats and ratings
+- **Fee awareness** — Divi knows about the 7% recruiting fee and 3% marketplace fee and can explain them
+
+If you have no business activity, the layer is skipped entirely — zero prompt bloat.
+
+## 11 New Action Tags
+
+Divi can now execute these directly from chat:
+
+**Job & Project Management:**
+- \`accept_invite\` / \`decline_invite\` — process project and job invites
+- \`list_invites\` — show all pending invites
+- \`complete_job\` — mark a job done, close contracts
+- \`review_job\` — leave ratings and reviews
+
+**Marketplace:**
+- \`list_marketplace\` — browse available agents by category
+- \`execute_agent\` — run a marketplace agent with a prompt
+- \`subscribe_agent\` — subscribe for recurring use
+
+**Federation Intelligence:**
+- \`serendipity_matches\` — "who should I meet?" via graph topology
+- \`network_briefing\` — cross-network activity pulse
+- \`route_task\` — intelligent task routing with skill matching
+
+## Navigation Awareness
+
+Divi now knows the full UI layout and can guide you to any feature:
+
+- "Where do I see my earnings?" → Marketplace → Earnings tab
+- "How do I set up Stripe?" → Settings → Payments
+- "Where are my recordings?" → Dashboard → Recordings tab
+
+Ask Divi "what can you do?" and the answer is now actually comprehensive.
+
+— Jon`
+  },
+  {
+    id: 'job-preferences-invites-earnings',
+    date: '2026-04-12',
+    time: '3:00 AM',
+    title: 'Job Preferences, Project Invites & Split Earnings',
+    subtitle: 'Set your minimum rate. Accept or decline project invites through Divi. Separate earnings views for job contracts and agent marketplace revenue.',
+    tags: ['jobs', 'invites', 'earnings', 'preferences', 'kanban', 'projects'],
+    content: `Three related upgrades that make the job system actually usable for operators.
+
+## Minimum Compensation & Job Preferences
+
+You can now set a floor for job consideration. In Settings → Profile → Job Preferences:
+
+- **Minimum rate** — pick hourly, weekly, or monthly and set your dollar amount. Divi will filter out lowball offers before they hit your attention.
+- **Accept volunteer work** — toggle on/off. If off, Divi rejects volunteer-only jobs automatically.
+- **Accept project invites** — master switch for whether Divi even surfaces project invitations.
+
+These preferences flow into Divi's system prompt. When a job offer arrives that doesn't meet your minimums, Divi handles the rejection. You never see it.
+
+## Project Invite Flow
+
+When someone hires you for a job — or invites you to a project — it now flows through Divi before hitting your kanban:
+
+1. Divi receives the invite
+2. Checks it against your preferences (minimum rate, volunteer toggle, invite toggle)
+3. Presents qualifying offers to you with a summary: who's offering, the project, compensation, and your role
+4. You say "accept" or "decline" — Divi handles the rest
+
+New "Invites" tab in the Job Board shows all pending invites. Each invite card shows the project, who sent it, your proposed role, and if it's a paid job — the compensation breakdown.
+
+All managed through chat with \`accept_invite\`, \`decline_invite\`, and \`list_invites\` action tags.
+
+## Split Earnings View
+
+The Marketplace → Earnings tab now has two sub-tabs:
+
+- **Agent Earnings** — revenue from your marketplace agents (the 97/3 split)
+- **Job Earnings** — income from job contracts, split into "as worker" (what you've earned) and "as client" (what you've spent)
+
+Each view shows totals, active contracts, pending payments, and fee breakdowns.
+
+## Kanban: Project Member Avatars
+
+Kanban cards that belong to a project now show tiny avatars of project members directly on the card. Hover for names. Click for profiles. Makes shared projects feel alive when you're scanning the board.
+
+## Technical Details
+
+- **Schema**: \`UserProfile\` extended with \`minCompensationType\`, \`minCompensationAmount\`, \`minCompensationCurrency\`, \`acceptVolunteerWork\`, \`acceptProjectInvites\`
+- **New model**: \`ProjectInvite\` with inviter, invitee, role, job link, status, intake tracking
+- **New APIs**: \`/api/project-invites\`, \`/api/projects/[id]/invite\`, \`/api/jobs/earnings\`
+- **Updated**: \`/api/profile\` (min comp fields), \`/api/jobs/[id]/hire\` (auto-creates Project + ProjectInvite)
+
+— Jon`
+  },
+  {
     id: 'job-recruiting-monetization',
     date: '2026-04-12',
     time: '2:00 AM',
