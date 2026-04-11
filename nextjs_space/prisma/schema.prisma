@@ -855,6 +855,18 @@ model InstanceRegistry {
   isTrusted       Boolean  @default(false) // Admin-approved trust
   lastSeenAt      DateTime?
   metadata        String?  // JSON — capabilities, version, etc.
+
+  // ── Platform Link (self-hosted → managed network) ──
+  platformLinked      Boolean  @default(false) // Has completed Connect to Network registration
+  platformToken       String?  // Token issued by managed platform for API access
+  marketplaceEnabled  Boolean  @default(false) // Can list agents on managed marketplace
+  discoveryEnabled    Boolean  @default(false) // Can query managed network discovery feed
+  updatesEnabled      Boolean  @default(false) // Pulls changelog from managed platform
+  version             String?  // Self-reported instance version, e.g. "2.1.0"
+  userCount           Int?     // Self-reported user count for network stats
+  agentCount          Int?     // Self-reported marketplace agent count
+  lastSyncAt          DateTime? // Last successful sync with managed platform
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

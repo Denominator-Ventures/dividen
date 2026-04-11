@@ -18,11 +18,12 @@ export async function GET() {
       orderBy: { updatedAt: 'desc' },
     });
 
-    // Don't expose full API keys
+    // Don't expose full API keys or platform tokens
     return NextResponse.json(
       instances.map((i: any) => ({
         ...i,
         apiKey: i.apiKey ? `${i.apiKey.slice(0, 8)}...` : null,
+        platformToken: undefined,
       }))
     );
   } catch (error: any) {

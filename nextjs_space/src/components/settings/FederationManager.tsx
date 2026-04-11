@@ -22,6 +22,22 @@ interface KnownInstance {
   isActive: boolean;
   isTrusted: boolean;
   lastSeenAt: string | null;
+  platformLinked?: boolean;
+  marketplaceEnabled?: boolean;
+  discoveryEnabled?: boolean;
+  updatesEnabled?: boolean;
+  version?: string | null;
+  lastSyncAt?: string | null;
+}
+
+type WizardStep = 'idle' | 'configure' | 'registering' | 'success' | 'error';
+
+interface PlatformLinkResult {
+  instanceId: string;
+  platformToken: string;
+  endpoints: Record<string, string>;
+  features: Record<string, boolean>;
+  message: string;
 }
 
 export function FederationManager() {
@@ -32,6 +48,17 @@ export function FederationManager() {
   const [newInstanceName, setNewInstanceName] = useState('');
   const [newInstanceUrl, setNewInstanceUrl] = useState('');
   const [showAddInstance, setShowAddInstance] = useState(false);
+
+  // Connect to Network wizard state
+  const [wizardStep, setWizardStep] = useState<WizardStep>('idle');
+  const [wizardError, setWizardError] = useState('');
+  const [linkResult, setLinkResult] = useState<PlatformLinkResult | null>(null);
+  const [wizardForm, setWizardForm] = useState({
+    targetUrl: 'https://dividen.ai',
+    enableMarketplace: true,
+    enableDiscovery: true,
+    enableUpdates: true,
+  });
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -77,6 +104,70 @@ export function FederationManager() {
       setShowAddInstance(false);
       fetchInstances();
     } catch (e) { console.error(e); }
+  };
+
+  const handleConnectToNetwork = async () => {
+    if (!config?.instanceName || !config?.instanceUrl) {
+      setWizardError('Set your Instance Name and Public URL above before connecting.');
+      setWizardStep('error');
+      return;
+    }
+
+    setWizardStep('registering');
+    setWizardError('');
+
+    try {
+      // Step 1: Register with the managed platform
+      const registerRes = await fetch(`${wizardForm.targetUrl}/api/v2/federation/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: config.instanceName,
+          baseUrl: config.instanceUrl,
+          apiKey: 'self-register', // Will be verified/created on the managed side
+          version: '2.1.0',
+          capabilities: {
+            relay: true,
+            marketplace: wizardForm.enableMarketplace,
+            discovery: wizardForm.enableDiscovery,
+            updates: wizardForm.enableUpdates,
+          },
+        }),
+      });
+
+      if (!registerRes.ok) {
+        const err = await registerRes.json().catch(() => ({ error: 'Registration failed' }));
+        throw new Error(err.error || `HTTP ${registerRes.status}`);
+      }
+
+      const result = await registerRes.json();
+      setLinkResult(result);
+
+      // Step 2: If marketplace is enabled, activate it
+      if (wizardForm.enableMarketplace && result.platformToken) {
+        await fetch(`${wizardForm.targetUrl}/api/v2/federation/marketplace-link`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${result.platformToken}`,
+          },
+          body: JSON.stringify({ action: 'enable' }),
+        }).catch(() => {}); // Non-blocking
+      }
+
+      // Step 3: Update local federation config to reflect the connection
+      await updateConfig({
+        federationMode: config.federationMode === 'closed' ? 'allowlist' : config.federationMode,
+        allowInbound: true,
+        allowOutbound: true,
+      });
+
+      setWizardStep('success');
+    } catch (err: any) {
+      console.error('Connect to Network error:', err);
+      setWizardError(err.message || 'Failed to connect to the managed platform.');
+      setWizardStep('error');
+    }
   };
 
   if (loading) {
@@ -210,6 +301,190 @@ export function FederationManager() {
         </p>
       </div>
 
+      {/* Connect to Network Wizard */}
+      <div>
+        <span className="label-mono text-[var(--text-muted)] text-[10px]">Connect to Network</span>
+        <div className="mt-2 p-4 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)]">
+          {wizardStep === 'idle' && (
+            <>
+              <div className="flex items-start gap-3 mb-4">
+                <div className="text-2xl">🌐</div>
+                <div>
+                  <h4 className="text-sm font-medium text-[var(--text-primary)]">Join the DiviDen Network</h4>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-relaxed">
+                    Connect this instance to the managed DiviDen platform to access the agent marketplace,
+                    network discovery feed, and unified updates. Your instance stays self-hosted — this just
+                    links it to the broader network.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setWizardStep('configure')}
+                className="w-full py-2.5 text-xs font-medium rounded-md bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary)]/80 transition-colors"
+              >
+                Start Connection Wizard →
+              </button>
+            </>
+          )}
+
+          {wizardStep === 'configure' && (
+            <>
+              <h4 className="text-sm font-medium text-[var(--text-primary)] mb-3">Configure Network Connection</h4>
+
+              <div className="space-y-3 mb-4">
+                <div>
+                  <label className="text-[11px] text-[var(--text-muted)] block mb-1">Managed Platform URL</label>
+                  <input
+                    value={wizardForm.targetUrl}
+                    onChange={(e) => setWizardForm({ ...wizardForm, targetUrl: e.target.value })}
+                    className="w-full px-3 py-2 text-xs bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-md text-[var(--text-primary)] focus:outline-none focus:border-[var(--brand-primary)]/50 font-mono"
+                    placeholder="https://dividen.ai"
+                  />
+                  <p className="text-[10px] text-[var(--text-muted)] mt-1">The managed DiviDen platform you want to connect to.</p>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[11px] text-[var(--text-muted)]">Features to enable:</span>
+                  {([
+                    { key: 'enableMarketplace', label: 'Agent Marketplace', desc: 'List your agents on the managed marketplace and receive payouts', icon: '🏪' },
+                    { key: 'enableDiscovery', label: 'Network Discovery', desc: 'Browse profiles, teams, and agents across the managed network', icon: '🔍' },
+                    { key: 'enableUpdates', label: 'Unified Updates', desc: 'Pull changelog and platform updates from the managed instance', icon: '📢' },
+                  ] as const).map(feat => (
+                    <label key={feat.key} className="flex items-start gap-3 cursor-pointer p-2 rounded-lg hover:bg-white/[0.02] transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={wizardForm[feat.key]}
+                        onChange={(e) => setWizardForm({ ...wizardForm, [feat.key]: e.target.checked })}
+                        className="mt-0.5 rounded border-[var(--border-color)] bg-[var(--bg-primary)] text-[var(--brand-primary)] focus:ring-brand-500/30"
+                      />
+                      <div>
+                        <span className="text-xs text-[var(--text-primary)]">{feat.icon} {feat.label}</span>
+                        <p className="text-[10px] text-[var(--text-muted)]">{feat.desc}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pre-flight checks */}
+              <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] mb-4">
+                <span className="text-[10px] text-[var(--text-muted)] label-mono">Pre-flight Check</span>
+                <div className="mt-2 space-y-1.5">
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className={config?.instanceName ? 'text-green-400' : 'text-red-400'}>{config?.instanceName ? '✓' : '✗'}</span>
+                    <span className={config?.instanceName ? 'text-[var(--text-secondary)]' : 'text-red-400'}>Instance name: {config?.instanceName || 'Not set'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className={config?.instanceUrl ? 'text-green-400' : 'text-red-400'}>{config?.instanceUrl ? '✓' : '✗'}</span>
+                    <span className={config?.instanceUrl ? 'text-[var(--text-secondary)]' : 'text-red-400'}>Public URL: {config?.instanceUrl || 'Not set'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className={config?.hasApiKey ? 'text-green-400' : 'text-yellow-400'}>{config?.hasApiKey ? '✓' : '⚠'}</span>
+                    <span className="text-[var(--text-secondary)]">API key: {config?.hasApiKey ? 'Generated' : 'Will be generated'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setWizardStep('idle')}
+                  className="flex-1 py-2 text-xs rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConnectToNetwork}
+                  disabled={!config?.instanceName || !config?.instanceUrl}
+                  className="flex-1 py-2 text-xs font-medium rounded-md bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary)]/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Connect to Network
+                </button>
+              </div>
+            </>
+          )}
+
+          {wizardStep === 'registering' && (
+            <div className="text-center py-6">
+              <div className="text-3xl mb-3 animate-pulse">🔄</div>
+              <p className="text-sm text-[var(--text-primary)]">Connecting to network...</p>
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">Registering instance and exchanging keys</p>
+            </div>
+          )}
+
+          {wizardStep === 'success' && linkResult && (
+            <>
+              <div className="text-center mb-4">
+                <div className="text-3xl mb-2">✅</div>
+                <h4 className="text-sm font-medium text-green-400">Connected to Network</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">{linkResult.message}</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] mb-4 space-y-2">
+                <div className="text-[10px] text-[var(--text-muted)] label-mono mb-2">Platform Token (save this)</div>
+                <div className="px-3 py-2 text-[10px] bg-black/30 rounded font-mono text-[var(--text-secondary)] break-all select-all">
+                  {linkResult.platformToken}
+                </div>
+                <p className="text-[10px] text-yellow-400/80">⚠ Store this token securely. You&apos;ll need it for all platform API calls.</p>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] mb-4">
+                <div className="text-[10px] text-[var(--text-muted)] label-mono mb-2">Available Endpoints</div>
+                <div className="space-y-1">
+                  {Object.entries(linkResult.endpoints).map(([key, url]) => (
+                    <div key={key} className="flex items-center gap-2 text-[11px]">
+                      <span className="text-green-400">→</span>
+                      <span className="text-[var(--text-muted)] w-24">{key}:</span>
+                      <span className="font-mono text-[var(--text-secondary)] text-[10px]">{url}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] mb-4">
+                <div className="text-[10px] text-[var(--text-muted)] label-mono mb-2">Next Steps</div>
+                <div className="space-y-1.5 text-[11px] text-[var(--text-secondary)]">
+                  <p>1. Add <code className="code-inline">DIVIDEN_PLATFORM_TOKEN</code> to your instance&apos;s <code className="code-inline">.env</code></p>
+                  <p>2. Set up a cron job to call the heartbeat endpoint periodically</p>
+                  <p>3. Your agents will appear in the managed marketplace within minutes</p>
+                  <p>4. The updates feed will sync automatically</p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => { setWizardStep('idle'); setLinkResult(null); }}
+                className="w-full py-2 text-xs rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+              >
+                Done
+              </button>
+            </>
+          )}
+
+          {wizardStep === 'error' && (
+            <>
+              <div className="text-center mb-4">
+                <div className="text-3xl mb-2">❌</div>
+                <h4 className="text-sm font-medium text-red-400">Connection Failed</h4>
+                <p className="text-[11px] text-[var(--text-muted)] mt-1">{wizardError}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setWizardStep('idle')}
+                  className="flex-1 py-2 text-xs rounded-md bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => setWizardStep('configure')}
+                  className="flex-1 py-2 text-xs font-medium rounded-md bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary)]/80 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Known Instances */}
       {config.federationMode !== 'closed' && (
         <div>
@@ -258,7 +533,15 @@ export function FederationManager() {
                     <div>
                       <span className="text-xs font-medium text-[var(--text-primary)]">{inst.name}</span>
                       {inst.isTrusted && <span className="ml-2 text-[9px] text-green-400">✓ Trusted</span>}
+                      {inst.platformLinked && <span className="ml-2 text-[9px] text-[var(--brand-primary)]">🌐 Linked</span>}
                       <p className="text-[10px] text-[var(--text-muted)] font-mono">{inst.baseUrl}</p>
+                      {inst.platformLinked && (
+                        <div className="flex gap-2 mt-1">
+                          {inst.marketplaceEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400">🏪 Marketplace</span>}
+                          {inst.discoveryEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">🔍 Discovery</span>}
+                          {inst.updatesEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">📢 Updates</span>}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={cn(

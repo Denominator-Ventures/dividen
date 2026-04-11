@@ -398,6 +398,122 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         },
       },
     },
+
+    // ── Federation & Network ─────────────────────────────────────
+    '/updates': {
+      get: {
+        tags: ['Network'],
+        summary: 'Public unified updates feed',
+        description: 'Returns the DiviDen changelog/updates. No authentication required. Self-hosted instances can poll this to stay in sync.',
+        security: [],
+        parameters: [
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 200 }, description: 'Max entries to return' },
+          { name: 'since', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Return entries newer than this ISO date' },
+          { name: 'tag', in: 'query', schema: { type: 'string' }, description: 'Filter by tag' },
+        ],
+        responses: {
+          '200': { description: 'Updates array with metadata' },
+        },
+      },
+    },
+    '/network/discover': {
+      get: {
+        tags: ['Network'],
+        summary: 'Network discovery feed',
+        description: 'Browse public profiles, teams, and marketplace agents. Authenticated federated instances get richer data.',
+        security: [],
+        parameters: [
+          { name: 'type', in: 'query', schema: { type: 'string', enum: ['profiles', 'teams', 'agents', 'all'], default: 'all' } },
+          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 200 } },
+          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+          { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Search term' },
+        ],
+        responses: {
+          '200': { description: 'Discovery results with network stats' },
+        },
+      },
+    },
+    '/federation/register': {
+      post: {
+        tags: ['Federation'],
+        summary: 'Register self-hosted instance with the managed platform',
+        description: 'Connect to Network endpoint. Returns a platform token for authenticated API access.',
+        security: [],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'baseUrl', 'apiKey'],
+                properties: {
+                  name: { type: 'string', description: 'Instance display name' },
+                  baseUrl: { type: 'string', description: 'Instance public URL' },
+                  apiKey: { type: 'string', description: 'Instance federation API key' },
+                  version: { type: 'string' },
+                  userCount: { type: 'integer' },
+                  agentCount: { type: 'integer' },
+                  capabilities: { type: 'object' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Registration successful. Returns platformToken and available endpoints.' },
+          '403': { description: 'API key mismatch on re-registration' },
+        },
+      },
+    },
+    '/federation/marketplace-link': {
+      post: {
+        tags: ['Federation'],
+        summary: 'Enable/disable marketplace participation',
+        description: 'Requires platform token from registration. Allows self-hosted instances to list agents on the managed marketplace.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['action'],
+                properties: {
+                  action: { type: 'string', enum: ['enable', 'disable', 'status'] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Marketplace link status updated' },
+        },
+      },
+    },
+    '/federation/heartbeat': {
+      post: {
+        tags: ['Federation'],
+        summary: 'Instance heartbeat',
+        description: 'Periodic health check from federated instances. Updates stats and returns network info.',
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  version: { type: 'string' },
+                  userCount: { type: 'integer' },
+                  agentCount: { type: 'integer' },
+                  status: { type: 'string', enum: ['healthy', 'degraded', 'maintenance'] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Heartbeat acknowledged with network stats' },
+        },
+      },
+    },
   },
 };
 
