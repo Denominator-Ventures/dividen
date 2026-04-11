@@ -17,27 +17,22 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
-    id: 'divi-full-platform-awareness',
+    id: 'divi-intelligence-and-preferences',
     date: '2026-04-12',
-    time: '4:00 AM',
-    title: 'Divi Now Sees Everything — Full Platform Awareness',
-    subtitle: 'Your AI agent now has real-time context on contracts, earnings, marketplace agents, recordings, reputation, integrations, and can take action across the entire platform.',
-    tags: ['divi', 'ai', 'system-prompt', 'action-tags', 'intelligence'],
+    time: '3:00 AM',
+    title: 'Divi Now Sees Everything — Full Platform Awareness + Job Preferences',
+    subtitle: 'Your AI agent now has real-time context on contracts, earnings, marketplace agents, recordings, and reputation. Plus: set your minimum rate, manage project invites through chat, and navigate the entire platform by asking.',
+    tags: ['divi', 'ai', 'system-prompt', 'action-tags', 'intelligence', 'preferences', 'invites'],
     content: `Divi just went from "helpful assistant" to "full operating system."
 
-## What Changed
+## The Business Operations Layer
 
 Until now, Divi knew about your kanban board, contacts, calendar, inbox, connections, and relays. Good fundamentals. But the platform has grown — jobs, contracts, marketplace agents, recordings, reputation, integrations — and Divi was blind to all of it.
 
-Not anymore.
-
-## New: Business Operations Layer
-
-Divi now dynamically loads your entire business context every time you chat:
+Not anymore. Divi now dynamically loads your entire business context every time you chat:
 
 - **Active contracts** — who you're working with, compensation terms, payment status, whether you're the client or the worker
-- **Posted jobs** — status, how many applicants you have
-- **Pending applications** — flagged as ACTION REQUIRED when someone applies to your posted job
+- **Posted jobs** — status, how many applicants you have, pending applications flagged as ACTION REQUIRED
 - **Your applications** — status of jobs you've applied to
 - **Earnings** — 90-day rolling total from job payments
 - **Reputation** — your level, score, avg rating, on-time rate, jobs completed
@@ -68,28 +63,7 @@ Divi can now execute these directly from chat:
 - \`network_briefing\` — cross-network activity pulse
 - \`route_task\` — intelligent task routing with skill matching
 
-## Navigation Awareness
-
-Divi now knows the full UI layout and can guide you to any feature:
-
-- "Where do I see my earnings?" → Marketplace → Earnings tab
-- "How do I set up Stripe?" → Settings → Payments
-- "Where are my recordings?" → Dashboard → Recordings tab
-
-Ask Divi "what can you do?" and the answer is now actually comprehensive.
-
-— Jon`
-  },
-  {
-    id: 'job-preferences-invites-earnings',
-    date: '2026-04-12',
-    time: '3:00 AM',
-    title: 'Job Preferences, Project Invites & Split Earnings',
-    subtitle: 'Set your minimum rate. Accept or decline project invites through Divi. Separate earnings views for job contracts and agent marketplace revenue.',
-    tags: ['jobs', 'invites', 'earnings', 'preferences', 'kanban', 'projects'],
-    content: `Three related upgrades that make the job system actually usable for operators.
-
-## Minimum Compensation & Job Preferences
+## Job Preferences
 
 You can now set a floor for job consideration. In Settings → Profile → Job Preferences:
 
@@ -105,55 +79,54 @@ When someone hires you for a job — or invites you to a project — it now flow
 
 1. Divi receives the invite
 2. Checks it against your preferences (minimum rate, volunteer toggle, invite toggle)
-3. Presents qualifying offers to you with a summary: who's offering, the project, compensation, and your role
+3. Presents qualifying offers with a summary: who's offering, the project, compensation, and your role
 4. You say "accept" or "decline" — Divi handles the rest
 
 New "Invites" tab in the Job Board shows all pending invites. Each invite card shows the project, who sent it, your proposed role, and if it's a paid job — the compensation breakdown.
 
-All managed through chat with \`accept_invite\`, \`decline_invite\`, and \`list_invites\` action tags.
+## Navigation Awareness
 
-## Split Earnings View
+Divi now knows the full UI layout and can guide you to any feature:
 
-The Marketplace → Earnings tab now has two sub-tabs:
+- "Where do I see my earnings?" → Marketplace → Earnings tab
+- "How do I set up Stripe?" → Settings → Payments
+- "Where are my recordings?" → Dashboard → Recordings tab
 
-- **Agent Earnings** — revenue from your marketplace agents (the 97/3 split)
-- **Job Earnings** — income from job contracts, split into "as worker" (what you've earned) and "as client" (what you've spent)
+Ask Divi "what can you do?" and the answer is now actually comprehensive.
 
-Each view shows totals, active contracts, pending payments, and fee breakdowns.
+## Small Things
 
-## Kanban: Project Member Avatars
-
-Kanban cards that belong to a project now show tiny avatars of project members directly on the card. Hover for names. Click for profiles. Makes shared projects feel alive when you're scanning the board.
-
-## Technical Details
-
-- **Schema**: \`UserProfile\` extended with \`minCompensationType\`, \`minCompensationAmount\`, \`minCompensationCurrency\`, \`acceptVolunteerWork\`, \`acceptProjectInvites\`
-- **New model**: \`ProjectInvite\` with inviter, invitee, role, job link, status, intake tracking
-- **New APIs**: \`/api/project-invites\`, \`/api/projects/[id]/invite\`, \`/api/jobs/earnings\`
-- **Updated**: \`/api/profile\` (min comp fields), \`/api/jobs/[id]/hire\` (auto-creates Project + ProjectInvite)
+- Kanban cards that belong to a project now show tiny avatars of project members directly on the card. Hover for names. Click for profiles.
+- The Marketplace → Earnings tab now splits into Agent Earnings (97/3 split) and Job Earnings (as worker / as client).
 
 — Jon`
   },
   {
-    id: 'job-recruiting-monetization',
+    id: 'job-recruiting-and-contracts',
     date: '2026-04-12',
-    time: '2:00 AM',
-    title: 'Job Recruiting — Flat Fee, Hourly, Weekly, Monthly + 7% Recruiting Fee',
-    subtitle: 'Structured compensation for network job postings. Hire people outside your network for paid projects. Stripe handles payment. DiviDen takes a 7% recruiting fee. Self-hosted: 0%.',
+    time: '1:30 AM',
+    title: 'Job Recruiting — Structured Compensation, Contracts & 7% Fee',
+    subtitle: 'The human talent layer. Post jobs with flat, hourly, weekly, or monthly pay. Hire applicants. Track contracts. DiviDen takes a 7% recruiting fee. Self-hosted: 0%.',
     tags: ['jobs', 'recruiting', 'payments', 'stripe', 'contracts', 'monetization'],
     content: `The job board just became a recruiting engine.
 
-## What Shipped
+## Structured Compensation
 
-**Structured Compensation** — When posting a job, you now choose a pay structure: flat fee, hourly, weekly, or monthly. Enter a dollar amount per unit. The old freeform compensation field still works for non-monetary arrangements (equity swap, mutual exchange, volunteer).
+When posting a job, you now choose a pay structure: flat fee, hourly, weekly, or monthly. Enter a dollar amount per unit. The old freeform compensation field still works for non-monetary arrangements (equity swap, mutual exchange, volunteer).
 
-**7% Recruiting Fee** — When you hire someone through the DiviDen network who isn't already in your project or team, DiviDen takes a 7% recruiting fee. The worker keeps 93%. This is separate from the 3% Agent Marketplace routing fee — that's for AI agents, this is for humans. Self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` and keep everything.
+## The 7% Recruiting Fee
 
-**Job Contracts** — When you hire an applicant for a paid job, a \`JobContract\` is created that tracks: compensation terms, both parties, payment history, recruiting fee collected, and contract status (active / paused / completed / cancelled). Contracts live in a new "📄 Contracts" tab on the job board.
+When you hire someone through the DiviDen network who isn't already in your project or team, DiviDen takes a 7% recruiting fee. The worker keeps 93%. This is separate from the 3% Agent Marketplace routing fee — that's for AI agents, this is for humans.
+
+Still the lowest recruiting fee in the industry. Traditional recruiters charge 15-25% of annual salary. We charge 7% of the contract value. Self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` and keep everything.
+
+## Job Contracts
+
+When you hire an applicant for a paid job, a \`JobContract\` is created that tracks: compensation terms, both parties, payment history, recruiting fee collected, and contract status (active / paused / completed / cancelled / disputed). Contracts live in a new "📄 Contracts" tab on the job board.
 
 **Hire Button** — Job detail modal now shows a "✓ Hire" button next to each pending applicant. Click it: the applicant is assigned, other applicants are rejected, and a contract is created. For flat-fee jobs with Stripe configured, payment is initiated immediately.
 
-**Recurring Payments** — For hourly/weekly/monthly contracts, the client can submit payments from the Contracts tab. Each payment records the gross amount, recruiting fee, and worker payout. Stripe handles the money if both parties are connected.
+**Recurring Payments** — For hourly/weekly/monthly contracts, the client can submit payments from the Contracts tab. Each payment records the gross amount, recruiting fee, and worker payout.
 
 **Destination Charges** — Same pattern as the Agent Marketplace: if the worker has a Stripe Connect Express account, payments go directly to them via destination charges with the recruiting fee as the application fee. Worker gets paid. DiviDen collects the routing cut. Nobody holds funds.
 
@@ -165,28 +138,19 @@ Kanban cards that belong to a project now show tiny avatars of project members d
 - **Schema additions**: \`NetworkJob.compensationType\`, \`compensationAmount\`, \`compensationCurrency\`, \`isPaid\`
 - **New API routes**: \`/api/jobs/[id]/hire\`, \`/api/contracts\` (GET), \`/api/contracts/[id]\` (GET/PATCH), \`/api/contracts/[id]/pay\` (POST), \`/api/recruiting/fee-info\` (GET)
 - **Config**: \`RECRUITING_FEE_PERCENT\` env var (default 7, set to 0 for self-hosted)
-- **Webhook**: Stripe webhook handler now processes \`job_recruiting\` payment type alongside existing marketplace payments
-
-## Why 7%
-
-The Agent Marketplace charges 3% because it's a routing fee for automated execution. This is different — it's a recruiting fee for matching a human to a project. You're paying for the network effect: DiviDen surfaced someone capable that you didn't already have access to. That's worth more than 3%.
-
-Still the lowest recruiting fee in the industry. Traditional recruiters charge 15-25% of annual salary. We charge 7% of the contract value.
-
-Self-hosted? \`RECRUITING_FEE_PERCENT=0\`. You keep everything.
 
 — Jon`
   },
   {
-    id: 'agent-marketplace-phase-1',
+    id: 'agent-marketplace-and-payments',
     date: '2026-04-12',
     time: '12:15 AM',
-    title: 'The Agent Marketplace — Browse, Execute, Earn',
-    subtitle: 'A full marketplace for AI agents. Discover agents by category, execute tasks with one click, subscribe for recurring use, rate quality, list your own, and track earnings in a real-time dashboard.',
-    tags: ['marketplace', 'agents', 'execution', 'earnings', 'subscriptions', 'monetization'],
-    content: `The marketplace is live. Not a directory. Not a listing page. A working execution marketplace where agents do real work and developers get paid.
+    title: 'The Agent Marketplace — Discovery, Execution, Stripe Payments & 97/3 Split',
+    subtitle: 'A full marketplace for AI agents with real money. Browse, execute, subscribe. Stripe Connect for developer payouts. Saved cards for buyers. 97% to the developer. Terms of Service with agent liability framework.',
+    tags: ['marketplace', 'agents', 'payments', 'stripe', 'monetization', 'connect', 'terms'],
+    content: `The marketplace is live — and real money flows through it.
 
-## What You Get
+## Browse, Execute, Earn
 
 **Browse & Discover** — Filter agents by category (AI, automation, research, creative, data, code), pricing model, and search. Sort by popularity, rating, or newest. Every agent card shows execution count, average rating, response time, and pricing.
 
@@ -194,140 +158,47 @@ Self-hosted? \`RECRUITING_FEE_PERCENT=0\`. You keep everything.
 
 **Subscriptions** — Some agents offer subscription pricing with optional task limits. Subscribe once, execute on demand. Manage active subscriptions from your marketplace dashboard.
 
-**Ratings** — After every execution, rate the quality 1–5 stars. Ratings aggregate into the agent's public score and feed the reputation system. Bad agents sink. Good agents surface.
+**Ratings** — After every execution, rate the quality 1–5 stars. Ratings aggregate into the agent's public score and feed the reputation system.
 
 **List Your Own** — Full registration form: name, description, endpoint URL, auth method, pricing, categories, sample prompts, supported protocols. Takes about two minutes. Your agent is live immediately.
 
+## Stripe Connect — Real Payments
+
+**Stripe Connect Express for Developers** — Onboard to Stripe Connect Express directly from Settings → Payments. One OAuth flow, Stripe handles identity verification, tax forms, and payout scheduling. You build agents. Stripe handles compliance. We route money.
+
+**Saved Payment Methods** — Buyers can add credit/debit cards via Stripe Elements, stored securely as Stripe SetupIntents. Cards on file mean one-click execution purchases.
+
+**Destination Charges** — When a buyer executes a paid agent, we create a Stripe PaymentIntent with \`destination\` pointing to the developer's connected account and an \`application_fee_amount\` for the routing fee. Money moves directly from buyer to developer. We never hold funds.
+
+**Webhook Handler** — \`/api/stripe/webhooks\` processes \`payment_intent.succeeded\` and \`payment_intent.payment_failed\` events. Execution records update in real-time.
+
+## The 97/3 Split
+
+Developers keep 97% of every transaction. DiviDen takes a 3% routing fee. No setup fees, no monthly minimums, no tiered pricing. Stripe's processing fees come out of the developer's share (standard Stripe rates). Self-hosted: \`MARKETPLACE_FEE_PERCENT=0\` — you keep everything.
+
 ## The Earnings Dashboard
 
-When you have at least one listed agent, the Earnings tab appears in the marketplace. It shows:
+When you have at least one listed agent, the Earnings tab appears. Revenue hero, stats grid, per-agent breakdown, recent activity. Real data. Real-time calculations.
 
-- **Revenue hero** — total gross, platform fees, your net payout, pending balance
-- **Stats grid** — total executions, unique buyers, active subscribers, average rating
-- **Per-agent breakdown** — each agent's revenue, execution count, subscriber count, individual stats
-- **Recent activity** — latest executions with buyer, amount, status, and timestamp
+The platform actively encourages developers to list agents. When you import an extension or accept a new connection, a banner suggests turning it into a marketplace agent with a one-click prefill to the registration form.
 
-This is a real developer dashboard. Not a mock. It queries live execution data and calculates revenue in real time.
-
-## Monetization Prompts
-
-The platform now actively encourages developers to list agents. When you import an extension or accept a new connection, a banner suggests turning it into a marketplace agent — with a one-click prefill that takes you straight to the registration form with the name pre-populated. Gradient CTAs at the bottom of the Queue panel and Comms page keep the marketplace visible without being obnoxious.
-
-## Technical Details
-
-- **Schema**: \`MarketplaceAgent\`, \`MarketplaceSubscription\`, \`MarketplaceExecution\` models
-- **API routes**: \`GET/POST /api/marketplace\`, \`GET/PUT/DELETE /api/marketplace/[id]\`, \`POST /api/marketplace/[id]/execute\`, \`POST/DELETE /api/marketplace/[id]/subscribe\`, \`POST /api/marketplace/[id]/rate\`, \`GET /api/marketplace/earnings\`, \`GET /api/marketplace/fee-info\`
-- **Pricing models**: free, per_task, subscription (with optional task limits)
-- **Auth methods**: bearer, api_key, custom header, none
-- **Input/output formats**: text, json, a2a
-- **Execution proxy**: 30-second timeout, full lifecycle tracking, stats auto-increment on agent record
-- **UI**: \`MarketplaceView.tsx\` — browse, detail, register, earnings — all in one component
-
-## What This Means
-
-DiviDen is no longer just a command center. It's a marketplace. If you've built something useful — an agent, a workflow, a specialized skill — you can list it, price it, and earn from it. Every operator on the network is a potential customer. Every customer interaction improves your rating and ranking.
-
-The marketplace runs on the same infrastructure as the rest of DiviDen: same kanban, same relay protocol, same reputation system. It's not bolted on. It's native.
-
-— Jon`
-  },
-  {
-    id: 'revenue-model-and-governance',
-    date: '2026-04-12',
-    time: '12:05 AM',
-    title: 'Revenue Model — 97/3 Split, Configurable Fees & Terms of Service',
-    subtitle: 'The economic and legal layer. 97% to developers on marketplace transactions. 7% recruiting fee on job hires. Both configurable to 0% for self-hosted. Full Terms of Service with agent liability framework.',
-    tags: ['revenue', 'economics', 'terms', 'governance', 'self-hosted', 'fees'],
-    content: `Every marketplace needs an economic model. Here's ours — and why it's designed to be turned off.
-
-## The Split
-
-**Agent Marketplace: 97/3** — When a buyer pays to execute your agent, you keep 97%. DiviDen takes a 3% routing fee. That's it. No setup fees, no monthly minimums, no tiered pricing that changes when you succeed. Three percent for discovery, execution infrastructure, payment processing, and a global network of operators.
-
-**Job Recruiting: 93/7** — When you hire someone through the network job board who isn't already in your project or team, DiviDen takes a 7% recruiting fee. The worker keeps 93%. This is for human talent, not AI agents — a fundamentally different value proposition. The 7% pays for skill matching, reputation verification, and contract infrastructure.
-
-**Self-Hosted: 0/0** — Set \`MARKETPLACE_FEE_PERCENT=0\` and \`RECRUITING_FEE_PERCENT=0\` in your environment. You keep 100% of everything. No asterisks. No "enterprise tier required." The open-source version has the same knobs as the hosted version. Turn them to zero.
-
-## Fee Transparency
-
-Every place fees appear, you see the math:
-
-- **Registration form** — When listing a paid agent, the form shows a live calculation: "If you charge $10/task, you receive $9.70. DiviDen routing fee: $0.30."
-- **Job posting** — When posting a paid job, the creation modal shows the fee breakdown before you submit.
-- **Earnings dashboard** — Gross, platform fees, and net payout — always visible, always accurate.
-- **Fee info endpoints** — \`/api/marketplace/fee-info\` and \`/api/recruiting/fee-info\` return the current fee structure. Public, unauthenticated. No secrets.
-
-## Terms of Service
+## Terms of Service & Agent Liability
 
 A real Terms of Service now lives at \`/terms\`. Fourteen sections covering:
 
-- **Agent Liability (Section 4)** — DiviDen is NOT responsible for any actions taken by any AI agent on behalf of any user. The operator is responsible for their agent's behavior. This is the core legal principle of the platform.
-- **Marketplace Terms (Section 5)** — Developer obligations, buyer expectations, dispute resolution, refund policy.
-- **Federation (Section 6)** — Cross-instance communication terms, data handling, trust-level implications.
-- **Disclaimers & Limitation of Liability (Section 9)** — Standard but thorough. The platform is provided as-is.
-- **Open Source / Self-Hosted (Section 11)** — Self-hosted instances operate under their own terms. No vendor lock-in claim.
+- **Agent Liability (Section 4)** — DiviDen is NOT responsible for any actions taken by any AI agent on behalf of any user. The operator is responsible for their agent's behavior. This is the core legal principle.
+- **Marketplace Terms (Section 5)** — Developer obligations, buyer expectations, dispute resolution.
+- **Federation (Section 6)** — Cross-instance communication terms, data handling.
+- **Open Source (Section 11)** — Self-hosted instances operate under their own terms.
 
-## Signup Agreement
-
-New accounts must check a ToS agreement box before creating an account. The submit button is disabled until you agree. When you do, we record:
-
-- \`acceptedTermsAt\` — exact timestamp
-- \`termsVersion\` — currently "1.0"
-
-Both stored on your user record. When the terms change, we bump the version and can prompt re-acceptance.
-
-## Config
-
-- \`MARKETPLACE_FEE_PERCENT\` — default 3, range 0–100
-- \`RECRUITING_FEE_PERCENT\` — default 7, range 0–100
-- \`src/lib/marketplace-config.ts\` — \`getPlatformFeePercent()\`, \`calculateRevenueSplit()\`, \`getFeeInfo()\`
-- \`src/lib/recruiting-config.ts\` — \`getRecruitingFeePercent()\`, \`calculateRecruitingFee()\`, \`getRecruitingFeeInfo()\`
-
-## Why This Way
-
-Most platforms start with generous terms and claw them back when they have leverage. We built the fee structure to be turned off by default for anyone who self-hosts. The 3% and 7% exist only on the hosted platform — because we're providing the network, the infrastructure, and the payment rails. If you provide your own, you owe us nothing.
-
-The Terms of Service exist because agents act on behalf of humans, and someone has to be responsible. We chose: the operator is responsible for their agent. Not the platform. That's the deal.
-
-— Jon`
-  },
-  {
-    id: 'stripe-marketplace-payments',
-    date: '2026-04-12',
-    time: '12:30 AM',
-    title: 'Marketplace Payments — Stripe Connect, Cards on File, 97/3 Split',
-    subtitle: 'Full payment infrastructure for the Agent Marketplace. Stripe Connect Express for developer payouts, saved payment methods for buyers, destination charges with automatic fee splitting.',
-    tags: ['marketplace', 'payments', 'stripe', 'monetization', 'connect'],
-    content: `The Agent Marketplace now has real money flowing through it.
-
-## What Shipped
-
-**Stripe Connect Express for Developers** — Any developer who lists agents on the marketplace can onboard to Stripe Connect Express directly from Settings → Payments. One OAuth flow, Stripe handles identity verification, tax forms, and payout scheduling. You build agents. Stripe handles compliance. We route money.
-
-**Saved Payment Methods** — Buyers can add credit/debit cards via Stripe Elements, stored securely as Stripe SetupIntents. Cards on file mean one-click execution purchases — no re-entering payment details on every run.
-
-**Destination Charges with Automatic Fee Split** — When a buyer executes a paid agent, we create a Stripe PaymentIntent with \`destination\` pointing to the developer's connected account and an \`application_fee_amount\` for the DiviDen routing fee. Money moves directly from buyer to developer. We never hold funds.
-
-**97/3 Revenue Split** — Developers keep 97% of every transaction. DiviDen takes a 3% routing fee. Stripe's processing fees come out of the developer's share (standard Stripe rates). For self-hosted instances, \`MARKETPLACE_FEE_PERCENT=0\` — you keep everything.
-
-**Webhook Handler** — \`/api/stripe/webhooks\` processes \`payment_intent.succeeded\` and \`payment_intent.payment_failed\` events. Execution records update in real-time with payment status. No polling, no manual reconciliation.
-
-**Payment Settings UI** — New "Payments" tab in Settings. Developers see their Connect onboarding status, link to Stripe Express dashboard, and onboarding CTA. Buyers see saved cards, can add new ones or remove existing. Clean, no-nonsense interface.
-
-**Terms of Service** — \`/terms\` page covering marketplace usage, payment terms, the 97/3 split, developer obligations, and dispute resolution. Signup flow now includes a ToS agreement checkbox. You can't list or buy agents without agreeing.
+Signup now requires ToS acceptance. Version-tracked. Re-promptable on updates.
 
 ## Technical Details
 
-- **Schema additions**: \`User.stripeCustomerId\`, \`stripeConnectAccountId\`, \`stripeConnectOnboarded\`; \`MarketplaceExecution.stripePaymentIntentId\`, \`stripePaymentStatus\`
-- **New API routes**: \`/api/stripe/connect/*\` (onboard, status, dashboard-link), \`/api/stripe/payment-methods/*\` (list, add, remove), \`/api/stripe/webhooks\`
-- **Stripe SDK**: \`stripe\` + \`@stripe/stripe-js\` + \`@stripe/react-stripe-js\`
-- **Security**: Webhook signature verification via \`stripe.webhooks.constructEvent\`, all secrets server-side only
-
-## What This Means
-
-The marketplace is no longer a demo. Developers can publish agents, set prices, and get paid. Buyers can browse, execute, and pay — with saved cards and instant settlement. The 97/3 split makes this one of the most developer-friendly revenue shares in the ecosystem.
-
-List your agents. Get paid. It's that simple.
+- **Schema**: \`MarketplaceAgent\`, \`MarketplaceSubscription\`, \`MarketplaceExecution\`, plus \`User.stripeCustomerId\`, \`stripeConnectAccountId\`, \`stripeConnectOnboarded\`
+- **API routes**: \`/api/marketplace/*\`, \`/api/stripe/connect/*\`, \`/api/stripe/payment-methods/*\`, \`/api/stripe/webhooks\`, \`/api/marketplace/earnings\`, \`/api/marketplace/fee-info\`
+- **Pricing models**: free, per_task, subscription
+- **Config**: \`MARKETPLACE_FEE_PERCENT\` env var (default 3, self-hosted: 0)
 
 — Jon`
   },
