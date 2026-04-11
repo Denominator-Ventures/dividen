@@ -116,6 +116,10 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
     <div className="panel h-full flex flex-col">
       {/* ── Primary Tab Bar — z-20 keeps dropdowns/sub-rows above content ── */}
       <div className="panel-header flex-col !gap-0 !pb-0 relative z-20">
+        <div className="relative w-full">
+          {/* Fade gradients to hint at scrollable content */}
+          <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-[var(--bg-secondary)] to-transparent z-10 opacity-0 md:hidden" id="tab-fade-left" />
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-4 bg-gradient-to-l from-[var(--bg-secondary)] to-transparent z-10 md:hidden" />
         <div
           ref={scrollRef}
           className="flex items-center gap-1 w-full overflow-x-auto pb-2 scrollbar-hide touch-pan-x"
@@ -168,6 +172,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
           <button onClick={() => onTabChange('earnings')} className={tabClass(activeTab === 'earnings')}>
             💰 Earnings
           </button>
+        </div>
         </div>
 
         {/* ── Sub-tabs (Network or Messages) ── */}

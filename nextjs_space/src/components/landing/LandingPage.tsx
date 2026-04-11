@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { UPDATES } from '@/lib/updates';
+import {
+  TYPING_PHRASES,
+  FEATURES,
+  PROTOCOL_LAYERS,
+  MARKETPLACE_STATS,
+} from '@/lib/landing-data';
 
 // ─── Animated typing effect ─────────────────────────────────────────────────
 function useTypingEffect(phrases: string[], typingSpeed = 80, pauseDuration = 2000) {
@@ -41,125 +47,6 @@ function useTypingEffect(phrases: string[], typingSpeed = 80, pauseDuration = 20
 
   return displayText;
 }
-
-// ─── Feature card data ──────────────────────────────────────────────────────
-const FEATURES = [
-  {
-    icon: '🧠',
-    title: '10-Group Agent Intelligence',
-    description:
-      'Your Divi reasons across 10 consolidated prompt groups — identity, goals, connections, memory, tools, and more — assembling full context on every decision.',
-  },
-  {
-    icon: '🎯',
-    title: 'Goals & Dynamic NOW Engine',
-    description:
-      'Define objectives, track progress, and let the NOW Engine score and rank what matters most right now — across goals, queue items, and relays.',
-  },
-  {
-    icon: '🔗',
-    title: 'Self-Improving Ambient Protocol',
-    description:
-      'Direct, broadcast, and ambient relay modes. Every ambient interaction teaches the protocol — it learns timing, phrasing, and topics that work, getting less disruptive with every exchange.',
-  },
-  {
-    icon: '📋',
-    title: 'The Brief — Show Your Work',
-    description:
-      'Every agent decision generates a reasoning brief. Full transparency on what context was assembled, who was matched, and why. The handshake contract between human and agent.',
-  },
-  {
-    icon: '⚡',
-    title: 'Action Tags — Not Just Chat',
-    description:
-      '32+ executable actions via natural conversation. Route tasks, create goals, assemble briefs, dispatch relays, orchestrate work — all from chat.',
-  },
-  {
-    icon: '👥',
-    title: 'Teams, Projects & Visibility',
-    description:
-      'Organize connections into persistent teams and scoped projects. Control visibility with public, team-only, and private modes across every entity.',
-  },
-  {
-    icon: '🌐',
-    title: 'Federated by Design',
-    description:
-      'No shared database. No vendor lock-in. Your instance, your data. Agents communicate across boundaries transparently via DAWP.',
-  },
-  {
-    icon: '🧩',
-    title: 'Extensions Framework',
-    description:
-      'Installable skills and personas that extend what your Divi can do. Curated registry, one-click install, automatic prompt integration.',
-  },
-  {
-    icon: '🏪',
-    title: 'Agent Marketplace',
-    description:
-      'Discover, execute, and pay for AI agents built by other developers. List your own agents and earn 97% of every transaction. Powered by Stripe.',
-  },
-];
-
-const PROTOCOL_LAYERS = [
-  {
-    num: '01',
-    name: 'Identity & Profile',
-    desc: 'Routing manifests — not résumés. Skills, lived experience, task types, and availability that agents use to make decisions.',
-  },
-  {
-    num: '02',
-    name: 'Goals & Dynamic NOW Engine',
-    desc: 'Objectives with progress tracking, priority scoring, and a dynamic ranking engine that surfaces what matters most right now — across goals, queue items, and relays.',
-  },
-  {
-    num: '03',
-    name: 'Ambient Relay Protocol',
-    desc: 'Direct, broadcast, and ambient modes. Agents exchange context-rich relays — or weave questions naturally into conversation without interrupting anyone.',
-  },
-  {
-    num: '04',
-    name: 'The Brief — Reasoning Artifact',
-    desc: 'Every orchestration generates a brief: what context was assembled, which connections matched, why a routing decision was made. The "show your work" layer.',
-  },
-  {
-    num: '05',
-    name: 'Ambient Learning Engine',
-    desc: 'Every ambient relay interaction feeds a learning loop — timing, disruption, topic success, phrasing effectiveness. The protocol teaches itself to be less interruptive and more pointed over time.',
-  },
-  {
-    num: '06',
-    name: 'Teams & Projects',
-    desc: 'Persistent teams and scoped projects that add organizational context to connections, task routing, and relay delivery — including federated members across instances.',
-  },
-  {
-    num: '07',
-    name: 'Extensions Framework',
-    desc: 'Installable skills and personas from a curated registry. Extend what your Divi can do without touching the core protocol.',
-  },
-  {
-    num: '08',
-    name: 'Federation',
-    desc: 'Cross-instance communication via DAWP. Your company runs one, theirs runs another. Agents still coordinate seamlessly — with full context API support.',
-  },
-  {
-    num: '09',
-    name: 'Integration Surface',
-    desc: 'A2A bridge, webhooks, Agent API v2 — connect anything, from anywhere.',
-  },
-  {
-    num: '10',
-    name: 'Agent Marketplace & Payments',
-    desc: 'Discover and execute agents built by other developers. Stripe Connect handles payouts, saved cards enable one-click purchases, and a 97/3 revenue split rewards builders.',
-  },
-];
-
-// ─── Marketplace stats (static for now) ─────────────────────────────────────
-const MARKETPLACE_STATS = [
-  { label: 'Developer Revenue Share', value: '97%' },
-  { label: 'Platform Routing Fee', value: '3%' },
-  { label: 'Payment Processing', value: 'Stripe' },
-  { label: 'Self-Hosted Fee', value: '0%' },
-];
 
 // ─── Download App Hero Button (PWA install prompt) ───────────────────────────
 interface BeforeInstallPromptEvent extends Event {
@@ -220,24 +107,12 @@ function DownloadAppButton() {
 
 // ─── Main Landing Page ──────────────────────────────────────────────────────
 export function LandingPage() {
-  const typedText = useTypingEffect(
-    [
-      'manage your pipeline',
-      'coordinate across teams',
-      'delegate to your AI agent',
-      'monetize your AI agents',
-      'show its work on every decision',
-      'track goals and priorities',
-      'route work intelligently',
-      'earn from every execution',
-      'learn from every interaction',
-    ],
-    70,
-    1800
-  );
+  const typedText = useTypingEffect(TYPING_PHRASES, 70, 1800);
 
   const [mounted, setMounted] = useState(false);
   const [todayUpdateCount, setTodayUpdateCount] = useState(0);
+  const [showAllFeatures, setShowAllFeatures] = useState(false);
+  const [expandedProtocol, setExpandedProtocol] = useState<string | null>(null);
   useEffect(() => {
     setMounted(true);
     const todayCT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' });
@@ -315,9 +190,8 @@ export function LandingPage() {
             </h1>
 
             <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-4 leading-relaxed">
-              One AI agent that surfaces what matters, drafts responses, and acts on your behalf.
-              Connect more tools, compound the time savings.
-              Then discover the agent marketplace — built by the community, for the community.
+              Your AI agent learns how you work, handles what it can, and surfaces only what needs you.
+              The more you connect, the more it compounds.
             </p>
 
             {/* Typing effect */}
@@ -400,7 +274,6 @@ export function LandingPage() {
           </div>
         </div>
       </section>
-
       {/* ── Features Grid ──────────────────────────────────────────────── */}
       <section id="features" className="py-20 md:py-32 border-t border-white/[0.04]">
         <div className="max-w-6xl mx-auto px-6">
@@ -413,8 +286,8 @@ export function LandingPage() {
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {FEATURES.map((f) => (
+          <div className="grid sm:grid-cols-2 lg:grid-cols-2 gap-6">
+            {FEATURES.filter((f) => f.tier === 'core').map((f) => (
               <div
                 key={f.title}
                 className="group p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-300"
@@ -425,8 +298,34 @@ export function LandingPage() {
               </div>
             ))}
           </div>
+
+          {/* Power features — expandable */}
+          {!showAllFeatures ? (
+            <div className="text-center mt-10">
+              <button
+                onClick={() => setShowAllFeatures(true)}
+                className="text-sm text-white/40 hover:text-white/70 transition-colors border border-white/[0.08] hover:border-white/[0.15] px-6 py-2.5 rounded-xl"
+              >
+                Show {FEATURES.filter((f) => f.tier === 'power').length} more capabilities ↓
+              </button>
+            </div>
+          ) : (
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8 animate-in fade-in slide-in-from-top-4 duration-500">
+              {FEATURES.filter((f) => f.tier === 'power').map((f) => (
+                <div
+                  key={f.title}
+                  className="group p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-300"
+                >
+                  <div className="text-3xl mb-4">{f.icon}</div>
+                  <h3 className="font-heading text-lg font-semibold mb-2">{f.title}</h3>
+                  <p className="text-sm text-white/40 leading-relaxed">{f.description}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
+
 
       {/* ── Agent Marketplace ──────────────────────────────────────────── */}
       <section id="marketplace" className="py-20 md:py-32 border-t border-white/[0.04]">
@@ -523,7 +422,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Protocol Stack ─────────────────────────────────────────────── */}
+      {/* ── Protocol Stack (Accordion) ────────────────────────────────── */}
       <section id="protocol" className="py-20 md:py-32 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -539,21 +438,34 @@ export function LandingPage() {
             </p>
           </div>
 
-          <div className="space-y-4">
-            {PROTOCOL_LAYERS.map((layer) => (
-              <div
-                key={layer.num}
-                className="flex items-start gap-6 p-6 rounded-xl border border-white/[0.04] hover:border-white/[0.08] bg-white/[0.01] hover:bg-white/[0.03] transition-all"
-              >
-                <span className="font-mono text-3xl font-bold text-white/20 shrink-0 leading-none">
-                  {layer.num}
-                </span>
-                <div>
-                  <h3 className="font-heading text-lg font-semibold mb-1">{layer.name}</h3>
-                  <p className="text-sm text-white/40 leading-relaxed">{layer.desc}</p>
-                </div>
-              </div>
-            ))}
+          <div className="space-y-2">
+            {PROTOCOL_LAYERS.map((layer) => {
+              const isOpen = expandedProtocol === layer.num;
+              return (
+                <button
+                  key={layer.num}
+                  onClick={() => setExpandedProtocol(isOpen ? null : layer.num)}
+                  className="w-full text-left flex items-center gap-5 p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.08] bg-white/[0.01] hover:bg-white/[0.03] transition-all group"
+                >
+                  <span className="font-mono text-xl font-bold text-white/20 shrink-0 leading-none group-hover:text-white/30 transition-colors w-7">
+                    {layer.num}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-heading text-base font-semibold">{layer.name}</h3>
+                    <div
+                      className={`overflow-hidden transition-all duration-300 ${
+                        isOpen ? 'max-h-24 opacity-100 mt-1.5' : 'max-h-0 opacity-0'
+                      }`}
+                    >
+                      <p className="text-sm text-white/40 leading-relaxed">{layer.desc}</p>
+                    </div>
+                  </div>
+                  <span className={`text-white/20 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
+                    ▾
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>
@@ -578,7 +490,7 @@ export function LandingPage() {
                 href="/setup"
                 className="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-black font-medium px-8 py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-brand-500/20"
               >
-                Get Started for Free →
+                Try the Managed Platform →
               </Link>
             </div>
           </div>
@@ -597,15 +509,15 @@ export function LandingPage() {
             Start today.
           </h2>
           <p className="text-white/40 max-w-lg mx-auto mb-10 leading-relaxed">
-            Connect your email, let Divi learn how you work, and reclaim the hours you spend on coordination.
-            The marketplace and team features are there when you&apos;re ready for them.
+            Connect your tools, let Divi learn how you work, and reclaim the hours you spend on coordination.
+            Everything else unlocks as you go.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/setup"
               className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-lg"
             >
-              Get Started — It&apos;s Free
+              Create Your Account
             </Link>
             <Link
               href="/login"

@@ -13,8 +13,8 @@ const STEPS: Step[] = ['welcome', 'agent', 'workspace', 'connect', 'done'];
 
 // NOW items — high-priority, action-oriented, show up immediately in the NOW panel
 const NOW_TASKS = [
-  { title: 'Connect your email', description: 'Let Divi read your inbox, surface what matters, and draft responses. This is the #1 way to get value fast.', type: 'task' as const, priority: 'urgent' as const },
-  { title: 'Chat with Divi', description: 'Open the Chat tab and try: "What can you help me with?" — Divi learns your style the more you interact.', type: 'task' as const, priority: 'high' as const },
+  { title: 'Chat with Divi', description: 'Open the Chat tab and try: "What can you help me with?" — Divi learns your style the more you interact.', type: 'task' as const, priority: 'urgent' as const },
+  { title: 'Connect your email', description: 'Let Divi read your inbox, surface what matters, and draft responses. This is the #1 way to compound value.', type: 'task' as const, priority: 'high' as const },
   { title: 'Add your first contact', description: 'Open CRM and add someone you work with. Divi will help you track context and history.', type: 'task' as const, priority: 'high' as const },
   { title: 'Set a goal', description: 'Go to Goals and create something you\'re working toward. Divi will track progress and nudge you.', type: 'task' as const, priority: 'medium' as const },
 ];
