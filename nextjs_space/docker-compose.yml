@@ -1,0 +1,25 @@
+# DiviDen — Local Development Database
+# Usage: docker compose up -d
+# This starts a local PostgreSQL instance pre-configured for DiviDen.
+# The default DATABASE_URL in .env.example already points to this.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: dividen-db
+    environment:
+      POSTGRES_USER: dividen
+      POSTGRES_PASSWORD: dividen
+      POSTGRES_DB: dividen
+    ports:
+      - "5432:5432"
+    volumes:
+      - dividen_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dividen"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dividen_pgdata:
