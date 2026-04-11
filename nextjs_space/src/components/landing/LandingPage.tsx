@@ -264,28 +264,6 @@ export function LandingPage() {
             <a href="#marketplace" className="text-sm text-white/50 hover:text-white transition-colors">
               Marketplace
             </a>
-            <a href="#protocol" className="text-sm text-white/50 hover:text-white transition-colors">
-              Protocol
-            </a>
-            <a href="/docs/developers" className="text-sm text-white/50 hover:text-white transition-colors">
-              Docs
-            </a>
-            <a
-              href="https://os.dividen.ai"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-white/50 hover:text-white transition-colors"
-            >
-              Open Source
-            </a>
-            <a
-              href="https://github.com/Denominator-Ventures/dividen"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-white/50 hover:text-white transition-colors"
-            >
-              GitHub
-            </a>
             <Link href="/updates" className="relative text-sm text-white/50 hover:text-white transition-colors">
               Updates
               {todayUpdateCount > 0 && (
@@ -325,21 +303,21 @@ export function LandingPage() {
             }`}
           >
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-400 mb-6">
-              The Agentic Working Protocol
+              Your AI-powered command center
             </p>
 
             <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-8">
-              The last interface
+              Divi reads your inbox.
               <br />
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-300">
-                you&apos;ll ever need.
+                You read less.
               </span>
             </h1>
 
             <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-4 leading-relaxed">
-              Your personal AI agent that manages your pipeline, coordinates with other agents,
-              and acts on your behalf — across every team, tool, and company boundary.
-              Now with a marketplace where you can discover, execute, and monetize AI agents.
+              One AI agent that surfaces what matters, drafts responses, and acts on your behalf.
+              Connect more tools, compound the time savings.
+              Then discover the agent marketplace — built by the community, for the community.
             </p>
 
             {/* Typing effect */}
@@ -357,14 +335,6 @@ export function LandingPage() {
               >
                 Start for Free
               </Link>
-              <a
-                href="https://github.com/Denominator-Ventures/dividen"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto text-center border border-white/10 hover:border-white/20 text-white/70 hover:text-white px-8 py-3.5 rounded-xl transition-all text-base"
-              >
-                View on GitHub →
-              </a>
               {mounted && <DownloadAppButton />}
             </div>
           </div>
@@ -558,14 +528,14 @@ export function LandingPage() {
         <div className="max-w-5xl mx-auto px-6">
           <div className="text-center mb-16">
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-400 mb-4">
-              Architecture
+              Under the Hood
             </p>
             <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-              Protocol-first. Frontend-second.
+              Built on a real protocol.
             </h2>
             <p className="text-white/40 max-w-2xl mx-auto">
-              DiviDen is not a dashboard. It&apos;s a protocol — a structured way for personal AI
-              agents to coordinate on behalf of the humans they serve.
+              DiviDen isn&apos;t just a UI. Under the hood, it&apos;s a structured protocol for personal AI
+              agents to coordinate, share context, and act — so you don&apos;t have to.
             </p>
           </div>
 
@@ -588,44 +558,28 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Open Source Banner ──────────────────────────────────────────── */}
+      {/* ── Open Core Banner ──────────────────────────────────────────── */}
       <section className="py-20 md:py-32 border-t border-white/[0.04]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="p-12 rounded-2xl border border-white/[0.06] bg-gradient-to-b from-brand-500/[0.04] to-transparent">
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-400 mb-4">
-              Open Source
+              Open Core
             </p>
             <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-              Build your own interface.
+              Your data. Your agent. Your rules.
             </h2>
             <p className="text-white/40 max-w-xl mx-auto mb-8 leading-relaxed">
-              DiviDen is a protocol, not a product. The entire stack is open source —
-              fork it, self-host it, and build the interface that fits the way you work.
-              No vendor lock-in. No permission needed.
+              DiviDen&apos;s core is MIT-licensed. Self-host it, extend it, or let us run it for you.
+              Premium features like the agent marketplace, team coordination, and federation
+              live on our managed service — but the engine is yours.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a
-                href="https://os.dividen.ai"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/setup"
                 className="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-black font-medium px-8 py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-brand-500/20"
               >
-                Explore the Open Source Project →
-              </a>
-              <a
-                href="/docs/federation"
-                className="w-full sm:w-auto text-center border border-white/10 hover:border-brand-500/40 text-white/70 hover:text-white font-medium px-8 py-3.5 rounded-xl transition-all"
-              >
-                Federation Guide →
-              </a>
-              <a
-                href="https://github.com/Denominator-Ventures/dividen"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full sm:w-auto text-center bg-white/10 hover:bg-white/15 text-white px-8 py-3.5 rounded-xl transition-all font-medium"
-              >
-                ⭐ Star on GitHub
-              </a>
+                Get Started for Free →
+              </Link>
             </div>
           </div>
         </div>
@@ -635,16 +589,16 @@ export function LandingPage() {
       <section className="py-24 md:py-36 border-t border-white/[0.04]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="font-heading text-3xl sm:text-4xl md:text-5xl font-bold mb-6 leading-tight">
-            Your agent.{' '}
+            Less noise.{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-300">
-              Your marketplace.
+              More leverage.
             </span>
             <br />
-            Your terms.
+            Start today.
           </h2>
           <p className="text-white/40 max-w-lg mx-auto mb-10 leading-relaxed">
-            One agent. One protocol. Every collaboration — handled.
-            Sign up to access the Agent Marketplace, list your own agents, and start earning.
+            Connect your email, let Divi learn how you work, and reclaim the hours you spend on coordination.
+            The marketplace and team features are there when you&apos;re ready for them.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
@@ -667,25 +621,9 @@ export function LandingPage() {
       <footer className="border-t border-white/[0.04] py-12">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            <span className="text-sm text-white/30">DiviDen — The Agentic Working Protocol</span>
+            <span className="text-sm text-white/30">DiviDen — Your AI Command Center</span>
 
             <div className="flex items-center gap-6 text-sm text-white/30">
-              <a
-                href="https://os.dividen.ai"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white/60 transition-colors"
-              >
-                Open Source
-              </a>
-              <a
-                href="https://github.com/Denominator-Ventures/dividen"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:text-white/60 transition-colors"
-              >
-                GitHub
-              </a>
               <Link href="/updates" className="relative hover:text-white/60 transition-colors">
                 Updates
                 {todayUpdateCount > 0 && (

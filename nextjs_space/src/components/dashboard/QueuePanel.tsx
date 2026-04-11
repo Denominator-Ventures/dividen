@@ -29,10 +29,12 @@ function QueueItemCard({
   item,
   onStatusChange,
   onDelete,
+  onSendToComms,
 }: {
   item: QueueItemData;
   onStatusChange: (id: string, status: QueueItemStatus) => void;
   onDelete: (id: string) => void;
+  onSendToComms?: (id: string, title: string) => void;
 }) {
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
 
@@ -94,6 +96,15 @@ function QueueItemCard({
               title="Unblock"
             >
               ↩
+            </button>
+          )}
+          {onSendToComms && (
+            <button
+              onClick={() => onSendToComms(item.id, item.title)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
+              title="Send to Comms"
+            >
+              📡
             </button>
           )}
           <button
@@ -243,6 +254,25 @@ export function QueuePanel({ onNavigateToMarketplace }: QueuePanelProps = {}) {
       setItems((prev) => prev.filter((i) => i.id !== id));
     } catch {
       // ignore
+    }
+  }
+
+  async function handleSendToComms(id: string, title: string) {
+    try {
+      await fetch('/api/comms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `Queue item forwarded to comms: ${title}`,
+          sender: 'divi',
+          priority: 'normal',
+          metadata: { source: 'queue', queueItemId: id },
+        }),
+      });
+      // Mark the queue item as done since it's been sent to comms
+      await handleStatusChange(id, 'done_today');
+    } catch (e) {
+      console.error('Failed to send to comms:', e);
     }
   }
 
@@ -423,7 +453,7 @@ export function QueuePanel({ onNavigateToMarketplace }: QueuePanelProps = {}) {
                       </div>
                       <div className="space-y-2">
                         {sectionItems.map((item) => (
-                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} />
+                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} />
                         ))}
                       </div>
                     </div>

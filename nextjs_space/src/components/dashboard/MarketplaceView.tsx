@@ -124,6 +124,7 @@ interface MarketplaceViewProps {
     category?: string;
   };
   onPrefillConsumed?: () => void;
+  initialView?: ViewMode;
 }
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -165,8 +166,8 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function MarketplaceView({ prefillAgent, onPrefillConsumed }: MarketplaceViewProps = {}) {
-  const [view, setView] = useState<ViewMode>('browse');
+export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }: MarketplaceViewProps = {}) {
+  const [view, setView] = useState<ViewMode>(initialView || 'browse');
   const [agents, setAgents] = useState<MarketplaceAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<MarketplaceAgent | null>(null);
   const [loading, setLoading] = useState(true);

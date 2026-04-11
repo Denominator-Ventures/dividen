@@ -36,6 +36,7 @@ interface NowData {
 interface NowPanelProps {
   onNewTask?: () => void;
   onQuickChat?: () => void;
+  onItemClick?: (title: string) => void;
 }
 
 const URGENCY_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
@@ -54,7 +55,7 @@ const TYPE_ICONS: Record<string, string> = {
   goal_check: '⚡',
 };
 
-export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
+export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps) {
   const [data, setData] = useState<NowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTask, setShowNewTask] = useState(false);
@@ -196,7 +197,11 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
             {items.slice(0, 10).map((item, idx) => {
               const colors = URGENCY_COLORS[item.urgency] || URGENCY_COLORS.low;
               return (
-                <div key={item.id} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border ${colors.bg} transition-colors`}>
+                <button
+                  key={item.id}
+                  onClick={() => onItemClick?.(item.title)}
+                  className={`w-full text-left flex items-center gap-2 px-2.5 py-2 rounded-lg border ${colors.bg} transition-colors hover:brightness-125 cursor-pointer`}
+                >
                   <span className="text-[9px] text-[var(--text-muted)] font-mono w-3">{idx + 1}</span>
                   <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
                   <span className="text-[10px] flex-shrink-0">{TYPE_ICONS[item.type] || '📋'}</span>
@@ -205,7 +210,7 @@ export function NowPanel({ onNewTask, onQuickChat }: NowPanelProps) {
                     {item.subtitle && <div className={`text-[9px] ${colors.text} truncate`}>{item.subtitle}</div>}
                   </div>
                   <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
-                </div>
+                </button>
               );
             })}
             {items.length > 10 && (

@@ -41,6 +41,12 @@ export default function DashboardPage() {
   });
 
   const [marketplacePrefill, setMarketplacePrefill] = useState<any>(null);
+  const [chatPrefill, setChatPrefill] = useState<string | null>(null);
+
+  const handleNowItemClick = useCallback((title: string) => {
+    setChatPrefill(`Help me with: ${title}`);
+    setActiveTab('chat');
+  }, []);
 
   // Check for tab navigation from Comms/Extensions/Connections pages
   useEffect(() => {
@@ -313,10 +319,10 @@ export default function DashboardPage() {
           {/* ── Desktop: 3-column layout ── */}
           <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
             <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} />
+              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} />
             </div>
             <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} />
+              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
             </div>
             <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
               <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
@@ -329,12 +335,12 @@ export default function DashboardPage() {
             <div className="flex-1 min-h-0 p-1 flex flex-col">
               {mobilePanel === 'now' && (
                 <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} />
+                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} />
                 </div>
               )}
               {mobilePanel === 'center' && (
                 <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} />
+                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
                 </div>
               )}
               {mobilePanel === 'queue' && (

@@ -25,6 +25,8 @@ interface CenterPanelProps {
   onTabChange: (tab: CenterTab) => void;
   marketplacePrefill?: any;
   onMarketplacePrefillConsumed?: () => void;
+  chatPrefill?: string | null;
+  onChatPrefillConsumed?: () => void;
 }
 
 /* ── Tab Organization ──────────────────────────────────────── */
@@ -60,41 +62,46 @@ const messagesTabIds = new Set(messagesTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed }: CenterPanelProps) {
+export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
   const isMessagesActive = messagesTabIds.has(activeTab);
   const hasSubRow = isNetworkActive || isMessagesActive;
   const activeSubTabs = isNetworkActive ? networkTabs : isMessagesActive ? messagesTabs : [];
 
-  /* ── Drag-to-scroll for touch & mouse ── */
+  /* ── Drag-to-scroll for touch & mouse (with threshold to allow clicks) ── */
   const scrollRef = useRef<HTMLDivElement>(null);
-  const dragState = useRef({ isDown: false, startX: 0, scrollLeft: 0 });
+  const dragState = useRef({ isDown: false, isDragging: false, startX: 0, scrollLeft: 0, pointerId: -1 });
 
   const onPointerDown = useCallback((e: React.PointerEvent) => {
     const el = scrollRef.current;
     if (!el) return;
-    dragState.current = { isDown: true, startX: e.clientX - el.offsetLeft, scrollLeft: el.scrollLeft };
-    el.setPointerCapture(e.pointerId);
-    el.style.cursor = 'grabbing';
+    dragState.current = { isDown: true, isDragging: false, startX: e.clientX, scrollLeft: el.scrollLeft, pointerId: e.pointerId };
   }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent) => {
     if (!dragState.current.isDown) return;
     const el = scrollRef.current;
     if (!el) return;
-    e.preventDefault();
-    const x = e.clientX - el.offsetLeft;
-    const walk = (x - dragState.current.startX) * 1.5;
-    el.scrollLeft = dragState.current.scrollLeft - walk;
+    const dx = e.clientX - dragState.current.startX;
+    // Only start dragging after 5px threshold
+    if (!dragState.current.isDragging && Math.abs(dx) > 5) {
+      dragState.current.isDragging = true;
+      el.setPointerCapture(dragState.current.pointerId);
+      el.style.cursor = 'grabbing';
+    }
+    if (dragState.current.isDragging) {
+      e.preventDefault();
+      el.scrollLeft = dragState.current.scrollLeft - dx;
+    }
   }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent) => {
-    dragState.current.isDown = false;
     const el = scrollRef.current;
-    if (el) {
-      el.releasePointerCapture(e.pointerId);
+    if (el && dragState.current.isDragging) {
+      try { el.releasePointerCapture(e.pointerId); } catch {}
       el.style.cursor = '';
     }
+    dragState.current = { isDown: false, isDragging: false, startX: 0, scrollLeft: 0, pointerId: -1 };
   }, []);
 
   const tabClass = (active: boolean) =>
@@ -156,6 +163,11 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
           <button onClick={() => onTabChange('extensions')} className={tabClass(activeTab === 'extensions')}>
             🧩 Extensions
           </button>
+
+          {/* Earnings — standalone */}
+          <button onClick={() => onTabChange('earnings')} className={tabClass(activeTab === 'earnings')}>
+            💰 Earnings
+          </button>
         </div>
 
         {/* ── Sub-tabs (Network or Messages) ── */}
@@ -181,7 +193,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
 
       {/* ── Tab Content ── */}
       <div className="flex-1 overflow-hidden relative">
-        {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView /></TabErrorBoundary>}
+        {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView prefill={chatPrefill} onPrefillConsumed={onChatPrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
         {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
         {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView /></TabErrorBoundary>}
@@ -195,6 +207,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'jobs' && <TabErrorBoundary tabName="Jobs"><JobBoardView /></TabErrorBoundary>}
         {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'extensions' && <TabErrorBoundary tabName="Extensions"><ExtensionsView /></TabErrorBoundary>}
+        {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
       </div>
     </div>

@@ -11,11 +11,20 @@ type Step = 'welcome' | 'agent' | 'workspace' | 'connect' | 'done';
 
 const STEPS: Step[] = ['welcome', 'agent', 'workspace', 'connect', 'done'];
 
-const STARTER_TASKS = [
-  { title: 'Try chatting with Divi', description: 'Open the Chat tab and ask Divi to help you with something. Try: "What can you help me with?"', type: 'task' as const, priority: 'medium' as const },
-  { title: 'Create your first kanban card', description: 'Go to the Board tab, click + Add Card, and create a card for something you\'re working on.', type: 'task' as const, priority: 'medium' as const },
-  { title: 'Add a contact to your CRM', description: 'Open the CRM tab and add someone you work with. Divi will help you enrich their profile.', type: 'task' as const, priority: 'low' as const },
-  { title: 'Explore the Agent Marketplace', description: 'Check out the Marketplace tab under Network to discover and install agent extensions.', type: 'task' as const, priority: 'low' as const },
+// NOW items — high-priority, action-oriented, show up immediately in the NOW panel
+const NOW_TASKS = [
+  { title: 'Connect your email', description: 'Let Divi read your inbox, surface what matters, and draft responses. This is the #1 way to get value fast.', type: 'task' as const, priority: 'urgent' as const },
+  { title: 'Chat with Divi', description: 'Open the Chat tab and try: "What can you help me with?" — Divi learns your style the more you interact.', type: 'task' as const, priority: 'high' as const },
+  { title: 'Add your first contact', description: 'Open CRM and add someone you work with. Divi will help you track context and history.', type: 'task' as const, priority: 'high' as const },
+  { title: 'Set a goal', description: 'Go to Goals and create something you\'re working toward. Divi will track progress and nudge you.', type: 'task' as const, priority: 'medium' as const },
+];
+
+// Queue items — lower-priority exploration tasks, show in Queue panel separately
+const QUEUE_TASKS = [
+  { title: 'Explore the Agent Marketplace', description: 'Discover community-built agents under Network → Marketplace. Install one to extend Divi.', type: 'task' as const, priority: 'low' as const },
+  { title: 'Create a kanban card', description: 'Go to Board and create a card for a project you\'re tracking. Divi can help manage it.', type: 'task' as const, priority: 'low' as const },
+  { title: 'Invite a collaborator', description: 'Go to Network → Connections and invite someone. Your agents will coordinate automatically.', type: 'task' as const, priority: 'low' as const },
+  { title: 'Check out Extensions', description: 'Browse the Extensions tab to see available integrations and agent plugins.', type: 'task' as const, priority: 'low' as const },
 ];
 
 export function OnboardingWizard({ userName, onComplete }: OnboardingWizardProps) {
@@ -40,9 +49,16 @@ export function OnboardingWizard({ userName, onComplete }: OnboardingWizardProps
   const finishOnboarding = useCallback(async () => {
     setLoading(true);
     try {
-      // Seed starter tasks if opted in
+      // Seed starter tasks if opted in — NOW items (high priority) + Queue items (low priority)
       if (seedTasks) {
-        for (const task of STARTER_TASKS) {
+        for (const task of NOW_TASKS) {
+          await fetch('/api/queue', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...task, source: 'system' }),
+          }).catch(() => {});
+        }
+        for (const task of QUEUE_TASKS) {
           await fetch('/api/queue', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -145,19 +161,33 @@ export function OnboardingWizard({ userName, onComplete }: OnboardingWizardProps
           {/* ── Workspace Setup ─────────── */}
           {step === 'workspace' && (
             <div>
-              <div className="text-3xl mb-3">📋</div>
+              <div className="text-3xl mb-3">⚡</div>
               <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">Seed your workspace</h2>
-              <p className="text-sm text-[var(--text-secondary)] mb-5">
-                We&apos;ll add a few starter tasks to your queue so you can learn the system by doing.
+              <p className="text-sm text-[var(--text-secondary)] mb-4">
+                We&apos;ll add starter items to get you moving. High-priority actions land in <strong>NOW</strong>, exploration tasks go to your <strong>Queue</strong>.
               </p>
 
-              <div className="space-y-2 mb-5">
-                {STARTER_TASKS.map((task, i) => (
-                  <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)]">
-                    <span className="text-brand-400 mt-0.5">✦</span>
+              <p className="text-[10px] text-brand-400 uppercase tracking-wider font-medium mb-2">⚡ NOW — Do These First</p>
+              <div className="space-y-1.5 mb-4">
+                {NOW_TASKS.map((task, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-brand-500/5 border border-brand-500/15">
+                    <span className="text-brand-400 mt-0.5 text-xs">●</span>
                     <div>
                       <p className="text-sm text-[var(--text-primary)] font-medium">{task.title}</p>
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{task.description}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{task.description}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider font-medium mb-2">📋 Queue — Explore Later</p>
+              <div className="space-y-1.5 mb-4">
+                {QUEUE_TASKS.map((task, i) => (
+                  <div key={i} className="flex items-start gap-3 p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)]">
+                    <span className="text-[var(--text-muted)] mt-0.5 text-xs">○</span>
+                    <div>
+                      <p className="text-sm text-[var(--text-primary)] font-medium">{task.title}</p>
+                      <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{task.description}</p>
                     </div>
                   </div>
                 ))}
@@ -170,7 +200,7 @@ export function OnboardingWizard({ userName, onComplete }: OnboardingWizardProps
                   onChange={(e) => setSeedTasks(e.target.checked)}
                   className="rounded border-[var(--border-color)] bg-[var(--bg-primary)] text-brand-400 focus:ring-brand-400"
                 />
-                <span className="text-sm text-[var(--text-secondary)]">Add these starter tasks to my queue</span>
+                <span className="text-sm text-[var(--text-secondary)]">Add these starter items</span>
               </label>
 
               <div className="flex justify-between">
@@ -218,7 +248,7 @@ export function OnboardingWizard({ userName, onComplete }: OnboardingWizardProps
               <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">You&apos;re all set</h2>
               <p className="text-sm text-[var(--text-secondary)] mb-6 leading-relaxed">
                 Your workspace is ready. Start by chatting with {agentName || 'Divi'} — ask it anything.
-                {seedTasks && ' Check your Queue for starter tasks.'}
+                {seedTasks && ' Your NOW panel has action items, and your Queue has exploration tasks.'}
               </p>
               <button
                 onClick={finishOnboarding}

@@ -178,7 +178,7 @@ export default function CommsPage() {
             <span className="font-bold text-brand-400 text-base md:text-lg tracking-tight">DiviDen</span>
           </Link>
           <div className="w-px h-5 bg-[var(--border-color)]" />
-          <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>Comms</span>
+          <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>Comms — Agent Relay Channel</span>
           {unreadCount > 0 && (
             <span className="bg-[var(--brand-primary)] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
               {unreadCount}
@@ -261,9 +261,9 @@ export default function CommsPage() {
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
                 <div className="text-3xl mb-3">📡</div>
-                <p className="text-sm text-[var(--text-secondary)] mb-1">No messages yet</p>
+                <p className="text-sm text-[var(--text-secondary)] mb-1">No relay messages yet</p>
                 <p className="text-xs text-[var(--text-muted)]">
-                  Send tasks to Divi or wait for her proactive updates here.
+                  This is where Divi communicates with other agents — relays, marketplace dispatches, and cross-agent coordination appear here.
                 </p>
               </div>
             ) : (

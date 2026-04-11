@@ -20,9 +20,14 @@ interface TagResult {
   error?: string;
 }
 
+interface ChatViewProps {
+  prefill?: string | null;
+  onPrefillConsumed?: () => void;
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ChatView() {
+export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -41,6 +46,16 @@ export function ChatView() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
+
+  // ── Handle prefill from NOW panel click ──────────────────────────────
+  useEffect(() => {
+    if (prefill) {
+      setInput(prefill);
+      onPrefillConsumed?.();
+      // Focus the input after setting prefill
+      setTimeout(() => inputRef.current?.focus(), 100);
+    }
+  }, [prefill, onPrefillConsumed]);
 
   // ── Fetch chat history ────────────────────────────────────────────────
   useEffect(() => {
