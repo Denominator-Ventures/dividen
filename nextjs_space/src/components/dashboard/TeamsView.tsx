@@ -35,14 +35,25 @@ interface ProjectContextData {
   summary: { totalCards: number; totalQueue: number; totalRelays: number; cardsByStatus: Record<string, number>; blockedMembers: string[] };
 }
 
+interface TeamSubscriptionInfo {
+  tier: string;
+  status: string;
+  memberLimit: number;
+  trialEndsAt?: string | null;
+}
+
 interface Team {
   id: string;
   name: string;
   description: string | null;
   avatar: string | null;
   isActive: boolean;
+  headline?: string | null;
+  type?: string;
+  visibility?: string;
   members: TeamMember[];
-  _count: { projects: number; queueItems: number; relays: number };
+  _count: { projects: number; queueItems: number; relays: number; followers?: number };
+  subscription?: TeamSubscriptionInfo | null;
 }
 
 type View = 'list' | 'team-detail' | 'project-detail';
@@ -255,8 +266,18 @@ export function TeamsView() {
                   <div className="flex items-center gap-2">
                     <h3 className="font-medium text-sm truncate">{team.name}</h3>
                     {!team.isActive && <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.06] text-white/40">Inactive</span>}
+                    {team.subscription && (
+                      <span className={cn(
+                        'text-[9px] px-1.5 py-0.5 rounded-full font-medium',
+                        team.subscription.tier === 'pro' ? 'bg-purple-500/15 text-purple-400' : 'bg-brand-500/15 text-brand-400'
+                      )}>
+                        {team.subscription.tier === 'pro' ? '⚡ Pro' : '🌱 Starter'}
+                        {team.subscription.status === 'trialing' && ' trial'}
+                      </span>
+                    )}
                   </div>
-                  {team.description && <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{team.description}</p>}
+                  {team.headline && <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{team.headline}</p>}
+                  {!team.headline && team.description && <p className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">{team.description}</p>}
                 </div>
                 <div className="text-right shrink-0">
                   <div className="flex items-center gap-3 text-[10px] text-[var(--text-muted)]">
@@ -330,14 +351,56 @@ export function TeamsView() {
           <button onClick={() => { setView('list'); setSelectedTeam(null); }} className="text-xs text-brand-400 hover:text-brand-300 mb-2">← Back to Teams</button>
           <div className="flex items-center gap-3">
             <span className="text-2xl">{team.avatar || '👥'}</span>
-            <div>
-              <h2 className="font-semibold text-lg">{team.name}</h2>
-              {team.description && <p className="text-xs text-[var(--text-secondary)]">{team.description}</p>}
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold text-lg">{team.name}</h2>
+                {team.subscription && (
+                  <span className={cn(
+                    'text-[9px] px-1.5 py-0.5 rounded-full font-medium',
+                    team.subscription.tier === 'pro' ? 'bg-purple-500/15 text-purple-400' : 'bg-brand-500/15 text-brand-400'
+                  )}>
+                    {team.subscription.tier === 'pro' ? '⚡ Pro' : '🌱 Starter'}
+                  </span>
+                )}
+              </div>
+              {team.headline && <p className="text-xs text-[var(--text-secondary)]">{team.headline}</p>}
+              {!team.headline && team.description && <p className="text-xs text-[var(--text-secondary)]">{team.description}</p>}
             </div>
+            <a
+              href={`/team/${team.id}`}
+              className="text-[10px] px-3 py-1.5 rounded-lg bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-brand-400 transition-colors flex-shrink-0"
+            >
+              Full Profile →
+            </a>
           </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* Subscription info */}
+          {team.subscription && (
+            <div className={cn(
+              'p-3 rounded-lg border',
+              team.subscription.tier === 'pro' ? 'bg-purple-500/5 border-purple-500/15' : 'bg-brand-500/5 border-brand-500/15'
+            )}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">
+                    {team.subscription.tier === 'pro' ? '⚡ Team Pro' : '🌱 Team Starter'}
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)] capitalize">{team.subscription.status}</span>
+                </div>
+                <span className="text-[10px] text-[var(--text-muted)]">
+                  {team.members.length}/{team.subscription.memberLimit} seats
+                </span>
+              </div>
+              {team.subscription.status === 'trialing' && team.subscription.trialEndsAt && (
+                <div className="text-[10px] text-amber-400 mt-1">
+                  Trial ends {new Date(team.subscription.trialEndsAt).toLocaleDateString()}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2">
             {[

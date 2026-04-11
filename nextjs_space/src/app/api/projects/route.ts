@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { checkTeamProjectLimit, FeatureGateError } from '@/lib/feature-gates';
 
 // GET /api/projects — list projects for current user
 export async function GET(req: NextRequest) {
@@ -79,10 +80,19 @@ export async function POST(req: NextRequest) {
     const validVisibilities = ['private', 'team', 'open'];
     const vis = validVisibilities.includes(visibility) ? visibility : 'private';
 
-    // If teamId, verify user is in the team
+    // If teamId, verify user is in the team and enforce project limits
     if (teamId) {
       const membership = await prisma.teamMember.findFirst({ where: { teamId, userId } });
       if (!membership) return NextResponse.json({ error: 'Not a member of this team' }, { status: 403 });
+      
+      try {
+        await checkTeamProjectLimit(teamId);
+      } catch (err) {
+        if (err instanceof FeatureGateError) {
+          return NextResponse.json({ error: err.message, code: err.code, tier: err.tier }, { status: 403 });
+        }
+        throw err;
+      }
     }
 
     // "team" visibility requires a team

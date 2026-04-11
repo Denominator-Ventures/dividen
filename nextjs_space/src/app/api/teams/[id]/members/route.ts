@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
 
 // POST /api/teams/:id/members — add a member (local user or federated connection)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -17,6 +18,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       where: { teamId: params.id, userId, role: { in: ['owner', 'admin'] } },
     });
     if (!callerMembership) return NextResponse.json({ error: 'Not authorized' }, { status: 403 });
+
+    // Enforce member limit based on subscription
+    try {
+      await checkTeamMemberLimit(params.id);
+    } catch (err) {
+      if (err instanceof FeatureGateError) {
+        return NextResponse.json({ error: err.message, code: err.code, tier: err.tier }, { status: 403 });
+      }
+      throw err;
+    }
 
     const body = await req.json();
     const { email, connectionId, role } = body;
