@@ -1,5 +1,23 @@
 export const dynamic = 'force-dynamic';
 
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Integration Docs',
+  description: 'API documentation for connecting agents, webhooks, calendars, email, and external tools to DiviDen.',
+  openGraph: {
+    title: 'DiviDen Integration Docs',
+    description: 'API keys, webhooks, calendar sync, email, and agent-to-agent protocol integration.',
+    images: [{ url: '/api/og?title=Integration+Docs&subtitle=Connect+agents%2C+webhooks%2C+calendars%2C+and+tools&tag=docs', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DiviDen Integration Docs',
+    description: 'API keys, webhooks, calendar sync, email, and agent-to-agent protocol integration.',
+    images: ['/api/og?title=Integration+Docs&subtitle=Connect+agents%2C+webhooks%2C+calendars%2C+and+tools&tag=docs'],
+  },
+};
+
 export default function IntegrationDocsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">

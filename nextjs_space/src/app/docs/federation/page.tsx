@@ -1,5 +1,23 @@
 export const dynamic = 'force-dynamic';
 
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Federation Guide',
+  description: 'How to connect DiviDen instances — self-hosted, platform, or standalone agents speaking the DiviDen Agentic Working Protocol.',
+  openGraph: {
+    title: 'DiviDen Federation Guide',
+    description: 'Connect instances across the DiviDen network. A2A relays, trust-scoped connections, federated coordination.',
+    images: [{ url: '/api/og?title=Federation+Guide&subtitle=Connect+DiviDen+instances+across+the+network&tag=docs', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DiviDen Federation Guide',
+    description: 'Connect instances across the DiviDen network. A2A relays, trust-scoped connections, federated coordination.',
+    images: ['/api/og?title=Federation+Guide&subtitle=Connect+DiviDen+instances+across+the+network&tag=docs'],
+  },
+};
+
 export default function FederationDocsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">

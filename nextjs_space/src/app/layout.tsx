@@ -13,7 +13,10 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'DiviDen — The Agentic Working Protocol',
+  title: {
+    default: 'DiviDen — The Agentic Working Protocol',
+    template: '%s | DiviDen',
+  },
   description: 'The last interface you\'ll ever need. Your personal AI agent that manages your pipeline, coordinates with other agents, and acts on your behalf — across every team, tool, and company boundary.',
   metadataBase: new URL(process.env.NEXTAUTH_URL || 'http://localhost:3000'),
   icons: {
@@ -34,11 +37,10 @@ export const metadata: Metadata = {
     type: 'website',
     images: [
       {
-        url: '/og-image.png',
-        width: 1436,
-        height: 682,
-        alt: 'DiviDen — The last interface you\'ll ever need',
-        type: 'image/png',
+        url: '/api/og?title=DiviDen&subtitle=The+Agentic+Working+Protocol',
+        width: 1200,
+        height: 630,
+        alt: 'DiviDen — The Agentic Working Protocol',
       },
     ],
   },
@@ -46,7 +48,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'DiviDen — The Last Interface You\'ll Ever Need',
     description: 'Your personal AI agent that manages your pipeline, coordinates with other agents, and acts on your behalf.',
-    images: ['/og-image.png'],
+    images: ['/api/og?title=DiviDen&subtitle=The+Agentic+Working+Protocol'],
   },
 };
 

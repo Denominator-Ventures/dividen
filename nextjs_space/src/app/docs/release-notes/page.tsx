@@ -1,5 +1,23 @@
 export const dynamic = 'force-dynamic';
 
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Release Notes',
+  description: 'FVP Integration Brief — 14 proposals implemented. Schema changes, new APIs, MCP v1.3.0, agent card v0.3.0, federation intelligence.',
+  openGraph: {
+    title: 'DiviDen Release Notes — FVP Build',
+    description: '14 proposals across 4 tiers. MCP v1.3.0 (22 tools), Agent Card v0.3.0, federation intelligence layer.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=FVP+Integration+Brief+%E2%80%94+14+Proposals%2C+One+Build&tag=release', width: 1200, height: 630 }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'DiviDen Release Notes — FVP Build',
+    description: '14 proposals across 4 tiers. MCP v1.3.0 (22 tools), Agent Card v0.3.0, federation intelligence layer.',
+    images: ['/api/og?title=Release+Notes&subtitle=FVP+Integration+Brief+%E2%80%94+14+Proposals%2C+One+Build&tag=release'],
+  },
+};
+
 export default function ReleaseNotesPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">

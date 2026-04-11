@@ -23,7 +23,7 @@ export const UPDATES: Update[] = [
     title: 'FVP Integration Brief — 14 Proposals, One Build',
     subtitle: 'Full implementation of the Fractional Venture Partners integration brief. Protocol hardening, federation marketplace, cross-instance intelligence, and network-level task routing.',
     tags: ['federation', 'protocol', 'a2a', 'mcp', 'intelligence', 'fvp', 'network'],
-    content: `This is the biggest single protocol expansion since DiviDen launched. Robert and the FVP team submitted a 14-proposal integration brief covering everything from basic protocol improvements to network-level AI intelligence. Every proposal is now implemented.
+    content: `This is the biggest single protocol expansion since DiviDen launched. The FVP team submitted a 14-proposal integration brief covering everything from basic protocol improvements to network-level AI intelligence. Every proposal is now implemented.
 
 ## Tier 1: Foundation (Proposals #1–5)
 
@@ -74,7 +74,7 @@ export const UPDATES: Update[] = [
 
 DiviDen isn't just a coordination tool anymore. It's a learning network. Every interaction makes the routing smarter. Every federation connection extends the intelligence graph. Every pattern shared makes every instance better at timing, phrasing, and routing.
 
-The FVP Command Center at cc.fractionalventure.partners is the first external node implementing against this protocol. As more instances come online, the network effects compound.
+The first external nodes are already implementing against this protocol. As more instances come online, the network effects compound.
 
 The protocol is the product. The network is the moat.
 
@@ -87,9 +87,9 @@ The protocol is the product. The network is the moat.
     title: 'Developer Experience Overhaul — One Command to Running',
     subtitle: 'Setup scripts, docker-compose for local Postgres, README rewrite, enhanced health checks. Getting from git clone to localhost:3000 should take five minutes, not five hours.',
     tags: ['dx', 'open-source', 'setup', 'docker', 'onboarding', 'community'],
-    content: `Huge thank you to **Robert** for putting in the work to clone, configure, and bring up a self-hosted DiviDen instance — and then writing honest, detailed notes about every friction point he hit. That's the kind of feedback that makes open-source projects actually usable instead of just theoretically open.
+    content: `Huge thank you to our first community contributor for putting in the work to clone, configure, and bring up a self-hosted DiviDen instance — and then writing honest, detailed notes about every friction point they hit. That's the kind of feedback that makes open-source projects actually usable instead of just theoretically open.
 
-Robert's notes identified eight specific issues, and every single one of them is addressed in this build.
+Their notes identified eight specific issues, and every single one of them is addressed in this build.
 
 ## What Changed
 
@@ -166,7 +166,7 @@ Hit \`http://localhost:3000/api/status\` after setup to confirm everything is wi
 
 Every instruction in the README and setup scripts works on macOS, Linux, WSL, and Windows. The PowerShell script handles Windows-specific differences (execution policy, sed vs string replacement, Docker Desktop). No more Linux-only commands in setup docs.
 
-## Robert's Issues → Resolutions
+## Community-Reported Issues → Resolutions
 
 | # | Issue | Resolution |
 |---|---|---|
@@ -181,7 +181,7 @@ Every instruction in the README and setup scripts works on macOS, Linux, WSL, an
 
 ## Why This Matters
 
-Open source that you can't run isn't open. The protocol spec, the architecture docs, the API surface — none of it means anything if a motivated person can't get from \`git clone\` to a working instance without reverse-engineering the setup. Robert proved that our onboarding had gaps. Now it doesn't.
+Open source that you can't run isn't open. The protocol spec, the architecture docs, the API surface — none of it means anything if a motivated person can't get from \`git clone\` to a working instance without reverse-engineering the setup. Community testing proved that our onboarding had gaps. Now it doesn't.
 
 The bar for "can I try this?" should be five minutes and one command. That's what this build delivers.`,
   },
@@ -505,11 +505,11 @@ The coordination marketplace is live. The network is now a place where work find
     date: '2026-04-09',
     time: '5:30 PM',
     title: '12 Extension Proposals, One Session — The FVP Contribution',
-    subtitle: 'Alvaro and the [Fractional Venture Partners](https://fractionalventure.partners) team submitted a complete DEP package. All 12 proposals are now implemented. DiviDen can now run with an external execution agent.',
+    subtitle: 'The FVP team submitted a complete DEP package. All 12 proposals are now implemented. DiviDen can now run with an external execution agent.',
     tags: ['federation', 'agent-protocol', 'open-source', 'community', 'dep'],
     content: `This is the update I've been most excited to write. Not because of the feature count — though it's significant — but because of what it represents. Someone outside our core team read the protocol, understood the architecture, and came back with a coherent package of 12 extension proposals that fit together like a system design doc.
 
-**Thank you to Alvaro and the entire [Fractional Venture Partners](https://fractionalventure.partners) team.** You didn't just suggest features — you submitted structured DEPs (DiviDen Extension Proposals) with specs, integration points, and dependency graphs. This is the kind of contribution that makes an open-source protocol real. You saw what DiviDen could be and drew the map to get there.
+**Thank you to the entire FVP team.** You didn't just suggest features — you submitted structured DEPs (DiviDen Extension Proposals) with specs, integration points, and dependency graphs. This is the kind of contribution that makes an open-source protocol real. You saw what DiviDen could be and drew the map to get there.
 
 ## What Are DEPs?
 
@@ -527,7 +527,7 @@ External agents now have a formal way to connect. \`POST /api/main-connect\` run
 
 There's a matching \`POST /api/main-disconnect\` for graceful teardown — cancels in-flight relays, deactivates the instance, and logs the disconnection.
 
-This is how [mAIn](https://fractionalventure.partners) (the FVP execution agent) connects to DiviDen. But it's not FVP-specific — any agent that speaks the protocol can use the same ceremony.
+This is how an external execution agent connects to DiviDen. It's not specific to any one team — any agent that speaks the protocol can use the same ceremony.
 
 ## The Relay↔Queue Bridge (DEP-003)
 
@@ -604,7 +604,7 @@ This is the foundation for multi-agent coordination. Thank you again to the FVP 
     tags: ['security', 'performance', 'open-source', 'community'],
     content: `This update is a collection of things that don't have flashy demos but matter more than anything we've shipped so far. It's the difference between a prototype and infrastructure people can depend on.
 
-And a big thank you to **Robert** — who pulled down the repo, ran through the full setup on his own machine, and sent back detailed notes on every friction point he hit. This is exactly how open source is supposed to work. You shipped code, someone used it, they told you what was broken, you fixed it. That loop is everything.
+And a big thank you to our first community contributor — who pulled down the repo, ran through the full setup on their own machine, and sent back detailed notes on every friction point they hit. This is exactly how open source is supposed to work. You shipped code, someone used it, they told you what was broken, you fixed it. That loop is everything.
 
 ## Security — Scoped Data Access
 
@@ -636,7 +636,7 @@ We created a baseline migration from the current schema (1,145 lines of SQL), ma
 
 ## Open Source Setup — Community-Driven Fixes
 
-Robert's feedback was specific and actionable. Every issue he flagged has been fixed:
+The community feedback was specific and actionable. Every issue flagged has been fixed:
 
 **\`.yarnrc.yml\`** — Was hardcoded with Linux-specific paths (\`/opt/hostedapp/...\`) and cache settings that only work in our hosted environment. Stripped all of it. Now it's just \`nodeLinker: node-modules\`. Works on Mac, Windows, Linux.
 
@@ -652,7 +652,7 @@ Robert's feedback was specific and actionable. Every issue he flagged has been f
 
 ## MIT License
 
-Robert also pointed out — correctly — that we had no license file. GitHub's default copyright rules apply without one, but that's ambiguous and not how open source should work.
+It was also pointed out — correctly — that we had no license file. GitHub's default copyright rules apply without one, but that's ambiguous and not how open source should work.
 
 We've added an **[MIT License](https://opensource.org/licenses/MIT)** (Copyright 2024-2026 [Denominator Ventures](https://denominator.ventures/)). MIT because the protocol should be as forkable and composable as possible. If you want to build on DiviDen — extend it, embed it, run it as infrastructure for your own product — you can. Attribution required, liability disclaimed, everything else is fair game.
 
@@ -682,7 +682,7 @@ No more "I got an invite email, signed up, and then couldn't find the connection
 
 **Setup**: The README is now your source of truth for getting a local instance running. Docker + Postgres + \`prisma migrate deploy\` + \`prisma db seed\` and you're up.
 
-Thank you again to Robert for testing the setup flow. If you're running your own instance and hit issues, open a [GitHub issue](https://github.com/Denominator-Ventures/dividen/issues) or reach out directly. The protocol gets better when people use it and tell us what's broken.
+If you're running your own instance and hit issues, open a [GitHub issue](https://github.com/Denominator-Ventures/dividen/issues) or reach out directly. The protocol gets better when people use it and tell us what's broken.
 
 — Jon`
   },
