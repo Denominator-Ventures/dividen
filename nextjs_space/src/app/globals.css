@@ -118,23 +118,38 @@
 
 /* ── Mobile Utilities ──────────────────────────────────────── */
 
-/* Safe area padding for iOS notch/home indicator */
-/* PWA standalone: lock viewport to prevent bounce/overscroll on dashboard */
-@media (display-mode: standalone) {
-  html {
-    height: 100dvh;
-    height: -webkit-fill-available;
-    overscroll-behavior: none;
+/* ── App shell: dynamic viewport height for dashboard/settings ── */
+/* Uses 100vh as a universal base, then layers on dvh and safe-area  */
+/* insets so the shell naturally fills the visible area on every     */
+/* device — desktop, mobile web, and PWA — without a rigid px/dvh   */
+/* fixed height.                                                     */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100vh;                    /* universal baseline             */
+}
+
+@supports (height: 100dvh) {
+  .app-shell {
+    height: 100dvh;                 /* dynamic viewport on mobile web */
   }
-  body {
-    height: 100dvh;
-    height: -webkit-fill-available;
-    overscroll-behavior: none;
+}
+
+/* PWA standalone: account for status bar & home indicator */
+@media (display-mode: standalone) {
+  html, body {
+    overscroll-behavior: none;      /* prevent rubber-band bounce     */
+  }
+  .app-shell {
+    height: 100vh;                  /* stable in standalone (no chrome bar) */
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 }
 
 .safe-bottom {
-  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom, 0px));
 }
 
 /* Touch-friendly tap targets */

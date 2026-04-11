@@ -15,7 +15,7 @@ export default async function SettingsLayout({
   }
 
   return (
-    <div className="h-dvh flex flex-col overflow-hidden">
+    <div className="app-shell">
       {/* Settings top bar */}
       <header className="flex-shrink-0 px-3 md:px-4 py-2.5 flex items-center justify-between border-b border-[var(--border-color)]">
         <div className="flex items-center gap-3">
