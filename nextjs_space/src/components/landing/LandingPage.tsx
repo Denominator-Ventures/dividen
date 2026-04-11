@@ -267,6 +267,9 @@ export function LandingPage() {
             <a href="#protocol" className="text-sm text-white/50 hover:text-white transition-colors">
               Protocol
             </a>
+            <a href="/docs/developers" className="text-sm text-white/50 hover:text-white transition-colors">
+              Docs
+            </a>
             <a
               href="https://os.dividen.ai"
               target="_blank"

@@ -12,6 +12,7 @@ import { Walkthrough } from '@/components/dashboard/Walkthrough';
 import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
+import NotificationCenter from '@/components/dashboard/NotificationCenter';
 import type { CenterTab } from '@/types';
 
 type MobilePanel = 'now' | 'center' | 'queue';
@@ -219,6 +220,9 @@ export default function DashboardPage() {
                   ⌘K
                 </kbd>
               </button>
+
+              {/* Notification Center */}
+              <NotificationCenter />
 
               {/* Comms Channel */}
               <button

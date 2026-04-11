@@ -22,8 +22,9 @@ model User {
   role          String    @default("admin")
   mode          String    @default("cockpit") // "cockpit" | "chief_of_staff"
   hasSeenWalkthrough Boolean @default(false)
-  acceptedTermsAt   DateTime? // null = not yet accepted
-  termsVersion      String?   // e.g. "1.0" — which version they accepted
+  acceptedTermsAt       DateTime? // null = not yet accepted
+  termsVersion          String?   // e.g. "1.0" — which version they accepted
+  notificationsLastSeen DateTime? // Timestamp of last notification feed view
 
   // Stripe integration
   stripeCustomerId        String?   @unique // Stripe customer ID for payment methods
@@ -142,6 +143,8 @@ model QueueItem {
 
   @@index([projectId])
   @@index([teamId])
+  @@index([userId, status])   // Composite: user queue by status
+  @@index([status, createdAt]) // Composite: overdue task checks
   @@map("queue_items")
 }
 
@@ -417,6 +420,8 @@ model ActivityLog {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([userId, createdAt]) // Composite: notification feed, activity timeline
+  @@index([userId, action])    // Composite: category-filtered activity queries
   @@map("activity_logs")
 }
 
@@ -441,6 +446,7 @@ model CalendarEvent {
 
   @@index([userId])
   @@index([startTime])
+  @@index([userId, startTime]) // Composite: user calendar range queries
   @@map("calendar_events")
 }
 
@@ -474,6 +480,7 @@ model EmailMessage {
   @@index([userId])
   @@index([receivedAt])
   @@index([isRead])
+  @@index([userId, isRead, receivedAt]) // Composite: unread email queries
   @@map("email_messages")
 }
 
@@ -694,6 +701,8 @@ model AgentRelay {
   @@index([status])
   @@index([createdAt])
   @@index([threadId])
+  @@index([fromUserId, status, createdAt]) // Composite: user relay inbox/outbox
+  @@index([toUserId, status])              // Composite: inbound relay filtering
   @@map("agent_relays")
 }
 
@@ -1543,5 +1552,7 @@ model MarketplaceExecution {
   @@index([userId])
   @@index([status])
   @@index([createdAt])
+  @@index([agentId, createdAt])  // Composite: agent execution history
+  @@index([userId, createdAt])   // Composite: user execution history
   @@map("marketplace_executions")
 }

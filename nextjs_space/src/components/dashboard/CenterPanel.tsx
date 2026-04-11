@@ -17,6 +17,7 @@ import { JobBoardView } from './JobBoardView';
 import { ExtensionsView } from './ExtensionsView';
 import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
+import { TabErrorBoundary } from './TabErrorBoundary';
 
 interface CenterPanelProps {
   activeTab: CenterTab;
@@ -178,20 +179,20 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
 
       {/* ── Tab Content ── */}
       <div className="flex-1 overflow-hidden relative">
-        {activeTab === 'chat' && <ChatView />}
-        {activeTab === 'kanban' && <KanbanView />}
-        {activeTab === 'crm' && <CrmView />}
-        {activeTab === 'calendar' && <CalendarView />}
-        {activeTab === 'inbox' && <InboxView />}
-        {activeTab === 'recordings' && <RecordingsView />}
-        {activeTab === 'drive' && <DriveView />}
-        {activeTab === 'connections' && <ConnectionsView />}
-        {activeTab === 'teams' && <TeamsView />}
-        {activeTab === 'goals' && <GoalsView />}
-        {activeTab === 'jobs' && <JobBoardView />}
-        {activeTab === 'marketplace' && <MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} />}
-        {activeTab === 'extensions' && <ExtensionsView />}
-        {activeTab === 'federation' && <FederationIntelligenceView />}
+        {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView /></TabErrorBoundary>}
+        {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
+        {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
+        {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView /></TabErrorBoundary>}
+        {activeTab === 'inbox' && <TabErrorBoundary tabName="Inbox"><InboxView /></TabErrorBoundary>}
+        {activeTab === 'recordings' && <TabErrorBoundary tabName="Recordings"><RecordingsView /></TabErrorBoundary>}
+        {activeTab === 'drive' && <TabErrorBoundary tabName="Drive"><DriveView /></TabErrorBoundary>}
+        {activeTab === 'connections' && <TabErrorBoundary tabName="Connections"><ConnectionsView /></TabErrorBoundary>}
+        {activeTab === 'teams' && <TabErrorBoundary tabName="Teams"><TeamsView /></TabErrorBoundary>}
+        {activeTab === 'goals' && <TabErrorBoundary tabName="Goals"><GoalsView /></TabErrorBoundary>}
+        {activeTab === 'jobs' && <TabErrorBoundary tabName="Jobs"><JobBoardView /></TabErrorBoundary>}
+        {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
+        {activeTab === 'extensions' && <TabErrorBoundary tabName="Extensions"><ExtensionsView /></TabErrorBoundary>}
+        {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
       </div>
     </div>
   );
