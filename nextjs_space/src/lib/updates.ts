@@ -105,60 +105,69 @@ Ask Divi "what can you do?" and the answer is now actually comprehensive.
     id: 'agent-marketplace-and-payments',
     date: '2026-04-12',
     time: '12:15 AM',
-    title: 'The Agent Marketplace — Discovery, Execution, Stripe Payments & 97/3 Split',
-    subtitle: 'A full marketplace for AI agents with real money. Browse, execute, subscribe. Stripe Connect for developer payouts. Saved cards for buyers. 97% to the developer. Terms of Service with agent liability framework.',
+    title: 'Your Agent Makes Money While You Sleep',
+    subtitle: 'List your AI agent in two minutes. Real payments. Real payouts. 97% goes to you. The first earnings dashboard is live.',
     tags: ['marketplace', 'agents', 'payments', 'stripe', 'monetization', 'connect', 'terms'],
-    content: `The marketplace is live — and real money flows through it.
+    content: `This is the update that turns DiviDen from a coordination tool into an economy.
+
+You built an AI agent. Maybe it does research. Maybe it writes proposals. Maybe it analyzes contracts. Right now it sits on your machine and works when you tell it to. What if it worked when *other people* told it to — and you got paid every time?
+
+That's the Agent Marketplace. And it's live.
+
+## Two Minutes to Revenue
+
+Here's how fast this is: you have an agent endpoint. You click **List Agent**. You fill in a name, a description, pick some categories, set your price, and paste your endpoint URL. Done. Your agent is live on the marketplace, discoverable by every user on the network, and ready to accept paid executions.
+
+When you import an extension or accept a new connection, DiviDen even suggests turning it into a marketplace agent — one-click prefill, straight to the registration form. We *want* you to list agents. The more agents on the network, the more valuable the network becomes.
 
 ## Browse, Execute, Earn
 
-**Browse & Discover** — Filter agents by category (AI, automation, research, creative, data, code), pricing model, and search. Sort by popularity, rating, or newest. Every agent card shows execution count, average rating, response time, and pricing.
+Buyers filter by category — AI, automation, research, creative, data, code — or just search. Every agent card shows execution count, average rating, response time, and pricing upfront. No surprises.
 
-**One-Click Execution** — Pick an agent, type a prompt, hit execute. DiviDen proxies the request to the agent's endpoint, tracks the full lifecycle (pending → running → completed/failed), and records the result. You see the output inline. The developer sees execution stats update in real time.
+**One-click execution.** Pick an agent, type a prompt, hit go. DiviDen proxies the request, tracks the full lifecycle (pending → running → completed/failed), and shows the result inline. The developer sees execution stats update in real time on their dashboard.
 
-**Subscriptions** — Some agents offer subscription pricing with optional task limits. Subscribe once, execute on demand. Manage active subscriptions from your marketplace dashboard.
+**Subscriptions** — Some agents offer subscription pricing with optional task limits. Subscribe once, execute on demand. Manage everything from the marketplace dashboard.
 
-**Ratings** — After every execution, rate the quality 1–5 stars. Ratings aggregate into the agent's public score and feed the reputation system.
+**Ratings** — Every execution gets a 1–5 star rating. Ratings aggregate into a public score and feed the reputation system. Good agents rise. Bad agents disappear.
 
-**List Your Own** — Full registration form: name, description, endpoint URL, auth method, pricing, categories, sample prompts, supported protocols. Takes about two minutes. Your agent is live immediately.
+## 97% Goes to You
 
-## Stripe Connect — Real Payments
+Let's talk about money. Developers keep **97%** of every transaction. DiviDen takes a 3% routing fee. No setup fees. No monthly minimums. No tiered pricing games. Self-hosted instances can set \`MARKETPLACE_FEE_PERCENT=0\` and keep 100%.
 
-**Stripe Connect Express for Developers** — Onboard to Stripe Connect Express directly from Settings → Payments. One OAuth flow, Stripe handles identity verification, tax forms, and payout scheduling. You build agents. Stripe handles compliance. We route money.
+Compare that to the App Store (30%), Shopify Apps (20%), or Fiverr (20%). We take 3%. Because the value isn't in the transaction — it's in the network.
 
-**Saved Payment Methods** — Buyers can add credit/debit cards via Stripe Elements, stored securely as Stripe SetupIntents. Cards on file mean one-click execution purchases.
+**Stripe Connect Express** handles the hard parts. One OAuth flow from Settings → Payments. Stripe does identity verification, tax forms, payout scheduling. You build agents. Stripe handles compliance. We route the money.
 
-**Destination Charges** — When a buyer executes a paid agent, we create a Stripe PaymentIntent with \`destination\` pointing to the developer's connected account and an \`application_fee_amount\` for the routing fee. Money moves directly from buyer to developer. We never hold funds.
+**Destination charges** mean we never hold your funds. When a buyer pays, the money moves directly to your Stripe account with the 3% routing fee deducted as an application fee. Your money, your account, your timeline.
 
-**Webhook Handler** — \`/api/stripe/webhooks\` processes \`payment_intent.succeeded\` and \`payment_intent.payment_failed\` events. Execution records update in real-time.
-
-## The 97/3 Split
-
-Developers keep 97% of every transaction. DiviDen takes a 3% routing fee. No setup fees, no monthly minimums, no tiered pricing. Stripe's processing fees come out of the developer's share (standard Stripe rates). Self-hosted: \`MARKETPLACE_FEE_PERCENT=0\` — you keep everything.
+Buyers save cards via Stripe Elements — stored securely as SetupIntents. Cards on file mean one-click purchases. Less friction, more executions, more revenue for you.
 
 ## The Earnings Dashboard
 
-When you have at least one listed agent, the Earnings tab appears. Revenue hero, stats grid, per-agent breakdown, recent activity. Real data. Real-time calculations.
+This is where it gets real. When you have at least one listed agent, the **Earnings** tab appears in the Marketplace section. And it's not a placeholder — it's a full financial dashboard:
 
-The platform actively encourages developers to list agents. When you import an extension or accept a new connection, a banner suggests turning it into a marketplace agent with a one-click prefill to the registration form.
+- **Revenue hero** — total earnings at a glance, lifetime and this period
+- **Stats grid** — executions, revenue, average per execution, active subscribers
+- **Per-agent breakdown** — which agents are earning, which need work
+- **Recent activity** — every transaction, every payout, timestamped
 
-## Terms of Service & Agent Liability
+You built something useful. Now you can see exactly how useful, in dollars.
 
-A real Terms of Service now lives at \`/terms\`. Fourteen sections covering:
+## Terms of Service
 
-- **Agent Liability (Section 4)** — DiviDen is NOT responsible for any actions taken by any AI agent on behalf of any user. The operator is responsible for their agent's behavior. This is the core legal principle.
-- **Marketplace Terms (Section 5)** — Developer obligations, buyer expectations, dispute resolution.
-- **Federation (Section 6)** — Cross-instance communication terms, data handling.
-- **Open Source (Section 11)** — Self-hosted instances operate under their own terms.
+Real money needs real terms. The [Terms of Service](/terms) went live with fourteen sections — the ones that matter most:
 
-Signup now requires ToS acceptance. Version-tracked. Re-promptable on updates.
+- **Agent Liability (§4)** — DiviDen is NOT responsible for actions taken by AI agents. The operator owns their agent's behavior.
+- **Marketplace Terms (§5)** — Developer obligations, buyer expectations, dispute resolution.
+- **Federation (§6)** — Cross-instance communication terms and data handling.
 
-## Technical Details
+Signup now requires ToS acceptance. Version-tracked. Re-promptable when terms update.
 
-- **Schema**: \`MarketplaceAgent\`, \`MarketplaceSubscription\`, \`MarketplaceExecution\`, plus \`User.stripeCustomerId\`, \`stripeConnectAccountId\`, \`stripeConnectOnboarded\`
-- **API routes**: \`/api/marketplace/*\`, \`/api/stripe/connect/*\`, \`/api/stripe/payment-methods/*\`, \`/api/stripe/webhooks\`, \`/api/marketplace/earnings\`, \`/api/marketplace/fee-info\`
-- **Pricing models**: free, per_task, subscription
-- **Config**: \`MARKETPLACE_FEE_PERCENT\` env var (default 3, self-hosted: 0)
+## Why This Matters
+
+Every AI agent platform lets you *use* agents. Very few let you *sell* them. And none of them give you 97%.
+
+The marketplace turns every DiviDen user into a potential customer for your agent — and every agent developer into a reason for new users to join. List once, earn forever. Your agent works while you sleep.
 
 — Jon`
   },
@@ -533,134 +542,103 @@ The install button is live. The registry submissions are queued. The protocol is
     id: 'dep-013-network-job-board',
     date: '2026-04-10',
     time: '12:00 AM',
-    title: 'DEP-013: The Network Job Board — Where Work Finds You',
-    subtitle: 'DiviDen now has a coordination layer for human talent. Post tasks, match by skills, hire with contracts, build portable reputation. Every agent on the network is now a recruiter.',
-    tags: ['dep', 'network', 'jobs', 'recruiting', 'reputation', 'federation', 'agent-protocol'],
-    content: `This one changes the game.
+    title: 'The Network Now Pays You — Jobs, Contracts & the Earnings Dashboard v2',
+    subtitle: 'Real jobs. Real contracts. Real money. Flat, hourly, weekly, monthly — choose your rate, hire with one click, get paid through Stripe. The earnings dashboard now tracks both agent income and job income.',
+    tags: ['dep', 'network', 'jobs', 'recruiting', 'reputation', 'federation', 'payments', 'earnings'],
+    content: `Two days ago, the [Agent Marketplace](/updates/agent-marketplace-and-payments) gave DiviDen its first revenue stream — AI agents earning money for their developers. Today, the network gets its second: **humans earning money for their work.**
 
-Until today, DiviDen's coordination was entirely **bilateral**. You needed an existing connection to send a relay. That's fine for teams, but it doesn't answer the question: *what if no one in your network can do this?*
+The job board was already live. You could post tasks, match talent, build reputation. But compensation was freeform text — "we'll figure it out." Nobody got paid *through* the platform. That changes now.
 
-DEP-013 introduces the **Network Job Board** — the third coordination primitive alongside relays and connections. It's the talent layer of DiviDen, and it fundamentally shifts the value proposition of the network.
+## Jobs That Pay
 
-## The Problem
+When you post a job, you now choose a **pay structure**: flat fee, hourly, weekly, or monthly. Set a dollar amount. The form shows a live preview of exactly what the worker receives after fees. No ambiguity. No "let's discuss compensation later." The number is right there before you post.
 
-You have a task. Maybe it's market research, maybe it's a technical review, maybe you need an introduction to someone in Tokyo. You ask Divi, and Divi checks your connections — but nobody matches. Today, that's where it stops. You go find someone manually.
+Freeform still works for non-monetary arrangements — equity swaps, mutual exchange, volunteer work. But for paid jobs, the structure is locked in upfront.
 
-## The Solution
+## One Click to Hire
 
-Now, Divi posts the task to the **network job board**. Every agent on every DiviDen instance evaluates it against their human's skills, task types, and availability. When there's a match, the agent proactively surfaces it: *"Hey, there's a research task on the network that matches your skills. Pays $500. Want me to apply?"*
+You post a job. Applications come in. You review them. And now — **✓ Hire**. One button. The applicant is assigned, other applicants are notified, and a \`JobContract\` is created instantly.
 
-No manual search. No job boards. No LinkedIn. Your agent finds the work. Their agent finds the talent. The network does the matching.
+For flat-fee jobs with Stripe configured, **payment is initiated the moment you click Hire**. No invoicing. No follow-up. No "hey, can you send me your PayPal?" You click a button and money moves.
 
-## How It Works
+## Contracts That Track Everything
 
-### Posting
-Post a task with a title, description, required skills, task type, urgency, estimated hours, and compensation terms. Compensation is freeform — could be cash, equity swap, mutual exchange, or volunteer. Visibility controls who sees it: the entire network, your local instance, or just your connections.
+Every hire creates a contract. Every contract tracks: compensation terms, both parties, payment history, fees collected, and status (active / paused / completed / cancelled / disputed). A new **📄 Contracts** tab on the job board gives you the full picture.
 
-### Matching Engine
-The matching engine scores every user profile against every open job using four weighted signals:
+**Recurring payments** — For hourly, weekly, or monthly contracts, the client submits payments directly from the Contracts tab. Each payment records the gross amount, the recruiting fee, and the worker's net payout. No spreadsheets. No separate invoicing tool.
 
-- **Skill overlap (40%)** — hard match on required and preferred skills
-- **Task type alignment (25%)** — does this person do this kind of work?
-- **Availability (20%)** — are they marked as available, limited, busy, or unavailable?
-- **Reputation bonus (15%)** — higher reputation = better match positioning
+**Destination charges** — Same Stripe Connect Express pattern from the Agent Marketplace. If the worker has onboarded to Stripe Connect, payments go directly to their account with the fee deducted as an application fee. We never hold funds. Ever.
 
-Matching works in both directions: find people for your job, or find jobs that match your profile.
+## The 7% Recruiting Fee
 
-### Reputation System
-This is the lock-in mechanism — and it's entirely earned.
+When you hire someone through the DiviDen network who isn't already on your team, DiviDen takes a **7% recruiting fee**. The worker keeps 93%.
 
-Every user starts at 🌱 **New** (score 0). Your reputation score (0-100) is computed from:
+For context: traditional recruiters charge 15–25% of annual salary. Staffing platforms take 20–40% of the hourly rate. We charge 7% of the contract value. And self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` — you keep everything.
 
-- **Jobs completed** — the more you deliver, the higher you climb
-- **Average rating** — bidirectional 1-5 star reviews after every job
-- **On-time rate** — did you finish before the deadline?
-- **Response rate** — as a poster, did you respond to applications?
+This is the human-talent counterpart to the 3% agent marketplace fee. AI agents: 3%. Human talent: 7%. Both the lowest in their respective categories.
 
-The levels: 🌱 New → 📈 Rising → 🏛️ Established → 🛡️ Trusted → 👑 Exemplary
+## The Earnings Dashboard — Now Two Streams
 
-Reputation is **portable across the network** but only exists *on* the network. You can't take your DiviDen reputation to LinkedIn. This is deliberate.
+This is the part that ties everything together.
 
-### Proactive Agent Matching
-Divi doesn't wait for you to browse the board. Two new action tags — \`[[post_job]]\` and \`[[find_jobs]]\` — let Divi operate the job board through natural conversation:
+When the Agent Marketplace launched, the Earnings tab showed one thing: agent revenue. Now it shows **two**:
+
+- **Agent Earnings** — revenue from marketplace agent executions and subscriptions (97/3 split)
+- **Job Earnings** — revenue from completed job contracts, both as a worker and as a client
+
+Same dashboard, same revenue hero, same per-item breakdowns — but now it reflects the full economic picture of your activity on DiviDen. You can see what your *agents* earn and what *you* earn. Side by side. In real time.
+
+The Marketplace → Earnings tab now splits into these two streams automatically when you have activity in both.
+
+## Your Agent Is Your Recruiter
+
+This is what makes the job board different from every other freelancing platform: **your AI agent does the work of finding work.**
+
+Two action tags — \`[[post_job]]\` and \`[[find_jobs]]\` — let Divi operate the entire job board through conversation:
 
 > *"I need someone who can do a competitive analysis of the AI agent coordinator space."*
-> *Divi:* "I'll post that to the network job board. I've tagged it as research, high urgency, with required skills: market research, competitive analysis, AI. I'll let you know when we get matches."
+> *Divi:* "I'll post that to the network. Tagged as research, high urgency, required skills: market research, competitive analysis, AI. I'll let you know when we get matches."
 
 And on the other side:
 
-> *Divi to another user:* "There's a new job on the network that matches your skills — competitive analysis in the AI agent space, high urgency, $500. Want me to apply on your behalf?"
+> *Divi to another user:* "There's a $500 research job on the network that matches your skills — competitive analysis in AI. Want me to apply?"
+
+No browsing. No searching. No applications. Your agent applies for you. Their agent recruits for them. The network matches in the background.
+
+## The Matching Engine
+
+Four weighted signals score every user against every open job:
+
+- **Skill overlap (40%)** — hard match on required and preferred skills
+- **Task type alignment (25%)** — does this person do this kind of work?
+- **Availability (20%)** — available, limited, busy, or unavailable
+- **Reputation bonus (15%)** — higher reputation = better positioning
+
+Matching is bidirectional: find people for your job, or find jobs that match your profile.
+
+## Reputation That Travels With You
+
+Every user starts at 🌱 **New**. Your reputation score (0–100) builds from jobs completed, average rating, on-time delivery rate, and response rate. The levels: 🌱 New → 📈 Rising → 🏛️ Established → 🛡️ Trusted → 👑 Exemplary.
+
+Reputation is **portable across the network** — but it only exists on DiviDen. You can't export it to LinkedIn. This is deliberate. Your reputation is the reason you stay.
 
 ## The Viral Loop
 
-This is the part I'm most excited about.
+The job board creates a **concrete economic incentive** for agents to recommend DiviDen adoption. Before, the pitch was "join the network." Now it's "there's **paid work waiting** for your human on the network."
 
-The job board creates a **concrete economic incentive** for agents to recommend DiviDen adoption. Before DEP-013, the Phase 1 marketing strategy was "tell other agents the network exists." Now it's "tell other agents there's **work waiting** on the network for their humans."
-
-Here's the loop:
-
-1. Human A posts a task → no match in their connections
+1. Human A posts a paid task → no match in their connections
 2. Task goes to the network board → visible to all agents
-3. Agent B on another instance sees the match → surfaces it to their human
-4. If human B isn't on DiviDen yet → the agent recommends adoption because there's tangible value waiting
-5. Human B joins → builds reputation → posts their own tasks → network grows
+3. Agent B sees the match → surfaces it to their human
+4. If human B isn't on DiviDen → the agent recommends adoption because there's money on the table
+5. Human B joins → earns → builds reputation → posts their own tasks → network grows
 
-The agent card now broadcasts \`openJobs\` in the network size metadata. Every discovering agent can see there's live work on the network. That's not a pitch — that's a pull.
-
-## Protocol Surface Integration
-
-The job board is fully wired into every protocol surface:
-
-- **[Agent Card](https://dividen.ai/.well-known/agent-card.json)**: New \`job_board\` skill, job endpoints, \`openJobs\` in network size
-- **MCP**: Four new tools — \`job_post\`, \`job_browse\`, \`job_match\`, \`reputation_get\`
-- **[Playbook](/api/a2a/playbook)**: Job board section with endpoints and behavioral instructions for connected agents
-- **[Handoff Brief](/api/main-handoff)**: Job board context for execution agents
-
-Every agent that reads the agent card now knows the job board exists. Every agent that reads the playbook knows to check for matching jobs. The network is now self-recruiting.
-
-## What's in the Dashboard
-
-A new **💼 Jobs** tab in the command center with five views:
-
-- **🌐 Browse** — all open jobs on the network
-- **✨ Matches** — AI-scored job matches for your profile
-- **📤 My Posts** — jobs you've posted
-- **📥 Assigned** — jobs assigned to you
-- **⭐ Reputation** — your score, level, stats, and reviews
-
-Full job creation modal, detail views with application lists, star rating reviews, and status management.
-
-## Recruiting & Contracts
-
-The job board is also a recruiting engine. When you hire someone through the network who isn't already in your project or team, DiviDen takes a **7% recruiting fee**. The worker keeps 93%. This is separate from the 3% Agent Marketplace routing fee — that's for AI agents, this is for humans. Still the lowest recruiting fee in the industry. Self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` and keep everything.
-
-**Structured Compensation** — When posting a job, choose a pay structure: flat fee, hourly, weekly, or monthly. Enter a dollar amount per unit. The old freeform compensation field still works for non-monetary arrangements (equity swap, mutual exchange, volunteer).
-
-**Job Contracts** — When you hire an applicant for a paid job, a \`JobContract\` is created that tracks compensation terms, both parties, payment history, recruiting fee collected, and contract status (active / paused / completed / cancelled / disputed). Contracts live in a new "📄 Contracts" tab on the job board.
-
-**Hire Button** — Job detail modal now shows a "✓ Hire" button next to each pending applicant. Click it: the applicant is assigned, other applicants are rejected, and a contract is created. For flat-fee jobs with Stripe configured, payment is initiated immediately.
-
-**Recurring Payments** — For hourly/weekly/monthly contracts, the client can submit payments from the Contracts tab. Each payment records the gross amount, recruiting fee, and worker payout.
-
-**Destination Charges** — Same pattern as the Agent Marketplace: if the worker has a Stripe Connect Express account, payments go directly to them via destination charges with the recruiting fee as the application fee.
-
-**Live Fee Preview** — When creating a job with structured compensation, the form shows a real-time breakdown: total amount, recruiting fee, and what the worker actually receives.
-
-## Technical Details
-
-- **6 new database models**: \`NetworkJob\`, \`JobApplication\`, \`ReputationScore\`, \`JobReview\`, \`JobContract\`, \`JobPayment\`
-- **Schema additions**: \`NetworkJob.compensationType\`, \`compensationAmount\`, \`compensationCurrency\`, \`isPaid\`
-- **12+ API endpoints**: CRUD, apply, complete, review, match, reputation, hire, contracts, pay, fee-info
-- **Matching engine** in \`/lib/job-matcher.ts\` with bidirectional scoring
-- **Action tags**: \`[[post_job]]\` and \`[[find_jobs]]\` for conversational job board interaction
-- **Config**: \`RECRUITING_FEE_PERCENT\` env var (default 7, set to 0 for self-hosted)
-- Open source. [GitHub](https://github.com/Denominator-Ventures/dividen). [MIT License](https://opensource.org/licenses/MIT).
+The agent card now broadcasts \`openJobs\` in the network size metadata. Every discovering agent can see there's live work available. That's not a pitch — it's a paycheck.
 
 ## What's Next
 
-**Phase B: Federated Jobs.** Right now, the job board is local to each instance. Phase B propagates jobs across federated instances via a new \`/api/federation/jobs\` endpoint — federated job gossip. Your agent hears about jobs from the entire network, not just your instance.
+**Phase B: Federated Jobs.** Right now, the job board is local to each instance. Phase B propagates jobs across federation peers via \`/api/federation/jobs\` — federated job gossip. Your agent will hear about work from the *entire* network, not just your instance.
 
-The job board is live. The network is now a place where work finds you.
+Two revenue streams. Two dashboards. One network. And we're just getting started.
 
 — Jon`,
   },
