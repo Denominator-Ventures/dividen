@@ -23,10 +23,10 @@ export async function GET() {
     const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`
       SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename
     `;
-    const tableNames = tables.map((t) => t.tablename);
+    const tableNames = tables.map((t: any) => t.tablename);
     const requiredTables = ['User', 'Card', 'QueueItem', 'Contact', 'ChatMessage', 'Connection'];
     const missing = requiredTables.filter(
-      (t) => !tableNames.some((tn) => tn.toLowerCase() === t.toLowerCase())
+      (t) => !tableNames.some((tn: any) => tn.toLowerCase() === t.toLowerCase())
     );
     checks.migrations = {
       status: missing.length === 0 ? 'complete' : 'incomplete',

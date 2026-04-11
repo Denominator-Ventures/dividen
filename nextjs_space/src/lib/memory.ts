@@ -46,7 +46,7 @@ export async function getTier2Rules(userId: string) {
   });
 
   return rules.sort(
-    (a, b) => (priorityOrder[a.priority || 'medium'] || 2) - (priorityOrder[b.priority || 'medium'] || 2)
+    (a: any, b: any) => (priorityOrder[a.priority || 'medium'] || 2) - (priorityOrder[b.priority || 'medium'] || 2)
   );
 }
 
@@ -84,8 +84,8 @@ export async function buildMemoryContext(userId: string): Promise<string> {
 
   // Tier 1: Explicit Facts
   if (facts.length > 0) {
-    const pinnedFacts = facts.filter((f) => f.pinned);
-    const unpinnedFacts = facts.filter((f) => !f.pinned);
+    const pinnedFacts = facts.filter((f: any) => f.pinned);
+    const unpinnedFacts = facts.filter((f: any) => !f.pinned);
 
     let factSection = `### Tier 1: Explicit Facts (${facts.length} items)\n`;
 
@@ -122,8 +122,8 @@ export async function buildMemoryContext(userId: string): Promise<string> {
   }
 
   // Tier 3: Learned Patterns
-  const approvedPatterns = patterns.filter((p) => p.approved === true);
-  const pendingPatterns = patterns.filter((p) => p.approved === null);
+  const approvedPatterns = patterns.filter((p: any) => p.approved === true);
+  const pendingPatterns = patterns.filter((p: any) => p.approved === null);
 
   if (approvedPatterns.length > 0 || pendingPatterns.length > 0) {
     let patternSection = `### Tier 3: Learned Patterns\n`;

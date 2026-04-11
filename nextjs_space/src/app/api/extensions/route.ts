@@ -26,8 +26,8 @@ export async function GET(req: NextRequest) {
       prisma.teamMember.findMany({ where: { userId }, select: { teamId: true } }),
       prisma.projectMember.findMany({ where: { userId }, select: { projectId: true } }),
     ]);
-    const teamIds = teamMemberships.map(m => m.teamId);
-    const projectIds = projectMemberships.map(m => m.projectId);
+    const teamIds = teamMemberships.map((m: any) => m.teamId);
+    const projectIds = projectMemberships.map((m: any) => m.projectId);
 
     const where: any = {
       OR: [

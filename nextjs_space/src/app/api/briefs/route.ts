@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     success: true,
-    briefs: briefs.map(b => ({
+    briefs: briefs.map((b: any) => ({
       ...b,
       sourceContactIds: b.sourceContactIds ? JSON.parse(b.sourceContactIds) : [],
       matchedSkills: b.matchedSkills ? JSON.parse(b.matchedSkills) : [],

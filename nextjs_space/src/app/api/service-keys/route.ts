@@ -20,7 +20,7 @@ export async function GET() {
   });
 
   // Mask key values - only show last 4 characters
-  const masked = keys.map(k => ({
+  const masked = keys.map((k: any) => ({
     id: k.id,
     service: k.service,
     keyName: k.keyName,

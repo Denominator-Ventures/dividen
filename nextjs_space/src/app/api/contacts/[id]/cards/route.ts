@@ -38,7 +38,7 @@ export async function GET(
 
   return NextResponse.json({
     success: true,
-    data: links.map((l) => ({
+    data: links.map((l: any) => ({
       linkId: l.id,
       role: l.role,
       card: l.card,

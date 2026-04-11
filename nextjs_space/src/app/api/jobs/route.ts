@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
 
   // Sort by urgency priority
   const urgencyOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-  jobs.sort((a, b) => (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2));
+  jobs.sort((a: any, b: any) => (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2));
 
   return NextResponse.json({ jobs });
 }

@@ -60,7 +60,7 @@ export async function dispatchNextItem(
   });
 
   // Sort by priority manually
-  const sorted = allReady.sort((a, b) => {
+  const sorted = allReady.sort((a: any, b: any) => {
     const aIdx = priorityOrder.indexOf(a.priority);
     const bIdx = priorityOrder.indexOf(b.priority);
     if (aIdx !== bIdx) return aIdx - bIdx;

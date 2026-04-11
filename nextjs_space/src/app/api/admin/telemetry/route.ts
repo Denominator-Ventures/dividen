@@ -97,7 +97,7 @@ export async function GET(req: NextRequest) {
 
     // ── Aggregate summaries ──
     // Unique IPs
-    const uniqueIps = [...new Set(requestEvents.map((e) => e.ip).filter(Boolean))];
+    const uniqueIps = [...new Set(requestEvents.map((e: any) => e.ip).filter(Boolean))];
 
     // Requests by path (top 20)
     const pathCounts: Record<string, number> = {};
@@ -133,8 +133,8 @@ export async function GET(req: NextRequest) {
     }
 
     // Avg response time
-    const durations = requestEvents.filter((e) => e.duration).map((e) => e.duration!);
-    const avgResponseTime = durations.length > 0 ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+    const durations = requestEvents.filter((e: any) => e.duration).map((e: any) => e.duration!);
+    const avgResponseTime = durations.length > 0 ? Math.round(durations.reduce((a: any, b: any) => a + b, 0) / durations.length) : 0;
 
     // Per-user breakdown
     const userRequestCounts: Record<string, number> = {};
@@ -174,7 +174,7 @@ export async function GET(req: NextRequest) {
       dbModelCounts,
       userRequestCounts,
       requestTimeline,
-      recentErrors: errorEvents.slice(0, 50).map((e) => ({
+      recentErrors: errorEvents.slice(0, 50).map((e: any) => ({
         message: e.errorMessage,
         stack: e.errorStack?.slice(0, 500),
         path: e.path,
@@ -183,7 +183,7 @@ export async function GET(req: NextRequest) {
         ip: e.ip,
         createdAt: e.createdAt,
       })),
-      recentRequests: requestEvents.slice(0, 100).map((e) => ({
+      recentRequests: requestEvents.slice(0, 100).map((e: any) => ({
         ip: e.ip,
         method: e.method,
         path: e.path,

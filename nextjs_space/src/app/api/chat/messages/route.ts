@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
   const messages = await prisma.chatMessage.findMany(queryOptions);
 
   // Strip action tags from assistant messages for client display
-  const cleanMessages = messages.reverse().map((m) => ({
+  const cleanMessages = messages.reverse().map((m: any) => ({
     id: m.id,
     role: m.role,
     content: m.role === 'assistant' ? stripActionTags(m.content) : m.content,

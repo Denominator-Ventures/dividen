@@ -25,7 +25,7 @@ export async function GET() {
 
   // Get recent log stats for each webhook
   const webhooksWithStats = await Promise.all(
-    webhooks.map(async (wh) => {
+    webhooks.map(async (wh: any) => {
       const recentLogs = await prisma.webhookLog.findMany({
         where: { webhookId: wh.id },
         orderBy: { createdAt: 'desc' },
@@ -33,8 +33,8 @@ export async function GET() {
         select: { status: true, createdAt: true },
       });
 
-      const successCount = recentLogs.filter(l => l.status === 'success').length;
-      const errorCount = recentLogs.filter(l => l.status === 'error').length;
+      const successCount = recentLogs.filter((l: any) => l.status === 'success').length;
+      const errorCount = recentLogs.filter((l: any) => l.status === 'error').length;
       const lastTriggered = recentLogs[0]?.createdAt || null;
 
       return {

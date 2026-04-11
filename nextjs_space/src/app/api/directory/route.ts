@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
 
     // Filter and transform
     const results = users
-      .filter(u => {
+      .filter((u: any) => {
         // Only show users with profiles that have public or connections visibility
         // If no profile, they're still discoverable by name/email but with limited info
         const vis = u.profile?.visibility || 'connections';
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
         // "public" visibility: show full profile
         return true;
       })
-      .map(u => {
+      .map((u: any) => {
         const p = u.profile;
         const vis = p?.visibility || 'connections';
         const isPublic = vis === 'public';
@@ -111,7 +111,7 @@ export async function GET(req: NextRequest) {
 
         return base;
       })
-      .filter(u => {
+      .filter((u: any) => {
         // Apply search query
         if (q) {
           const haystack = [

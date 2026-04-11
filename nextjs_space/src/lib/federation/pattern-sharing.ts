@@ -57,7 +57,7 @@ export async function exportShareablePatterns(
 
   const instanceId = process.env.NEXTAUTH_URL || 'unknown';
 
-  return patterns.map(p => ({
+  return patterns.map((p: any) => ({
     patternType: p.patternType,
     description: p.description,
     insight: p.insight,
@@ -173,7 +173,7 @@ export async function getNetworkLearningDigest(): Promise<string> {
     take: 15,
   });
 
-  const federated = patterns.filter(p => {
+  const federated = patterns.filter((p: any) => {
     try { return JSON.parse(p.metadata || '{}').source === 'federation'; } catch { return false; }
   });
 

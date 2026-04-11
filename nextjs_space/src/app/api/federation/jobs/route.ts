@@ -98,7 +98,7 @@ export async function GET(req: NextRequest) {
   const instanceUrl = fedConfig?.instanceUrl || process.env.NEXTAUTH_URL || '';
   const instanceName = fedConfig?.instanceName || 'DiviDen';
 
-  const federatedJobs = jobs.map((job) => ({
+  const federatedJobs = jobs.map((job: any) => ({
     // Core job data
     id: job.id,
     title: job.title,

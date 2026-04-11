@@ -20,7 +20,7 @@ export async function GET() {
 
     // Don't expose full API keys
     return NextResponse.json(
-      instances.map((i) => ({
+      instances.map((i: any) => ({
         ...i,
         apiKey: i.apiKey ? `${i.apiKey.slice(0, 8)}...` : null,
       }))

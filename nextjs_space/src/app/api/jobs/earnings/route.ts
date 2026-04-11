@@ -85,14 +85,14 @@ export async function GET() {
   return NextResponse.json({
     success: true,
     asWorker: {
-      contracts: contracts.map(c => ({
+      contracts: contracts.map((c: any) => ({
         ...c,
-        totalPaid: c.payments.filter(p => p.stripePaymentStatus === 'succeeded').reduce((s, p) => s + p.workerPayout, 0),
-        totalPending: c.payments.filter(p => p.stripePaymentStatus === 'pending').reduce((s, p) => s + p.workerPayout, 0),
+        totalPaid: c.payments.filter((p: any) => p.stripePaymentStatus === 'succeeded').reduce((s: any, p: any) => s + p.workerPayout, 0),
+        totalPending: c.payments.filter((p: any) => p.stripePaymentStatus === 'pending').reduce((s: any, p: any) => s + p.workerPayout, 0),
       })),
       totals: {
         totalContracts: contracts.length,
-        activeContracts: contracts.filter(c => c.status === 'active').length,
+        activeContracts: contracts.filter((c: any) => c.status === 'active').length,
         totalEarned,
         totalPaid,
         totalPending,
@@ -100,9 +100,9 @@ export async function GET() {
       },
     },
     asClient: {
-      contracts: clientContracts.map(c => ({
+      contracts: clientContracts.map((c: any) => ({
         ...c,
-        totalPaid: c.payments.filter(p => p.stripePaymentStatus === 'succeeded').reduce((s, p) => s + p.amount, 0),
+        totalPaid: c.payments.filter((p: any) => p.stripePaymentStatus === 'succeeded').reduce((s: any, p: any) => s + p.amount, 0),
       })),
       totals: {
         totalContracts: clientContracts.length,

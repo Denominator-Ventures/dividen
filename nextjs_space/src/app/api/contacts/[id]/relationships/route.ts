@@ -39,8 +39,8 @@ export async function GET(
   ]);
 
   const relationships = [
-    ...fromRels.map((r) => ({ id: r.id, type: r.type, label: r.label, direction: 'outgoing', contact: r.to })),
-    ...toRels.map((r) => ({ id: r.id, type: r.type, label: r.label, direction: 'incoming', contact: r.from })),
+    ...fromRels.map((r: any) => ({ id: r.id, type: r.type, label: r.label, direction: 'outgoing', contact: r.to })),
+    ...toRels.map((r: any) => ({ id: r.id, type: r.type, label: r.label, direction: 'incoming', contact: r.from })),
   ];
 
   return NextResponse.json({ success: true, data: relationships });

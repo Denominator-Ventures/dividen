@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (!applicantId) return NextResponse.json({ error: 'applicantId is required' }, { status: 400 });
 
   // Verify applicant exists and has applied
-  const application = job.applications.find(a => a.applicantId === applicantId);
+  const application = job.applications.find((a: any) => a.applicantId === applicantId);
   if (!application) return NextResponse.json({ error: 'Applicant not found for this job' }, { status: 404 });
 
   // Use job compensation or override from body
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const feePercent = getRecruitingFeePercent();
 
   // Start transaction: update job, create contract, update application
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     // Update job status and assignee
     await tx.networkJob.update({
       where: { id: params.id },

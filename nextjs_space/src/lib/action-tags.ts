@@ -791,7 +791,7 @@ async function executeTag(
               accepter: { select: { id: true, name: true, email: true } },
             },
           });
-          connection = allConns.find(c => {
+          connection = allConns.find((c: any) => {
             const nick = (c.nickname || '').toLowerCase();
             const peerNick = (c.peerNickname || '').toLowerCase();
             const peerName = (c.peerUserName || '').toLowerCase();
@@ -879,13 +879,13 @@ async function executeTag(
             where: { projectId: params.projectId },
             select: { connectionId: true },
           });
-          scopedConnIds = new Set(projMembers.map(m => m.connectionId).filter(Boolean) as string[]);
+          scopedConnIds = new Set(projMembers.map((m: any) => m.connectionId).filter(Boolean) as string[]);
         } else if (params.teamId) {
           const tmMembers = await prisma.teamMember.findMany({
             where: { teamId: params.teamId },
             select: { connectionId: true },
           });
-          scopedConnIds = new Set(tmMembers.map(m => m.connectionId).filter(Boolean) as string[]);
+          scopedConnIds = new Set(tmMembers.map((m: any) => m.connectionId).filter(Boolean) as string[]);
         }
 
         const allActiveConns = await prisma.connection.findMany({
@@ -905,12 +905,12 @@ async function executeTag(
         }
 
         // Check recipient relay preferences — respect broadcast opt-outs
-        const peerUserIds = allActiveConns.map(c => c.requesterId === userId ? c.accepterId : c.requesterId).filter(Boolean) as string[];
+        const peerUserIds = allActiveConns.map((c: any) => c.requesterId === userId ? c.accepterId : c.requesterId).filter(Boolean) as string[];
         const peerProfiles = await prisma.userProfile.findMany({
           where: { userId: { in: peerUserIds } },
           select: { userId: true, relayMode: true, allowBroadcasts: true },
         });
-        const profileMap = new Map(peerProfiles.map(p => [p.userId, p]));
+        const profileMap = new Map<string, any>(peerProfiles.map((p: any) => [p.userId, p]));
 
         const broadcastResults: { name: string; relayId: string }[] = [];
         const skipped: string[] = [];
@@ -1020,7 +1020,7 @@ async function executeTag(
           },
         });
 
-        const ambientConn = ambientConns.find(c => {
+        const ambientConn = ambientConns.find((c: any) => {
           const nick = (c.nickname || '').toLowerCase();
           const peerNick = (c.peerNickname || '').toLowerCase();
           const peerName = (c.peerUserName || '').toLowerCase();
@@ -1574,7 +1574,7 @@ async function executeTag(
           select: { id: true, title: true, description: true, taskType: true, urgency: true, compensation: true, estimatedHours: true },
         });
         const results = jobMatches.map(m => {
-          const job = matchedJobs.find(j => j.id === m.jobId);
+          const job = matchedJobs.find((j: any) => j.id === m.jobId);
           return { ...m, job };
         });
         return { tag: name, success: true, data: { matches: results, message: `Found ${results.length} matching jobs on the network` } };
@@ -1644,7 +1644,7 @@ async function executeTag(
           },
           orderBy: { createdAt: 'desc' },
         });
-        return { tag: name, success: true, data: { count: invites.length, invites: invites.map(i => ({
+        return { tag: name, success: true, data: { count: invites.length, invites: invites.map((i: any) => ({
           id: i.id, project: i.project?.name, from: i.inviter?.name || i.inviter?.email,
           role: i.role, job: i.job ? { title: i.job.title, compensation: `$${i.job.compensationAmount}/${i.job.compensationType}` } : null,
         })) } };
@@ -1709,11 +1709,11 @@ async function executeTag(
         });
         // Check which agents the user has installed
         const userSubs = await prisma.marketplaceSubscription.findMany({
-          where: { userId, agentId: { in: agents.map(a => a.id) } },
+          where: { userId, agentId: { in: agents.map((a: any) => a.id) } },
           select: { agentId: true, installed: true, status: true },
         });
-        const subMap = new Map(userSubs.map(s => [s.agentId, s]));
-        const enriched = agents.map(a => {
+        const subMap = new Map<string, any>(userSubs.map((s: any) => [s.agentId, s]));
+        const enriched = agents.map((a: any) => {
           const sub = subMap.get(a.id);
           let taskTypes: string[] = [];
           try { taskTypes = a.taskTypes ? JSON.parse(a.taskTypes) : []; } catch {}

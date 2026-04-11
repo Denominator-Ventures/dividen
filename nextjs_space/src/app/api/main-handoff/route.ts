@@ -34,10 +34,10 @@ export async function GET(req: NextRequest) {
 
     const queue = {
       summary: '',
-      completed: queueItems.filter(i => i.status === 'done_today'),
-      inProgress: queueItems.filter(i => i.status === 'in_progress'),
-      blocked: queueItems.filter(i => i.status === 'blocked'),
-      ready: queueItems.filter(i => i.status === 'ready'),
+      completed: queueItems.filter((i: any) => i.status === 'done_today'),
+      inProgress: queueItems.filter((i: any) => i.status === 'in_progress'),
+      blocked: queueItems.filter((i: any) => i.status === 'blocked'),
+      ready: queueItems.filter((i: any) => i.status === 'ready'),
     };
     queue.summary = `${queue.ready.length} ready, ${queue.inProgress.length} in progress, ${queue.blocked.length} blocked, ${queue.completed.length} completed today`;
 
@@ -94,29 +94,29 @@ export async function GET(req: NextRequest) {
       },
       queue,
       calendar: {
-        today: calendarEvents.filter(e => new Date(e.startTime) < endOfDay).map(e => ({
+        today: calendarEvents.filter((e: any) => new Date(e.startTime) < endOfDay).map((e: any) => ({
           title: e.title,
           time: new Date(e.startTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
           attendees: e.attendees,
         })),
-        upcoming: calendarEvents.filter(e => new Date(e.startTime) >= endOfDay).map(e => ({
+        upcoming: calendarEvents.filter((e: any) => new Date(e.startTime) >= endOfDay).map((e: any) => ({
           title: e.title,
           date: new Date(e.startTime).toISOString().split('T')[0],
           location: e.location,
         })),
       },
       email: { unread: unreadEmails },
-      recentActivity: recentComms.map(c => ({
+      recentActivity: recentComms.map((c: any) => ({
         type: 'comms',
         summary: c.content?.substring(0, 200),
         time: c.createdAt,
       })),
-      learnings: learnings.map(l => ({
+      learnings: learnings.map((l: any) => ({
         observation: l.observation,
         category: l.category,
         confidence: l.confidence,
       })),
-      goals: goals.map(g => ({
+      goals: goals.map((g: any) => ({
         title: g.title,
         timeframe: g.timeframe,
         progress: g.progress,

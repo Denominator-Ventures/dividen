@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
         });
 
         return respond({
-          tasks: relays.map(r => ({
+          tasks: relays.map((r: any) => ({
             id: r.id,
             threadId: r.threadId,
             subject: r.subject,

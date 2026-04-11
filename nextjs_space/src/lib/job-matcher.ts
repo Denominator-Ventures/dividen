@@ -189,7 +189,7 @@ export async function recomputeReputation(userId: string) {
   ]);
 
   const avgRating = reviews.length > 0
-    ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+    ? reviews.reduce((sum: any, r: any) => sum + r.rating, 0) / reviews.length
     : 0;
 
   // On-time rate: completed before deadline
@@ -212,11 +212,11 @@ export async function recomputeReputation(userId: string) {
   let respondedApps = 0;
   if (postedJobIds.length > 0) {
     const apps = await prisma.jobApplication.findMany({
-      where: { jobId: { in: postedJobIds.map(j => j.id) } },
+      where: { jobId: { in: postedJobIds.map((j: any) => j.id) } },
       select: { status: true },
     });
     totalApps = apps.length;
-    respondedApps = apps.filter(a => a.status !== 'pending').length;
+    respondedApps = apps.filter((a: any) => a.status !== 'pending').length;
   }
   const responseRate = totalApps > 0 ? respondedApps / totalApps : 1;
 

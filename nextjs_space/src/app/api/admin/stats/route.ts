@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
         webhookLogsLast7d,
       },
       chatTrend,
-      kanbanByStatus: kanbanByStatus.map((s) => ({
+      kanbanByStatus: kanbanByStatus.map((s: any) => ({
         status: s.status,
         count: s._count,
       })),

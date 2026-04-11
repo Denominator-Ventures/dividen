@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ hasListings: false, agents: [], totals: null, feeInfo, stripeConnect });
     }
 
-    const agentIds = myAgents.map(a => a.id);
+    const agentIds = myAgents.map((a: any) => a.id);
 
     // Get all executions for these agents
     const [totalExecs, completedExecs, failedExecs, recentExecs] = await Promise.all([
@@ -65,10 +65,10 @@ export async function GET(req: NextRequest) {
     });
 
     // Revenue from the real tracked fields on MarketplaceAgent
-    const totalGrossRevenue = myAgents.reduce((sum, a) => sum + (a.totalGrossRevenue || 0), 0);
-    const totalPlatformFees = myAgents.reduce((sum, a) => sum + (a.totalPlatformFees || 0), 0);
-    const totalDeveloperPayout = myAgents.reduce((sum, a) => sum + (a.totalDeveloperPayout || 0), 0);
-    const totalPendingPayout = myAgents.reduce((sum, a) => sum + (a.pendingPayout || 0), 0);
+    const totalGrossRevenue = myAgents.reduce((sum: any, a: any) => sum + (a.totalGrossRevenue || 0), 0);
+    const totalPlatformFees = myAgents.reduce((sum: any, a: any) => sum + (a.totalPlatformFees || 0), 0);
+    const totalDeveloperPayout = myAgents.reduce((sum: any, a: any) => sum + (a.totalDeveloperPayout || 0), 0);
+    const totalPendingPayout = myAgents.reduce((sum: any, a: any) => sum + (a.pendingPayout || 0), 0);
 
     // Also count subscription revenue (monthly recurring, not yet per-execution tracked)
     let subscriptionMRR = 0;
@@ -82,7 +82,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Per-agent breakdown with real revenue
-    const agentBreakdown = myAgents.map(a => {
+    const agentBreakdown = myAgents.map((a: any) => {
       const { authToken, ...safeAgent } = a;
       return {
         ...safeAgent,
@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       where: { agentId: { in: agentIds } },
     });
 
-    const paidAgents = myAgents.filter(a => a.pricingModel !== 'free');
+    const paidAgents = myAgents.filter((a: any) => a.pricingModel !== 'free');
 
     return NextResponse.json({
       hasListings: true,

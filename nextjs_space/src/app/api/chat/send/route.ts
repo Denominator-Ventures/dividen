@@ -85,7 +85,7 @@ export async function POST(request: Request) {
 
   const llmMessages: LLMMessage[] = [
     { role: 'system', content: systemPrompt },
-    ...recentMessages.reverse().map((m) => ({
+    ...recentMessages.reverse().map((m: any) => ({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.role === 'assistant' ? stripActionTags(m.content) : m.content,
     })),

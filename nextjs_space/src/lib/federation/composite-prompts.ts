@@ -79,8 +79,8 @@ export async function generateLocalBriefingContribution(userId: string): Promise
   const health = recentRelays.length >= 5 ? 'active' : recentRelays.length >= 1 ? 'moderate' : 'quiet';
 
   return {
-    activeJobs: jobs.map(j => ({ title: j.title, urgency: j.urgency || 'normal' })),
-    recentActivity: recentRelays.map(r => ({
+    activeJobs: jobs.map((j: any) => ({ title: j.title, urgency: j.urgency || 'normal' })),
+    recentActivity: recentRelays.map((r: any) => ({
       type: r.type,
       summary: r.subject || 'Relay activity',
       timestamp: r.createdAt.toISOString(),

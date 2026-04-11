@@ -119,9 +119,9 @@ export async function synthesizePatterns(): Promise<SynthesizedPattern[]> {
   }
 
   const totalSignals = recentSignals.length;
-  const answered = recentSignals.filter(s => s.outcome === 'answered');
-  const declined = recentSignals.filter(s => s.outcome === 'declined');
-  const ignored = recentSignals.filter(s => s.outcome === 'ignored');
+  const answered = recentSignals.filter((s: any) => s.outcome === 'answered');
+  const declined = recentSignals.filter((s: any) => s.outcome === 'declined');
+  const ignored = recentSignals.filter((s: any) => s.outcome === 'ignored');
 
   // ── 1. Overall Response Rate Pattern ──────────────────────────────────
   const responseRate = answered.length / totalSignals;
@@ -140,10 +140,10 @@ export async function synthesizePatterns(): Promise<SynthesizedPattern[]> {
   });
 
   // ── 2. Timing Patterns ───────────────────────────────────────────────
-  const answeredWithHour = answered.filter(s => s.hourOfDay !== null);
+  const answeredWithHour = answered.filter((s: any) => s.hourOfDay !== null);
   if (answeredWithHour.length >= 3) {
     const hourBuckets: Record<string, { answered: number; total: number }> = {};
-    for (const s of recentSignals.filter(s => s.hourOfDay !== null)) {
+    for (const s of recentSignals.filter((s: any) => s.hourOfDay !== null) as any[]) {
       const bucket = s.hourOfDay! < 9 ? 'early_morning' :
         s.hourOfDay! < 12 ? 'morning' :
         s.hourOfDay! < 14 ? 'midday' :
@@ -183,17 +183,17 @@ export async function synthesizePatterns(): Promise<SynthesizedPattern[]> {
   }
 
   // ── 3. Latency Patterns ──────────────────────────────────────────────
-  const answeredWithLatency = answered.filter(s => s.latencyMinutes !== null);
+  const answeredWithLatency = answered.filter((s: any) => s.latencyMinutes !== null);
   if (answeredWithLatency.length >= 3) {
-    const latencies = answeredWithLatency.map(s => s.latencyMinutes!);
-    const avgLatency = latencies.reduce((a, b) => a + b, 0) / latencies.length;
-    const medianLatency = latencies.sort((a, b) => a - b)[Math.floor(latencies.length / 2)];
+    const latencies = answeredWithLatency.map((s: any) => s.latencyMinutes!);
+    const avgLatency = latencies.reduce((a: any, b: any) => a + b, 0) / latencies.length;
+    const medianLatency = latencies.sort((a: any, b: any) => a - b)[Math.floor(latencies.length / 2)];
 
     // Check if faster responses correlate with better quality
-    const quickResponses = answeredWithLatency.filter(s => s.latencyMinutes! <= medianLatency);
-    const slowResponses = answeredWithLatency.filter(s => s.latencyMinutes! > medianLatency);
-    const quickSubstantive = quickResponses.filter(s => s.responseQuality === 'substantive').length;
-    const slowSubstantive = slowResponses.filter(s => s.responseQuality === 'substantive').length;
+    const quickResponses = answeredWithLatency.filter((s: any) => s.latencyMinutes! <= medianLatency);
+    const slowResponses = answeredWithLatency.filter((s: any) => s.latencyMinutes! > medianLatency);
+    const quickSubstantive = quickResponses.filter((s: any) => s.responseQuality === 'substantive').length;
+    const slowSubstantive = slowResponses.filter((s: any) => s.responseQuality === 'substantive').length;
 
     patterns.push({
       patternType: 'timing',
@@ -211,11 +211,11 @@ export async function synthesizePatterns(): Promise<SynthesizedPattern[]> {
   }
 
   // ── 4. Disruption Level Pattern ──────────────────────────────────────
-  const withDisruption = recentSignals.filter(s => s.disruptionLevel);
+  const withDisruption = recentSignals.filter((s: any) => s.disruptionLevel);
   if (withDisruption.length >= 3) {
-    const seamless = withDisruption.filter(s => s.disruptionLevel === 'seamless').length;
-    const noticed = withDisruption.filter(s => s.disruptionLevel === 'noticed').length;
-    const disruptive = withDisruption.filter(s => s.disruptionLevel === 'disruptive').length;
+    const seamless = withDisruption.filter((s: any) => s.disruptionLevel === 'seamless').length;
+    const noticed = withDisruption.filter((s: any) => s.disruptionLevel === 'noticed').length;
+    const disruptive = withDisruption.filter((s: any) => s.disruptionLevel === 'disruptive').length;
     const seamlessRate = seamless / withDisruption.length;
 
     patterns.push({
@@ -234,7 +234,7 @@ export async function synthesizePatterns(): Promise<SynthesizedPattern[]> {
   }
 
   // ── 5. Topic Success Patterns ─────────────────────────────────────────
-  const withTopic = recentSignals.filter(s => s.ambientTopic);
+  const withTopic = recentSignals.filter((s: any) => s.ambientTopic);
   if (withTopic.length >= 5) {
     const topicBuckets: Record<string, { answered: number; total: number; seamless: number }> = {};
     for (const s of withTopic) {

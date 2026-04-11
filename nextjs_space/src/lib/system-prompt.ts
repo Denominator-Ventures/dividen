@@ -40,7 +40,7 @@ async function layer2_rules(userId: string): Promise<string> {
   }
 
   const ruleLines = rules
-    .map((r, i) => `${i + 1}. **${r.name}**: ${r.rule}`)
+    .map((r: any, i: any) => `${i + 1}. **${r.name}**: ${r.rule}`)
     .join('\n');
 
   return `## Layer 2: Rules\nFollow these rules at all times:\n${ruleLines}`;
@@ -79,7 +79,7 @@ async function layer4_kanbanState(userId: string): Promise<string> {
     for (const c of items) {
       const due = c.dueDate ? ` | Due: ${c.dueDate.toISOString().split('T')[0]}` : '';
       const checks = c.checklist.length > 0
-        ? ` | Checklist: ${c.checklist.filter((x) => x.completed).length}/${c.checklist.length}`
+        ? ` | Checklist: ${c.checklist.filter((x: any) => x.completed).length}/${c.checklist.length}`
         : '';
       text += `- [${c.id}] "${c.title}" (${c.priority})${due}${checks}\n`;
     }
@@ -100,7 +100,7 @@ async function layer5_queueState(userId: string): Promise<string> {
   }
 
   const lines = items
-    .map((q) => `- [${q.type}] "${q.title}" (${q.priority}) — from ${q.source || 'unknown'}`)
+    .map((q: any) => `- [${q.type}] "${q.title}" (${q.priority}) — from ${q.source || 'unknown'}`)
     .join('\n');
 
   return `## Layer 5: Queue State (${items.length} pending)\n${lines}`;
@@ -118,7 +118,7 @@ async function layer6_crmSummary(userId: string): Promise<string> {
   }
 
   const lines = contacts
-    .map((c) => {
+    .map((c: any) => {
       const parts = [c.name];
       if (c.company) parts.push(`@ ${c.company}`);
       if (c.role) parts.push(`(${c.role})`);
@@ -149,7 +149,7 @@ async function layer8_recentMessages(userId: string): Promise<string> {
 
   const lines = messages
     .reverse()
-    .map((m) => `[${m.role}]: ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}`)
+    .map((m: any) => `[${m.role}]: ${m.content.substring(0, 200)}${m.content.length > 200 ? '...' : ''}`)
     .join('\n');
 
   return `## Layer 8: Recent Messages (last ${messages.length})\n${lines}`;
@@ -172,7 +172,7 @@ async function layer10_learnings(userId: string): Promise<string> {
   }
 
   const lines = learnings
-    .map((l) => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`)
+    .map((l: any) => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`)
     .join('\n');
 
   return `## Layer 10: User Learnings\n${lines}`;
@@ -191,7 +191,7 @@ async function layer11_activeFocus(userId: string): Promise<string> {
   }
 
   const lines = focusCards
-    .map((c) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
+    .map((c: any) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
     .join('\n');
 
   return `## Layer 11: Active Focus (NOW Panel)\nCurrently working on:\n${lines}`;
@@ -215,7 +215,7 @@ async function layer12_calendarContext(userId: string): Promise<string> {
     return `## Layer 12: Calendar\nNo upcoming events in the next 7 days.`;
   }
 
-  const lines = events.map((e) => {
+  const lines = events.map((e: any) => {
     const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
     const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
     const loc = e.location ? ` @ ${e.location}` : '';
@@ -240,7 +240,7 @@ async function layer13_emailContext(userId: string): Promise<string> {
     return `## Layer 13: Inbox\nNo unread emails.`;
   }
 
-  const lines = recent.map((e) => {
+  const lines = recent.map((e: any) => {
     const starred = e.isStarred ? '⭐ ' : '';
     return `- ${starred}From ${e.fromName || e.fromEmail}: "${e.subject}"`;
   }).join('\n');
@@ -367,9 +367,9 @@ async function layer16_platformSetupAssistant(userId: string): Promise<string> {
     prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, skills: true, taskTypes: true, capacity: true } }),
   ]);
 
-  const activeProviders = apiKeys.map(k => k.provider);
+  const activeProviders = apiKeys.map((k: any) => k.provider);
   const webhookSummary = webhooks.length > 0
-    ? webhooks.map(w => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
+    ? webhooks.map((w: any) => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
     : 'None configured';
 
   const profileStatus = profile
@@ -727,7 +727,7 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
     });
 
     if (connections.length > 0) {
-      const peerIds = connections.map(c => c.requesterId === userId ? c.accepterId : c.requesterId).filter((id): id is string => !!id);
+      const peerIds = connections.map((c: any) => c.requesterId === userId ? c.accepterId : c.requesterId).filter((id: any): id is string => !!id);
       const peerProfiles = await prisma.userProfile.findMany({
         where: { userId: { in: peerIds }, NOT: { visibility: 'private' } },
       });
@@ -737,7 +737,7 @@ async function layer18_profileAwareness(userId: string): Promise<string> {
         prompt += 'Use this to decide WHO is best suited for a task based on skills, lived experience, AND availability:\n\n';
 
         for (const pp of peerProfiles) {
-          const conn = connections.find(c => (c.requesterId === userId ? c.accepterId : c.requesterId) === pp.userId);
+          const conn = connections.find((c: any) => (c.requesterId === userId ? c.accepterId : c.requesterId) === pp.userId);
           const peer = conn ? (conn.requesterId === userId ? conn.accepter : conn.requester) : null;
           const nickname = conn ? (conn.requesterId === userId ? conn.nickname : conn.peerNickname) : null;
           const name = nickname || peer?.name || 'Unknown';
@@ -834,7 +834,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     }),
   ]);
 
-  const inProgressCards = kanbanCards.filter(c => c.status === 'in_progress');
+  const inProgressCards = kanbanCards.filter((c: any) => c.status === 'in_progress');
 
   // ── Group 1: Identity, Rules & Time (merged old 1+2+9) ──
   const now = new Date();
@@ -854,7 +854,7 @@ You are Divi, the AI agent inside the DiviDen Command Center, working for ${ctx.
 Mode: **${modeName}** — ${modeDesc}
 Current time: ${timeStr}`;
   if (rules.length > 0) {
-    group1 += `\n\n### Rules\n` + rules.map((r, i) => `${i + 1}. **${r.name}**: ${r.rule}`).join('\n');
+    group1 += `\n\n### Rules\n` + rules.map((r: any, i: any) => `${i + 1}. **${r.name}**: ${r.rule}`).join('\n');
   }
 
   // ── Group 2: Active State (merged old 4+5+11) ──
@@ -863,7 +863,7 @@ Current time: ${timeStr}`;
   // NOW focus
   if (inProgressCards.length > 0) {
     const focusLines = inProgressCards.slice(0, 3)
-      .map(c => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
+      .map((c: any) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
       .join('\n');
     group2 += `### 🎯 NOW (In Progress)\n${focusLines}\n\n`;
   } else {
@@ -880,9 +880,9 @@ Current time: ${timeStr}`;
     group2 += `### Board (${kanbanCards.length} cards)\n`;
     for (const [status, items] of Object.entries(byStatus)) {
       group2 += `**${status.replace('_', ' ').toUpperCase()}** (${items.length}): `;
-      group2 += items.map(c => {
+      group2 += items.map((c: any) => {
         const due = c.dueDate ? ` Due:${c.dueDate.toISOString().split('T')[0]}` : '';
-        const checks = c.checklist.length > 0 ? ` ✓${c.checklist.filter(x => x.completed).length}/${c.checklist.length}` : '';
+        const checks = c.checklist.length > 0 ? ` ✓${c.checklist.filter((x: any) => x.completed).length}/${c.checklist.length}` : '';
         return `[${c.id}] "${c.title}" (${c.priority})${due}${checks}`;
       }).join(' | ') + '\n';
     }
@@ -898,7 +898,7 @@ Current time: ${timeStr}`;
   });
   if (queueItems.length > 0) {
     group2 += `\n### Queue (${queueItems.length} pending)\n`;
-    group2 += queueItems.map(q => `- [${q.type}] "${q.title}" (${q.priority}) — ${q.source || 'unknown'}`).join('\n') + '\n';
+    group2 += queueItems.map((q: any) => `- [${q.type}] "${q.title}" (${q.priority}) — ${q.source || 'unknown'}`).join('\n') + '\n';
   }
 
   // Goals
@@ -910,9 +910,9 @@ Current time: ${timeStr}`;
   });
   if (activeGoals.length > 0) {
     group2 += `\n### Goals (${activeGoals.length} active)\n`;
-    group2 += activeGoals.map(g => {
+    group2 += activeGoals.map((g: any) => {
       const dl = g.deadline ? ` Due:${g.deadline.toISOString().split('T')[0]}` : '';
-      const subs = g.subGoals.length > 0 ? ` (${g.subGoals.filter(s => s.status === 'completed').length}/${g.subGoals.length} sub-goals done)` : '';
+      const subs = g.subGoals.length > 0 ? ` (${g.subGoals.filter((s: any) => s.status === 'completed').length}/${g.subGoals.length} sub-goals done)` : '';
       return `- [${g.impact.toUpperCase()}] "${g.title}" ${g.progress}%${dl}${subs}`;
     }).join('\n') + '\n';
   }
@@ -939,7 +939,7 @@ Current time: ${timeStr}`;
   let group5 = memorySection;
   if (learnings.length > 0) {
     group5 += `\n\n### Learned Patterns\n`;
-    group5 += learnings.map(l => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`).join('\n');
+    group5 += learnings.map((l: any) => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`).join('\n');
   }
 
   // ── Group 6: Calendar & Inbox (merged old 12+13) ──
@@ -952,7 +952,7 @@ Current time: ${timeStr}`;
   let group6 = '## Schedule & Inbox\n';
   if (events.length > 0) {
     group6 += `### Calendar (next 7 days — ${events.length} events)\n`;
-    group6 += events.map(e => {
+    group6 += events.map((e: any) => {
       const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
       return `- ${day} ${time}: "${e.title}"${e.location ? ` @ ${e.location}` : ''}`;
@@ -962,7 +962,7 @@ Current time: ${timeStr}`;
   }
   if (unreadEmails.length > 0) {
     group6 += `\n### Inbox (${unreadEmails.length} unread)\n`;
-    group6 += unreadEmails.map(e => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n');
+    group6 += unreadEmails.map((e: any) => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n');
   }
 
   // ── Group 7: Capabilities & Action Tags (merged old 14+15) ──
@@ -1128,7 +1128,7 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
 
     // Earnings
     if (recentEarnings.length > 0) {
-      const totalEarned = recentEarnings.reduce((sum, p) => sum + p.workerPayout, 0);
+      const totalEarned = recentEarnings.reduce((sum: any, p: any) => sum + p.workerPayout, 0);
       text += `\n### Earnings (last 90 days)\n`;
       text += `Total earned: $${totalEarned.toFixed(2)} across ${recentEarnings.length} payments\n`;
     }
@@ -1267,7 +1267,7 @@ async function buildPeopleLayer(
   // CRM Contacts
   if (contacts.length > 0) {
     text += `\n### CRM Contacts (${contacts.length})\n`;
-    text += contacts.map(c => {
+    text += contacts.map((c: any) => {
       const parts = [c.name];
       if (c.company) parts.push(`@ ${c.company}`);
       if (c.role) parts.push(`(${c.role})`);
@@ -1278,7 +1278,7 @@ async function buildPeopleLayer(
 
   // Connection profiles (for routing intelligence)
   if (connections.length > 0) {
-    const peerIds = connections.map(c =>
+    const peerIds = connections.map((c: any) =>
       (c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId
     ).filter((id: string | null): id is string => !!id);
 
@@ -1289,7 +1289,7 @@ async function buildPeopleLayer(
     if (peerProfiles.length > 0) {
       text += `\n### Connection Profiles (for relay routing)\n`;
       for (const pp of peerProfiles) {
-        const conn = connections.find(c => ((c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId) === pp.userId);
+        const conn = connections.find((c: any) => ((c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId) === pp.userId);
         const peer = conn ? ((conn as any).requesterId === userId ? (conn as any).accepter : (conn as any).requester) : null;
         const nickname = conn ? ((conn as any).requesterId === userId ? conn.nickname : conn.peerNickname) : null;
         const name = nickname || peer?.name || 'Unknown';
@@ -1435,7 +1435,7 @@ async function buildSetupLayer_conditional(
   // If everything important is configured, return compact status only
   if (hasApiKey && hasProfile && hasCards && hasContacts) {
     return `## Platform Status
-API: ${apiKeys.map(k => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
+API: ${apiKeys.map((k: any) => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
 
 ### Navigation Reference (for guiding users)
 - **Dashboard**: Board (Kanban), Queue, CRM, Calendar, Inbox, Comms, Goals, Recordings
@@ -1478,9 +1478,9 @@ async function layer16_platformSetupAssistant_optimized(
     prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, skills: true, taskTypes: true, capacity: true } }),
   ]);
 
-  const activeProviders = apiKeys.map(k => k.provider);
+  const activeProviders = apiKeys.map((k: any) => k.provider);
   const webhookSummary = webhooks.length > 0
-    ? webhooks.map(w => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
+    ? webhooks.map((w: any) => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
     : 'None configured';
 
   const profileStatus = profile
@@ -1819,7 +1819,7 @@ async function layer18_profileAwareness_optimized(
 
     // Use pre-fetched connections instead of re-querying
     if (connections.length > 0) {
-      const peerIds = connections.map(c => (c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId).filter((id: string | null): id is string => !!id);
+      const peerIds = connections.map((c: any) => (c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId).filter((id: string | null): id is string => !!id);
       const peerProfiles = await prisma.userProfile.findMany({
         where: { userId: { in: peerIds }, NOT: { visibility: 'private' } },
       });
@@ -1829,7 +1829,7 @@ async function layer18_profileAwareness_optimized(
         prompt += 'Use this to decide WHO is best suited for a task based on skills, lived experience, AND availability:\n\n';
 
         for (const pp of peerProfiles) {
-          const conn = connections.find(c => ((c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId) === pp.userId);
+          const conn = connections.find((c: any) => ((c as any).requesterId === userId ? (c as any).accepterId : (c as any).requesterId) === pp.userId);
           const peer = conn ? ((conn as any).requesterId === userId ? (conn as any).accepter : (conn as any).requester) : null;
           const nickname = conn ? ((conn as any).requesterId === userId ? conn.nickname : conn.peerNickname) : null;
           const name = nickname || peer?.name || 'Unknown';
@@ -1905,8 +1905,8 @@ async function layer19_agentExtensions(userId: string): Promise<string> {
       }),
     ]);
 
-    const teamIds = teamMemberships.map(m => m.teamId);
-    const projectIds = projectMemberships.map(m => m.projectId);
+    const teamIds = teamMemberships.map((m: any) => m.teamId);
+    const projectIds = projectMemberships.map((m: any) => m.projectId);
 
     // Fetch all active extensions matching user's scope
     const extensions = await prisma.agentExtension.findMany({

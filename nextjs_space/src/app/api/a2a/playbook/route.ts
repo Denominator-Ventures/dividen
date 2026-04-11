@@ -59,8 +59,8 @@ export async function GET(req: NextRequest) {
 
     // Build preferences from learnings
     const preferences = learnings
-      .filter(l => ['communication_style', 'workflow_pattern', 'delegation'].includes(l.category || ''))
-      .map(l => l.observation)
+      .filter((l: any) => ['communication_style', 'workflow_pattern', 'delegation'].includes(l.category || ''))
+      .map((l: any) => l.observation)
       .join('. ') || 'Direct, action-oriented. No preamble.';
 
     // Get connection trust level

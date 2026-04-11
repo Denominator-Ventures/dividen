@@ -42,10 +42,10 @@ export async function GET(req: NextRequest) {
 
   const apiKeysSummary = {
     total: apiKeys.length,
-    active: apiKeys.filter(k => k.isActive).length,
-    totalUsage: apiKeys.reduce((sum, k) => sum + k.usageCount, 0),
-    usedLast7d: apiKeys.filter(k => k.lastUsedAt && k.lastUsedAt > sevenDaysAgo).length,
-    keys: apiKeys.map(k => ({
+    active: apiKeys.filter((k: any) => k.isActive).length,
+    totalUsage: apiKeys.reduce((sum: any, k: any) => sum + k.usageCount, 0),
+    usedLast7d: apiKeys.filter((k: any) => k.lastUsedAt && k.lastUsedAt > sevenDaysAgo).length,
+    keys: apiKeys.map((k: any) => ({
       id: k.id,
       name: k.name,
       keyPrefix: k.keyPrefix,
@@ -71,11 +71,11 @@ export async function GET(req: NextRequest) {
 
   const connectionsSummary = {
     total: connections.length,
-    active: connections.filter(c => c.status === 'active').length,
-    pending: connections.filter(c => c.status === 'pending').length,
-    federated: connections.filter(c => c.isFederated).length,
-    local: connections.filter(c => !c.isFederated).length,
-    connections: connections.map(c => {
+    active: connections.filter((c: any) => c.status === 'active').length,
+    pending: connections.filter((c: any) => c.status === 'pending').length,
+    federated: connections.filter((c: any) => c.isFederated).length,
+    local: connections.filter((c: any) => !c.isFederated).length,
+    connections: connections.map((c: any) => {
       let permissions: any = {};
       try { permissions = JSON.parse(c.permissions); } catch { /* ignore */ }
       return {
@@ -133,7 +133,7 @@ export async function GET(req: NextRequest) {
     byDirection,
     byIntent,
     byStatus,
-    recent: relays.map(r => ({
+    recent: relays.map((r: any) => ({
       id: r.id,
       direction: r.direction,
       type: r.type,
@@ -172,10 +172,10 @@ export async function GET(req: NextRequest) {
   });
 
   const queueSummary = {
-    totalExternal: externalQueueCounts.reduce((sum, g) => sum + g._count, 0),
+    totalExternal: externalQueueCounts.reduce((sum: any, g: any) => sum + g._count, 0),
     last7d: recentExternalCount,
-    bySource: Object.fromEntries(externalQueueCounts.map(g => [g.source, g._count])),
-    recent: externalQueueItems.map(q => ({
+    bySource: Object.fromEntries(externalQueueCounts.map((g: any) => [g.source, g._count])),
+    recent: externalQueueItems.map((q: any) => ({
       id: q.id,
       type: q.type,
       title: q.title,

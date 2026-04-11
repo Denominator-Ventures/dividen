@@ -332,9 +332,9 @@ async function executeTool(toolName: string, args: any, userId: string) {
         select: { title: true, startTime: true },
       });
       return {
-        queue: Object.fromEntries(queueCounts.map(g => [g.status, g._count])),
+        queue: Object.fromEntries(queueCounts.map((g: any) => [g.status, g._count])),
         goals,
-        nextEvents: nextEvents.map(e => ({ title: e.title, time: e.startTime })),
+        nextEvents: nextEvents.map((e: any) => ({ title: e.title, time: e.startTime })),
       };
     }
 
@@ -346,7 +346,7 @@ async function executeTool(toolName: string, args: any, userId: string) {
         take: limit,
         select: { sender: true, content: true, createdAt: true },
       });
-      return comms.map(c => ({ sender: c.sender, content: c.content?.substring(0, 200), time: c.createdAt }));
+      return comms.map((c: any) => ({ sender: c.sender, content: c.content?.substring(0, 200), time: c.createdAt }));
     }
 
     case 'job_post': {

@@ -138,7 +138,7 @@ export async function GET() {
             orderBy: { updatedAt: 'asc' },
           });
           if (staleContacts.length > 0) {
-            const names = staleContacts.map(c => c.name).join(', ');
+            const names = staleContacts.map((c: any) => c.name).join(', ');
             const msg = rule.message
               .replace('{{count}}', String(staleContacts.length))
               .replace('{{names}}', names)

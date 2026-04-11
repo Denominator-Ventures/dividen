@@ -88,9 +88,9 @@ export async function PUT(request: NextRequest) {
         _count: true,
       });
       const snapshot = {
-        ready: queueSnapshot.find(g => g.status === 'ready')?._count || 0,
-        inProgress: queueSnapshot.find(g => g.status === 'in_progress')?._count || 0,
-        blocked: queueSnapshot.find(g => g.status === 'blocked')?._count || 0,
+        ready: queueSnapshot.find((g: any) => g.status === 'ready')?._count || 0,
+        inProgress: queueSnapshot.find((g: any) => g.status === 'in_progress')?._count || 0,
+        blocked: queueSnapshot.find((g: any) => g.status === 'blocked')?._count || 0,
       };
 
       pushWake(userId, {

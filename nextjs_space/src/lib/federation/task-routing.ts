@@ -129,7 +129,7 @@ async function scoreCandidate(
   });
 
   if (pastRelays.length >= 3) {
-    const completed = pastRelays.filter(r => r.status === 'completed').length;
+    const completed = pastRelays.filter((r: any) => r.status === 'completed').length;
     breakdown.completionRate = Math.round((completed / pastRelays.length) * 100);
   }
 
@@ -162,7 +162,7 @@ async function scoreCandidate(
   });
 
   if (answeredRelays.length >= 2) {
-    const avgLatencyMs = answeredRelays.reduce((acc, r) => {
+    const avgLatencyMs = answeredRelays.reduce((acc: any, r: any) => {
       return acc + (r.updatedAt.getTime() - r.createdAt.getTime());
     }, 0) / answeredRelays.length;
     const avgLatencyHours = avgLatencyMs / (1000 * 60 * 60);
@@ -304,7 +304,7 @@ export async function getRoutingIntelligenceDigest(userId: string): Promise<stri
     select: { status: true },
   });
 
-  const completed = recentAssignments.filter(r => r.status === 'completed').length;
+  const completed = recentAssignments.filter((r: any) => r.status === 'completed').length;
   const total = recentAssignments.length;
 
   let digest = `\n### 📡 Routing Intelligence\n`;

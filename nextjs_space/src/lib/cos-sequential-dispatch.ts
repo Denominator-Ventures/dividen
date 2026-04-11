@@ -33,7 +33,7 @@ async function dispatchTopReady(userId: string) {
   if (readyItems.length === 0) return null;
 
   // Sort by priority weight, then creation date
-  readyItems.sort((a, b) => {
+  readyItems.sort((a: any, b: any) => {
     const aIdx = PRIORITY_ORDER.indexOf(a.priority);
     const bIdx = PRIORITY_ORDER.indexOf(b.priority);
     if (aIdx !== bIdx) return aIdx - bIdx;

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Only project lead or creator can invite
   const isLeadOrCreator = project.createdById === inviterId ||
-    project.members.some(m => m.userId === inviterId && m.role === 'lead');
+    project.members.some((m: any) => m.userId === inviterId && m.role === 'lead');
   if (!isLeadOrCreator) return NextResponse.json({ error: 'Only project leads can invite members' }, { status: 403 });
 
   let body: any;
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Check if already a member
   if (inviteeId) {
-    const existing = project.members.find(m => m.userId === inviteeId);
+    const existing = project.members.find((m: any) => m.userId === inviteeId);
     if (existing) return NextResponse.json({ error: 'User is already a project member' }, { status: 409 });
   }
 

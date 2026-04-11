@@ -60,7 +60,7 @@ export async function buildLocalGraph(userId: string): Promise<Map<string, Graph
   });
 
   // Build user node
-  const userConnIds = connections.map(c => c.requesterId === userId ? (c.accepterId || c.id) : c.requesterId);
+  const userConnIds = connections.map((c: any) => c.requesterId === userId ? (c.accepterId || c.id) : c.requesterId);
   graph.set(userId, {
     id: userId,
     name: profile?.headline || 'Self',

@@ -62,7 +62,7 @@ export async function PATCH(req: NextRequest) {
 
   if (action === 'accept') {
     // Accept: update invite, add as project member
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: any) => {
       await tx.projectInvite.update({
         where: { id: inviteId },
         data: { status: 'accepted', acceptedAt: new Date() },

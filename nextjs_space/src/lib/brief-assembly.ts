@@ -111,7 +111,7 @@ export async function assembleCardContext(
   if (!card) return null;
 
   // Get recent relays mentioning contacts linked to this card
-  const contactIds = card.contacts.map(c => c.contact.id);
+  const contactIds = card.contacts.map((c: any) => c.contact.id);
   const recentRelays = await prisma.agentRelay.findMany({
     where: {
       OR: [
@@ -166,18 +166,18 @@ export async function assembleCardContext(
       dueDate: card.dueDate,
       createdAt: card.createdAt,
       updatedAt: card.updatedAt,
-      checklist: card.checklist.map(c => ({ text: c.text, completed: c.completed })),
+      checklist: card.checklist.map((c: any) => ({ text: c.text, completed: c.completed })),
     },
-    linkedContacts: card.contacts.map(cc => ({
-      id: cc.contact.id,
-      name: cc.contact.name,
-      email: cc.contact.email,
-      company: cc.contact.company,
-      role: cc.contact.role,
-      cardRole: cc.role,
-      tags: cc.contact.tags,
+    linkedContacts: card.contacts.map((c: any) => ({
+      id: c.contact.id,
+      name: c.contact.name,
+      email: c.contact.email,
+      company: c.contact.company,
+      role: c.contact.role,
+      cardRole: c.role,
+      tags: c.contact.tags,
     })),
-    recentRelays: recentRelays.map(r => ({
+    recentRelays: recentRelays.map((r: any) => ({
       id: r.id,
       subject: r.subject,
       intent: r.intent,
@@ -188,7 +188,7 @@ export async function assembleCardContext(
       createdAt: r.createdAt,
       responsePayload: r.responsePayload,
     })),
-    recentActivity: recentActivity.map(a => ({
+    recentActivity: recentActivity.map((a: any) => ({
       action: a.action,
       summary: a.summary,
       actor: a.actor,
@@ -228,7 +228,7 @@ export async function findSkillMatches(
       where: { projectId: options.projectId },
       select: { connectionId: true },
     });
-    projectMembers.forEach(m => { if (m.connectionId) { projectConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
+    projectMembers.forEach((m: any) => { if (m.connectionId) { projectConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
   }
 
   if (options?.teamId) {
@@ -236,7 +236,7 @@ export async function findSkillMatches(
       where: { teamId: options.teamId },
       select: { connectionId: true },
     });
-    teamMembers.forEach(m => { if (m.connectionId) { teamConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
+    teamMembers.forEach((m: any) => { if (m.connectionId) { teamConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
   } else if (options?.projectId) {
     // If project belongs to a team, also boost team members
     const project = await prisma.project.findUnique({ where: { id: options.projectId }, select: { teamId: true } });
@@ -245,7 +245,7 @@ export async function findSkillMatches(
         where: { teamId: project.teamId },
         select: { connectionId: true },
       });
-      teamMembers.forEach(m => { if (m.connectionId) { teamConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
+      teamMembers.forEach((m: any) => { if (m.connectionId) { teamConnectionIds.add(m.connectionId); scopedConnectionIds.add(m.connectionId); } });
     }
   }
 
@@ -398,8 +398,8 @@ export async function assembleProjectContext(
 
   // Get all local member userIds for querying their project-scoped data
   const localMemberUserIds = project.members
-    .filter(m => m.userId)
-    .map(m => m.userId!);
+    .filter((m: any) => m.userId)
+    .map((m: any) => m.userId!);
 
   // Fetch project-scoped cards, queue items, and relays
   const [cards, queueItems, relays] = await Promise.all([
@@ -427,24 +427,24 @@ export async function assembleProjectContext(
   const cardsByStatus: Record<string, number> = {};
   const blockedMembers: string[] = [];
 
-  const memberViews = project.members.map(m => {
+  const memberViews = project.members.map((m: any) => {
     const uid = m.userId;
     const isFed = !!m.connection?.isFederated;
     const name = m.user?.name || m.connection?.peerUserName || null;
     const email = m.user?.email || m.connection?.peerUserEmail || null;
 
     // Filter cards belonging to this member
-    const memberCards = uid ? cards.filter(c => c.userId === uid) : [];
-    const memberQueue = uid ? queueItems.filter(q => q.userId === uid) : [];
-    const memberRelays = uid ? relays.filter(r => r.fromUserId === uid || r.toUserId === uid) : [];
+    const memberCards = uid ? cards.filter((c: any) => c.userId === uid) : [];
+    const memberQueue = uid ? queueItems.filter((q: any) => q.userId === uid) : [];
+    const memberRelays = uid ? relays.filter((r: any) => r.fromUserId === uid || r.toUserId === uid) : [];
 
     // Aggregate card statuses
-    memberCards.forEach(c => {
+    memberCards.forEach((c: any) => {
       cardsByStatus[c.status] = (cardsByStatus[c.status] || 0) + 1;
     });
 
     // Detect blocked members (have stale pending queue items or no activity)
-    const hasBlockedQueue = memberQueue.some(q => q.status === 'pending' || q.status === 'blocked');
+    const hasBlockedQueue = memberQueue.some((q: any) => q.status === 'pending' || q.status === 'blocked');
     if (hasBlockedQueue && name) blockedMembers.push(name);
 
     return {
@@ -453,9 +453,9 @@ export async function assembleProjectContext(
       role: m.role,
       isFederated: isFed,
       instanceUrl: m.connection?.peerInstanceUrl || null,
-      cards: memberCards.map(c => ({ id: c.id, title: c.title, status: c.status, priority: c.priority, assignee: c.assignee, dueDate: c.dueDate })),
-      queueItems: memberQueue.map(q => ({ id: q.id, title: q.title, status: q.status, priority: q.priority })),
-      activeRelays: memberRelays.map(r => ({
+      cards: memberCards.map((c: any) => ({ id: c.id, title: c.title, status: c.status, priority: c.priority, assignee: c.assignee, dueDate: c.dueDate })),
+      queueItems: memberQueue.map((q: any) => ({ id: q.id, title: q.title, status: q.status, priority: q.priority })),
+      activeRelays: memberRelays.map((r: any) => ({
         id: r.id, subject: r.subject, intent: r.intent, status: r.status,
         direction: r.fromUserId === uid ? 'outbound' : 'inbound',
       })),

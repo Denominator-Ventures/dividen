@@ -108,8 +108,8 @@ export async function GET(
         }),
       ]).then(([from, to]) => {
         const rels = [
-          ...from.map((r) => ({ id: r.id, type: r.type, label: r.label, direction: 'outgoing' as const, contact: r.to })),
-          ...to.map((r) => ({ id: r.id, type: r.type, label: r.label, direction: 'incoming' as const, contact: r.from })),
+          ...from.map((r: any) => ({ id: r.id, type: r.type, label: r.label, direction: 'outgoing' as const, contact: r.to })),
+          ...to.map((r: any) => ({ id: r.id, type: r.type, label: r.label, direction: 'incoming' as const, contact: r.from })),
         ];
         return rels;
       }),

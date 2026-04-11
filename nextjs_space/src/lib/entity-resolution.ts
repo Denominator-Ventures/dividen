@@ -305,7 +305,7 @@ export async function computeSerendipityMatches(userId: string) {
     where: { OR: [{ requesterId: userId }, { accepterId: userId }], status: 'active' },
   });
   const connectedIds = new Set(
-    connections.map(c => c.requesterId === userId ? c.accepterId : c.requesterId).filter(Boolean)
+    connections.map((c: any) => c.requesterId === userId ? c.accepterId : c.requesterId).filter(Boolean)
   );
 
   // Get profiles of connected users' connections (2nd degree)

@@ -42,7 +42,7 @@ export async function POST(
 
   enrichment.linkedCards = linkedCards.length;
   enrichment.activeDeals = linkedCards.filter(
-    (lc) => !['completed'].includes(lc.card.status)
+    (lc: any) => !['completed'].includes(lc.card.status)
   ).length;
 
   // Check for memory items related to this contact
@@ -57,7 +57,7 @@ export async function POST(
     take: 10,
   });
   enrichment.relatedMemories = relatedMemories.length;
-  enrichment.notes = relatedMemories.map((m) => `${m.key}: ${m.value}`).slice(0, 5);
+  enrichment.notes = relatedMemories.map((m: any) => `${m.key}: ${m.value}`).slice(0, 5);
 
   // Update contact with enrichment data
   const updated = await prisma.contact.update({
