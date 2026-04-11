@@ -256,7 +256,7 @@ export default function SettingsPage() {
                     await fetch('/api/settings', {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ hasSeenWalkthrough: false }),
+                      body: JSON.stringify({ hasSeenWalkthrough: false, hasCompletedOnboarding: false }),
                     });
                     window.location.href = '/dashboard';
                   } catch {

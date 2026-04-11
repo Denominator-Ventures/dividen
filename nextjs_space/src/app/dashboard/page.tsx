@@ -13,6 +13,8 @@ import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
+import { OnboardingWizard } from '@/components/dashboard/OnboardingWizard';
+import { KeyboardNav } from '@/components/dashboard/KeyboardNav';
 import type { CenterTab } from '@/types';
 
 type MobilePanel = 'now' | 'center' | 'queue';
@@ -24,6 +26,8 @@ export default function DashboardPage() {
   const [modeLoading, setModeLoading] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
   const [showWalkthrough, setShowWalkthrough] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [userName, setUserName] = useState<string | undefined>();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
   const [commsUnread, setCommsUnread] = useState(0);
@@ -60,8 +64,11 @@ export default function DashboardPage() {
       .then((d) => {
         if (d.success) {
           setMode(d.data.user.mode);
+          setUserName(d.data.user.name || undefined);
           if (!d.data.user.hasSeenWalkthrough) {
             setTimeout(() => setShowWalkthrough(true), 600);
+          } else if (!d.data.user.hasCompletedOnboarding) {
+            setTimeout(() => setShowOnboarding(true), 400);
           }
           setSettingsLoaded(true);
         }
@@ -122,6 +129,8 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ hasSeenWalkthrough: true }),
       });
+      // Show onboarding after walkthrough completes
+      setTimeout(() => setShowOnboarding(true), 300);
     } catch {
       // silent
     }
@@ -131,6 +140,20 @@ export default function DashboardPage() {
     <div className="h-full flex flex-col">
       {/* Walkthrough overlay */}
       {showWalkthrough && <Walkthrough onComplete={handleWalkthroughComplete} />}
+
+      {/* Onboarding wizard — fires after walkthrough or if walkthrough was already seen */}
+      {showOnboarding && !showWalkthrough && (
+        <OnboardingWizard
+          userName={userName}
+          onComplete={() => setShowOnboarding(false)}
+        />
+      )}
+
+      {/* Keyboard navigation (global hotkeys + ? overlay) */}
+      <KeyboardNav
+        onTabChange={setActiveTab}
+        onToggleSearch={() => setSearchOpen((o) => !o)}
+      />
 
       {/* Global Search Modal */}
       <GlobalSearch

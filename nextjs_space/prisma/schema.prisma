@@ -21,7 +21,8 @@ model User {
   passwordHash  String
   role          String    @default("admin")
   mode          String    @default("cockpit") // "cockpit" | "chief_of_staff"
-  hasSeenWalkthrough Boolean @default(false)
+  hasSeenWalkthrough    Boolean @default(false)
+  hasCompletedOnboarding Boolean @default(false)
   acceptedTermsAt       DateTime? // null = not yet accepted
   termsVersion          String?   // e.g. "1.0" — which version they accepted
   notificationsLastSeen DateTime? // Timestamp of last notification feed view

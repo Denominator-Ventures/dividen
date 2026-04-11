@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useActivityStream } from '@/hooks/use-activity-stream';
 
 interface FeedItem {
   id: string;
@@ -45,10 +46,21 @@ export default function NotificationCenter() {
     }
   }, []);
 
-  // Initial fetch + polling
+  // SSE stream for real-time updates
+  const { newCount: sseNewCount, resetCount: resetSseCount } = useActivityStream(true);
+
+  // Bump unseen count when SSE delivers new events
+  useEffect(() => {
+    if (sseNewCount > 0 && !open) {
+      setUnseenCount((c) => c + sseNewCount);
+      resetSseCount();
+    }
+  }, [sseNewCount, open, resetSseCount]);
+
+  // Initial fetch + polling (slower since SSE handles real-time)
   useEffect(() => {
     fetchFeed();
-    pollRef.current = setInterval(fetchFeed, 30000);
+    pollRef.current = setInterval(fetchFeed, 60000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchFeed]);
 
