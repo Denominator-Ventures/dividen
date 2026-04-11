@@ -147,13 +147,21 @@
 
 /* PWA standalone: account for status bar & home indicator */
 @media (display-mode: standalone) {
-  html, body {
-    overscroll-behavior: none;      /* prevent rubber-band bounce     */
+  html {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
   }
-  .app-shell {
-    height: 100vh;                  /* stable in standalone (no chrome bar) */
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    /* safe-area padding lives here so app-shell can use full height */
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .app-shell {
+    height: 100%;                   /* fill body (already safe-area-padded) */
   }
 }
 
