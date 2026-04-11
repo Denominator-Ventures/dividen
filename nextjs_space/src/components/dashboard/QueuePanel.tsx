@@ -10,6 +10,10 @@ import {
   type CardPriority,
 } from '@/types';
 
+interface QueuePanelProps {
+  onNavigateToMarketplace?: () => void;
+}
+
 // ─── Priority indicator ─────────────────────────────────────────────────────
 
 const priorityIndicator: Record<CardPriority, { dot: string; label: string }> = {
@@ -161,7 +165,7 @@ function NewQueueItemForm({
 
 // ─── Main Queue Panel ───────────────────────────────────────────────────────
 
-export function QueuePanel() {
+export function QueuePanel({ onNavigateToMarketplace }: QueuePanelProps = {}) {
   const [items, setItems] = useState<QueueItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -497,6 +501,22 @@ export function QueuePanel() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Marketplace CTA ── */}
+      {onNavigateToMarketplace && (
+        <div className="flex-shrink-0 p-3 border-t border-[var(--border-color)]">
+          <button
+            onClick={onNavigateToMarketplace}
+            className="w-full py-3 px-4 bg-gradient-to-r from-brand-500/20 via-purple-500/15 to-brand-500/20 hover:from-brand-500/30 hover:via-purple-500/25 hover:to-brand-500/30 border border-brand-500/30 hover:border-brand-500/50 rounded-xl text-sm font-semibold text-brand-400 transition-all group"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <span className="text-lg group-hover:scale-110 transition-transform">🏪</span>
+              <span>Agent Marketplace</span>
+              <span className="text-[10px] bg-brand-500/20 px-1.5 py-0.5 rounded-full text-brand-400/80">Explore</span>
+            </span>
+          </button>
         </div>
       )}
     </div>

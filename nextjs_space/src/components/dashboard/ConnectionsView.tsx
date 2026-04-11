@@ -62,6 +62,7 @@ export function ConnectionsView() {
   const [directoryUsers, setDirectoryUsers] = useState<any[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryQuery, setDirectoryQuery] = useState('');
+  const [justAccepted, setJustAccepted] = useState<ConnectionData | null>(null);
   const [directorySearched, setDirectorySearched] = useState(false);
   const [connectingUserId, setConnectingUserId] = useState<string | null>(null);
 
@@ -230,12 +231,15 @@ export function ConnectionsView() {
   };
 
   const handleAccept = async (id: string) => {
-    await fetch(`/api/connections/${id}`, {
+    const res = await fetch(`/api/connections/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'active' }),
     });
-    fetchConnections();
+    await fetchConnections();
+    // Show marketplace monetization prompt
+    const accepted = connections.find(c => c.id === id);
+    if (accepted) setJustAccepted(accepted);
   };
 
   const handleDecline = async (id: string) => {
@@ -412,6 +416,49 @@ export function ConnectionsView() {
           )}
         </div>
       </div>
+
+      {/* ─── Marketplace monetization prompt ─── */}
+      {justAccepted && (
+        <div className="mx-4 mt-3 bg-gradient-to-r from-brand-500/10 via-purple-500/5 to-emerald-500/10 border border-brand-500/20 rounded-xl p-4">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">🏪</span>
+                <h4 className="text-sm font-semibold text-white/90">Monetize this agent?</h4>
+              </div>
+              <p className="text-xs text-white/50">
+                Connected to {justAccepted.isFederated ? justAccepted.peerUserName || 'remote agent' : justAccepted.nickname || 'agent'}. List it on the marketplace so others can use it — charge per task, offer subscriptions, or share for free.
+              </p>
+            </div>
+            <button onClick={() => setJustAccepted(null)} className="text-white/30 hover:text-white/60 text-sm ml-2">✕</button>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('marketplacePrefill', JSON.stringify({
+                    name: justAccepted.nickname || justAccepted.peerUserName || 'Connected Agent',
+                    description: `Agent connected via ${justAccepted.isFederated ? 'federation from ' + justAccepted.peerInstanceUrl : 'local connection'}`,
+                    endpointUrl: justAccepted.isFederated ? justAccepted.peerInstanceUrl + '/api/a2a' : '',
+                  }));
+                  sessionStorage.setItem('openTab', 'marketplace');
+                }
+                setJustAccepted(null);
+                window.location.href = '/dashboard';
+              }}
+              className="px-4 py-2 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-lg text-xs font-medium hover:bg-brand-500/30 transition-all"
+            >
+              🚀 List on Marketplace
+            </button>
+            <button
+              onClick={() => setJustAccepted(null)}
+              className="px-4 py-2 bg-white/5 text-white/50 border border-white/10 rounded-lg text-xs font-medium hover:bg-white/10 transition-all"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── New Connection Form ─── */}
       {showNewConnection && (

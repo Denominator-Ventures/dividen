@@ -620,6 +620,26 @@ export default function CommsPage() {
           </div>
         )}
       </div>
+
+      {/* Marketplace CTA */}
+      <div className="flex-shrink-0 p-3 border-t border-[var(--border-color)]">
+        <Link
+          href="/dashboard"
+          onClick={(e) => {
+            // Store a flag so the dashboard knows to open marketplace
+            if (typeof window !== 'undefined') {
+              sessionStorage.setItem('openTab', 'marketplace');
+            }
+          }}
+          className="block w-full py-3 px-4 bg-gradient-to-r from-brand-500/20 via-purple-500/15 to-brand-500/20 hover:from-brand-500/30 hover:via-purple-500/25 hover:to-brand-500/30 border border-brand-500/30 hover:border-brand-500/50 rounded-xl text-sm font-semibold text-brand-400 transition-all text-center group"
+        >
+          <span className="flex items-center justify-center gap-2">
+            <span className="text-lg group-hover:scale-110 transition-transform">🏪</span>
+            <span>Agent Marketplace</span>
+            <span className="text-[10px] bg-brand-500/20 px-1.5 py-0.5 rounded-full text-brand-400/80">Explore</span>
+          </span>
+        </Link>
+      </div>
     </div>
   );
 }

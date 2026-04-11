@@ -53,7 +53,34 @@ interface Execution {
   completedAt?: string | null;
 }
 
-type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents';
+interface EarningsData {
+  hasListings: boolean;
+  hasPaidListings?: boolean;
+  totals?: {
+    totalAgents: number;
+    paidAgents: number;
+    totalExecutions: number;
+    completedExecutions: number;
+    failedExecutions: number;
+    activeSubscriptions: number;
+    uniqueUsers: number;
+    estimatedRevenue: number;
+  };
+  agents?: any[];
+  recentExecutions?: any[];
+}
+
+type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents' | 'earnings';
+
+interface MarketplaceViewProps {
+  prefillAgent?: {
+    name?: string;
+    description?: string;
+    endpointUrl?: string;
+    category?: string;
+  };
+  onPrefillConsumed?: () => void;
+}
 
 /* ── Constants ─────────────────────────────────────────────── */
 
@@ -94,7 +121,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function MarketplaceView() {
+export function MarketplaceView({ prefillAgent, onPrefillConsumed }: MarketplaceViewProps = {}) {
   const [view, setView] = useState<ViewMode>('browse');
   const [agents, setAgents] = useState<MarketplaceAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<MarketplaceAgent | null>(null);
@@ -110,6 +137,10 @@ export function MarketplaceView() {
   const [executing, setExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<any>(null);
 
+  // Earnings state
+  const [earnings, setEarnings] = useState<EarningsData | null>(null);
+  const [earningsLoading, setEarningsLoading] = useState(false);
+
   // Registration form
   const [regForm, setRegForm] = useState({
     name: '', description: '', longDescription: '', endpointUrl: '',
@@ -123,6 +154,21 @@ export function MarketplaceView() {
   });
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState('');
+
+  // Handle prefill from extensions/connections
+  useEffect(() => {
+    if (prefillAgent) {
+      setRegForm(prev => ({
+        ...prev,
+        name: prefillAgent.name || prev.name,
+        description: prefillAgent.description || prev.description,
+        endpointUrl: prefillAgent.endpointUrl || prev.endpointUrl,
+        category: prefillAgent.category || prev.category,
+      }));
+      setView('register');
+      onPrefillConsumed?.();
+    }
+  }, [prefillAgent, onPrefillConsumed]);
 
   /* ── Fetch agents ─────────────────────────────────────────── */
 
@@ -943,6 +989,131 @@ export function MarketplaceView() {
     </div>
   );
 
+  /* ── Fetch earnings ─────────────────────────────────────────── */
+
+  const fetchEarnings = useCallback(async () => {
+    setEarningsLoading(true);
+    try {
+      const res = await fetch('/api/marketplace/earnings');
+      if (res.ok) {
+        const data = await res.json();
+        setEarnings(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch earnings:', e);
+    } finally {
+      setEarningsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'earnings') fetchEarnings();
+  }, [view, fetchEarnings]);
+
+  // Check for earnings on mount to show/hide the tab
+  useEffect(() => {
+    fetch('/api/marketplace/earnings').then(r => r.json()).then(d => setEarnings(d)).catch(() => {});
+  }, []);
+
+  /* ── Render: Earnings ─────────────────────────────────────── */
+
+  const renderEarnings = () => {
+    if (earningsLoading) return <div className="text-center py-12 text-white/30">Loading earnings...</div>;
+    if (!earnings?.hasListings) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-4xl mb-3">💰</div>
+          <h3 className="text-sm font-medium text-white/60 mb-1">No agents listed yet</h3>
+          <p className="text-xs text-white/35 mb-4">List an agent with paid pricing to start earning.</p>
+          <button onClick={() => setView('register')} className="px-4 py-2 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-lg text-sm font-medium hover:bg-brand-500/30 transition-all">
+            + List Your First Agent
+          </button>
+        </div>
+      );
+    }
+
+    const t = earnings.totals!;
+    return (
+      <div className="space-y-4">
+        {/* Revenue hero */}
+        <div className="bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-emerald-500/5 border border-brand-500/20 rounded-xl p-6">
+          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Estimated Revenue</div>
+          <div className="text-3xl font-bold text-white/90">${t.estimatedRevenue.toLocaleString()}</div>
+          <div className="text-xs text-white/35 mt-1">{t.paidAgents} paid agent{t.paidAgents !== 1 ? 's' : ''} · {t.activeSubscriptions} active subscriber{t.activeSubscriptions !== 1 ? 's' : ''}</div>
+        </div>
+
+        {/* Stats grid */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { label: 'Total Agents', value: t.totalAgents, icon: '🤖' },
+            { label: 'Total Executions', value: t.totalExecutions, icon: '🚀' },
+            { label: 'Success Rate', value: t.completedExecutions > 0 ? `${Math.round((t.completedExecutions / t.totalExecutions) * 100)}%` : '—', icon: '✅' },
+            { label: 'Unique Users', value: t.uniqueUsers, icon: '👥' },
+          ].map((s, i) => (
+            <div key={i} className="bg-white/[0.03] border border-white/[0.06] rounded-lg p-3">
+              <div className="text-lg mb-1">{s.icon}</div>
+              <div className="text-lg font-semibold text-white/90">{s.value}</div>
+              <div className="text-[10px] text-white/35">{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Agent breakdown */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+          <h3 className="text-sm font-medium text-white/70 mb-3">📊 Agent Performance</h3>
+          <div className="space-y-2">
+            {earnings.agents?.map((a: any) => (
+              <div key={a.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <span className="text-sm">{CATEGORIES.find(c => c.id === a.category)?.icon || '🤖'}</span>
+                  <div className="min-w-0">
+                    <div className="text-sm text-white/80 truncate">{a.name}</div>
+                    <div className="text-[10px] text-white/35">{a.totalExecutions} runs · {a._count?.subscriptions || 0} subs</div>
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0 ml-3">
+                  <div className={cn(
+                    'text-sm font-medium',
+                    a.pricingModel === 'free' ? 'text-white/40' : 'text-emerald-400'
+                  )}>
+                    {a.pricingModel === 'free' ? 'Free' : `$${a.estimatedRevenue}`}
+                  </div>
+                  <div className={cn(
+                    'text-[10px] px-1.5 py-0.5 rounded',
+                    a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'
+                  )}>
+                    {a.status}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent activity */}
+        {earnings.recentExecutions && earnings.recentExecutions.length > 0 && (
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">⚡ Recent Activity</h3>
+            <div className="space-y-1.5">
+              {earnings.recentExecutions.map((e: any) => (
+                <div key={e.id} className="flex items-center gap-2 py-1.5 text-xs">
+                  <span className={cn(
+                    'w-1.5 h-1.5 rounded-full flex-shrink-0',
+                    e.status === 'completed' ? 'bg-emerald-400' : e.status === 'failed' ? 'bg-red-400' : 'bg-white/20'
+                  )} />
+                  <span className="text-white/50 truncate flex-1">{e.taskInput.slice(0, 60)}{e.taskInput.length > 60 ? '...' : ''}</span>
+                  <span className="text-white/25 flex-shrink-0">{e.user?.name || 'User'}</span>
+                  {e.rating && <span className="text-amber-400/60 flex-shrink-0">{'★'.repeat(e.rating)}</span>}
+                  <span className="text-white/20 flex-shrink-0">{new Date(e.createdAt).toLocaleDateString()}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   /* ── Main Render ─────────────────────────────────────────── */
 
   return (
@@ -959,7 +1130,7 @@ export function MarketplaceView() {
               onClick={() => setView('browse')}
               className={cn(
                 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                view === 'browse'
+                view === 'browse' || view === 'detail'
                   ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
               )}
@@ -977,6 +1148,20 @@ export function MarketplaceView() {
             >
               + List Agent
             </button>
+            {/* Earnings tab - only shows when user has listings */}
+            {earnings?.hasListings && (
+              <button
+                onClick={() => setView('earnings')}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                  view === 'earnings'
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-white/5 text-white/50 hover:bg-white/10'
+                )}
+              >
+                💰 Earnings
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -986,6 +1171,7 @@ export function MarketplaceView() {
         {view === 'browse' && renderBrowse()}
         {view === 'detail' && renderDetail()}
         {view === 'register' && renderRegister()}
+        {view === 'earnings' && renderEarnings()}
       </div>
     </div>
   );

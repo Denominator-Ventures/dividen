@@ -53,6 +53,9 @@ export function ExtensionsView() {
   // Filter state
   const [filterType, setFilterType] = useState<string>('all');
   const [filterScope, setFilterScope] = useState<string>('all');
+  
+  // Marketplace prompt after install
+  const [justInstalled, setJustInstalled] = useState<Extension | null>(null);
 
   const fetchExtensions = useCallback(async () => {
     try {
@@ -128,10 +131,12 @@ export function ExtensionsView() {
           priority: importPriority,
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || 'Failed to install extension');
       }
+      // Show marketplace listing prompt
+      setJustInstalled(data);
       // Reset form & go back to list
       setImportName(''); setImportDescription(''); setImportConfig('');
       setImportScopeId(''); setImportPriority(0);
@@ -421,6 +426,50 @@ export function ExtensionsView() {
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2 text-xs text-red-400">{error}</div>
+      )}
+
+      {/* Marketplace listing prompt after install */}
+      {justInstalled && (
+        <div className="bg-gradient-to-r from-brand-500/10 via-purple-500/5 to-emerald-500/10 border border-brand-500/20 rounded-xl p-4 animate-in fade-in">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-lg">🏪</span>
+                <h4 className="text-sm font-semibold text-white/90">Monetize &ldquo;{justInstalled.name}&rdquo;?</h4>
+              </div>
+              <p className="text-xs text-white/50">
+                List this agent on the marketplace so others can use it — charge per task, offer subscriptions, or keep it free.
+              </p>
+            </div>
+            <button onClick={() => setJustInstalled(null)} className="text-white/30 hover:text-white/60 text-sm ml-2">✕</button>
+          </div>
+          <div className="flex gap-2 mt-3">
+            <button
+              onClick={() => {
+                // Navigate to marketplace register with prefill
+                if (typeof window !== 'undefined') {
+                  sessionStorage.setItem('marketplacePrefill', JSON.stringify({
+                    name: justInstalled.name,
+                    description: justInstalled.description || '',
+                    category: justInstalled.type === 'skill' ? 'general' : 'general',
+                  }));
+                  sessionStorage.setItem('openTab', 'marketplace');
+                }
+                setJustInstalled(null);
+                window.location.href = '/dashboard';
+              }}
+              className="px-4 py-2 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-lg text-xs font-medium hover:bg-brand-500/30 transition-all"
+            >
+              🚀 List on Marketplace
+            </button>
+            <button
+              onClick={() => setJustInstalled(null)}
+              className="px-4 py-2 bg-white/5 text-white/50 border border-white/10 rounded-lg text-xs font-medium hover:bg-white/10 transition-all"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Filters */}

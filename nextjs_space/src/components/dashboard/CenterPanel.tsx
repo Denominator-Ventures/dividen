@@ -20,6 +20,8 @@ import { MarketplaceView } from './MarketplaceView';
 interface CenterPanelProps {
   activeTab: CenterTab;
   onTabChange: (tab: CenterTab) => void;
+  marketplacePrefill?: any;
+  onMarketplacePrefillConsumed?: () => void;
 }
 
 /* ── Tab Organization ──────────────────────────────────────── */
@@ -53,7 +55,7 @@ const messagesTabIds = new Set(messagesTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
+export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
   const isMessagesActive = messagesTabIds.has(activeTab);
   const hasSubRow = isNetworkActive || isMessagesActive;
@@ -185,7 +187,7 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
         {activeTab === 'teams' && <TeamsView />}
         {activeTab === 'goals' && <GoalsView />}
         {activeTab === 'jobs' && <JobBoardView />}
-        {activeTab === 'marketplace' && <MarketplaceView />}
+        {activeTab === 'marketplace' && <MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} />}
         {activeTab === 'extensions' && <ExtensionsView />}
       </div>
     </div>

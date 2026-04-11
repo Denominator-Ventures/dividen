@@ -35,6 +35,24 @@ export default function DashboardPage() {
     desktopNotifComms: true,
   });
 
+  const [marketplacePrefill, setMarketplacePrefill] = useState<any>(null);
+
+  // Check for tab navigation from Comms/Extensions/Connections pages
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const openTab = sessionStorage.getItem('openTab');
+      if (openTab) {
+        setActiveTab(openTab as CenterTab);
+        sessionStorage.removeItem('openTab');
+      }
+      const prefill = sessionStorage.getItem('marketplacePrefill');
+      if (prefill) {
+        try { setMarketplacePrefill(JSON.parse(prefill)); } catch {}
+        sessionStorage.removeItem('marketplacePrefill');
+      }
+    }
+  }, []);
+
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
@@ -271,10 +289,10 @@ export default function DashboardPage() {
               <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} />
             </div>
             <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} />
+              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} />
             </div>
             <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-              <QueuePanel />
+              <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
             </div>
           </div>
 
@@ -289,12 +307,12 @@ export default function DashboardPage() {
               )}
               {mobilePanel === 'center' && (
                 <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} />
+                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} />
                 </div>
               )}
               {mobilePanel === 'queue' && (
                 <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                  <QueuePanel />
+                  <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} />
                 </div>
               )}
             </div>
