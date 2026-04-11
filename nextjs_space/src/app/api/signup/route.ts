@@ -4,10 +4,12 @@ import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+const TERMS_VERSION = '1.0';
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, name } = body;
+    const { email, password, name, acceptedTerms } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -33,6 +35,10 @@ export async function POST(request: NextRequest) {
         passwordHash,
         role: 'admin',
         mode: 'cockpit',
+        ...(acceptedTerms ? {
+          acceptedTermsAt: new Date(),
+          termsVersion: TERMS_VERSION,
+        } : {}),
       },
     });
 

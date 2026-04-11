@@ -64,6 +64,10 @@ interface EarningsData {
   hasListings: boolean;
   hasPaidListings?: boolean;
   feeInfo?: FeeInfo;
+  stripeConnect?: {
+    hasAccount: boolean;
+    onboarded: boolean;
+  };
   totals?: {
     totalAgents: number;
     paidAgents: number;
@@ -1082,8 +1086,62 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
 
     const t = earnings.totals!;
     const fi = earnings.feeInfo || feeInfo;
+    const sc = earnings.stripeConnect;
     return (
       <div className="space-y-4">
+        {/* Stripe Connect banner */}
+        {sc && !sc.onboarded && earnings.hasPaidListings && (
+          <div className={cn(
+            'flex items-center gap-3 p-4 rounded-xl border',
+            sc.hasAccount
+              ? 'bg-amber-500/10 border-amber-500/20'
+              : 'bg-brand-500/10 border-brand-500/20'
+          )}>
+            <span className="text-2xl">{sc.hasAccount ? '⏳' : '🏦'}</span>
+            <div className="flex-1 min-w-0">
+              <div className={cn('text-sm font-medium', sc.hasAccount ? 'text-amber-400' : 'text-brand-400')}>
+                {sc.hasAccount ? 'Complete Stripe Setup' : 'Set Up Payouts'}
+              </div>
+              <div className="text-xs text-white/40 mt-0.5">
+                {sc.hasAccount
+                  ? 'Your Stripe Connect onboarding is incomplete. Finish it to receive payouts from paid agent executions.'
+                  : 'Connect your bank account via Stripe to receive payouts when users execute your paid agents.'}
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                const res = await fetch('/api/stripe/connect/onboard', { method: 'POST' });
+                const data = await res.json();
+                if (data.url) window.open(data.url, '_blank');
+              }}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all',
+                sc.hasAccount
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
+                  : 'bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30'
+              )}
+            >
+              {sc.hasAccount ? 'Continue →' : 'Connect Stripe →'}
+            </button>
+          </div>
+        )}
+
+        {sc?.onboarded && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+            <span className="text-emerald-400 text-xs">✓ Stripe Connected</span>
+            <button
+              onClick={async () => {
+                const res = await fetch('/api/stripe/connect/dashboard', { method: 'POST' });
+                const data = await res.json();
+                if (data.url) window.open(data.url, '_blank');
+              }}
+              className="text-xs text-white/40 hover:text-white/60 transition-colors ml-auto"
+            >
+              Open Stripe Dashboard →
+            </button>
+          </div>
+        )}
+
         {/* Revenue hero */}
         <div className="bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-emerald-500/5 border border-brand-500/20 rounded-xl p-6">
           <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Your Earnings</div>

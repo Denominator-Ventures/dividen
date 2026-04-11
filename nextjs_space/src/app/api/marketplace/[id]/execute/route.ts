@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueSplit } from '@/lib/marketplace-config';
+import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 
 const EXECUTION_TIMEOUT = 30000; // 30s
 
@@ -19,14 +20,18 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = (session.user as any).id;
+    const userEmail = (session.user as any).email;
     const body = await req.json();
-    const { input } = body;
+    const { input, paymentMethodId } = body;
 
     if (!input || typeof input !== 'string' || !input.trim()) {
       return NextResponse.json({ error: 'input is required' }, { status: 400 });
     }
 
-    const agent = await prisma.marketplaceAgent.findUnique({ where: { id: params.id } });
+    const agent = await prisma.marketplaceAgent.findUnique({
+      where: { id: params.id },
+      include: { developer: { select: { stripeConnectAccountId: true, stripeConnectOnboarded: true } } },
+    });
     if (!agent || agent.status !== 'active') {
       return NextResponse.json({ error: 'Agent not found or not active' }, { status: 404 });
     }
@@ -47,6 +52,32 @@ export async function POST(
           { error: 'Task limit reached for current billing period.' },
           { status: 429 }
         );
+      }
+    }
+
+    // For paid per_task agents, verify payment can be processed
+    const isPaidExecution = agent.pricingModel === 'per_task' && agent.pricePerTask && agent.pricePerTask > 0;
+    let stripePaymentIntentId: string | null = null;
+
+    if (isPaidExecution && stripe) {
+      // Need a payment method
+      if (!paymentMethodId) {
+        // Try to get default payment method
+        const customerId = await getOrCreateStripeCustomer(userId, userEmail, session.user.name);
+        const customer = await stripe.customers.retrieve(customerId) as any;
+        const defaultPm = customer.invoice_settings?.default_payment_method;
+        if (!defaultPm) {
+          return NextResponse.json(
+            { error: 'Payment method required. Please add a card in your payment settings.' },
+            { status: 402 }
+          );
+        }
+      }
+
+      // Verify developer has Stripe Connect set up for payouts
+      if (!agent.developer?.stripeConnectAccountId || !agent.developer?.stripeConnectOnboarded) {
+        // Allow execution but skip payment — developer hasn't set up payouts yet
+        console.warn(`Agent ${agent.id} developer hasn't completed Stripe Connect onboarding. Executing without payment.`);
       }
     }
 
@@ -158,6 +189,52 @@ export async function POST(
       // Subscription revenue is tracked at subscription level, not per-execution
       const revSplit = calculateRevenueSplit(grossAmount);
 
+      // Process Stripe payment for paid executions
+      if (isPaidExecution && stripe && grossAmount > 0 && agent.developer?.stripeConnectAccountId && agent.developer?.stripeConnectOnboarded) {
+        try {
+          const customerId = await getOrCreateStripeCustomer(userId, userEmail, session.user.name);
+          const customer = await stripe.customers.retrieve(customerId) as any;
+          const pmId = paymentMethodId || customer.invoice_settings?.default_payment_method;
+
+          if (pmId) {
+            // Platform fee in cents (Stripe uses smallest currency unit)
+            const amountInCents = Math.round(grossAmount * 100);
+            const platformFeeInCents = Math.round(revSplit.platformFee * 100);
+
+            // Create payment intent with destination charge
+            const paymentIntent = await stripe.paymentIntents.create({
+              amount: amountInCents,
+              currency: 'usd',
+              customer: customerId,
+              payment_method: pmId,
+              confirm: true,
+              automatic_payment_methods: {
+                enabled: true,
+                allow_redirects: 'never',
+              },
+              application_fee_amount: platformFeeInCents,
+              transfer_data: {
+                destination: agent.developer.stripeConnectAccountId,
+              },
+              metadata: {
+                executionId: execution.id,
+                agentId: agent.id,
+                agentName: agent.name,
+                userId,
+              },
+              description: `DiviDen Marketplace: ${agent.name} execution`,
+            });
+
+            stripePaymentIntentId = paymentIntent.id;
+            console.log(`Payment ${paymentIntent.id} created for execution ${execution.id}: $${grossAmount}`);
+          }
+        } catch (paymentError: any) {
+          console.error(`Stripe payment failed for execution ${execution.id}:`, paymentError.message);
+          // Don't fail the execution — the task completed, payment can be retried
+          stripePaymentIntentId = null;
+        }
+      }
+
       // Update execution
       await prisma.marketplaceExecution.update({
         where: { id: execution.id },
@@ -170,6 +247,8 @@ export async function POST(
           platformFee: revSplit.platformFee,
           developerPayout: revSplit.developerPayout,
           feePercent: revSplit.feePercent,
+          stripePaymentIntentId,
+          stripePaymentStatus: stripePaymentIntentId ? 'succeeded' : (isPaidExecution ? 'pending' : null),
         },
       });
 

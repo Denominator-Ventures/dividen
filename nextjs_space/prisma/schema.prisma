@@ -22,6 +22,14 @@ model User {
   role          String    @default("admin")
   mode          String    @default("cockpit") // "cockpit" | "chief_of_staff"
   hasSeenWalkthrough Boolean @default(false)
+  acceptedTermsAt   DateTime? // null = not yet accepted
+  termsVersion      String?   // e.g. "1.0" — which version they accepted
+
+  // Stripe integration
+  stripeCustomerId        String?   @unique // Stripe customer ID for payment methods
+  stripeConnectAccountId  String?   @unique // Stripe Connect Express account ID for payouts
+  stripeConnectOnboarded  Boolean   @default(false) // Has completed Stripe Connect onboarding
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -1354,7 +1362,11 @@ model MarketplaceExecution {
   grossAmount     Float     @default(0) // total charged for this execution
   platformFee     Float     @default(0) // DiviDen's routing fee
   developerPayout Float     @default(0) // developer's share (gross - fee)
-  feePercent      Float     @default(7) // fee % applied at time of execution
+  feePercent      Float     @default(3) // fee % applied at time of execution
+
+  // Stripe payment
+  stripePaymentIntentId String?  // Stripe PaymentIntent ID for this execution
+  stripePaymentStatus   String?  // "succeeded" | "failed" | "pending" | "requires_action"
 
   // Feedback
   rating          Int?      // 1-5

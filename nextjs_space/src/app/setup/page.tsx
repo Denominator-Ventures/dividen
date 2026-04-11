@@ -25,6 +25,7 @@ function SetupForm() {
   const [invite, setInvite] = useState<InviteData | null>(null);
   const [inviteLoading, setInviteLoading] = useState(!!inviteToken);
   const [inviteError, setInviteError] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -58,6 +59,11 @@ function SetupForm() {
     e.preventDefault();
     setError('');
 
+    if (!acceptedTerms) {
+      setError('You must accept the Terms of Service to create an account');
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setError('Passwords do not match');
       return;
@@ -79,6 +85,7 @@ function SetupForm() {
           name: form.name,
           email: form.email,
           password: form.password,
+          acceptedTerms: true,
         }),
       });
 
@@ -234,10 +241,28 @@ function SetupForm() {
             />
           </div>
 
+          {/* Terms of Service */}
+          <div className="flex items-start gap-3 py-2">
+            <input
+              type="checkbox"
+              id="accept-terms"
+              checked={acceptedTerms}
+              onChange={(e) => setAcceptedTerms(e.target.checked)}
+              className="mt-0.5 rounded border-white/20 bg-white/5 text-brand-500 focus:ring-brand-500/30"
+            />
+            <label htmlFor="accept-terms" className="text-xs text-white/50 leading-relaxed cursor-pointer">
+              I have read and agree to the{' '}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline underline-offset-2">
+                Terms of Service
+              </a>
+              , including the agent liability disclaimers and marketplace terms. I understand that DiviDen is not responsible for actions taken by any AI agent on this platform.
+            </label>
+          </div>
+
           <button
             type="submit"
             className="btn-primary w-full"
-            disabled={loading}
+            disabled={loading || !acceptedTerms}
           >
             {loading ? 'Creating...' : invite ? 'Create Account & Connect' : 'Create Account'}
           </button>

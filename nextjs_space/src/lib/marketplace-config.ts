@@ -1,7 +1,7 @@
 /**
  * Marketplace revenue split configuration.
  * The fee percent is configurable via MARKETPLACE_FEE_PERCENT env var.
- * Default: 7% platform fee (DiviDen routing fee), 93% to developer.
+ * Default: 3% platform fee (DiviDen routing fee), 97% to developer.
  * Open-source users can set MARKETPLACE_FEE_PERCENT=0 to keep 100%.
  */
 
@@ -13,7 +13,7 @@ export function getPlatformFeePercent(): number {
       return parsed;
     }
   }
-  return 7; // default 7%
+  return 3; // default 3%
 }
 
 export function calculateRevenueSplit(grossAmount: number) {

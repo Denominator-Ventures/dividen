@@ -16,6 +16,16 @@ export async function GET(req: NextRequest) {
     const userId = (session.user as any).id;
     const feeInfo = getFeeInfo();
 
+    // Get user's Stripe Connect status
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { stripeConnectAccountId: true, stripeConnectOnboarded: true },
+    });
+    const stripeConnect = {
+      hasAccount: !!user?.stripeConnectAccountId,
+      onboarded: !!user?.stripeConnectOnboarded,
+    };
+
     // Get all agents the user has listed
     const myAgents = await prisma.marketplaceAgent.findMany({
       where: { developerId: userId },
@@ -26,7 +36,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (myAgents.length === 0) {
-      return NextResponse.json({ hasListings: false, agents: [], totals: null, feeInfo });
+      return NextResponse.json({ hasListings: false, agents: [], totals: null, feeInfo, stripeConnect });
     }
 
     const agentIds = myAgents.map(a => a.id);
@@ -116,6 +126,7 @@ export async function GET(req: NextRequest) {
       },
       agents: agentBreakdown,
       recentExecutions: recentExecs,
+      stripeConnect,
     });
   } catch (error: any) {
     console.error('Marketplace earnings error:', error);

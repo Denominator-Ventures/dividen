@@ -5,10 +5,13 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 
+const TERMS_VERSION = '1.0';
+
 const setupSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  acceptedTerms: z.boolean().optional(),
 });
 
 // GET: Check if setup is needed (also doubles as health check)
@@ -40,7 +43,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, email, password } = result.data;
+    const { name, email, password, acceptedTerms } = result.data;
 
     // Check if email already exists
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -64,6 +67,10 @@ export async function POST(request: NextRequest) {
         passwordHash,
         role,
         mode: 'cockpit',
+        ...(acceptedTerms ? {
+          acceptedTermsAt: new Date(),
+          termsVersion: TERMS_VERSION,
+        } : {}),
       },
     });
 
