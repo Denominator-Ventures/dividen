@@ -17,6 +17,115 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'agent-install-uninstall-system',
+    date: '2026-04-12',
+    time: '4:00 PM',
+    title: 'Install / Uninstall — Divi Only Learns What You Need',
+    subtitle: 'Marketplace agents now have an install lifecycle. Divi learns how to work with an agent when you install it, forgets when you uninstall it. MCP and A2A update dynamically. No more memory bloat.',
+    tags: ['marketplace', 'agents', 'memory', 'install', 'mcp', 'a2a', 'integration-kit', 'action-tags'],
+    content: `The marketplace has been live for a few hours and the first problem is already obvious: Divi was loading every subscribed agent into context, whether or not the operator actually used it. Three agents? Fine. Thirty? Divi's system prompt becomes a novel.
+
+So we built the install/uninstall system. Here's the deal.
+
+## Subscribe ≠ Install
+
+Before today, subscribing to a marketplace agent meant Divi automatically knew about it. Every subscribed agent's metadata went into the system prompt. That doesn't scale. You might subscribe to 50 agents over time but only use 5 regularly.
+
+Now there are two distinct states:
+
+- **Subscribed** — you have access. For paid agents, this means you've paid. For free agents, this is implicit.
+- **Installed** — Divi actively knows how to work with this agent. Its Integration Kit is loaded into persistent memory.
+
+You can be subscribed without being installed. The agent is available, but Divi won't proactively suggest it or load its context.
+
+## What Happens When You Install
+
+Click the green "⚡ Install to Divi's Toolkit" button on any agent detail page, or tell Divi in chat:
+
+\`[[install_agent:{"agentId":"..."}]]\`
+
+Here's what fires:
+
+1. The agent's Integration Kit is decomposed into up to 8 memory entries: identity, task types, context instructions, preparation steps, input schema, output schema, usage examples, and execution notes
+2. Each entry is stored in Divi's persistent memory with the key pattern \`agent:{id}:{field}\`
+3. The subscription is marked \`installed: true\`
+4. Divi's system prompt now includes this agent in the "Installed Agent Toolkit" section
+
+Divi can now proactively suggest the agent when a task matches its capabilities. It knows the input format, the preparation steps, the gotchas.
+
+## What Happens When You Uninstall
+
+Click "🧠 Uninstall from Divi" or:
+
+\`[[uninstall_agent:{"agentId":"..."}]]\`
+
+Every memory entry with the \`agent:{id}:\` prefix is deleted. Divi forgets. The subscription stays active — you still have access. But Divi won't mention it unless you ask.
+
+Crucially: **unsubscribing also uninstalls.** If you cancel a subscription, Divi's memory is cleaned automatically. No ghost knowledge of agents you can't use anymore.
+
+## Own Agents Auto-Install
+
+When you register a new agent in the marketplace, it auto-installs into your toolkit. Your own agents should always be in your Divi's active context. This also means Divi immediately knows how to use the agent you just built.
+
+## Payment Gating
+
+We caught a coherence bug during the audit: the install flow was creating free subscriptions for paid agents. Fixed. Now:
+
+- **Free agents** — install creates a subscription automatically if one doesn't exist
+- **Paid agents** — you must have an active subscription first. The install button is grayed out with "Subscribe first to install paid agents" if you haven't.
+
+## MCP Server — Dynamic Tools (v1.4.0)
+
+The MCP server at \`/api/mcp\` was completely static. Twenty-something tools, hard-coded. Now:
+
+When an MCP client (Claude Desktop, Cursor, etc.) calls \`tools/list\`, the response includes both the static DiviDen tools AND every installed marketplace agent as a dynamic tool. Tool name format: \`marketplace_{slug}\`.
+
+When they call \`tools/call\` with a \`marketplace_*\` tool, DiviDen:
+1. Looks up the agent by slug
+2. Verifies it's installed for this user
+3. Proxies the request to the agent endpoint
+4. Tracks the execution (response time, status, output)
+5. Returns the result in MCP format
+
+Your installed agents are now accessible to every MCP client in your stack.
+
+## A2A Agent Card — Dynamic Skills
+
+The agent card at \`/.well-known/agent-card.json\` was also static. Now it dynamically reflects installed marketplace agents:
+
+- Each installed agent appears as a skill in the \`skills\` array
+- Installed agent slugs are added to the \`mcpTools\` list
+- Other agents on the network can see what marketplace capabilities your DiviDen instance has
+
+This means when another agent queries your instance's capabilities, they'll see not just the core DiviDen tools but everything you've installed. The more you install, the more capable your node appears to the network.
+
+## The Enriched List
+
+\`[[list_marketplace:{...}]]\` now returns richer data per agent:
+
+- \`installed\` — boolean, whether it's in your toolkit
+- \`subscribed\` — boolean, whether you have active access
+- \`isOwnAgent\` — boolean, whether you built it
+- \`taskTypes\` — parsed array of what the agent handles
+
+Divi can now give contextual recommendations: "You're subscribed to this agent but haven't installed it yet — want me to add it to your toolkit?"
+
+## What Changed
+
+- \`MarketplaceSubscription\` schema: +\`installed\`, +\`installedAt\`, +\`uninstalledAt\`
+- New API: \`POST/DELETE /api/marketplace/[id]/install\`
+- New action tags: \`install_agent\`, \`uninstall_agent\`
+- System prompt: only loads installed agents, suggests install for uninstalled
+- MCP server v1.4.0: dynamic marketplace tools on \`tools/list\` and \`tools/call\`
+- A2A agent card: dynamic skills + MCP tool advertisement
+- Unsubscribe cascade: cancellation clears install state + memory
+- Registration auto-install: own agents always in toolkit
+
+This is how you build a marketplace that scales without drowning the AI in context. Every agent earns its place in Divi's memory.
+
+— Jon`
+  },
+  {
     id: 'divi-intelligence-and-preferences',
     date: '2026-04-12',
     time: '3:00 AM',
