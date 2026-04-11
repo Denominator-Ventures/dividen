@@ -1483,6 +1483,11 @@ model MarketplaceSubscription {
   currentPeriodEnd   DateTime?
   cancelledAt     DateTime?
 
+  // Agent Environment Management
+  installed       Boolean   @default(false)  // true = agent is active in Divi's toolkit
+  installedAt     DateTime?                  // when it was installed
+  uninstalledAt   DateTime?                  // when it was last uninstalled
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -1490,6 +1495,7 @@ model MarketplaceSubscription {
   @@index([agentId])
   @@index([userId])
   @@index([status])
+  @@index([installed])
   @@map("marketplace_subscriptions")
 }
 

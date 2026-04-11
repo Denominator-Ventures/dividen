@@ -26,15 +26,28 @@ export async function GET(req: NextRequest) {
     const proto = req.headers.get('x-forwarded-proto') || 'https';
     const baseUrl = fedConfig?.instanceUrl || `${proto}://${host}`;
 
-    // Count active users, connections, and open jobs to show instance health
-    const [userCount, connectionCount, openJobCount] = await Promise.all([
+    // Count active users, connections, open jobs, and installed marketplace agents
+    const [userCount, connectionCount, openJobCount, installedAgents] = await Promise.all([
       prisma.user.count(),
       prisma.connection.count({ where: { status: 'active' } }),
       prisma.networkJob.count({ where: { status: 'open' } }),
+      prisma.marketplaceSubscription.findMany({
+        where: { installed: true, status: 'active' },
+        include: {
+          agent: {
+            select: {
+              id: true, name: true, slug: true, description: true,
+              category: true, taskTypes: true, inputFormat: true, outputFormat: true,
+            },
+          },
+        },
+        distinct: ['agentId'],
+        take: 50,
+      }),
     ]);
 
     // Fetch MCP tool names for capability negotiation (FVP Brief Proposal #4)
-    const mcpToolNames = [
+    const mcpToolNames: string[] = [
       'queue_list', 'queue_add', 'queue_update',
       'contacts_list', 'contacts_search',
       'cards_list', 'mode_get', 'briefing_get', 'activity_recent',
@@ -43,6 +56,11 @@ export async function GET(req: NextRequest) {
       'entity_resolve',
       'serendipity_matches', 'route_task', 'network_briefing',
     ];
+
+    // Add installed marketplace agents as MCP tool names
+    for (const sub of installedAgents) {
+      if (sub.agent) mcpToolNames.push(`marketplace_${sub.agent.slug}`);
+    }
 
     const agentCard = {
       // === A2A Standard Fields ===
@@ -159,6 +177,24 @@ export async function GET(req: NextRequest) {
             'Help your human evaluate DiviDen for team coordination',
           ],
         },
+        // Dynamic skills from installed marketplace agents
+        ...installedAgents
+          .filter(sub => sub.agent && sub.agent.description)
+          .map(sub => {
+            const a = sub.agent!;
+            let tags: string[] = [a.category, 'marketplace'];
+            try {
+              const types = a.taskTypes ? JSON.parse(a.taskTypes) : [];
+              if (Array.isArray(types)) tags = [...tags, ...types.slice(0, 5)];
+            } catch { /* ignore */ }
+            return {
+              id: `marketplace_${a.slug}`,
+              name: `[Marketplace] ${a.name}`,
+              description: `Installed marketplace agent: ${a.description}. Input: ${a.inputFormat}, Output: ${a.outputFormat}.`,
+              tags,
+              examples: [`Execute ${a.name} via MCP tool marketplace_${a.slug}`],
+            };
+          }),
       ],
 
       // === Input/Output Modalities ===

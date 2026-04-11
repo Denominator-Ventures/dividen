@@ -1164,10 +1164,10 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
       }
     }
 
-    // Subscribed/available marketplace agents with Integration Kit
+    // Installed marketplace agents — only agents actively in Divi's toolkit
     try {
-      const subscribedAgents = await prisma.marketplaceSubscription.findMany({
-        where: { userId, status: 'active' },
+      const installedAgents = await prisma.marketplaceSubscription.findMany({
+        where: { userId, installed: true },
         include: {
           agent: {
             select: {
@@ -1179,15 +1179,15 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
             },
           },
         },
-        take: 10,
+        take: 15,
       });
 
-      if (subscribedAgents.length > 0) {
-        text += `\n### Available Agent Tools (Subscribed)\nYou have access to these marketplace agents. Use their Integration Kit to prepare context correctly before executing.\n`;
-        for (const sub of subscribedAgents) {
+      if (installedAgents.length > 0) {
+        text += `\n### Installed Agent Toolkit (${installedAgents.length} active)\nThese agents are installed in your environment. You know how to work with each of them. Use their Integration Kit to prepare context correctly before executing.\n`;
+        for (const sub of installedAgents) {
           const ag = sub.agent;
           const isOwn = ag.developerId === userId;
-          text += `\n#### ${ag.name} (${ag.category})${isOwn ? ' [YOUR OWN — no fees]' : ''}\n`;
+          text += `\n#### 🔧 ${ag.name} (${ag.category})${isOwn ? ' [YOUR OWN — no fees]' : ''}\n`;
           text += `- ID: \`${ag.id}\` | Format: ${ag.inputFormat} → ${ag.outputFormat}\n`;
           if (ag.taskTypes) {
             try { const tt = JSON.parse(ag.taskTypes); text += `- Handles: ${tt.join(', ')}\n`; } catch {}
@@ -1207,9 +1207,9 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
             text += `- **Notes**: ${ag.executionNotes.slice(0, 200)}\n`;
           }
         }
-        text += `\nWhen the operator's task matches an available agent's task types, proactively suggest using it. Follow the Integration Kit instructions to prepare context before calling [[execute_agent:...]]. For the operator's OWN agents, execution is always free.\n`;
+        text += `\nWhen the operator's task matches an installed agent's task types, proactively suggest using it. Follow the Integration Kit instructions to prepare context before calling [[execute_agent:...]]. For the operator's OWN agents, execution is always free.\nAgents not in this list are NOT installed — suggest installing them first via [[install_agent:{"agentId":"..."}]] if the operator wants to use one.\n`;
       }
-    } catch { /* subscribed agents lookup failed — non-critical */ }
+    } catch { /* installed agents lookup failed — non-critical */ }
 
     // Business-specific behavioral rules
     text += `\n### Business Operations Rules
@@ -1392,6 +1392,8 @@ When a job offer or project invite arrives:
 - [[list_marketplace:{"category":"optional filter"}]] — Browse available marketplace agents (research, coding, writing, analysis, etc.)
 - [[execute_agent:{"agentId":"...","prompt":"..."}]] — Execute a marketplace agent with a given prompt.
 - [[subscribe_agent:{"agentId":"..."}]] — Subscribe to a marketplace agent for recurring use.
+- [[install_agent:{"agentId":"..."}]] — Install an agent into your active toolkit. This teaches Divi how to work with it (loads Integration Kit into memory). Required before Divi can proactively use the agent.
+- [[uninstall_agent:{"agentId":"..."}]] — Uninstall an agent from your toolkit. Divi forgets how to work with it (clears memory entries). Agent remains subscribed but dormant.
 
 ### Recordings
 - [[link_recording:{"recordingId":"...","cardId":"..."}]] — Link a meeting recording to a Kanban card.

@@ -526,15 +526,122 @@ export async function POST(req: NextRequest) {
   const { method, params } = body;
 
   try {
-    // MCP standard: tools/list
+    // MCP standard: tools/list — includes static tools + installed marketplace agents
     if (method === 'tools/list') {
-      return NextResponse.json({ tools: TOOLS });
+      const allTools = [...TOOLS];
+
+      // Query installed marketplace agents for this user
+      try {
+        const installedSubs = await prisma.marketplaceSubscription.findMany({
+          where: { userId: agent.userId, installed: true, status: 'active' },
+          include: {
+            agent: {
+              select: {
+                id: true, name: true, slug: true, description: true,
+                taskTypes: true, requiredInputSchema: true, outputFormat: true,
+                inputFormat: true, category: true, status: true,
+              },
+            },
+          },
+        });
+
+        for (const sub of installedSubs) {
+          if (!sub.agent || sub.agent.status !== 'active') continue;
+          const a = sub.agent;
+          let inputSchema: any = {
+            type: 'object',
+            properties: {
+              prompt: { type: 'string', description: `Task prompt for ${a.name}` },
+            },
+            required: ['prompt'],
+          };
+          // Try to use the agent's declared input schema if it's valid JSON schema
+          if (a.requiredInputSchema) {
+            try {
+              const parsed = JSON.parse(a.requiredInputSchema);
+              if (parsed.type === 'object') inputSchema = parsed;
+            } catch { /* use default */ }
+          }
+          let taskDesc = '';
+          if (a.taskTypes) {
+            try {
+              const types = JSON.parse(a.taskTypes);
+              if (Array.isArray(types) && types.length) taskDesc = ` Handles: ${types.join(', ')}.`;
+            } catch { /* ignore */ }
+          }
+          allTools.push({
+            name: `marketplace_${a.slug}`,
+            description: `[Marketplace Agent] ${a.description}${taskDesc}`,
+            inputSchema,
+          });
+        }
+      } catch (e) {
+        console.error('MCP tools/list: failed to load installed agents:', e);
+      }
+
+      return NextResponse.json({ tools: allTools });
     }
 
     // MCP standard: tools/call
     if (method === 'tools/call') {
       const { name, arguments: args } = params || {};
       if (!name) return NextResponse.json({ error: 'Tool name is required' }, { status: 400 });
+
+      // Check if it's a marketplace agent tool
+      if (name.startsWith('marketplace_')) {
+        const slug = name.replace('marketplace_', '');
+        try {
+          const mktAgent = await prisma.marketplaceAgent.findUnique({ where: { slug } });
+          if (!mktAgent || mktAgent.status !== 'active') {
+            return NextResponse.json({ error: `Marketplace agent not found: ${slug}` }, { status: 404 });
+          }
+          // Verify installed
+          const sub = await prisma.marketplaceSubscription.findFirst({
+            where: { agentId: mktAgent.id, userId: agent.userId, installed: true },
+          });
+          if (!sub) {
+            return NextResponse.json({ error: `Agent ${mktAgent.name} is not installed. Install it first.` }, { status: 400 });
+          }
+          // Execute via the marketplace execute API logic
+          const prompt = args?.prompt || JSON.stringify(args);
+          const execRes = await prisma.marketplaceExecution.create({
+            data: {
+              agentId: mktAgent.id,
+              userId: agent.userId,
+              taskInput: prompt,
+              status: 'pending',
+            },
+          });
+          // Call agent endpoint
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (mktAgent.authMethod === 'bearer' && mktAgent.authToken) {
+            headers['Authorization'] = `Bearer ${mktAgent.authToken}`;
+          } else if (mktAgent.authMethod === 'custom' && mktAgent.authHeader && mktAgent.authToken) {
+            headers[mktAgent.authHeader] = mktAgent.authToken;
+          }
+          const startTime = Date.now();
+          const agentRes = await fetch(mktAgent.endpointUrl, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ input: prompt, executionId: execRes.id }),
+            signal: AbortSignal.timeout(120000),
+          });
+          const responseTime = Date.now() - startTime;
+          const agentData = await agentRes.json().catch(() => ({ output: agentRes.statusText }));
+          const output = agentData.output || agentData.result || JSON.stringify(agentData);
+
+          await prisma.marketplaceExecution.update({
+            where: { id: execRes.id },
+            data: { status: 'completed', taskOutput: output, responseTimeMs: responseTime, completedAt: new Date() },
+          });
+
+          return NextResponse.json({
+            content: [{ type: 'text', text: output }],
+          });
+        } catch (e: any) {
+          return NextResponse.json({ error: `Marketplace agent execution failed: ${e.message}` }, { status: 500 });
+        }
+      }
 
       const tool = TOOLS.find(t => t.name === name);
       if (!tool) return NextResponse.json({ error: `Unknown tool: ${name}` }, { status: 400 });
@@ -555,9 +662,10 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     name: 'DiviDen MCP Server',
-    version: '1.3.0',
-    description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, activity, entity resolution, graph intelligence, task routing, and network briefing tools. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
+    version: '1.4.0',
+    description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, activity, entity resolution, graph intelligence, task routing, network briefing tools, and dynamically installed marketplace agents. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
     tools: TOOLS,
+    note: 'Authenticated tools/list includes additional marketplace agent tools based on the user\'s installed agents.',
     authentication: {
       type: 'bearer',
       description: 'Use a DiviDen API key as Bearer token.',

@@ -316,6 +316,29 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
     }
   };
 
+  /* ── Install / Uninstall toggle ──────────────────────────── */
+
+  const [installing, setInstalling] = useState(false);
+
+  const toggleInstall = async () => {
+    if (!selectedAgent || installing) return;
+    setInstalling(true);
+    try {
+      const isInstalled = selectedAgent.subscription?.installed;
+      const res = await fetch(`/api/marketplace/${selectedAgent.id}/install`, {
+        method: isInstalled ? 'DELETE' : 'POST',
+      });
+      if (res.ok) {
+        // Refresh detail to pick up new installed state
+        await openDetail(selectedAgent.id);
+      }
+    } catch (e) {
+      console.error('Install toggle error:', e);
+    } finally {
+      setInstalling(false);
+    }
+  };
+
   /* ── Rate execution ──────────────────────────────────────── */
 
   const rateExecution = async (executionId: string, rating: number) => {
@@ -602,6 +625,12 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
                 <span className="text-2xl">{CATEGORIES.find(c => c.id === a.category)?.icon || '🤖'}</span>
                 <h2 className="text-lg font-semibold text-white/90">{a.name}</h2>
                 {a.featured && <span className="text-sm">⭐ Featured</span>}
+                {a.subscription?.installed && (
+                  <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 rounded-full text-[10px] font-medium flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Installed
+                  </span>
+                )}
               </div>
               <div className="text-xs text-white/40 mt-1">
                 by {a.developerUrl ? <a href={a.developerUrl} target="_blank" rel="noopener" className="text-brand-400 hover:underline">{a.developerName}</a> : a.developerName}
@@ -662,6 +691,36 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
                 <div className="text-xs text-white/30 mt-1">
                   {a.subscription.tasksUsed}{a.subscription.taskLimit ? `/${a.subscription.taskLimit}` : ''} tasks used this period
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Install / Uninstall — Divi's Active Toolkit */}
+          {!a.isOwner && (
+            <div className="mt-3 flex items-center gap-3">
+              <button
+                onClick={toggleInstall}
+                disabled={installing}
+                className={cn(
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+                  a.subscription?.installed
+                    ? 'bg-amber-500/15 text-amber-400 border border-amber-500/25 hover:bg-amber-500/25'
+                    : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30'
+                )}
+              >
+                {installing ? (
+                  <span className="animate-pulse">⏳</span>
+                ) : a.subscription?.installed ? (
+                  <>🧠 Uninstall from Divi</>
+                ) : (
+                  <>⚡ Install to Divi&apos;s Toolkit</>
+                )}
+              </button>
+              {a.subscription?.installed && (
+                <span className="text-[10px] text-emerald-400/60 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/60 animate-pulse" />
+                  Installed — Divi knows this agent
+                </span>
               )}
             </div>
           )}

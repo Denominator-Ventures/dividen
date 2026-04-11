@@ -72,6 +72,9 @@ export const SUPPORTED_TAGS = [
   'find_jobs',         // find matching jobs for this user's profile
   // ── Entity Resolution (FVP Brief #5) ──
   'entity_resolve',    // cross-surface entity resolution: find all info about a person/company
+  // ── Marketplace Install/Uninstall ──
+  'install_agent',     // install a marketplace agent into Divi's active toolkit
+  'uninstall_agent',   // uninstall a marketplace agent from Divi's toolkit
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -1814,6 +1817,64 @@ async function executeTag(
         } catch (e: any) {
           return { tag: name, success: false, error: e.message || 'Task routing not available' };
         }
+      }
+
+      // ── Marketplace Install / Uninstall ─────────────────────────────────────
+
+      case 'install_agent': {
+        const agentId = params.agentId;
+        if (!agentId) return { tag: name, success: false, error: 'agentId is required' };
+        const agent = await prisma.marketplaceAgent.findUnique({ where: { id: agentId } });
+        if (!agent || agent.status !== 'active') return { tag: name, success: false, error: 'Agent not found or inactive' };
+
+        // Upsert subscription with installed flag
+        await prisma.marketplaceSubscription.upsert({
+          where: { agentId_userId: { agentId, userId } },
+          create: { agentId, userId, status: 'active', installed: true, installedAt: new Date() },
+          update: { installed: true, installedAt: new Date(), uninstalledAt: null },
+        });
+
+        // Build memory entries from Integration Kit
+        const prefix = `agent:${agentId}`;
+        const memEntries: { key: string; value: string; category: string; tier: number }[] = [
+          { key: `${prefix}:identity`, value: JSON.stringify({ name: agent.name, slug: agent.slug, category: agent.category, inputFormat: agent.inputFormat, outputFormat: agent.outputFormat, pricingModel: agent.pricingModel, developerName: agent.developerName, isOwnAgent: agent.developerId === userId }), category: 'agent_toolkit', tier: 1 },
+        ];
+        if (agent.taskTypes) memEntries.push({ key: `${prefix}:task_types`, value: agent.taskTypes, category: 'agent_toolkit', tier: 1 });
+        if (agent.contextInstructions) memEntries.push({ key: `${prefix}:context_instructions`, value: agent.contextInstructions, category: 'agent_toolkit', tier: 2 });
+        if (agent.contextPreparation) memEntries.push({ key: `${prefix}:preparation_steps`, value: agent.contextPreparation, category: 'agent_toolkit', tier: 2 });
+        if (agent.requiredInputSchema) memEntries.push({ key: `${prefix}:input_schema`, value: agent.requiredInputSchema, category: 'agent_toolkit', tier: 1 });
+        if (agent.outputSchema) memEntries.push({ key: `${prefix}:output_schema`, value: agent.outputSchema, category: 'agent_toolkit', tier: 1 });
+        if (agent.usageExamples) memEntries.push({ key: `${prefix}:usage_examples`, value: agent.usageExamples, category: 'agent_toolkit', tier: 3 });
+        if (agent.executionNotes) memEntries.push({ key: `${prefix}:execution_notes`, value: agent.executionNotes, category: 'agent_toolkit', tier: 2 });
+
+        for (const entry of memEntries) {
+          await prisma.memoryItem.upsert({
+            where: { userId_key: { userId, key: entry.key } },
+            create: { userId, key: entry.key, value: entry.value, category: entry.category, tier: entry.tier, source: 'system' },
+            update: { value: entry.value, category: entry.category, tier: entry.tier },
+          });
+        }
+        return { tag: name, success: true, data: { message: `${agent.name} installed into your Divi's toolkit. ${memEntries.length} knowledge entries loaded.`, agentId, agentName: agent.name } };
+      }
+
+      case 'uninstall_agent': {
+        const uAgentId = params.agentId;
+        if (!uAgentId) return { tag: name, success: false, error: 'agentId is required' };
+
+        const sub = await prisma.marketplaceSubscription.findUnique({
+          where: { agentId_userId: { agentId: uAgentId, userId } },
+        });
+        if (sub) {
+          await prisma.marketplaceSubscription.update({
+            where: { id: sub.id },
+            data: { installed: false, uninstalledAt: new Date() },
+          });
+        }
+        // Delete all memory entries — Divi forgets
+        const deleted = await prisma.memoryItem.deleteMany({
+          where: { userId, key: { startsWith: `agent:${uAgentId}` } },
+        });
+        return { tag: name, success: true, data: { message: `Agent uninstalled. ${deleted.count} knowledge entries removed from Divi's memory.`, agentId: uAgentId, memoryEntriesRemoved: deleted.count } };
       }
 
       default:
