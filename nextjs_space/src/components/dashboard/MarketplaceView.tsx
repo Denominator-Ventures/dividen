@@ -53,9 +53,17 @@ interface Execution {
   completedAt?: string | null;
 }
 
+interface FeeInfo {
+  feePercent: number;
+  developerPercent: number;
+  isSelfHosted: boolean;
+  label: string;
+}
+
 interface EarningsData {
   hasListings: boolean;
   hasPaidListings?: boolean;
+  feeInfo?: FeeInfo;
   totals?: {
     totalAgents: number;
     paidAgents: number;
@@ -64,6 +72,11 @@ interface EarningsData {
     failedExecutions: number;
     activeSubscriptions: number;
     uniqueUsers: number;
+    grossRevenue: number;
+    platformFees: number;
+    developerPayout: number;
+    pendingPayout: number;
+    subscriptionMRR: number;
     estimatedRevenue: number;
   };
   agents?: any[];
@@ -141,6 +154,9 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
   const [earnings, setEarnings] = useState<EarningsData | null>(null);
   const [earningsLoading, setEarningsLoading] = useState(false);
 
+  // Fee info (fetched once for registration form display)
+  const [feeInfo, setFeeInfo] = useState<FeeInfo | null>(null);
+
   // Registration form
   const [regForm, setRegForm] = useState({
     name: '', description: '', longDescription: '', endpointUrl: '',
@@ -199,6 +215,11 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
       fetchAgents();
     }
   }, [fetchAgents, view]);
+
+  // Fetch fee info once
+  useEffect(() => {
+    fetch('/api/marketplace/fee-info').then(r => r.json()).then(setFeeInfo).catch(() => {});
+  }, []);
 
   /* ── Fetch agent detail ──────────────────────────────────── */
 
@@ -908,7 +929,34 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
 
           {/* Pricing */}
           <div className="border-t border-white/[0.06] pt-4">
-            <h3 className="text-sm font-medium text-white/60 mb-3">💰 Pricing</h3>
+            <h3 className="text-sm font-medium text-white/60 mb-3">💰 Pricing & Revenue Split</h3>
+
+            {/* Fee info banner */}
+            {feeInfo && regForm.pricingModel !== 'free' && (
+              <div className="mb-4 p-3 rounded-lg bg-gradient-to-r from-emerald-500/10 to-brand-500/10 border border-emerald-500/20">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-emerald-400 text-sm font-semibold">{feeInfo.developerPercent}% to you</span>
+                  <span className="text-white/20">·</span>
+                  <span className="text-white/40 text-xs">{feeInfo.feePercent}% DiviDen routing fee</span>
+                </div>
+                <p className="text-[10px] text-white/35">
+                  {feeInfo.isSelfHosted
+                    ? 'Self-hosted instance — no platform fees applied.'
+                    : `You keep ${feeInfo.developerPercent}% of every transaction. DiviDen takes a ${feeInfo.feePercent}% routing fee for discovery, execution proxy, and infrastructure.`}
+                </p>
+                {regForm.pricingModel === 'per_task' && regForm.pricePerTask && (
+                  <div className="mt-2 text-[10px] text-white/40">
+                    Example: ${regForm.pricePerTask}/task → you earn <span className="text-emerald-400">${(parseFloat(regForm.pricePerTask) * feeInfo.developerPercent / 100).toFixed(2)}</span> per execution
+                  </div>
+                )}
+                {regForm.pricingModel === 'subscription' && regForm.subscriptionPrice && (
+                  <div className="mt-2 text-[10px] text-white/40">
+                    Example: ${regForm.subscriptionPrice}/mo → you earn <span className="text-emerald-400">${(parseFloat(regForm.subscriptionPrice) * feeInfo.developerPercent / 100).toFixed(2)}</span>/subscriber/mo
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-[10px] text-white/40 uppercase tracking-wider">Pricing Model</label>
@@ -1033,13 +1081,37 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
     }
 
     const t = earnings.totals!;
+    const fi = earnings.feeInfo || feeInfo;
     return (
       <div className="space-y-4">
         {/* Revenue hero */}
         <div className="bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-emerald-500/5 border border-brand-500/20 rounded-xl p-6">
-          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Estimated Revenue</div>
-          <div className="text-3xl font-bold text-white/90">${t.estimatedRevenue.toLocaleString()}</div>
+          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Your Earnings</div>
+          <div className="text-3xl font-bold text-emerald-400">${(t.developerPayout || 0).toLocaleString()}</div>
+          {t.grossRevenue > 0 && (
+            <div className="flex items-center gap-3 mt-2 text-xs">
+              <span className="text-white/40">Gross: ${t.grossRevenue.toLocaleString()}</span>
+              <span className="text-white/15">|</span>
+              <span className="text-white/30">Platform fee: ${t.platformFees.toLocaleString()}</span>
+              {t.pendingPayout > 0 && (
+                <>
+                  <span className="text-white/15">|</span>
+                  <span className="text-amber-400/70">Pending: ${t.pendingPayout.toLocaleString()}</span>
+                </>
+              )}
+            </div>
+          )}
           <div className="text-xs text-white/35 mt-1">{t.paidAgents} paid agent{t.paidAgents !== 1 ? 's' : ''} · {t.activeSubscriptions} active subscriber{t.activeSubscriptions !== 1 ? 's' : ''}</div>
+          {fi && (
+            <div className="mt-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[10px] text-white/40">
+              💡 Revenue split: <span className="text-emerald-400 font-medium">{fi.developerPercent}% to you</span> · {fi.feePercent}% routing fee
+              {fi.isSelfHosted && <span className="ml-1 text-brand-400">(self-hosted — 0% fee)</span>}
+              {!fi.isSelfHosted && <span className="ml-1">· Set <code className="bg-white/5 px-1 rounded">MARKETPLACE_FEE_PERCENT=0</code> on self-hosted instances for 100% developer share</span>}
+            </div>
+          )}
+          {t.subscriptionMRR > 0 && (
+            <div className="mt-2 text-xs text-brand-400/70">📈 Monthly recurring: ${t.subscriptionMRR.toLocaleString()}/mo</div>
+          )}
         </div>
 
         {/* Stats grid */}
@@ -1076,10 +1148,13 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
                     'text-sm font-medium',
                     a.pricingModel === 'free' ? 'text-white/40' : 'text-emerald-400'
                   )}>
-                    {a.pricingModel === 'free' ? 'Free' : `$${a.estimatedRevenue}`}
+                    {a.pricingModel === 'free' ? 'Free' : `$${a.developerPayout || 0}`}
                   </div>
+                  {a.pricingModel !== 'free' && a.grossRevenue > 0 && (
+                    <div className="text-[9px] text-white/25">gross ${a.grossRevenue}</div>
+                  )}
                   <div className={cn(
-                    'text-[10px] px-1.5 py-0.5 rounded',
+                    'text-[10px] px-1.5 py-0.5 rounded mt-0.5',
                     a.status === 'active' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-white/40'
                   )}>
                     {a.status}
@@ -1101,7 +1176,10 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
                     'w-1.5 h-1.5 rounded-full flex-shrink-0',
                     e.status === 'completed' ? 'bg-emerald-400' : e.status === 'failed' ? 'bg-red-400' : 'bg-white/20'
                   )} />
-                  <span className="text-white/50 truncate flex-1">{e.taskInput.slice(0, 60)}{e.taskInput.length > 60 ? '...' : ''}</span>
+                  <span className="text-white/50 truncate flex-1">{e.taskInput.slice(0, 50)}{e.taskInput.length > 50 ? '...' : ''}</span>
+                  {e.developerPayout > 0 && (
+                    <span className="text-emerald-400/80 flex-shrink-0 font-medium">+${e.developerPayout}</span>
+                  )}
                   <span className="text-white/25 flex-shrink-0">{e.user?.name || 'User'}</span>
                   {e.rating && <span className="text-amber-400/60 flex-shrink-0">{'★'.repeat(e.rating)}</span>}
                   <span className="text-white/20 flex-shrink-0">{new Date(e.createdAt).toLocaleDateString()}</span>

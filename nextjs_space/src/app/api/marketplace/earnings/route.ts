@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { getFeeInfo } from '@/lib/marketplace-config';
 
 // GET /api/marketplace/earnings — Developer earnings dashboard
 export async function GET(req: NextRequest) {
@@ -13,6 +14,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = (session.user as any).id;
+    const feeInfo = getFeeInfo();
 
     // Get all agents the user has listed
     const myAgents = await prisma.marketplaceAgent.findMany({
@@ -24,7 +26,7 @@ export async function GET(req: NextRequest) {
     });
 
     if (myAgents.length === 0) {
-      return NextResponse.json({ hasListings: false, agents: [], totals: null });
+      return NextResponse.json({ hasListings: false, agents: [], totals: null, feeInfo });
     }
 
     const agentIds = myAgents.map(a => a.id);
@@ -41,6 +43,7 @@ export async function GET(req: NextRequest) {
         select: {
           id: true, agentId: true, taskInput: true, status: true,
           responseTimeMs: true, rating: true, createdAt: true,
+          grossAmount: true, platformFee: true, developerPayout: true, feePercent: true,
           user: { select: { name: true, email: true } },
         },
       }),
@@ -51,37 +54,34 @@ export async function GET(req: NextRequest) {
       where: { agentId: { in: agentIds }, status: 'active' },
     });
 
-    // Calculate revenue estimates
-    const paidAgents = myAgents.filter(a => a.pricingModel !== 'free');
-    let estimatedRevenue = 0;
-    for (const agent of paidAgents) {
-      if (agent.pricingModel === 'per_task' && agent.pricePerTask) {
-        const completedForAgent = await prisma.marketplaceExecution.count({
-          where: { agentId: agent.id, status: 'completed' },
-        });
-        estimatedRevenue += completedForAgent * agent.pricePerTask;
-      } else if (agent.pricingModel === 'subscription' && agent.subscriptionPrice) {
+    // Revenue from the real tracked fields on MarketplaceAgent
+    const totalGrossRevenue = myAgents.reduce((sum, a) => sum + (a.totalGrossRevenue || 0), 0);
+    const totalPlatformFees = myAgents.reduce((sum, a) => sum + (a.totalPlatformFees || 0), 0);
+    const totalDeveloperPayout = myAgents.reduce((sum, a) => sum + (a.totalDeveloperPayout || 0), 0);
+    const totalPendingPayout = myAgents.reduce((sum, a) => sum + (a.pendingPayout || 0), 0);
+
+    // Also count subscription revenue (monthly recurring, not yet per-execution tracked)
+    let subscriptionMRR = 0;
+    for (const agent of myAgents) {
+      if (agent.pricingModel === 'subscription' && agent.subscriptionPrice) {
         const activeSubs = await prisma.marketplaceSubscription.count({
           where: { agentId: agent.id, status: 'active' },
         });
-        estimatedRevenue += activeSubs * agent.subscriptionPrice;
+        subscriptionMRR += activeSubs * agent.subscriptionPrice;
       }
     }
 
-    // Per-agent breakdown
+    // Per-agent breakdown with real revenue
     const agentBreakdown = myAgents.map(a => {
       const { authToken, ...safeAgent } = a;
-      let agentRevenue = 0;
-      if (a.pricingModel === 'per_task' && a.pricePerTask) {
-        // Approximate from total completed
-        const completedRatio = a.successRate ?? 1;
-        agentRevenue = Math.round(a.totalExecutions * completedRatio * a.pricePerTask * 100) / 100;
-      } else if (a.pricingModel === 'subscription' && a.subscriptionPrice) {
-        agentRevenue = (a._count?.subscriptions || 0) * a.subscriptionPrice;
-      }
       return {
         ...safeAgent,
-        estimatedRevenue: agentRevenue,
+        grossRevenue: Math.round((a.totalGrossRevenue || 0) * 100) / 100,
+        platformFees: Math.round((a.totalPlatformFees || 0) * 100) / 100,
+        developerPayout: Math.round((a.totalDeveloperPayout || 0) * 100) / 100,
+        pendingPayout: Math.round((a.pendingPayout || 0) * 100) / 100,
+        // Keep estimatedRevenue for backward compat (now = developer payout)
+        estimatedRevenue: Math.round((a.totalDeveloperPayout || 0) * 100) / 100,
       };
     });
 
@@ -91,9 +91,12 @@ export async function GET(req: NextRequest) {
       where: { agentId: { in: agentIds } },
     });
 
+    const paidAgents = myAgents.filter(a => a.pricingModel !== 'free');
+
     return NextResponse.json({
       hasListings: true,
       hasPaidListings: paidAgents.length > 0,
+      feeInfo,
       totals: {
         totalAgents: myAgents.length,
         paidAgents: paidAgents.length,
@@ -102,7 +105,14 @@ export async function GET(req: NextRequest) {
         failedExecutions: failedExecs,
         activeSubscriptions,
         uniqueUsers: uniqueUsers.length,
-        estimatedRevenue: Math.round(estimatedRevenue * 100) / 100,
+        // Revenue breakdown
+        grossRevenue: Math.round(totalGrossRevenue * 100) / 100,
+        platformFees: Math.round(totalPlatformFees * 100) / 100,
+        developerPayout: Math.round(totalDeveloperPayout * 100) / 100,
+        pendingPayout: Math.round(totalPendingPayout * 100) / 100,
+        subscriptionMRR: Math.round(subscriptionMRR * 100) / 100,
+        // Backward compat
+        estimatedRevenue: Math.round(totalDeveloperPayout * 100) / 100,
       },
       agents: agentBreakdown,
       recentExecutions: recentExecs,

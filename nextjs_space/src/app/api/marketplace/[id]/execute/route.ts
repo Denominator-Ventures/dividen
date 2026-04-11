@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { calculateRevenueSplit } from '@/lib/marketplace-config';
 
 const EXECUTION_TIMEOUT = 30000; // 30s
 
@@ -149,6 +150,14 @@ export async function POST(
         output = await response.text();
       }
 
+      // Calculate revenue split for paid agents
+      let grossAmount = 0;
+      if (agent.pricingModel === 'per_task' && agent.pricePerTask) {
+        grossAmount = agent.pricePerTask;
+      }
+      // Subscription revenue is tracked at subscription level, not per-execution
+      const revSplit = calculateRevenueSplit(grossAmount);
+
       // Update execution
       await prisma.marketplaceExecution.update({
         where: { id: execution.id },
@@ -157,10 +166,14 @@ export async function POST(
           taskOutput: output,
           completedAt: new Date(),
           responseTimeMs,
+          grossAmount: revSplit.grossAmount,
+          platformFee: revSplit.platformFee,
+          developerPayout: revSplit.developerPayout,
+          feePercent: revSplit.feePercent,
         },
       });
 
-      // Update agent stats
+      // Update agent stats + revenue accumulators
       const execCount = agent.totalExecutions + 1;
       const newAvgResponse = agent.avgResponseTime
         ? (agent.avgResponseTime * agent.totalExecutions + responseTimeMs) / execCount
@@ -173,6 +186,10 @@ export async function POST(
           totalExecutions: execCount,
           avgResponseTime: Math.round(newAvgResponse),
           successRate: successCount / execCount,
+          totalGrossRevenue: { increment: revSplit.grossAmount },
+          totalPlatformFees: { increment: revSplit.platformFee },
+          totalDeveloperPayout: { increment: revSplit.developerPayout },
+          pendingPayout: { increment: revSplit.developerPayout },
         },
       });
 
@@ -189,6 +206,12 @@ export async function POST(
         status: 'completed',
         output,
         responseTimeMs,
+        revenue: revSplit.grossAmount > 0 ? {
+          gross: revSplit.grossAmount,
+          developerPayout: revSplit.developerPayout,
+          platformFee: revSplit.platformFee,
+          feePercent: revSplit.feePercent,
+        } : undefined,
       });
     } catch (execError: any) {
       const responseTimeMs = Date.now() - startTime;

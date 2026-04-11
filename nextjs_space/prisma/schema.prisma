@@ -1271,6 +1271,12 @@ model MarketplaceAgent {
   taskLimit       Int?      // monthly task limit for subscription tier (null = unlimited)
   pricingDetails  String?   @db.Text  // JSON for complex tiered pricing
 
+  // Revenue tracking
+  totalGrossRevenue   Float   @default(0) // total gross $ earned
+  totalPlatformFees   Float   @default(0) // total platform fee collected
+  totalDeveloperPayout Float  @default(0) // total paid out to developer (gross - fees)
+  pendingPayout       Float   @default(0) // accumulated but not yet withdrawn
+
   // Status & stats
   status          String    @default("pending") // "pending" | "active" | "disabled" | "suspended"
   featured        Boolean   @default(false)
@@ -1344,6 +1350,12 @@ model MarketplaceExecution {
   completedAt     DateTime?
   responseTimeMs  Int?
   
+  // Revenue split
+  grossAmount     Float     @default(0) // total charged for this execution
+  platformFee     Float     @default(0) // DiviDen's routing fee
+  developerPayout Float     @default(0) // developer's share (gross - fee)
+  feePercent      Float     @default(7) // fee % applied at time of execution
+
   // Feedback
   rating          Int?      // 1-5
   feedback        String?   @db.Text
