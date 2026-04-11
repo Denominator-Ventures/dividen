@@ -13,6 +13,7 @@ export async function GET() {
   const recordings = await prisma.recording.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
+    take: 100,
   });
 
   return NextResponse.json({ success: true, data: recordings });

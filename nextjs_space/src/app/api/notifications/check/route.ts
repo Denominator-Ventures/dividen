@@ -31,192 +31,142 @@ export async function GET() {
 
     const rules = await prisma.notificationRule.findMany({
       where: { userId, enabled: true },
+      take: 50,
     });
 
     const banners: ActiveBanner[] = [];
     const now = new Date();
 
+    if (rules.length === 0) {
+      return NextResponse.json({ success: true, data: banners });
+    }
+
+    // Determine which event types are active to avoid unnecessary queries
+    const activeTypes = new Set(rules.map((r) => r.eventType));
+
+    // Pre-fetch ALL needed data in one parallel batch (eliminates N+1)
+    const fiveMinAgo = new Date(now.getTime() - 5 * 60000);
+    const [upcomingEvents, overdueItems, recentEmails, staleContacts, recentActivity, recentQueue] = await Promise.all([
+      activeTypes.has('meeting_starting')
+        ? prisma.calendarEvent.findMany({
+            where: { userId, startTime: { gte: now, lte: new Date(now.getTime() + 30 * 60000) } },
+            take: 5,
+          })
+        : Promise.resolve([]),
+      activeTypes.has('task_overdue')
+        ? prisma.queueItem.findMany({
+            where: { userId, status: 'ready', createdAt: { lt: new Date(now.getTime() - 1 * 3600000) } },
+            take: 5,
+            orderBy: { createdAt: 'asc' },
+          })
+        : Promise.resolve([]),
+      activeTypes.has('email_received')
+        ? prisma.emailMessage.findMany({
+            where: { userId, isRead: false, receivedAt: { gte: fiveMinAgo } },
+            take: 5,
+          })
+        : Promise.resolve([]),
+      activeTypes.has('contact_stale')
+        ? prisma.contact.findMany({
+            where: { userId, updatedAt: { lt: new Date(now.getTime() - 7 * 86400000) } },
+            take: 5,
+            orderBy: { updatedAt: 'asc' },
+          })
+        : Promise.resolve([]),
+      activeTypes.has('card_moved')
+        ? prisma.activityLog.findMany({
+            where: { userId, action: 'card_moved', createdAt: { gte: fiveMinAgo } },
+            take: 5,
+          })
+        : Promise.resolve([]),
+      activeTypes.has('queue_added')
+        ? prisma.queueItem.findMany({
+            where: { userId, status: 'ready', createdAt: { gte: fiveMinAgo } },
+            take: 5,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    // Now evaluate rules against pre-fetched data — zero additional queries
     for (const rule of rules) {
       const conditions = rule.conditions ? JSON.parse(rule.conditions) : {};
 
       switch (rule.eventType) {
-        // ── Meeting Starting ────────────────────────────────
         case 'meeting_starting': {
           const minutesBefore = conditions.minutesBefore ?? 5;
-          const windowStart = new Date(now.getTime());
           const windowEnd = new Date(now.getTime() + minutesBefore * 60 * 1000);
-
-          const upcomingEvents = await prisma.calendarEvent.findMany({
-            where: {
-              userId,
-              startTime: { gte: windowStart, lte: windowEnd },
-            },
-            take: 3,
-          });
-
-          for (const evt of upcomingEvents) {
+          const matching = (upcomingEvents as any[]).filter((e) => e.startTime <= windowEnd).slice(0, 3);
+          for (const evt of matching) {
             const minsLeft = Math.max(0, Math.round((evt.startTime.getTime() - now.getTime()) / 60000));
-            const msg = rule.message
-              .replace('{{title}}', evt.title)
-              .replace('{{minutes}}', String(minsLeft))
-              .replace('{{time}}', evt.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             banners.push({
-              id: `${rule.id}-${evt.id}`,
-              ruleId: rule.id,
-              name: rule.name,
-              message: msg,
-              style: rule.style,
-              sound: rule.sound,
-              eventType: rule.eventType,
+              id: `${rule.id}-${evt.id}`, ruleId: rule.id, name: rule.name,
+              message: rule.message.replace('{{title}}', evt.title).replace('{{minutes}}', String(minsLeft)).replace('{{time}}', evt.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+              style: rule.style, sound: rule.sound, eventType: rule.eventType,
             });
           }
           break;
         }
-
-        // ── Task Overdue ────────────────────────────────────
         case 'task_overdue': {
-          const overdueItems = await prisma.queueItem.findMany({
-            where: {
-              status: 'ready',
-              createdAt: { lt: new Date(now.getTime() - (conditions.hoursOverdue ?? 24) * 3600000) },
-            },
-            take: 3,
-          });
-          for (const item of overdueItems) {
-            const msg = rule.message
-              .replace('{{title}}', item.title)
-              .replace('{{hours}}', String(Math.round((now.getTime() - item.createdAt.getTime()) / 3600000)));
+          const hoursOverdue = conditions.hoursOverdue ?? 24;
+          const cutoff = new Date(now.getTime() - hoursOverdue * 3600000);
+          const matching = (overdueItems as any[]).filter((i) => i.createdAt < cutoff).slice(0, 3);
+          for (const item of matching) {
             banners.push({
-              id: `${rule.id}-${item.id}`,
-              ruleId: rule.id,
-              name: rule.name,
-              message: msg,
-              style: rule.style,
-              sound: rule.sound,
-              eventType: rule.eventType,
+              id: `${rule.id}-${item.id}`, ruleId: rule.id, name: rule.name,
+              message: rule.message.replace('{{title}}', item.title).replace('{{hours}}', String(Math.round((now.getTime() - item.createdAt.getTime()) / 3600000))),
+              style: rule.style, sound: rule.sound, eventType: rule.eventType,
             });
           }
           break;
         }
-
-        // ── Email Received ──────────────────────────────────
         case 'email_received': {
-          const recentEmails = await prisma.emailMessage.findMany({
-            where: {
-              userId,
-              isRead: false,
-              receivedAt: { gte: new Date(now.getTime() - 5 * 60000) }, // last 5 min
-            },
-            take: 3,
-          });
-          for (const email of recentEmails) {
-            const msg = rule.message
-              .replace('{{from}}', email.fromName || email.fromEmail || 'Unknown')
-              .replace('{{subject}}', email.subject);
+          for (const email of (recentEmails as any[]).slice(0, 3)) {
             banners.push({
-              id: `${rule.id}-${email.id}`,
-              ruleId: rule.id,
-              name: rule.name,
-              message: msg,
-              style: rule.style,
-              sound: rule.sound,
-              eventType: rule.eventType,
+              id: `${rule.id}-${email.id}`, ruleId: rule.id, name: rule.name,
+              message: rule.message.replace('{{from}}', email.fromName || email.fromEmail || 'Unknown').replace('{{subject}}', email.subject),
+              style: rule.style, sound: rule.sound, eventType: rule.eventType,
             });
           }
           break;
         }
-
-        // ── Contact Stale ───────────────────────────────────
         case 'contact_stale': {
           const staleDays = conditions.staleDays ?? 7;
-          const staleContacts = await prisma.contact.findMany({
-            where: {
-              userId,
-              updatedAt: { lt: new Date(now.getTime() - staleDays * 86400000) },
-            },
-            take: 3,
-            orderBy: { updatedAt: 'asc' },
-          });
-          if (staleContacts.length > 0) {
-            const names = staleContacts.map((c: any) => c.name).join(', ');
-            const msg = rule.message
-              .replace('{{count}}', String(staleContacts.length))
-              .replace('{{names}}', names)
-              .replace('{{days}}', String(staleDays));
+          const cutoff = new Date(now.getTime() - staleDays * 86400000);
+          const matching = (staleContacts as any[]).filter((c) => c.updatedAt < cutoff).slice(0, 3);
+          if (matching.length > 0) {
+            const names = matching.map((c: any) => c.name).join(', ');
             banners.push({
-              id: `${rule.id}-stale`,
-              ruleId: rule.id,
-              name: rule.name,
-              message: msg,
-              style: rule.style,
-              sound: rule.sound,
-              eventType: rule.eventType,
+              id: `${rule.id}-stale`, ruleId: rule.id, name: rule.name,
+              message: rule.message.replace('{{count}}', String(matching.length)).replace('{{names}}', names).replace('{{days}}', String(staleDays)),
+              style: rule.style, sound: rule.sound, eventType: rule.eventType,
             });
           }
           break;
         }
-
-        // ── Card Moved ──────────────────────────────────────
         case 'card_moved': {
-          const recentActivity = await prisma.activityLog.findMany({
-            where: {
-              action: 'card_moved',
-              createdAt: { gte: new Date(now.getTime() - 5 * 60000) },
-            },
-            take: 3,
-          });
-          for (const act of recentActivity) {
-            const msg = rule.message
-              .replace('{{summary}}', act.summary || 'Card was moved');
+          for (const act of (recentActivity as any[]).slice(0, 3)) {
             banners.push({
-              id: `${rule.id}-${act.id}`,
-              ruleId: rule.id,
-              name: rule.name,
-              message: msg,
-              style: rule.style,
-              sound: rule.sound,
-              eventType: rule.eventType,
+              id: `${rule.id}-${act.id}`, ruleId: rule.id, name: rule.name,
+              message: rule.message.replace('{{summary}}', act.summary || 'Card was moved'),
+              style: rule.style, sound: rule.sound, eventType: rule.eventType,
             });
           }
           break;
         }
-
-        // ── Queue Item Added ────────────────────────────────
         case 'queue_added': {
-          const recentQueue = await prisma.queueItem.findMany({
-            where: {
-              status: 'ready',
-              createdAt: { gte: new Date(now.getTime() - 5 * 60000) },
-            },
-            take: 3,
-          });
-          for (const item of recentQueue) {
-            const msg = rule.message
-              .replace('{{title}}', item.title)
-              .replace('{{source}}', item.source || 'system');
+          for (const item of (recentQueue as any[]).slice(0, 3)) {
             banners.push({
-              id: `${rule.id}-${item.id}`,
-              ruleId: rule.id,
-              name: rule.name,
-              message: msg,
-              style: rule.style,
-              sound: rule.sound,
-              eventType: rule.eventType,
+              id: `${rule.id}-${item.id}`, ruleId: rule.id, name: rule.name,
+              message: rule.message.replace('{{title}}', item.title).replace('{{source}}', item.source || 'system'),
+              style: rule.style, sound: rule.sound, eventType: rule.eventType,
             });
           }
           break;
         }
-
-        // ── Custom (always show if enabled) ─────────────────
         case 'custom': {
           banners.push({
-            id: `${rule.id}-custom`,
-            ruleId: rule.id,
-            name: rule.name,
-            message: rule.message,
-            style: rule.style,
-            sound: rule.sound,
-            eventType: rule.eventType,
+            id: `${rule.id}-custom`, ruleId: rule.id, name: rule.name,
+            message: rule.message, style: rule.style, sound: rule.sound, eventType: rule.eventType,
           });
           break;
         }

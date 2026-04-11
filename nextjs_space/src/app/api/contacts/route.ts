@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const sortField = url.searchParams.get('sort') || 'updatedAt';
   const sortOrder = url.searchParams.get('order') === 'asc' ? 'asc' : 'desc';
   const limitParam = url.searchParams.get('limit');
-  const take = limitParam ? Math.min(parseInt(limitParam, 10) || 100, 200) : undefined;
+  const take = limitParam ? Math.min(parseInt(limitParam, 10) || 100, 200) : 200;
 
   const where: any = { userId: userId };
 

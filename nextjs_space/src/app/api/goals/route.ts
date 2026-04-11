@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
         team: { select: { id: true, name: true, avatar: true } },
       },
       orderBy: [{ impact: 'desc' }, { deadline: 'asc' }, { createdAt: 'desc' }],
+      take: 100,
     });
 
     return NextResponse.json({ success: true, data: goals });

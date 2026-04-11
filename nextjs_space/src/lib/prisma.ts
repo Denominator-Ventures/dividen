@@ -30,26 +30,19 @@ function createPrismaClient() {
     const snapshot = entries.map(([key, val]) => ({ key, ...val }));
     for (const k of Object.keys(queryBuffer)) delete queryBuffer[k];
 
-    // Batch insert telemetry (fire-and-forget)
-    const inserts = snapshot.map(({ key, count, totalDuration }) => {
+    // Batch insert telemetry (fire-and-forget) — single query via createMany
+    const data = snapshot.map(({ key, count, totalDuration }) => {
       const [dbAction, dbModel] = key.split(':');
-      return client.telemetryEvent.create({
-        data: {
-          type: 'db_query',
-          dbAction,
-          dbModel: dbModel || null,
-          duration: Math.round(totalDuration / count),
-          metadata: JSON.stringify({ count, totalDurationMs: Math.round(totalDuration) }),
-        },
-      });
+      return {
+        type: 'db_query' as const,
+        dbAction,
+        dbModel: dbModel || null,
+        duration: Math.round(totalDuration / count),
+        metadata: JSON.stringify({ count, totalDurationMs: Math.round(totalDuration) }),
+      };
     });
 
-    // Execute sequentially to avoid pool pressure
-    (async () => {
-      for (const ins of inserts) {
-        try { await ins; } catch { /* swallow */ }
-      }
-    })();
+    client.telemetryEvent.createMany({ data }).catch(() => { /* swallow */ });
   }
 
   function scheduleFlush() {

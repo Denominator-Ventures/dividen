@@ -24,6 +24,7 @@ export async function GET() {
   const items = await prisma.queueItem.findMany({
     where: { userId },
     orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
+    take: 200,
   });
 
   return NextResponse.json({ success: true, data: items });

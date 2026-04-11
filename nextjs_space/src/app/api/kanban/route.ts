@@ -47,6 +47,7 @@ export async function GET() {
       },
     },
     orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+    take: 200,
   });
 
   return NextResponse.json({ success: true, data: cards });

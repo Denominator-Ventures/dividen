@@ -31,7 +31,6 @@ export default function NotificationCenter() {
   const [unseenCount, setUnseenCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -46,7 +45,7 @@ export default function NotificationCenter() {
     }
   }, []);
 
-  // SSE stream for real-time updates
+  // SSE stream for real-time updates — no HTTP polling needed
   const { newCount: sseNewCount, resetCount: resetSseCount } = useActivityStream(true);
 
   // Bump unseen count when SSE delivers new events
@@ -57,11 +56,9 @@ export default function NotificationCenter() {
     }
   }, [sseNewCount, open, resetSseCount]);
 
-  // Initial fetch + polling (slower since SSE handles real-time)
+  // Initial fetch only — SSE handles ongoing updates (no polling interval)
   useEffect(() => {
     fetchFeed();
-    pollRef.current = setInterval(fetchFeed, 60000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchFeed]);
 
   // Click outside to close

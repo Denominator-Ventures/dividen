@@ -13,6 +13,7 @@ export async function GET() {
   const documents = await prisma.document.findMany({
     where: { userId },
     orderBy: { updatedAt: 'desc' },
+    take: 200,
   });
 
   return NextResponse.json({ success: true, data: documents });

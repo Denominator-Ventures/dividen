@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
       prisma.queueItem.findMany({
         where: { userId, status: { in: ['ready', 'in_progress', 'blocked'] } },
         orderBy: { createdAt: 'desc' },
+        take: 50,
       }),
       prisma.goal.findMany({
         where: { userId, status: 'active' },
@@ -38,10 +39,12 @@ export async function GET(req: NextRequest) {
           subGoals: { select: { id: true, title: true, status: true, progress: true } },
           project: { select: { id: true, name: true } },
         },
+        take: 30,
       }),
       prisma.kanbanCard.findMany({
         where: { userId, status: { in: ['active', 'development', 'planning', 'leads', 'qualifying', 'proposal', 'negotiation'] } },
         select: { id: true, title: true, status: true, priority: true, dueDate: true, projectId: true },
+        take: 50,
       }),
       prisma.calendarEvent.findMany({
         where: { userId, startTime: { gte: now, lte: tomorrow } },

@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       select: { id: true, content: true, sender: true, state: true, priority: true, createdAt: true },
     });
     const queueItems = await prisma.queueItem.findMany({
-      where: { OR: [{ title: { contains, mode: 'insensitive' } }, { description: { contains, mode: 'insensitive' } }] },
+      where: { userId, OR: [{ title: { contains, mode: 'insensitive' } }, { description: { contains, mode: 'insensitive' } }] },
       take: perType, orderBy: { createdAt: 'desc' },
       select: { id: true, title: true, type: true, status: true, priority: true, createdAt: true },
     });

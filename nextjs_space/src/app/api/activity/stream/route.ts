@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
 
   const encoder = new TextEncoder();
   let closed = false;
-  let lastId: string | null = null;
+  let lastCreatedAt: Date | null = null; // Cache timestamp — avoids extra findUnique per poll
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -30,22 +31,19 @@ export async function GET(req: NextRequest) {
 
         try {
           const where: Record<string, unknown> = { userId };
-          if (lastId) {
-            // Fetch only newer items by checking ID (cuid is lexicographically sortable)
-            const lastItem = await prisma.activityLog.findUnique({ where: { id: lastId }, select: { createdAt: true } });
-            if (lastItem) {
-              where.createdAt = { gt: lastItem.createdAt };
-            }
+          if (lastCreatedAt) {
+            where.createdAt = { gt: lastCreatedAt };
           }
 
           const items = await prisma.activityLog.findMany({
             where,
             orderBy: { createdAt: 'desc' },
-            take: lastId ? 20 : 5, // First batch small, subsequent fetches bigger
+            take: lastCreatedAt ? 20 : 5, // First batch small, subsequent fetches bigger
           });
 
           if (items.length > 0) {
-            lastId = items[0].id;
+            // Cache the newest createdAt — no extra query needed next poll
+            lastCreatedAt = items[0].createdAt;
             for (const item of items.reverse()) {
               const data = {
                 id: item.id,
@@ -74,9 +72,9 @@ export async function GET(req: NextRequest) {
           console.error('SSE poll error:', err);
         }
 
-        // Poll every 5 seconds
+        // Schedule next poll (10s instead of 5s to reduce DB pressure)
         if (!closed) {
-          setTimeout(poll, 5000);
+          pollTimer = setTimeout(poll, 10000);
         }
       };
 
@@ -86,11 +84,13 @@ export async function GET(req: NextRequest) {
       // Clean up on abort
       req.signal.addEventListener('abort', () => {
         closed = true;
+        if (pollTimer) clearTimeout(pollTimer);
         try { controller.close(); } catch {}
       });
     },
     cancel() {
       closed = true;
+      if (pollTimer) clearTimeout(pollTimer);
     },
   });
 
