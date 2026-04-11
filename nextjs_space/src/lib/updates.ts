@@ -102,46 +102,6 @@ Ask Divi "what can you do?" and the answer is now actually comprehensive.
 — Jon`
   },
   {
-    id: 'job-recruiting-and-contracts',
-    date: '2026-04-12',
-    time: '1:30 AM',
-    title: 'Job Recruiting — Structured Compensation, Contracts & 7% Fee',
-    subtitle: 'The human talent layer. Post jobs with flat, hourly, weekly, or monthly pay. Hire applicants. Track contracts. DiviDen takes a 7% recruiting fee. Self-hosted: 0%.',
-    tags: ['jobs', 'recruiting', 'payments', 'stripe', 'contracts', 'monetization'],
-    content: `The job board just became a recruiting engine.
-
-## Structured Compensation
-
-When posting a job, you now choose a pay structure: flat fee, hourly, weekly, or monthly. Enter a dollar amount per unit. The old freeform compensation field still works for non-monetary arrangements (equity swap, mutual exchange, volunteer).
-
-## The 7% Recruiting Fee
-
-When you hire someone through the DiviDen network who isn't already in your project or team, DiviDen takes a 7% recruiting fee. The worker keeps 93%. This is separate from the 3% Agent Marketplace routing fee — that's for AI agents, this is for humans.
-
-Still the lowest recruiting fee in the industry. Traditional recruiters charge 15-25% of annual salary. We charge 7% of the contract value. Self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` and keep everything.
-
-## Job Contracts
-
-When you hire an applicant for a paid job, a \`JobContract\` is created that tracks: compensation terms, both parties, payment history, recruiting fee collected, and contract status (active / paused / completed / cancelled / disputed). Contracts live in a new "📄 Contracts" tab on the job board.
-
-**Hire Button** — Job detail modal now shows a "✓ Hire" button next to each pending applicant. Click it: the applicant is assigned, other applicants are rejected, and a contract is created. For flat-fee jobs with Stripe configured, payment is initiated immediately.
-
-**Recurring Payments** — For hourly/weekly/monthly contracts, the client can submit payments from the Contracts tab. Each payment records the gross amount, recruiting fee, and worker payout.
-
-**Destination Charges** — Same pattern as the Agent Marketplace: if the worker has a Stripe Connect Express account, payments go directly to them via destination charges with the recruiting fee as the application fee. Worker gets paid. DiviDen collects the routing cut. Nobody holds funds.
-
-**Live Fee Preview** — When creating a job with structured compensation, the form shows a real-time breakdown: total amount, recruiting fee, and what the worker actually receives.
-
-## Technical Details
-
-- **New Prisma models**: \`JobContract\`, \`JobPayment\`
-- **Schema additions**: \`NetworkJob.compensationType\`, \`compensationAmount\`, \`compensationCurrency\`, \`isPaid\`
-- **New API routes**: \`/api/jobs/[id]/hire\`, \`/api/contracts\` (GET), \`/api/contracts/[id]\` (GET/PATCH), \`/api/contracts/[id]/pay\` (POST), \`/api/recruiting/fee-info\` (GET)
-- **Config**: \`RECRUITING_FEE_PERCENT\` env var (default 7, set to 0 for self-hosted)
-
-— Jon`
-  },
-  {
     id: 'agent-marketplace-and-payments',
     date: '2026-04-12',
     time: '12:15 AM',
@@ -207,7 +167,7 @@ Signup now requires ToS acceptance. Version-tracked. Re-promptable on updates.
     date: '2026-04-11',
     time: '11:45 PM',
     title: 'FVP Integration Brief — 14 Proposals, One Build',
-    subtitle: 'Full implementation of the Fractional Venture Partners integration brief. Protocol hardening, federation marketplace, cross-instance intelligence, and network-level task routing.',
+    subtitle: 'Full implementation of the Fractional Venture Partners integration brief. Protocol hardening, federation jobs, cross-instance intelligence, and network-level task routing.',
     tags: ['federation', 'protocol', 'a2a', 'mcp', 'intelligence', 'fvp', 'network'],
     content: `This is the biggest single protocol expansion since DiviDen launched. The FVP team submitted a 14-proposal integration brief covering everything from basic protocol improvements to network-level AI intelligence. Every proposal is now implemented.
 
@@ -223,7 +183,7 @@ Signup now requires ToS acceptance. Version-tracked. Re-promptable on updates.
 
 **Universal Entity Resolution** — One function that answers "what do we know about this person/company?" across all surfaces: contacts, connections, cards, events, emails, relays, and team members. MCP tool: \`entity_resolve\`.
 
-## Tier 2: Marketplace (Proposals #6–7)
+## Tier 2: Federation Jobs (Proposals #6–7)
 
 **Federated Job Broadcast + Application Routing** — Jobs posted on one instance can receive applications from connected federation peers. The relay protocol handles application routing with trust-level gating.
 
@@ -253,7 +213,7 @@ Signup now requires ToS acceptance. Version-tracked. Re-promptable on updates.
 - **4 new federation API endpoints**: /patterns, /briefing, /routing, /graph
 - **6 new MCP tools**: entity_resolve, relay_thread_list, relay_threads, relay_send, serendipity_matches, route_task, network_briefing
 - **Agent card v0.3.0** with full capability advertisement
-- **MCP server v1.3.0** — 22 total tools
+- **MCP server v1.3.0** — 20 total tools
 - **2 new Prisma migrations** (relay threading + portable reputation)
 
 ## What This Means
@@ -574,13 +534,13 @@ The install button is live. The registry submissions are queued. The protocol is
     date: '2026-04-10',
     time: '12:00 AM',
     title: 'DEP-013: The Network Job Board — Where Work Finds You',
-    subtitle: 'DiviDen now has a coordination marketplace. Post tasks, match talent by skills, build portable reputation. Every agent on the network is now a recruiter.',
-    tags: ['dep', 'network', 'marketplace', 'reputation', 'federation', 'agent-protocol'],
+    subtitle: 'DiviDen now has a coordination layer for human talent. Post tasks, match by skills, hire with contracts, build portable reputation. Every agent on the network is now a recruiter.',
+    tags: ['dep', 'network', 'jobs', 'recruiting', 'reputation', 'federation', 'agent-protocol'],
     content: `This one changes the game.
 
 Until today, DiviDen's coordination was entirely **bilateral**. You needed an existing connection to send a relay. That's fine for teams, but it doesn't answer the question: *what if no one in your network can do this?*
 
-DEP-013 introduces the **Network Job Board** — the third coordination primitive alongside relays and connections. It's the marketplace layer of DiviDen, and it fundamentally shifts the value proposition of the network.
+DEP-013 introduces the **Network Job Board** — the third coordination primitive alongside relays and connections. It's the talent layer of DiviDen, and it fundamentally shifts the value proposition of the network.
 
 ## The Problem
 
@@ -656,7 +616,7 @@ The job board is fully wired into every protocol surface:
 - **[Playbook](/api/a2a/playbook)**: Job board section with endpoints and behavioral instructions for connected agents
 - **[Handoff Brief](/api/main-handoff)**: Job board context for execution agents
 
-Every agent that reads the agent card now knows the marketplace exists. Every agent that reads the playbook knows to check for matching jobs. The network is now self-recruiting.
+Every agent that reads the agent card now knows the job board exists. Every agent that reads the playbook knows to check for matching jobs. The network is now self-recruiting.
 
 ## What's in the Dashboard
 
@@ -670,19 +630,37 @@ A new **💼 Jobs** tab in the command center with five views:
 
 Full job creation modal, detail views with application lists, star rating reviews, and status management.
 
+## Recruiting & Contracts
+
+The job board is also a recruiting engine. When you hire someone through the network who isn't already in your project or team, DiviDen takes a **7% recruiting fee**. The worker keeps 93%. This is separate from the 3% Agent Marketplace routing fee — that's for AI agents, this is for humans. Still the lowest recruiting fee in the industry. Self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` and keep everything.
+
+**Structured Compensation** — When posting a job, choose a pay structure: flat fee, hourly, weekly, or monthly. Enter a dollar amount per unit. The old freeform compensation field still works for non-monetary arrangements (equity swap, mutual exchange, volunteer).
+
+**Job Contracts** — When you hire an applicant for a paid job, a \`JobContract\` is created that tracks compensation terms, both parties, payment history, recruiting fee collected, and contract status (active / paused / completed / cancelled / disputed). Contracts live in a new "📄 Contracts" tab on the job board.
+
+**Hire Button** — Job detail modal now shows a "✓ Hire" button next to each pending applicant. Click it: the applicant is assigned, other applicants are rejected, and a contract is created. For flat-fee jobs with Stripe configured, payment is initiated immediately.
+
+**Recurring Payments** — For hourly/weekly/monthly contracts, the client can submit payments from the Contracts tab. Each payment records the gross amount, recruiting fee, and worker payout.
+
+**Destination Charges** — Same pattern as the Agent Marketplace: if the worker has a Stripe Connect Express account, payments go directly to them via destination charges with the recruiting fee as the application fee.
+
+**Live Fee Preview** — When creating a job with structured compensation, the form shows a real-time breakdown: total amount, recruiting fee, and what the worker actually receives.
+
 ## Technical Details
 
-- **4 new database models**: \`NetworkJob\`, \`JobApplication\`, \`ReputationScore\`, \`JobReview\`
-- **7 new API endpoints**: CRUD, apply, complete, review, match, reputation
+- **6 new database models**: \`NetworkJob\`, \`JobApplication\`, \`ReputationScore\`, \`JobReview\`, \`JobContract\`, \`JobPayment\`
+- **Schema additions**: \`NetworkJob.compensationType\`, \`compensationAmount\`, \`compensationCurrency\`, \`isPaid\`
+- **12+ API endpoints**: CRUD, apply, complete, review, match, reputation, hire, contracts, pay, fee-info
 - **Matching engine** in \`/lib/job-matcher.ts\` with bidirectional scoring
 - **Action tags**: \`[[post_job]]\` and \`[[find_jobs]]\` for conversational job board interaction
+- **Config**: \`RECRUITING_FEE_PERCENT\` env var (default 7, set to 0 for self-hosted)
 - Open source. [GitHub](https://github.com/Denominator-Ventures/dividen). [MIT License](https://opensource.org/licenses/MIT).
 
 ## What's Next
 
 **Phase B: Federated Jobs.** Right now, the job board is local to each instance. Phase B propagates jobs across federated instances via a new \`/api/federation/jobs\` endpoint — federated job gossip. Your agent hears about jobs from the entire network, not just your instance.
 
-The coordination marketplace is live. The network is now a place where work finds you.
+The job board is live. The network is now a place where work finds you.
 
 — Jon`,
   },
