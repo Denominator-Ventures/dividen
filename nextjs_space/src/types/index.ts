@@ -35,6 +35,17 @@ export interface KanbanCardData {
   updatedAt: string;
   checklist: ChecklistItemData[];
   contacts: CardContactData[];
+  project?: {
+    id: string;
+    name: string;
+    members: Array<{
+      id: string;
+      role: string;
+      userId: string | null;
+      user: { id: string; name: string | null; email: string } | null;
+      connection: { id: string; peerUserName: string | null; peerUserEmail: string | null } | null;
+    }>;
+  } | null;
 }
 
 export interface ChecklistItemData {
@@ -394,6 +405,12 @@ export interface UserProfileData {
   timezone: string | null;
   workingHours: string | null;
   outOfOffice: Array<{ start: string; end: string; reason?: string }>;
+  // Job Preferences
+  minCompensationType: string | null;
+  minCompensationAmount: number | null;
+  minCompensationCurrency: string;
+  acceptVolunteerWork: boolean;
+  acceptProjectInvites: boolean;
   // Privacy
   visibility: ProfileVisibility;
   sharedSections: ProfileSection[];

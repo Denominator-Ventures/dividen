@@ -484,7 +484,7 @@ If the action requires info you don't have or involves external services, provid
 async function layer17_connectionsRelay(userId: string): Promise<string> {
   const { assembleProjectContext, generateProjectDashboardMarkdown } = await import('./brief-assembly');
 
-  const [connections, pendingRelays, teams, projects] = await Promise.all([
+  const [connections, pendingRelays, teams, projects, pendingInvites, userProfile] = await Promise.all([
     prisma.connection.findMany({
       where: {
         OR: [{ requesterId: userId }, { accepterId: userId }],
@@ -531,6 +531,23 @@ async function layer17_connectionsRelay(userId: string): Promise<string> {
       },
       take: 10,
     }),
+    prisma.projectInvite.findMany({
+      where: { inviteeId: userId, status: 'pending' },
+      include: {
+        project: { select: { id: true, name: true, description: true } },
+        inviter: { select: { id: true, name: true, email: true } },
+        job: { select: { id: true, title: true, compensationType: true, compensationAmount: true, compensationCurrency: true } },
+      },
+      take: 10,
+    }),
+    prisma.userProfile.findUnique({
+      where: { userId },
+      select: {
+        minCompensationType: true, minCompensationAmount: true,
+        minCompensationCurrency: true, acceptVolunteerWork: true,
+        acceptProjectInvites: true,
+      },
+    }),
   ]);
 
   let text = `## Layer 17: Connections, Teams, Projects & Agent Relay
@@ -566,6 +583,35 @@ You have access to a connections system that enables agent-to-agent communicatio
     for (const p of projects) {
       const teamLabel = p.team ? ` [team: ${p.team.name}]` : ' [independent]';
       text += `- **${p.name}** (id: ${p.id}) — ${p.status}${teamLabel}, ${p._count.members} members${p.description ? ` — ${p.description}` : ''}\n`;
+    }
+  }
+
+  // Job preferences
+  if (userProfile) {
+    text += `\n### Job Preferences\n`;
+    if (userProfile.minCompensationType && userProfile.minCompensationAmount) {
+      text += `- **Minimum rate**: $${userProfile.minCompensationAmount}/${userProfile.minCompensationType} (${userProfile.minCompensationCurrency})\n`;
+    }
+    text += `- **Accept volunteer work**: ${userProfile.acceptVolunteerWork ? 'Yes' : 'No'}\n`;
+    text += `- **Accept project invites**: ${userProfile.acceptProjectInvites ? 'Yes' : 'No'}\n`;
+  }
+
+  // Pending project invites
+  if (pendingInvites.length > 0) {
+    text += `\n### 📨 Pending Project Invites (${pendingInvites.length}) — ACTION REQUIRED\n`;
+    text += `**Surface these to the operator.** All invites must be explicitly accepted/declined.\n`;
+    for (const inv of pendingInvites) {
+      const from = inv.inviter?.name || inv.inviter?.email || 'Unknown';
+      const proj = inv.project?.name || 'Unknown project';
+      const isJob = !!inv.job;
+      text += `- **${proj}** from ${from} — role: ${inv.role}`;
+      if (isJob && inv.job) {
+        text += ` | 💼 JOB: "${inv.job.title}"`;
+        if (inv.job.compensationType && inv.job.compensationAmount) {
+          text += ` | $${inv.job.compensationAmount}/${inv.job.compensationType}`;
+        }
+      }
+      text += ` (invite id: ${inv.id})\n`;
     }
   }
 
@@ -1059,6 +1105,19 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 Post tasks to the network or find matching work. The job board is DiviDen's marketplace layer.
 - [[post_job:{"title":"Research market sizing for AI agents","description":"Need detailed TAM/SAM/SOM analysis...","taskType":"research","urgency":"medium","compensation":"$500","requiredSkills":"market research, data analysis","estimatedHours":"8"}]]
 - [[find_jobs:{}]] — Find jobs matching this operator's profile skills and availability. **Proactively surface matches when relevant.** If the operator mentions needing help or looking for work, check the job board.
+
+### Job & Project Invite Intake (Divi Agent Routing)
+**All incoming jobs and project invites flow through you (Divi) before reaching the operator's kanban.**
+When a job offer or project invite arrives:
+1. **Check minimum compensation** — If the operator has set a minimum rate (minCompensationType + minCompensationAmount), filter out underpaying jobs. Volunteer offers pass through if acceptVolunteerWork is true.
+2. **Present the offer** — Surface the job/invite to the operator with a summary: who's offering, what the project is, compensation, and role.
+3. **Intake & task breakdown** — Once the operator shows interest, break the job/project into concrete tasks for their queue. Create kanban cards if they accept.
+4. **Acceptance flow** — The operator must explicitly accept before anything hits their kanban. Use [[accept_invite:{"inviteId":"..."}]] or [[decline_invite:{"inviteId":"..."}]] to process their decision.
+- [[accept_invite:{"inviteId":"..."}]] — Accept a project invite, joining the operator as a project member
+- [[decline_invite:{"inviteId":"..."}]] — Decline a project invite
+- [[list_invites:{}]] — Show pending project invites for the operator
+
+**Jobs are special projects.** When someone is hired for a job, a Project is automatically created. Both parties become project members. Shared project members show up on each other's kanban cards — making collaboration visible.
 
 ### Documents & Comms
 - [[create_document:{"title":"...","content":"markdown","type":"note|report|template|meeting_notes"}]]

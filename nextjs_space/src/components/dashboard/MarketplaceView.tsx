@@ -88,6 +88,19 @@ interface EarningsData {
 }
 
 type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents' | 'earnings';
+type EarningsTab = 'agent' | 'job';
+
+interface JobEarningsData {
+  contracts: any[];
+  totals: {
+    totalContracts: number;
+    activeContracts: number;
+    totalEarned: number;
+    totalPaid: number;
+    totalPending: number;
+    totalFees: number;
+  };
+}
 
 interface MarketplaceViewProps {
   prefillAgent?: {
@@ -157,6 +170,9 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
   // Earnings state
   const [earnings, setEarnings] = useState<EarningsData | null>(null);
   const [earningsLoading, setEarningsLoading] = useState(false);
+  const [earningsTab, setEarningsTab] = useState<EarningsTab>('job');
+  const [jobEarnings, setJobEarnings] = useState<JobEarningsData | null>(null);
+  const [jobEarningsLoading, setJobEarningsLoading] = useState(false);
 
   // Fee info (fetched once for registration form display)
   const [feeInfo, setFeeInfo] = useState<FeeInfo | null>(null);
@@ -1058,25 +1074,141 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
     }
   }, []);
 
+  const fetchJobEarnings = useCallback(async () => {
+    setJobEarningsLoading(true);
+    try {
+      const res = await fetch('/api/jobs/earnings');
+      if (res.ok) {
+        const data = await res.json();
+        setJobEarnings(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch job earnings:', e);
+    } finally {
+      setJobEarningsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    if (view === 'earnings') fetchEarnings();
-  }, [view, fetchEarnings]);
+    if (view === 'earnings') {
+      fetchEarnings();
+      fetchJobEarnings();
+    }
+  }, [view, fetchEarnings, fetchJobEarnings]);
 
   // Check for earnings on mount to show/hide the tab
   useEffect(() => {
     fetch('/api/marketplace/earnings').then(r => r.json()).then(d => setEarnings(d)).catch(() => {});
   }, []);
 
-  /* ── Render: Earnings ─────────────────────────────────────── */
+  /* ── Render: Earnings (tabbed — Job Earnings + Agent Earnings) ── */
 
-  const renderEarnings = () => {
-    if (earningsLoading) return <div className="text-center py-12 text-white/30">Loading earnings...</div>;
+  const renderJobEarnings = () => {
+    if (jobEarningsLoading) return <div className="text-center py-8 text-white/30">Loading job earnings...</div>;
+    if (!jobEarnings) return null;
+
+    const w = jobEarnings.asWorker;
+    const c = jobEarnings.asClient;
+
+    return (
+      <div className="space-y-4">
+        {/* Worker earnings hero */}
+        <div className="bg-gradient-to-br from-emerald-500/10 via-brand-500/5 to-teal-500/5 border border-emerald-500/20 rounded-xl p-6">
+          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Job Earnings (as Worker)</div>
+          <div className="text-3xl font-bold text-emerald-400">${(w.totals.totalPaid || 0).toLocaleString()}</div>
+          <div className="flex items-center gap-3 mt-2 text-xs">
+            <span className="text-white/40">{w.totals.totalContracts} contract{w.totals.totalContracts !== 1 ? 's' : ''}</span>
+            <span className="text-white/15">|</span>
+            <span className="text-white/40">{w.totals.activeContracts} active</span>
+            {w.totals.totalPending > 0 && (
+              <>
+                <span className="text-white/15">|</span>
+                <span className="text-amber-400/70">Pending: ${w.totals.totalPending.toLocaleString()}</span>
+              </>
+            )}
+            {w.totals.totalFees > 0 && (
+              <>
+                <span className="text-white/15">|</span>
+                <span className="text-white/30">Fees: ${w.totals.totalFees.toLocaleString()}</span>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Worker contracts */}
+        {w.contracts.length > 0 && (
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">📋 Your Job Contracts</h3>
+            <div className="space-y-2">
+              {w.contracts.map((ct: any) => (
+                <div key={ct.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white/80 truncate">{ct.job?.title || 'Job'}</div>
+                    <div className="text-[10px] text-white/35">
+                      {ct.compensationType} · ${ct.compensationAmount}/{ct.compensationType === 'flat' ? 'total' : ct.compensationType}
+                      {ct.job?.poster?.name && <span> · Client: {ct.job.poster.name}</span>}
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-3">
+                    <div className="text-sm font-medium text-emerald-400">${ct.totalPaid || 0}</div>
+                    {ct.totalPending > 0 && <div className="text-[9px] text-amber-400/60">+${ct.totalPending} pending</div>}
+                    <div className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded mt-0.5 inline-block',
+                      ct.status === 'active' ? 'bg-emerald-500/20 text-emerald-400'
+                        : ct.status === 'completed' ? 'bg-brand-500/20 text-brand-400'
+                        : 'bg-white/10 text-white/40'
+                    )}>
+                      {ct.status}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {w.contracts.length === 0 && (
+          <div className="text-center py-8">
+            <div className="text-3xl mb-2">💼</div>
+            <p className="text-sm text-white/40">No job contracts yet. Apply to jobs to start earning.</p>
+          </div>
+        )}
+
+        {/* Client spending */}
+        {c.contracts.length > 0 && (
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">💳 Your Spending (as Client)</h3>
+            <div className="flex items-center gap-4 mb-3 text-xs">
+              <span className="text-white/40">Total spent: <span className="text-white/70 font-medium">${c.totals.totalSpent.toLocaleString()}</span></span>
+              <span className="text-white/40">Fees: <span className="text-white/50">${c.totals.totalFees.toLocaleString()}</span></span>
+            </div>
+            <div className="space-y-2">
+              {c.contracts.map((ct: any) => (
+                <div key={ct.id} className="flex items-center justify-between py-2 border-b border-white/[0.04] last:border-0">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white/80 truncate">{ct.job?.title || 'Job'}</div>
+                    <div className="text-[10px] text-white/35">
+                      Worker: {ct.worker?.name || ct.worker?.email || 'Unknown'}
+                    </div>
+                  </div>
+                  <div className="text-sm font-medium text-white/50">${ct.totalPaid || 0}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderAgentEarnings = () => {
+    if (earningsLoading) return <div className="text-center py-8 text-white/30">Loading agent earnings...</div>;
     if (!earnings?.hasListings) {
       return (
         <div className="text-center py-12">
-          <div className="text-4xl mb-3">💰</div>
+          <div className="text-4xl mb-3">🤖</div>
           <h3 className="text-sm font-medium text-white/60 mb-1">No agents listed yet</h3>
-          <p className="text-xs text-white/35 mb-4">List an agent with paid pricing to start earning.</p>
+          <p className="text-xs text-white/35 mb-4">List an agent with paid pricing to start earning from the marketplace.</p>
           <button onClick={() => setView('register')} className="px-4 py-2 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-lg text-sm font-medium hover:bg-brand-500/30 transition-all">
             + List Your First Agent
           </button>
@@ -1144,7 +1276,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
 
         {/* Revenue hero */}
         <div className="bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-emerald-500/5 border border-brand-500/20 rounded-xl p-6">
-          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Your Earnings</div>
+          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Agent Marketplace Earnings</div>
           <div className="text-3xl font-bold text-emerald-400">${(t.developerPayout || 0).toLocaleString()}</div>
           {t.grossRevenue > 0 && (
             <div className="flex items-center gap-3 mt-2 text-xs">
@@ -1250,6 +1382,41 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
     );
   };
 
+  const renderEarnings = () => {
+    return (
+      <div className="space-y-4">
+        {/* Earnings sub-tabs */}
+        <div className="flex gap-2 border-b border-white/[0.06] pb-px">
+          <button
+            onClick={() => setEarningsTab('job')}
+            className={cn(
+              'px-3 py-2 text-sm rounded-t-lg transition-all',
+              earningsTab === 'job'
+                ? 'bg-white/10 text-white border-b-2 border-emerald-500'
+                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+            )}
+          >
+            💼 Job Earnings
+          </button>
+          <button
+            onClick={() => setEarningsTab('agent')}
+            className={cn(
+              'px-3 py-2 text-sm rounded-t-lg transition-all',
+              earningsTab === 'agent'
+                ? 'bg-white/10 text-white border-b-2 border-brand-500'
+                : 'text-white/50 hover:text-white/70 hover:bg-white/5'
+            )}
+          >
+            🤖 Agent Earnings
+          </button>
+        </div>
+
+        {earningsTab === 'job' && renderJobEarnings()}
+        {earningsTab === 'agent' && renderAgentEarnings()}
+      </div>
+    );
+  };
+
   /* ── Main Render ─────────────────────────────────────────── */
 
   return (
@@ -1284,20 +1451,18 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed }: Marketplace
             >
               + List Agent
             </button>
-            {/* Earnings tab - only shows when user has listings */}
-            {earnings?.hasListings && (
-              <button
-                onClick={() => setView('earnings')}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
-                  view === 'earnings'
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-white/5 text-white/50 hover:bg-white/10'
-                )}
-              >
-                💰 Earnings
-              </button>
-            )}
+            {/* Earnings tab - always visible (job + agent earnings) */}
+            <button
+              onClick={() => setView('earnings')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                view === 'earnings'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-white/5 text-white/50 hover:bg-white/10'
+              )}
+            >
+              💰 Earnings
+            </button>
           </div>
         </div>
       </div>

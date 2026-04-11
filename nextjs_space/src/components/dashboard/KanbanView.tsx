@@ -107,8 +107,46 @@ function KanbanCard({
         </span>
       </div>
 
+      {/* Project members */}
+      {card.project && card.project.members && card.project.members.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
+          <div className="flex items-center gap-1 mb-1">
+            <span className="text-[10px] text-brand-400/70">📁 {card.project.name}</span>
+          </div>
+          <div className="flex items-center -space-x-1.5">
+            {card.project.members.slice(0, 5).map((m) => {
+              const name = m.user?.name || m.connection?.peerUserName || '?';
+              const initial = name.charAt(0).toUpperCase();
+              const roleColors: Record<string, string> = {
+                lead: 'ring-amber-500/60',
+                contributor: 'ring-brand-500/40',
+                reviewer: 'ring-purple-500/40',
+                observer: 'ring-white/20',
+              };
+              return (
+                <div
+                  key={m.id}
+                  title={`${name} (${m.role})`}
+                  className={cn(
+                    'w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[9px] font-medium text-[var(--text-secondary)] ring-1 cursor-pointer hover:ring-2 transition-all',
+                    roleColors[m.role] || 'ring-white/20'
+                  )}
+                >
+                  {initial}
+                </div>
+              );
+            })}
+            {card.project.members.length > 5 && (
+              <div className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[8px] text-[var(--text-muted)] ring-1 ring-white/10">
+                +{card.project.members.length - 5}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Contacts count */}
-      {card.contacts && card.contacts.length > 0 && (
+      {card.contacts && card.contacts.length > 0 && !card.project?.members?.length && (
         <div className="mt-2 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
           <span>👥</span>
           <span>{card.contacts.length} contact{card.contacts.length > 1 ? 's' : ''}</span>

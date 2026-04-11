@@ -41,6 +41,12 @@ function serializeProfile(p: any) {
     outOfOffice: parseJsonField(p.outOfOffice),
     visibility: p.visibility,
     sharedSections: parseJsonField(p.sharedSections, ['professional', 'lived_experience', 'availability', 'values', 'superpowers']),
+    // Job preferences
+    minCompensationType: p.minCompensationType || null,
+    minCompensationAmount: p.minCompensationAmount || null,
+    minCompensationCurrency: p.minCompensationCurrency || 'USD',
+    acceptVolunteerWork: p.acceptVolunteerWork ?? true,
+    acceptProjectInvites: p.acceptProjectInvites ?? true,
     // Relay preferences
     relayMode: p.relayMode || 'full',
     allowAmbientInbound: p.allowAmbientInbound ?? true,
@@ -107,11 +113,15 @@ export async function PUT(request: NextRequest) {
     'headline', 'bio', 'linkedinUrl', 'capacityStatus', 'capacityNote',
     'timezone', 'workingHours', 'visibility', 'currentTitle', 'currentCompany', 'industry',
     'relayMode', 'briefVisibility',
+    'minCompensationType', 'minCompensationCurrency',
   ];
+  // Numeric fields
+  const numericFields = ['minCompensationAmount'];
   // Boolean fields
   const booleanFields = [
     'allowAmbientInbound', 'allowAmbientOutbound', 'allowBroadcasts',
     'autoRespondAmbient', 'showBriefOnRelay',
+    'acceptVolunteerWork', 'acceptProjectInvites',
   ];
 
   const data: Record<string, any> = {};
@@ -123,6 +133,9 @@ export async function PUT(request: NextRequest) {
   }
   for (const f of jsonFields) {
     if (body[f] !== undefined) data[f] = JSON.stringify(body[f]);
+  }
+  for (const f of numericFields) {
+    if (body[f] !== undefined) data[f] = body[f] === null ? null : parseFloat(body[f]);
   }
   for (const f of booleanFields) {
     if (body[f] !== undefined) data[f] = Boolean(body[f]);

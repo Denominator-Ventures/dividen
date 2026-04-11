@@ -7,7 +7,7 @@ import {
   CAPACITY_STATUSES, PROFILE_SECTIONS, TASK_TYPES,
 } from '@/types';
 
-type ProfileTab = 'professional' | 'lived' | 'availability' | 'privacy' | 'import';
+type ProfileTab = 'professional' | 'lived' | 'availability' | 'jobs' | 'privacy' | 'import';
 
 export default function ProfileEditor() {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
@@ -103,6 +103,7 @@ export default function ProfileEditor() {
     { id: 'professional', label: 'Professional', icon: '💼' },
     { id: 'lived', label: 'Lived Experience', icon: '🌍' },
     { id: 'availability', label: 'Availability', icon: '📅' },
+    { id: 'jobs', label: 'Job Preferences', icon: '💰' },
     { id: 'privacy', label: 'Privacy', icon: '🔒' },
     { id: 'import', label: 'Import', icon: '📥' },
   ];
@@ -177,6 +178,9 @@ export default function ProfileEditor() {
         )}
         {activeTab === 'availability' && (
           <AvailabilityTab profile={profile} updateField={updateField} />
+        )}
+        {activeTab === 'jobs' && (
+          <JobPreferencesTab profile={profile} updateField={updateField} />
         )}
         {activeTab === 'privacy' && (
           <PrivacyTab profile={profile} updateField={updateField} />
@@ -501,6 +505,140 @@ function AvailabilityTab({ profile, updateField }: { profile: UserProfileData; u
           </div>
         ))}
         <AddOOOForm onAdd={(ooo) => updateField('outOfOffice', [...(profile.outOfOffice || []), ooo])} />
+      </div>
+    </div>
+  );
+}
+
+const COMPENSATION_TYPES = [
+  { id: 'hourly', label: 'Hourly', icon: '⏰', example: 'e.g. $50/hr' },
+  { id: 'weekly', label: 'Weekly', icon: '📅', example: 'e.g. $2,000/wk' },
+  { id: 'monthly', label: 'Monthly', icon: '🗓️', example: 'e.g. $8,000/mo' },
+  { id: 'flat', label: 'Flat Fee', icon: '💵', example: 'e.g. $5,000 total' },
+];
+
+function JobPreferencesTab({ profile, updateField }: { profile: UserProfileData; updateField: (f: string, v: any) => void }) {
+  return (
+    <div className="space-y-6">
+      <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+        <h4 className="text-white font-medium mb-1">💰 Minimum Compensation</h4>
+        <p className="text-white/40 text-xs mb-4">
+          Set a floor so underpaying jobs never reach your inbox. Divi will filter them out before you see them.
+        </p>
+
+        {/* Compensation type selector */}
+        <label className="label-mono text-xs text-white/40 mb-2 block">RATE TYPE</label>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          {COMPENSATION_TYPES.map(ct => (
+            <button
+              key={ct.id}
+              onClick={() => updateField('minCompensationType', profile.minCompensationType === ct.id ? null : ct.id)}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all text-left',
+                profile.minCompensationType === ct.id
+                  ? 'bg-white/10 border-brand-500/50 text-white'
+                  : 'bg-white/5 border-white/10 text-white/50 hover:bg-white/8'
+              )}
+            >
+              <span>{ct.icon}</span>
+              <div>
+                <div className="font-medium">{ct.label}</div>
+                <div className="text-[10px] text-white/30">{ct.example}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        {/* Amount + Currency */}
+        {profile.minCompensationType && (
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <label className="label-mono text-xs text-white/40 mb-1 block">MINIMUM AMOUNT</label>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={profile.minCompensationAmount ?? ''}
+                onChange={e => updateField('minCompensationAmount', e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="0"
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-brand-500/50 focus:outline-none"
+              />
+            </div>
+            <div className="w-28">
+              <label className="label-mono text-xs text-white/40 mb-1 block">CURRENCY</label>
+              <select
+                value={profile.minCompensationCurrency || 'USD'}
+                onChange={e => updateField('minCompensationCurrency', e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-brand-500/50 focus:outline-none"
+              >
+                <option value="USD">USD</option>
+                <option value="EUR">EUR</option>
+                <option value="GBP">GBP</option>
+                <option value="CAD">CAD</option>
+                <option value="AUD">AUD</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Volunteer work toggle */}
+      <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-white font-medium">🤝 Accept Volunteer Work</h4>
+            <p className="text-white/40 text-xs mt-1">
+              Receive unpaid/volunteer job offers even if you have a minimum rate set.
+            </p>
+          </div>
+          <button
+            onClick={() => updateField('acceptVolunteerWork', !profile.acceptVolunteerWork)}
+            className={cn(
+              'w-12 h-6 rounded-full transition-all relative',
+              profile.acceptVolunteerWork ? 'bg-brand-500' : 'bg-white/10'
+            )}
+          >
+            <span className={cn(
+              'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all',
+              profile.acceptVolunteerWork ? 'left-6' : 'left-0.5'
+            )} />
+          </button>
+        </div>
+      </div>
+
+      {/* Project invites toggle */}
+      <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+        <div className="flex items-center justify-between">
+          <div>
+            <h4 className="text-white font-medium">📨 Accept Project Invites</h4>
+            <p className="text-white/40 text-xs mt-1">
+              Allow connections and team members to invite you to projects (no recruiting fee — these are collaborative).
+            </p>
+          </div>
+          <button
+            onClick={() => updateField('acceptProjectInvites', !profile.acceptProjectInvites)}
+            className={cn(
+              'w-12 h-6 rounded-full transition-all relative',
+              profile.acceptProjectInvites ? 'bg-brand-500' : 'bg-white/10'
+            )}
+          >
+            <span className={cn(
+              'absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all',
+              profile.acceptProjectInvites ? 'left-6' : 'left-0.5'
+            )} />
+          </button>
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div className="bg-brand-500/5 rounded-xl p-4 border border-brand-500/20">
+        <h4 className="text-brand-400 font-medium text-sm mb-2">📋 How Divi uses these</h4>
+        <ul className="text-xs text-white/50 space-y-1.5">
+          <li>• <strong className="text-white/70">Minimum rate</strong> — jobs below your floor are filtered before they reach you</li>
+          <li>• <strong className="text-white/70">Volunteer toggle</strong> — if on, unpaid offers still come through for review</li>
+          <li>• <strong className="text-white/70">Project invites</strong> — connections can add you to shared projects (no money involved)</li>
+          <li>• All incoming jobs & invites go through Divi intake first — broken into tasks for your queue</li>
+        </ul>
       </div>
     </div>
   );

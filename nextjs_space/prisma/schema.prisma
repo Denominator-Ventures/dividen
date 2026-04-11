@@ -61,6 +61,8 @@ model User {
   reputationScores     ReputationScore[] @relation("ReputationScores")
   profile              UserProfile?
   invitations          Invitation[]
+  projectInvitesSent     ProjectInvite[] @relation("ProjectInvitesSent")
+  projectInvitesReceived ProjectInvite[] @relation("ProjectInvitesReceived")
   teamsCreated         Team[]          @relation("TeamsCreated")
   teamMemberships      TeamMember[]
   projectsCreated      Project[]       @relation("ProjectsCreated")
@@ -623,6 +625,7 @@ model Connection {
   relays          AgentRelay[]
   teamMemberships TeamMember[]
   projectMemberships ProjectMember[]
+  projectInvites  ProjectInvite[]
 
   @@unique([requesterId, accepterId])
   @@index([requesterId])
@@ -868,6 +871,13 @@ model UserProfile {
   visibility      String   @default("connections") // "public" | "connections" | "private"
   sharedSections  String?  // JSON array of section names shared with connections: ["professional","skills","availability"]
 
+  // ── Job Preferences ──
+  minCompensationType   String?   // "flat" | "hourly" | "weekly" | "monthly" — minimum type the user expects
+  minCompensationAmount Float?    // Minimum dollar amount per unit
+  minCompensationCurrency String  @default("USD") // ISO currency code
+  acceptVolunteerWork   Boolean   @default(true)    // Willing to receive volunteer/unpaid job offers?
+  acceptProjectInvites  Boolean   @default(true)    // Willing to receive project invites from connections?
+
   // ── Relay Preferences ──
   // Controls how the user participates in the ambient relay protocol
   relayMode           String   @default("full")     // "full" | "selective" | "minimal" | "off"
@@ -916,6 +926,46 @@ model Invitation {
   @@index([inviteeEmail])
   @@index([status])
   @@map("invitations")
+}
+
+// ─── Project Invites ────────────────────────────────────────────────────────
+// Invitations to join a project or a job-created project.
+// For connected users/team members — no recruiting fee (unlike job hiring).
+
+model ProjectInvite {
+  id            String    @id @default(cuid())
+  projectId     String
+  inviterId     String    // Who sent the invite
+  inviteeId     String?   // DiviDen user (null if inviting by email/connection)
+  inviteeEmail  String?   // Email for lookup / notification
+  connectionId  String?   // If inviting a federated connection
+  role          String    @default("contributor") // "lead" | "contributor" | "reviewer" | "observer"
+  status        String    @default("pending")     // "pending" | "accepted" | "declined" | "expired"
+  message       String?   // Personal note from inviter
+  jobId         String?   // If this invite originated from a job hire
+
+  // Agent intake tracking
+  diviIntakeComplete Boolean @default(false) // Has Divi done intake with the invitee?
+  intakeNotes        String? @db.Text        // Divi's intake summary / task breakdown
+
+  acceptedAt    DateTime?
+  declinedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  inviter       User      @relation("ProjectInvitesSent", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee       User?     @relation("ProjectInvitesReceived", fields: [inviteeId], references: [id], onDelete: Cascade)
+  connection    Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  job           NetworkJob? @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, inviteeId])
+  @@index([projectId])
+  @@index([inviterId])
+  @@index([inviteeId])
+  @@index([status])
+  @@index([jobId])
+  @@map("project_invites")
 }
 
 // ─── Federation Settings ──────────────────────────────────────────────────────
@@ -1004,6 +1054,8 @@ model Project {
   queueItems  QueueItem[]
   relays      AgentRelay[]
   goals       Goal[]
+  networkJobs NetworkJob[]    // Reverse: job(s) linked to this project (typically 0 or 1)
+  projectInvites ProjectInvite[]
 
   @@index([teamId])
   @@index([createdById])
@@ -1144,8 +1196,13 @@ model NetworkJob {
   // Results
   completionNote  String?   @db.Text
   
+  // Project link — when a hire happens, a Project is created from this job
+  projectId       String?
+  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
   applications    JobApplication[]
   contracts       JobContract[]
+  projectInvites  ProjectInvite[]
   
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1158,6 +1215,7 @@ model NetworkJob {
   @@index([urgency])
   @@index([createdAt])
   @@index([isPaid])
+  @@index([projectId])
   @@map("network_jobs")
 }
 

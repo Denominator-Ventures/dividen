@@ -29,7 +29,22 @@ export async function GET() {
             select: { id: true, name: true, email: true, company: true }
           }
         }
-      }
+      },
+      project: {
+        select: {
+          id: true,
+          name: true,
+          members: {
+            select: {
+              id: true,
+              role: true,
+              userId: true,
+              user: { select: { id: true, name: true, email: true } },
+              connection: { select: { id: true, peerUserName: true, peerUserEmail: true } },
+            },
+          },
+        },
+      },
     },
     orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
   });

@@ -90,7 +90,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
     }
 
-    return { contract };
+    // Auto-create Project from the job (jobs are "special projects")
+    const project = await tx.project.create({
+      data: {
+        name: job.title,
+        description: job.description,
+        status: 'active',
+        visibility: 'private',
+        createdById: userId,
+        metadata: JSON.stringify({ sourceJobId: params.id, type: 'job_project' }),
+      },
+    });
+
+    // Link job to project
+    await tx.networkJob.update({
+      where: { id: params.id },
+      data: { projectId: project.id },
+    });
+
+    // Add poster as project lead
+    await tx.projectMember.create({
+      data: { projectId: project.id, userId, role: 'lead' },
+    });
+
+    // Add hired person as contributor
+    await tx.projectMember.create({
+      data: { projectId: project.id, userId: applicantId, role: 'contributor' },
+    });
+
+    return { contract, project };
   });
 
   // For flat-fee paid jobs with Stripe: create payment intent immediately
@@ -164,9 +192,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     success: true,
     contract: result.contract,
+    project: result.project,
     payment: paymentInfo,
     message: isPaid
-      ? `Hired! Contract created with ${feePercent}% recruiting fee.`
-      : 'Hired! No payment required for this job.',
+      ? `Hired! Contract created with ${feePercent}% recruiting fee. Project "${result.project.name}" created.`
+      : `Hired! Project "${result.project.name}" created. No payment required.`,
   });
 }

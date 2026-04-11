@@ -66,7 +66,7 @@ interface Reputation {
   responseRate: number;
 }
 
-type ViewMode = 'browse' | 'my_jobs' | 'assigned' | 'matches' | 'contracts' | 'reputation';
+type ViewMode = 'browse' | 'my_jobs' | 'assigned' | 'matches' | 'contracts' | 'reputation' | 'invites';
 
 const TASK_TYPES = [
   'research', 'review', 'introductions', 'technical', 'creative',
@@ -150,6 +150,8 @@ export function JobBoardView() {
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDetail, setShowDetail] = useState(false);
   const [feeInfo, setFeeInfo] = useState<{ feePercent: number; workerPercent: number; isSelfHosted: boolean } | null>(null);
+  const [invites, setInvites] = useState<any[]>([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
 
   // Create form
   const [form, setForm] = useState({
@@ -209,12 +211,23 @@ export function JobBoardView() {
     setLoading(false);
   }, []);
 
+  const fetchInvites = useCallback(async () => {
+    setInvitesLoading(true);
+    try {
+      const res = await fetch('/api/project-invites?status=pending&type=received');
+      const data = await res.json();
+      setInvites(data.invites || []);
+    } catch (e) { console.error('Failed to fetch invites:', e); }
+    setInvitesLoading(false);
+  }, []);
+
   useEffect(() => {
     if (view === 'matches') fetchMatches();
     else if (view === 'reputation') fetchReputation();
     else if (view === 'contracts') fetchContracts();
+    else if (view === 'invites') fetchInvites();
     else fetchJobs();
-  }, [view, fetchJobs, fetchMatches, fetchReputation, fetchContracts]);
+  }, [view, fetchJobs, fetchMatches, fetchReputation, fetchContracts, fetchInvites]);
 
   const createJob = async () => {
     const payload: any = {
@@ -292,6 +305,7 @@ export function JobBoardView() {
           { id: 'matches' as ViewMode, label: '✨ Matches' },
           { id: 'my_jobs' as ViewMode, label: '📤 My Posts' },
           { id: 'assigned' as ViewMode, label: '📥 Assigned' },
+          { id: 'invites' as ViewMode, label: `📨 Invites${invites.length > 0 ? ` (${invites.length})` : ''}` },
           { id: 'contracts' as ViewMode, label: '📄 Contracts' },
           { id: 'reputation' as ViewMode, label: '⭐ Reputation' },
         ].map(tab => (
@@ -322,6 +336,18 @@ export function JobBoardView() {
           <div className="flex items-center justify-center py-12">
             <div className="w-5 h-5 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
           </div>
+        ) : view === 'invites' ? (
+          invitesLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="w-5 h-5 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
+            </div>
+          ) : invites.length === 0 ? (
+            <EmptyState icon="📨" title="No pending invites" subtitle="Project invites from connections will appear here for your review" />
+          ) : (
+            invites.map((inv: any) => (
+              <InviteCard key={inv.id} invite={inv} onAction={fetchInvites} />
+            ))
+          )
         ) : view === 'reputation' ? (
           <ReputationView reputation={reputation} />
         ) : view === 'contracts' ? (
@@ -972,6 +998,90 @@ function EmptyState({ icon, title, subtitle }: { icon: string; title: string; su
       <span className="text-4xl mb-3">{icon}</span>
       <h3 className="text-sm font-semibold text-zinc-300">{title}</h3>
       <p className="text-xs text-zinc-500 mt-1 max-w-xs">{subtitle}</p>
+    </div>
+  );
+}
+
+function InviteCard({ invite, onAction }: { invite: any; onAction: () => void }) {
+  const [acting, setActing] = useState(false);
+
+  const handleAction = async (action: 'accept' | 'decline') => {
+    setActing(true);
+    try {
+      await fetch('/api/project-invites', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId: invite.id, action }),
+      });
+      onAction();
+    } catch (e) {
+      console.error('Failed to process invite:', e);
+    }
+    setActing(false);
+  };
+
+  const isJobInvite = !!invite.job;
+
+  return (
+    <div className={cn(
+      'bg-zinc-900/60 rounded-xl border p-4 transition-all',
+      isJobInvite ? 'border-amber-500/20' : 'border-brand-500/20'
+    )}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm">{isJobInvite ? '💼' : '📁'}</span>
+            <h3 className="text-sm font-medium text-white truncate">
+              {invite.project?.name || 'Project'}
+            </h3>
+            <span className={cn(
+              'text-[10px] px-1.5 py-0.5 rounded',
+              isJobInvite ? 'bg-amber-500/20 text-amber-400' : 'bg-brand-500/20 text-brand-400'
+            )}>
+              {isJobInvite ? 'Job Offer' : 'Project Invite'}
+            </span>
+          </div>
+
+          {invite.project?.description && (
+            <p className="text-xs text-white/40 mb-2 line-clamp-2">{invite.project.description}</p>
+          )}
+
+          <div className="flex items-center gap-3 text-[10px] text-white/35">
+            <span>From: <span className="text-white/60">{invite.inviter?.name || invite.inviter?.email}</span></span>
+            <span>Role: <span className="text-white/60 capitalize">{invite.role}</span></span>
+            {isJobInvite && invite.job?.compensationType && (
+              <span>
+                Pay: <span className="text-emerald-400/80">
+                  {formatComp(invite.job.compensationType, invite.job.compensationAmount, invite.job.compensationCurrency)}
+                </span>
+              </span>
+            )}
+          </div>
+
+          {invite.message && (
+            <div className="mt-2 p-2 rounded bg-white/[0.03] border border-white/[0.06] text-xs text-white/50 italic">
+              &ldquo;{invite.message}&rdquo;
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-2 flex-shrink-0">
+          <button
+            onClick={() => handleAction('accept')}
+            disabled={acting}
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
+          >
+            ✓ Accept
+          </button>
+          <button
+            onClick={() => handleAction('decline')}
+            disabled={acting}
+            className="px-3 py-1.5 text-xs font-medium rounded-md bg-white/5 text-white/40 hover:bg-white/10 transition-colors disabled:opacity-50"
+          >
+            ✗ Decline
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
