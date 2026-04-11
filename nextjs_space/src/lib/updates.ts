@@ -17,6 +17,83 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'chief-of-staff-view-overhaul',
+    date: '2026-04-11',
+    time: '12:30 AM',
+    title: 'Chief of Staff Mode — Your Away View Is Now a Real Dashboard',
+    subtitle: 'When you flip to Chief of Staff mode, the entire interface locks down to an observer cockpit. Queue progress, relay tracking, intervention controls. No distractions.',
+    tags: ['chief-of-staff', 'dashboard', 'pwa', 'observer-mode', 'ux'],
+    content: `This one has been coming for a while. Chief of Staff mode used to be a toggle that changed how Divi behaved — more autonomous, more proactive, auto-dispatching tasks. But the *interface* stayed the same. You'd flip the switch, walk away, and come back to... the same dashboard. No way to quickly see what happened while you were gone without poking around every tab.
+
+That changes now.
+
+## The Away View
+
+When you toggle to **Chief of Staff** mode, the entire dashboard is replaced with a purpose-built observer interface. The three-column cockpit layout disappears. The tab bar disappears. Search, Comms, Settings — all gone from the header. What remains is a single, focused view of *what's happening in your absence*.
+
+This is the "home vs. away" split we've been talking about:
+
+- **Cockpit** = you're at the controls. Full dashboard, all tabs, all tools.
+- **Chief of Staff** = you're observing. Divi is driving. You're watching the instruments.
+
+## What the CoS View Shows
+
+**Overview tab** — the default landing:
+- Divi's current focus suggestion (what she thinks you should care about)
+- Execution progress bar — X of Y tasks complete, as a percentage
+- Stat cards: Ready, Active, Done Today, Blocked
+- Active tasks with inline controls (mark done, block, unblock)
+- Blocked items flagged with a red header — these need your attention
+- Pending relay requests waiting for responses from your network
+- Recent relay responses that came back while you were away
+- Activity feed showing system-level events
+
+**Queue tab** — the full queue grouped by status (Ready → In Progress → Done → Blocked → Later), with intervention controls on every item.
+
+**Relays tab** — all relay activity with status badges (Pending, Delivered, Responded, Failed). See who you're waiting on, who got back to you, and what they said.
+
+**Activity tab** — the raw system event log. Card moves, dispatches, contact changes, mode switches — everything Divi did.
+
+## Intervention Controls
+
+You're observing, but you're not powerless.
+
+**Pause All** — instantly moves every in-progress task back to Ready. Use this when you see something going sideways and want Divi to stop until you sort it out.
+
+**Resume** — lets Divi pick back up where she left off. Items stay in Ready state for manual dispatch or Divi's auto-dispatch to take over.
+
+**Intervention bar** — a text input at the bottom of the CoS view. Type a quick instruction — "Hold off on the Jones proposal until I review it" — and it goes directly to Divi as a \`[CoS Intervention]\` message. She'll act on it immediately.
+
+## The Lockdown
+
+This was the key design decision. In CoS mode, you shouldn't be able to *accidentally* start doing work. The whole point is that you're away. So:
+
+- **Header**: Only the mode toggle and sign out remain. Search, Comms, and Settings buttons are hidden.
+- **No tab navigation**: The 12-tab center panel isn't rendered at all.
+- **No side panels**: NOW panel and Queue panel are replaced entirely by the CoS view.
+- **Mobile**: Same lockdown. No bottom nav bar. Just the CoS view, full screen.
+
+To go back to full access, flip the toggle back to Cockpit. Everything comes back instantly.
+
+## Auto-Refresh
+
+The entire CoS view refreshes every 30 seconds. Queue state, relay status, activity feed — all live. You don't have to pull to refresh or click anything. Just watch.
+
+## PWA Fix
+
+While we were in here, we also fixed a layout issue on the mobile PWA. The chat view was getting squeezed too short because the mobile panel wrapper was using \`overflow-hidden\` with rigid height constraints. Swapped to \`flex-1 min-h-0\` which lets the flex layout breathe properly. Chat input should no longer get pushed off-screen on smaller devices.
+
+## What's Next
+
+The CoS view is a foundation. Future iterations will add:
+- **Timeline visualization** — see task state changes as a timeline, not just a list
+- **Divi's decision log** — not just what she did, but *why* she made each decision
+- **Anomaly alerts** — Divi flags things that look off and surfaces them prominently
+- **Away summary** — when you flip back to Cockpit, get a structured briefing of everything that happened
+
+The protocol keeps growing. The interface keeps adapting. Chief of Staff mode is now a real mode, not just a label.`,
+  },
+  {
     id: 'pwa-smithery-install-desktop',
     date: '2026-04-10',
     time: '4:30 PM',
