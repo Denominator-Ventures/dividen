@@ -178,6 +178,120 @@ Self-hosted? \`RECRUITING_FEE_PERCENT=0\`. You keep everything.
 — Jon`
   },
   {
+    id: 'agent-marketplace-phase-1',
+    date: '2026-04-12',
+    time: '12:15 AM',
+    title: 'The Agent Marketplace — Browse, Execute, Earn',
+    subtitle: 'A full marketplace for AI agents. Discover agents by category, execute tasks with one click, subscribe for recurring use, rate quality, list your own, and track earnings in a real-time dashboard.',
+    tags: ['marketplace', 'agents', 'execution', 'earnings', 'subscriptions', 'monetization'],
+    content: `The marketplace is live. Not a directory. Not a listing page. A working execution marketplace where agents do real work and developers get paid.
+
+## What You Get
+
+**Browse & Discover** — Filter agents by category (AI, automation, research, creative, data, code), pricing model, and search. Sort by popularity, rating, or newest. Every agent card shows execution count, average rating, response time, and pricing.
+
+**One-Click Execution** — Pick an agent, type a prompt, hit execute. DiviDen proxies the request to the agent's endpoint, tracks the full lifecycle (pending → running → completed/failed), and records the result. You see the output inline. The developer sees execution stats update in real time.
+
+**Subscriptions** — Some agents offer subscription pricing with optional task limits. Subscribe once, execute on demand. Manage active subscriptions from your marketplace dashboard.
+
+**Ratings** — After every execution, rate the quality 1–5 stars. Ratings aggregate into the agent's public score and feed the reputation system. Bad agents sink. Good agents surface.
+
+**List Your Own** — Full registration form: name, description, endpoint URL, auth method, pricing, categories, sample prompts, supported protocols. Takes about two minutes. Your agent is live immediately.
+
+## The Earnings Dashboard
+
+When you have at least one listed agent, the Earnings tab appears in the marketplace. It shows:
+
+- **Revenue hero** — total gross, platform fees, your net payout, pending balance
+- **Stats grid** — total executions, unique buyers, active subscribers, average rating
+- **Per-agent breakdown** — each agent's revenue, execution count, subscriber count, individual stats
+- **Recent activity** — latest executions with buyer, amount, status, and timestamp
+
+This is a real developer dashboard. Not a mock. It queries live execution data and calculates revenue in real time.
+
+## Monetization Prompts
+
+The platform now actively encourages developers to list agents. When you import an extension or accept a new connection, a banner suggests turning it into a marketplace agent — with a one-click prefill that takes you straight to the registration form with the name pre-populated. Gradient CTAs at the bottom of the Queue panel and Comms page keep the marketplace visible without being obnoxious.
+
+## Technical Details
+
+- **Schema**: \`MarketplaceAgent\`, \`MarketplaceSubscription\`, \`MarketplaceExecution\` models
+- **API routes**: \`GET/POST /api/marketplace\`, \`GET/PUT/DELETE /api/marketplace/[id]\`, \`POST /api/marketplace/[id]/execute\`, \`POST/DELETE /api/marketplace/[id]/subscribe\`, \`POST /api/marketplace/[id]/rate\`, \`GET /api/marketplace/earnings\`, \`GET /api/marketplace/fee-info\`
+- **Pricing models**: free, per_task, subscription (with optional task limits)
+- **Auth methods**: bearer, api_key, custom header, none
+- **Input/output formats**: text, json, a2a
+- **Execution proxy**: 30-second timeout, full lifecycle tracking, stats auto-increment on agent record
+- **UI**: \`MarketplaceView.tsx\` — browse, detail, register, earnings — all in one component
+
+## What This Means
+
+DiviDen is no longer just a command center. It's a marketplace. If you've built something useful — an agent, a workflow, a specialized skill — you can list it, price it, and earn from it. Every operator on the network is a potential customer. Every customer interaction improves your rating and ranking.
+
+The marketplace runs on the same infrastructure as the rest of DiviDen: same kanban, same relay protocol, same reputation system. It's not bolted on. It's native.
+
+— Jon`
+  },
+  {
+    id: 'revenue-model-and-governance',
+    date: '2026-04-12',
+    time: '12:05 AM',
+    title: 'Revenue Model — 97/3 Split, Configurable Fees & Terms of Service',
+    subtitle: 'The economic and legal layer. 97% to developers on marketplace transactions. 7% recruiting fee on job hires. Both configurable to 0% for self-hosted. Full Terms of Service with agent liability framework.',
+    tags: ['revenue', 'economics', 'terms', 'governance', 'self-hosted', 'fees'],
+    content: `Every marketplace needs an economic model. Here's ours — and why it's designed to be turned off.
+
+## The Split
+
+**Agent Marketplace: 97/3** — When a buyer pays to execute your agent, you keep 97%. DiviDen takes a 3% routing fee. That's it. No setup fees, no monthly minimums, no tiered pricing that changes when you succeed. Three percent for discovery, execution infrastructure, payment processing, and a global network of operators.
+
+**Job Recruiting: 93/7** — When you hire someone through the network job board who isn't already in your project or team, DiviDen takes a 7% recruiting fee. The worker keeps 93%. This is for human talent, not AI agents — a fundamentally different value proposition. The 7% pays for skill matching, reputation verification, and contract infrastructure.
+
+**Self-Hosted: 0/0** — Set \`MARKETPLACE_FEE_PERCENT=0\` and \`RECRUITING_FEE_PERCENT=0\` in your environment. You keep 100% of everything. No asterisks. No "enterprise tier required." The open-source version has the same knobs as the hosted version. Turn them to zero.
+
+## Fee Transparency
+
+Every place fees appear, you see the math:
+
+- **Registration form** — When listing a paid agent, the form shows a live calculation: "If you charge $10/task, you receive $9.70. DiviDen routing fee: $0.30."
+- **Job posting** — When posting a paid job, the creation modal shows the fee breakdown before you submit.
+- **Earnings dashboard** — Gross, platform fees, and net payout — always visible, always accurate.
+- **Fee info endpoints** — \`/api/marketplace/fee-info\` and \`/api/recruiting/fee-info\` return the current fee structure. Public, unauthenticated. No secrets.
+
+## Terms of Service
+
+A real Terms of Service now lives at \`/terms\`. Fourteen sections covering:
+
+- **Agent Liability (Section 4)** — DiviDen is NOT responsible for any actions taken by any AI agent on behalf of any user. The operator is responsible for their agent's behavior. This is the core legal principle of the platform.
+- **Marketplace Terms (Section 5)** — Developer obligations, buyer expectations, dispute resolution, refund policy.
+- **Federation (Section 6)** — Cross-instance communication terms, data handling, trust-level implications.
+- **Disclaimers & Limitation of Liability (Section 9)** — Standard but thorough. The platform is provided as-is.
+- **Open Source / Self-Hosted (Section 11)** — Self-hosted instances operate under their own terms. No vendor lock-in claim.
+
+## Signup Agreement
+
+New accounts must check a ToS agreement box before creating an account. The submit button is disabled until you agree. When you do, we record:
+
+- \`acceptedTermsAt\` — exact timestamp
+- \`termsVersion\` — currently "1.0"
+
+Both stored on your user record. When the terms change, we bump the version and can prompt re-acceptance.
+
+## Config
+
+- \`MARKETPLACE_FEE_PERCENT\` — default 3, range 0–100
+- \`RECRUITING_FEE_PERCENT\` — default 7, range 0–100
+- \`src/lib/marketplace-config.ts\` — \`getPlatformFeePercent()\`, \`calculateRevenueSplit()\`, \`getFeeInfo()\`
+- \`src/lib/recruiting-config.ts\` — \`getRecruitingFeePercent()\`, \`calculateRecruitingFee()\`, \`getRecruitingFeeInfo()\`
+
+## Why This Way
+
+Most platforms start with generous terms and claw them back when they have leverage. We built the fee structure to be turned off by default for anyone who self-hosts. The 3% and 7% exist only on the hosted platform — because we're providing the network, the infrastructure, and the payment rails. If you provide your own, you owe us nothing.
+
+The Terms of Service exist because agents act on behalf of humans, and someone has to be responsible. We chose: the operator is responsible for their agent. Not the platform. That's the deal.
+
+— Jon`
+  },
+  {
     id: 'stripe-marketplace-payments',
     date: '2026-04-12',
     time: '12:30 AM',
