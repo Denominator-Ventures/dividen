@@ -17,6 +17,122 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'hardening-analytics-federation-intel',
+    date: '2026-04-12',
+    time: '6:30 PM',
+    title: 'Hardening Sprint — Rate Limits, Agent Versioning, Federation Intel',
+    subtitle: 'Security headers on every response. Rate limiting on auth and execution endpoints. Visual analytics in the marketplace. Agent versioning with changelogs. A full Federation Intelligence dashboard. And a daemon that shares patterns while you sleep.',
+    tags: ['security', 'hardening', 'rate-limiting', 'analytics', 'versioning', 'federation', 'intelligence', 'open-source', 'daemon'],
+    content: `This is the sprint where DiviDen stops being a prototype and starts being infrastructure. Every change in this batch is about resilience, observability, and preparing the protocol for other people's production traffic.
+
+## Rate Limiting
+
+Every public endpoint was wide open. Not anymore.
+
+\`src/lib/rate-limit.ts\` implements a sliding-window rate limiter — in-memory, no Redis dependency, auto-cleanup of stale entries. Four pre-configured tiers:
+
+- **authLimiter** — 10 requests/minute. Applied to \`/api/auth/login\` and \`/api/signup\`. Brute force is off the table.
+- **heavyLimiter** — 20 requests/minute. Applied to \`/api/marketplace/[id]/execute\`. Agent execution is expensive — don't let a runaway script burn through your queue.
+- **federationLimiter** — 30 requests/minute. For cross-instance endpoints where you need throughput but not abuse.
+- **generalLimiter** — 60 requests/minute. The default safety net.
+
+Each limiter returns standard \`429 Too Many Requests\` with \`Retry-After\` headers. Clean, predictable, no surprises.
+
+## Security Headers
+
+Every response from DiviDen now carries:
+
+- \`X-Content-Type-Options: nosniff\` — prevents MIME sniffing
+- \`Strict-Transport-Security: max-age=31536000; includeSubDomains\` — HSTS for a full year
+- \`Referrer-Policy: strict-origin-when-cross-origin\` — controlled referrer leakage
+- \`Permissions-Policy: camera=(), microphone=(), geolocation=()\` — no silent hardware access
+
+All wired through middleware. Every route. No exceptions.
+
+## Agent Versioning
+
+Marketplace agents can now declare their version and maintain a changelog.
+
+Schema changes on \`MarketplaceAgent\`:
+- \`version String @default("1.0.0")\` — semantic version
+- \`changelog String? @db.Text\` — JSON array of \`{version, date, changes}\` entries
+
+On \`MarketplaceSubscription\`:
+- \`pinnedVersion String?\` — for future version pinning (subscribe to a specific release)
+
+When you register a new agent, the initial changelog entry is auto-created. When you push an update with a version bump, the new entry is prepended. The detail view shows a version badge and a collapsible changelog — click to expand the full history.
+
+This matters because marketplace agents are infrastructure. When an agent you depend on changes behavior, you need to know what changed and when.
+
+## Marketplace Analytics
+
+The Earnings tab got a visual overhaul. Instead of flat stat cards, you now get:
+
+- **Revenue distribution bars** — per-agent revenue shown as proportional bars with dollar amounts
+- **Execution success rate** — color-coded bars per agent. Green (≥90%), amber (≥70%), red (below). At a glance, you know which agents are reliable.
+- **Execution breakdown chart** — completed vs failed vs pending as stacked visual bars
+
+All CSS-only. No charting library. No bundle bloat. Just clean data visualization that loads instantly.
+
+## Federation Intelligence Dashboard
+
+New tab: **Network → Federation Intel (🧠)**
+
+Four sub-tabs:
+
+**Overview** — network health at a glance. Stats grid (connections, patterns, trust score, active relays). Health bars for connection coverage, federation ratio, pattern confidence, and routing readiness. Plus AI-generated insights about your network state.
+
+**Serendipity** — your serendipity matches rendered as cards. Each shows the match score, the reason for the match (triadic closure, complementary expertise, structural bridge), and the match type. This is the graph matching engine made visible.
+
+**Routing** — the 7-signal routing model visualized. See each signal's weight (skill match, trust, capacity, history, latency, cost, availability), your network's skill inventory, and routing stats.
+
+**Patterns** — active ambient patterns, confidence levels, category breakdown (timing, topic, frequency, disruption), and a plain-English explainer of how the pattern learning system works.
+
+This is the first time the federation intelligence layer has a face. Everything that was happening invisibly — pattern synthesis, serendipity matching, intelligent routing — is now observable.
+
+## Automated Pattern Sharing
+
+A scheduled daemon now runs every 6 hours. It:
+
+1. Finds all active federated connections with \`peerInstanceUrl\` and \`federationToken\`
+2. Exports local shareable patterns (anonymized, confidence-filtered)
+3. POSTs them to each peer's \`/api/federation/patterns\` endpoint
+4. Imports the reciprocated patterns back
+
+The federation pattern exchange is now fully automated. Your DiviDen instance gets smarter from the network without you lifting a finger.
+
+## Open Source Prep
+
+- **MIT LICENSE** added — Denominator Ventures, 2026
+- **TypeScript strict compliance** — fixed 210 implicit-any violations across 42 files. The codebase now passes \`tsc --noEmit\` with zero errors under \`strict: true\`.
+- **MCP registry kit updated** — \`public/mcp-registry/server.json\` and \`README.md\` now reflect v1.4.0 with all 20 static tools and correct metadata. Five registry submission templates ready to paste.
+
+## Version Coherence Audit
+
+Swept the codebase for stale version references:
+- MCP server-card: v1.1.0 → v1.4.0, "13 tools" → "20 static tools (+ dynamic)"
+- FVP update post: corrected MCP version reference
+- Release notes: "22 tools" → "20 tools" (actual count)
+- Registry metadata: complete tool list refresh
+
+## What Changed
+
+- \`src/lib/rate-limit.ts\` — new file, sliding window rate limiter
+- \`src/middleware.ts\` — security headers on all routes
+- \`MarketplaceAgent\` schema — +\`version\`, +\`changelog\`
+- \`MarketplaceSubscription\` schema — +\`pinnedVersion\`
+- \`MarketplaceView.tsx\` — visual analytics bars, version badge, changelog UI
+- \`FederationIntelligenceView.tsx\` — new component, 4-tab federation dashboard
+- \`CenterPanel.tsx\` — Federation Intel tab wired
+- \`LICENSE\` — MIT
+- 42 files — TypeScript strict compliance fixes
+- Daemon task \`e3f951cd2\` — automated pattern sharing every 6h
+
+The protocol is hardened. The marketplace is observable. The federation is automated. Time to let other people run this.
+
+— Jon`
+  },
+  {
     id: 'agent-install-uninstall-system',
     date: '2026-04-12',
     time: '4:00 PM',
