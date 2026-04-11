@@ -1,0 +1,557 @@
+export const dynamic = 'force-dynamic';
+
+export default function ReleaseNotesPage() {
+  return (
+    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <div className="max-w-4xl mx-auto p-6 sm:p-8">
+        {/* Back links */}
+        <div className="mb-6 flex items-center gap-4">
+          <a href="/dashboard" className="text-brand-400 hover:text-brand-300 text-sm">← Dashboard</a>
+          <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 text-sm">Federation Docs</a>
+          <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300 text-sm">Integration Docs</a>
+        </div>
+
+        {/* Hero */}
+        <div className="mb-10">
+          <h1 className="text-3xl font-bold mb-2 font-heading">📋 os.dividen.ai — Release Update</h1>
+          <div className="flex flex-wrap gap-2 mt-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Date: April 11, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.3.0 (22 tools)</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.3.0</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Protocol: DAWP/0.1</span>
+          </div>
+          <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-4">
+            FVP Integration Brief + DX Overhaul + Intelligence Layer. Everything that needs to be added or
+            changed on <strong>os.dividen.ai</strong> to bring it current with the latest DiviDen Command Center build.
+          </p>
+        </div>
+
+        {/* TOC */}
+        <nav className="mb-10 p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">Contents</h2>
+          <ol className="list-decimal list-inside space-y-1 text-sm">
+            {[
+              { id: 'schema', label: 'Database Schema Changes' },
+              { id: 'libraries', label: 'New Library Files' },
+              { id: 'routes', label: 'New API Routes' },
+              { id: 'mcp', label: 'MCP Server Updates (v1.3.0)' },
+              { id: 'agent-card', label: 'Agent Card Updates (v0.3.0)' },
+              { id: 'system-prompt', label: 'System Prompt Changes' },
+              { id: 'action-tags', label: 'Action Tags Updates' },
+              { id: 'webhook', label: 'Webhook Push System' },
+              { id: 'changelog', label: 'Changelog Entry' },
+              { id: 'pwa', label: 'PWA / Layout Fixes' },
+              { id: 'dx', label: 'Developer Experience (DX) Additions' },
+              { id: 'mcp-registry', label: 'MCP Registry Submission Kit' },
+              { id: 'files', label: 'Files Changed Summary' },
+              { id: 'deploy', label: 'Deployment Checklist' },
+              { id: 'future', label: 'What\'s NOT in This Build' },
+            ].map((item) => (
+              <li key={item.id}><a href={`#${item.id}`} className="text-brand-400 hover:text-brand-300">{item.label}</a></li>
+            ))}
+          </ol>
+        </nav>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 1. DATABASE SCHEMA */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="schema" num={1} title="Database Schema Changes">
+          <h3 className="text-lg font-semibold mb-3">New Migrations to Apply</h3>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Two new migrations since last push:</p>
+
+          <CodeBlock title="Migration: 20260411_add_relay_threading_and_artifacts">{`-- FVP Brief Proposals #2 and #3: Relay Threading + Structured Artifacts
+ALTER TABLE "agent_relays" ADD COLUMN "threadId" TEXT;
+ALTER TABLE "agent_relays" ADD COLUMN "artifactType" TEXT;
+ALTER TABLE "agent_relays" ADD COLUMN "artifacts" TEXT;
+CREATE INDEX "agent_relays_threadId_idx" ON "agent_relays"("threadId");`}</CodeBlock>
+
+          <CodeBlock title="Migration: 20260411_add_portable_reputation">{`-- FVP Brief Proposal #7: Portable Reputation
+ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "isFederated" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "endorsements" TEXT;
+ALTER TABLE "reputation_scores" ADD COLUMN IF NOT EXISTS "federatedScore" DOUBLE PRECISION NOT NULL DEFAULT 0;`}</CodeBlock>
+
+          <h3 className="text-lg font-semibold mb-3 mt-6">Prisma Schema Updates</h3>
+
+          <div className="space-y-4">
+            <FieldGroup model="AgentRelay" fields={[
+              { name: 'threadId String?', desc: 'Groups multi-turn relay conversations' },
+              { name: 'artifactType String?', desc: 'One of: text, code, document, data, contact_card, calendar_invite, email_draft' },
+              { name: 'artifacts String?', desc: 'JSON-encoded structured artifact payload' },
+            ]} />
+            <FieldGroup model="ReputationScore" fields={[
+              { name: 'isFederated Boolean @default(false)', desc: 'Whether score includes cross-instance data' },
+              { name: 'endorsements String?', desc: 'JSON array of HMAC-signed attestation objects' },
+              { name: 'federatedScore Float @default(0)', desc: 'Weighted federation reputation score' },
+            ]} />
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 2. LIBRARIES */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="libraries" num={2} title="New Library Files">
+          <h3 className="text-lg font-semibold mb-3">Core Libraries (confirm present)</h3>
+          <Table headers={['File', 'Purpose']} rows={[
+            ['entity-resolution.ts', 'Universal entity resolution across contacts, connections, cards, events, emails, relays, team members'],
+            ['task-exchange.ts', 'Auto-propose tasks to best-matched connections by skill/capacity/reputation'],
+            ['webhook-push.ts', 'Push relay state changes to connected instances via webhook'],
+            ['relay-queue-bridge.ts', 'Bidirectional sync between relays and queue items'],
+            ['ambient-learning.ts', 'Signal capture, pattern synthesis, ambient relay learning loop'],
+            ['activity.ts', 'logActivity() — universal event logger, fire-and-forget'],
+            ['now-engine.ts', 'Dynamic NOW scoring: priority, impact, deadline, calendar gaps, relay freshness'],
+            ['brief-assembly.ts', 'Context brief assembly + skill matching + project context'],
+            ['telemetry.ts', 'Request/error logging, client IP tracking'],
+            ['job-matcher.ts', 'Job-to-profile matching engine'],
+            ['queue-dedup.ts', 'Queue item deduplication'],
+            ['queue-dispatch.ts', 'Chief of Staff auto-dispatch'],
+            ['cos-sequential-dispatch.ts', 'Sequential task dispatch in CoS mode'],
+          ]} />
+
+          <h3 className="text-lg font-semibold mb-3 mt-8">Federation Intelligence Layer (NEW — FVP Tier 4)</h3>
+          <Table headers={['File', 'Purpose', 'Key Exports']} rows={[
+            ['federation/pattern-sharing.ts', 'Cross-instance ambient learning pattern exchange', 'exportShareablePatterns(), importSharedPatterns(), getNetworkLearningDigest()'],
+            ['federation/graph-matching.ts', 'Serendipity engine — triadic closure, complementary expertise, structural bridges', 'buildLocalGraph(), findSerendipityMatches(), exportGraphTopology()'],
+            ['federation/composite-prompts.ts', 'Network briefing aggregation from federated peers', 'generateLocalBriefingContribution(), compileNetworkBriefing()'],
+            ['federation/task-routing.ts', '7-signal weighted scoring for network-level task routing', 'routeTask(), getRoutingIntelligenceDigest()'],
+          ]} />
+
+          <div className="mt-6 grid sm:grid-cols-2 gap-4">
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <h4 className="text-sm font-semibold text-brand-400 mb-2">Task Routing Scoring Weights</h4>
+              <pre className="text-xs text-[var(--text-secondary)] font-mono">{`skill match:     30%
+completion rate: 20%
+capacity:        15%
+trust:           10%
+reputation:      10%
+latency:          5%
+domain proximity: 10%`}</pre>
+            </div>
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <h4 className="text-sm font-semibold text-brand-400 mb-2">Pattern Sharing Rules</h4>
+              <ul className="text-xs text-[var(--text-secondary)] space-y-1">
+                <li>• Only synthesized/aggregated patterns shared — never raw signals</li>
+                <li>• 20% federation discount on remote pattern confidence</li>
+                <li>• Weighted confidence merging when patterns overlap</li>
+                <li>• Patterns anonymized before export</li>
+              </ul>
+            </div>
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 3. API ROUTES */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="routes" num={3} title="New API Routes">
+          <h3 className="text-lg font-semibold mb-3">Federation Endpoints (NEW)</h3>
+          <Table headers={['Route', 'Methods', 'Auth', 'Purpose']} rows={[
+            ['/api/federation/patterns', 'GET, POST', 'x-federation-token', 'Exchange anonymized ambient learning patterns'],
+            ['/api/federation/briefing', 'GET, POST', 'Session / x-federation-token', 'Network briefing aggregation'],
+            ['/api/federation/routing', 'GET, POST', 'Session / x-federation-token', 'Intelligent task routing with 7-signal scoring'],
+            ['/api/federation/graph', 'GET, POST', 'Session / x-federation-token', 'Serendipity matches + graph topology export'],
+            ['/api/federation/mcp', 'POST', 'x-federation-token', 'Cross-instance MCP tool invocation (trust-gated)'],
+            ['/api/federation/entity-search', 'GET, POST', 'x-federation-token', 'Privacy-respecting cross-instance entity lookup'],
+            ['/api/federation/jobs/apply', 'POST', 'x-federation-token', 'Remote job application routing'],
+            ['/api/federation/reputation', 'GET, POST', 'x-federation-token', 'Portable reputation with HMAC-signed attestations'],
+            ['/api/federation/project/[id]/context', 'GET', 'x-federation-token', 'Cross-instance project dashboard'],
+          ]} />
+
+          <h3 className="text-lg font-semibold mb-3 mt-8">Other Endpoints (confirm present)</h3>
+          <Table headers={['Route', 'Methods', 'Purpose']} rows={[
+            ['/api/entity-resolve', 'GET, POST', 'Universal entity resolution'],
+            ['/api/jobs', 'GET, POST', 'Network job board CRUD'],
+            ['/api/jobs/match', 'GET', 'Job-to-profile matching'],
+            ['/api/jobs/[id]', 'GET, PUT, DELETE', 'Individual job operations'],
+            ['/api/jobs/[id]/apply', 'POST', 'Job applications'],
+            ['/api/reputation', 'GET, POST', 'Reputation scores'],
+            ['/api/briefs', 'GET', 'Brief assembly receipts'],
+            ['/api/now', 'GET', 'Dynamic NOW engine scored items'],
+            ['/api/activity', 'GET', 'Universal activity feed (filterable by category)'],
+            ['/api/ambient-learning/synthesize', 'GET, POST', 'Trigger pattern synthesis'],
+            ['/api/mcp', 'GET, POST', 'MCP Server v1.3.0'],
+            ['/api/a2a', 'POST', 'A2A protocol endpoint'],
+            ['/api/a2a/playbook', 'GET', 'Operational playbook'],
+            ['/api/main-connect', 'POST', 'Connection ceremony'],
+            ['/api/main-disconnect', 'POST', 'Disconnection'],
+            ['/api/main-handoff', 'GET', 'Handoff brief'],
+            ['/api/status', 'GET', 'Enhanced health check (DB + migrations + env)'],
+          ]} />
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 4. MCP SERVER */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="mcp" num={4} title="MCP Server Updates (v1.3.0)">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">File: <code className="code-inline">src/app/api/mcp/route.ts</code></p>
+
+          <h3 className="text-lg font-semibold mb-3">New Tools Added</h3>
+          <Table headers={['Tool', 'Description']} rows={[
+            ['relay_thread_list', 'List relay threads for the current user'],
+            ['relay_threads', 'Get all relays in a specific thread'],
+            ['relay_send', 'Send a relay to a connection'],
+            ['entity_resolve', 'Cross-surface entity resolution (contacts, connections, cards, events, emails, relays, teams)'],
+            ['serendipity_matches', 'Graph topology matching — "you should meet X" recommendations'],
+            ['route_task', 'Network-level task routing with 7-signal weighted scoring'],
+            ['network_briefing', 'Composite cross-instance network pulse'],
+          ]} />
+
+          <h3 className="text-lg font-semibold mb-3 mt-6">Full Tool Inventory (22 tools)</h3>
+          <CodeBlock>{`queue_list, queue_add, queue_update,
+contacts_list, contacts_search,
+cards_list, mode_get, briefing_get, activity_recent,
+job_post, job_browse, job_match, reputation_get,
+relay_thread_list, relay_threads, relay_send,
+entity_resolve,
+serendipity_matches, route_task, network_briefing`}</CodeBlock>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 5. AGENT CARD */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="agent-card" num={5} title="Agent Card Updates (v0.3.0)">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">File: <code className="code-inline">src/app/.well-known/agent-card.json/route.ts</code></p>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-brand-400 mb-2">New Capabilities</h3>
+              <CodeBlock>{`streaming: true
+pushNotifications: true
+stateTransitionHistory: true
+threading: true
+structuredArtifacts: true
+statusUpdates: true
+webhookPush: true`}</CodeBlock>
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-brand-400 mb-2">Supported Methods</h3>
+              <CodeBlock>{`tasks/send
+tasks/get
+tasks/list
+tasks/respond
+tasks/cancel
+tasks/update_status
+agent/info`}</CodeBlock>
+            </div>
+          </div>
+
+          <h3 className="text-sm font-semibold text-brand-400 mb-2 mt-4">Artifact Types</h3>
+          <div className="flex flex-wrap gap-2">
+            {['text', 'code', 'document', 'data', 'contact_card', 'calendar_invite', 'email_draft'].map((t) => (
+              <span key={t} className="px-2 py-1 rounded bg-white/[0.04] border border-[var(--border-color)] text-xs font-mono">{t}</span>
+            ))}
+          </div>
+
+          <h3 className="text-sm font-semibold text-brand-400 mb-2 mt-4">Federation Endpoints in Card</h3>
+          <CodeBlock>{`federation.connect      /api/federation/connect
+federation.relay        /api/federation/relay
+federation.jobs         /api/federation/jobs
+federation.jobApply     /api/federation/jobs/apply
+federation.reputation   /api/federation/reputation
+federation.mcp          /api/federation/mcp
+federation.entitySearch /api/federation/entity-search
+federation.patterns     /api/federation/patterns
+federation.briefing     /api/federation/briefing
+federation.routing      /api/federation/routing
+federation.graph        /api/federation/graph`}</CodeBlock>
+
+          <h3 className="text-sm font-semibold text-brand-400 mb-2 mt-4">Webhook Events</h3>
+          <div className="flex flex-wrap gap-2">
+            {['task_dispatched', 'new_message', 'wake', 'queue_changed', 'relay_state_changed'].map((e) => (
+              <span key={e} className="px-2 py-1 rounded bg-white/[0.04] border border-[var(--border-color)] text-xs font-mono">{e}</span>
+            ))}
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 6. SYSTEM PROMPT */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="system-prompt" num={6} title="System Prompt Changes">
+          <p className="text-sm text-[var(--text-secondary)] mb-4">New section added: <strong>Federation Intelligence (FVP Brief)</strong></p>
+          <Table headers={['Action Tag', 'Syntax', 'Purpose']} rows={[
+            ['entity_resolve', '[[entity_resolve:{"query":"email/name/domain"}]]', 'Cross-surface entity resolution'],
+            ['serendipity_matches', '[[serendipity_matches:{}]]', 'Graph topology matching for connection recommendations'],
+            ['route_task', '[[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]]', 'Network-level intelligent task routing'],
+            ['network_briefing', '[[network_briefing:{}]]', 'Composite cross-instance network pulse'],
+          ]} />
+          <div className="mt-4 p-4 bg-brand-500/5 border border-brand-500/20 rounded-lg text-sm text-[var(--text-secondary)]">
+            <strong className="text-brand-400">Divi is instructed to:</strong>
+            <ul className="mt-2 space-y-1">
+              <li>• Proactively surface serendipity matches when relevant</li>
+              <li>• Use route_task for skill-matched delegation</li>
+              <li>• Pull network briefings to stay current on federation activity</li>
+              <li>• Resolve entities across all surfaces before making assumptions</li>
+            </ul>
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 7. ACTION TAGS */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="action-tags" num={7} title="Action Tags Updates">
+          <h3 className="text-sm font-semibold mb-2">Modified Tags</h3>
+          <Table headers={['Tag', 'Change']} rows={[
+            ['relay_request', 'Now supports threadId and parentRelayId for threading'],
+            ['relay_broadcast', 'Checks recipient relay preferences before sending'],
+            ['relay_ambient', 'Checks recipient relay preferences before sending'],
+          ]} />
+          <h3 className="text-sm font-semibold mb-2 mt-4">New Tag</h3>
+          <Table headers={['Tag', 'Purpose']} rows={[
+            ['entity_resolve', 'Resolves entities across all data surfaces'],
+          ]} />
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 8. WEBHOOK */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="webhook" num={8} title="Webhook Push System">
+          <p className="text-sm text-[var(--text-secondary)] mb-3">New event: <code className="code-inline">relay_state_changed</code></p>
+          <p className="text-sm text-[var(--text-secondary)] mb-3">
+            <code className="code-inline">pushRelayStateChanged()</code> fires when relay status transitions (pending → delivered → completed). Wired into:
+          </p>
+          <ul className="text-sm text-[var(--text-secondary)] space-y-1">
+            <li>• Relay PATCH handler</li>
+            <li>• Action tags (relay_request, relay_respond)</li>
+          </ul>
+          <p className="text-sm text-[var(--text-secondary)] mt-3">
+            Webhook config stored in <code className="code-inline">ServiceApiKey</code> with <code className="code-inline">service=&apos;webhook_push&apos;</code>.
+          </p>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 9. CHANGELOG */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="changelog" num={9} title="Changelog Entry">
+          <p className="text-sm text-[var(--text-secondary)] mb-3">New entry at top of <code className="code-inline">src/lib/updates.ts</code>:</p>
+          <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+            <p className="font-semibold">FVP Integration Brief — 14 Proposals, One Build</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">April 11, 2026 @ 11:45 PM</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">Full Tier 1-4 breakdown with implementation details for users.</p>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {['federation', 'protocol', 'a2a', 'mcp', 'intelligence', 'fvp', 'network'].map((tag) => (
+                <span key={tag} className="px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 text-[10px] font-mono">{tag}</span>
+              ))}
+            </div>
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 10. PWA */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="pwa" num={10} title="PWA / Layout Fixes">
+          <h3 className="text-sm font-semibold mb-2">globals.css — PWA standalone mode</h3>
+          <CodeBlock>{`@media (display-mode: standalone) {
+  html {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .app-shell {
+    height: 100%;
+  }
+}`}</CodeBlock>
+
+          <h3 className="text-sm font-semibold mb-2 mt-4">layout.tsx — Body class</h3>
+          <div className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] font-mono text-xs">
+            <div className="text-red-400">- &lt;body className=&quot;min-h-full&quot;&gt;</div>
+            <div className="text-green-400">+ &lt;body className=&quot;min-h-full overflow-x-hidden&quot;&gt;</div>
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 11. DX */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="dx" num={11} title="Developer Experience (DX) Additions">
+          <Table headers={['File', 'Purpose']} rows={[
+            ['scripts/setup.sh', 'One-command setup for macOS/Linux/WSL'],
+            ['scripts/setup.ps1', 'One-command setup for Windows PowerShell'],
+            ['docker-compose.yml', 'Local PostgreSQL 16 via Docker'],
+            ['.env.example', 'Clear Required/Optional variable documentation'],
+            ['README.md', 'Quick Start-first, troubleshooting FAQ sections'],
+          ]} />
+
+          <h3 className="text-sm font-semibold mb-2 mt-4">Health Check Enhancement</h3>
+          <p className="text-sm text-[var(--text-secondary)]">
+            <code className="code-inline">GET /api/status</code> now returns: database connection status + user count,
+            migration validation, environment variable validation. Returns <strong>200</strong> (healthy) or <strong>503</strong> (unhealthy).
+          </p>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 12. MCP REGISTRY */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="mcp-registry" num={12} title="MCP Registry Submission Kit">
+          <Table headers={['File', 'Purpose']} rows={[
+            ['public/mcp-registry/server.json', 'Official MCP Registry format'],
+            ['public/mcp-registry/README.md', 'Copy-paste submission kit for 5 registries (Official, Smithery, PulseMCP, Glama, mcp.so)'],
+          ]} />
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 13. FILES */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="files" num={13} title="Files Changed Summary">
+          <h3 className="text-sm font-semibold mb-2">New Files</h3>
+          <CodeBlock>{`src/lib/federation/pattern-sharing.ts
+src/lib/federation/graph-matching.ts
+src/lib/federation/composite-prompts.ts
+src/lib/federation/task-routing.ts
+src/lib/entity-resolution.ts
+src/lib/task-exchange.ts
+src/app/api/federation/patterns/route.ts
+src/app/api/federation/briefing/route.ts
+src/app/api/federation/routing/route.ts
+src/app/api/federation/graph/route.ts
+src/app/api/federation/mcp/route.ts
+src/app/api/federation/entity-search/route.ts
+src/app/api/federation/jobs/apply/route.ts
+src/app/api/federation/reputation/route.ts
+src/app/api/entity-resolve/route.ts
+prisma/migrations/20260411_add_relay_threading_and_artifacts/
+prisma/migrations/20260411_add_portable_reputation/`}</CodeBlock>
+
+          <h3 className="text-sm font-semibold mb-2 mt-4">Modified Files</h3>
+          <CodeBlock>{`prisma/schema.prisma              — AgentRelay (3 fields), ReputationScore (3 fields)
+src/app/api/mcp/route.ts           — v1.3.0, 7 new tools
+src/app/.well-known/agent-card.json/route.ts — v0.3.0, capabilities, endpoints
+src/lib/system-prompt.ts           — Federation Intelligence section + 4 action tags
+src/lib/action-tags.ts             — Threading support + entity_resolve
+src/lib/webhook-push.ts            — relay_state_changed event
+src/lib/updates.ts                 — FVP changelog entry
+src/app/globals.css                — PWA viewport fix
+src/app/layout.tsx                 — overflow-x-hidden on body
+src/app/dashboard/page.tsx         — Mobile flex layout fix
+src/components/dashboard/ChatView.tsx — flex-shrink-0 on header/input`}</CodeBlock>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 14. DEPLOY */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="deploy" num={14} title="Deployment Checklist">
+          <CodeBlock>{`# 1. Pull latest code
+git pull origin main
+
+# 2. Install dependencies
+yarn install
+
+# 3. Generate Prisma client
+yarn prisma generate
+
+# 4. Apply migrations
+yarn prisma migrate deploy
+
+# 5. Build
+yarn build
+
+# 6. Verify
+curl https://os.dividen.ai/api/status
+curl https://os.dividen.ai/.well-known/agent-card.json | jq '.version'
+curl -s https://os.dividen.ai/api/mcp -X POST \\
+  -H 'Content-Type: application/json' \\
+  -d '{"method":"server/info"}' | jq '.result.version'`}</CodeBlock>
+
+          <div className="mt-4 p-4 bg-green-500/5 border border-green-500/20 rounded-lg">
+            <h4 className="text-sm font-semibold text-green-400 mb-2">Expected Results</h4>
+            <ul className="text-sm text-[var(--text-secondary)] space-y-1">
+              <li>• <code className="code-inline">/api/status</code> → 200 with all checks passing</li>
+              <li>• Agent card version → <code className="code-inline">0.3.0</code></li>
+              <li>• MCP server version → <code className="code-inline">1.3.0</code></li>
+            </ul>
+          </div>
+        </Section>
+
+        {/* ═══════════════════════════════════════════════ */}
+        {/* 15. FUTURE */}
+        {/* ═══════════════════════════════════════════════ */}
+        <Section id="future" num={15} title="What's NOT in This Build (Future)">
+          <ul className="text-sm text-[var(--text-secondary)] space-y-2">
+            <li>• No UI for federation intelligence (patterns, graph, briefing, routing are API + MCP only — Divi surfaces them conversationally)</li>
+            <li>• No admin dashboard for federation analytics (telemetry captures data, dashboard TBD)</li>
+            <li>• No automated pattern sharing schedule (manual or Divi-initiated only)</li>
+            <li>• No multi-instance graph visualization (topology data is exportable, viz TBD)</li>
+          </ul>
+        </Section>
+
+        {/* Footer */}
+        <div className="mt-16 pt-6 border-t border-[var(--border-color)] text-center">
+          <p className="text-xs text-[var(--text-muted)]">
+            Generated from DiviDen Command Center build <code className="code-inline">FVP all 14 proposals complete</code> — April 11, 2026
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Reusable Sub-Components ─── */
+
+function Section({ id, num, title, children }: { id: string; num: number; title: string; children: React.ReactNode }) {
+  return (
+    <section id={id} className="mb-12">
+      <h2 className="text-xl font-semibold mb-4 text-brand-400 font-heading">
+        {num}. {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+function CodeBlock({ title, children }: { title?: string; children: string }) {
+  return (
+    <div className="mb-4">
+      {title && <p className="text-xs font-mono text-brand-400 mb-1">{title}</p>}
+      <pre className="p-4 bg-[#0d0d0d] border border-[var(--border-color)] rounded-lg overflow-x-auto text-xs font-mono text-[var(--text-secondary)] leading-relaxed">
+        {children}
+      </pre>
+    </div>
+  );
+}
+
+function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  return (
+    <div className="overflow-x-auto mb-4">
+      <table className="w-full text-sm border-collapse">
+        <thead>
+          <tr>
+            {headers.map((h, i) => (
+              <th key={i} className="text-left px-3 py-2 bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] font-medium text-xs uppercase tracking-wider">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, ri) => (
+            <tr key={ri}>
+              {row.map((cell, ci) => (
+                <td key={ci} className="px-3 py-2 border border-[var(--border-color)] text-[var(--text-secondary)] text-xs">
+                  {ci === 0 ? <code className="font-mono text-[var(--text-primary)]">{cell}</code> : cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function FieldGroup({ model, fields }: { model: string; fields: { name: string; desc: string }[] }) {
+  return (
+    <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+      <h4 className="text-sm font-semibold text-brand-400 mb-2">{model} model — {fields.length} new fields</h4>
+      <ul className="space-y-1">
+        {fields.map((f, i) => (
+          <li key={i} className="text-xs text-[var(--text-secondary)]">
+            <code className="font-mono text-[var(--text-primary)]">{f.name}</code> — {f.desc}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
