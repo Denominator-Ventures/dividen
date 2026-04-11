@@ -211,6 +211,11 @@ export async function POST(req: NextRequest) {
       instanceUrl,
     });
 
+    // Fire-and-forget: mark CRM contact as invited
+    import('@/lib/contact-platform-bridge').then(({ markContactAsInvited }) => {
+      markContactAsInvited(userId, email.toLowerCase()).catch(() => {});
+    });
+
     return NextResponse.json({
       success: true,
       invitation: { id: invitation.id, token: invitation.token, status: invitation.status },

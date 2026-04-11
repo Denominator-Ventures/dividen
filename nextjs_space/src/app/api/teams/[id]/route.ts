@@ -28,7 +28,9 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
           select: { id: true, name: true, status: true, color: true, _count: { select: { members: true, kanbanCards: true } } },
           orderBy: { updatedAt: 'desc' },
         },
-        _count: { select: { queueItems: true, relays: true } },
+        _count: { select: { queueItems: true, relays: true, followers: true } },
+        subscription: true,
+        billing: true,
       },
     });
 
@@ -59,6 +61,14 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     if (body.description !== undefined) data.description = body.description;
     if (body.avatar !== undefined) data.avatar = body.avatar;
     if (body.isActive !== undefined) data.isActive = body.isActive;
+    // Network entity fields
+    if (body.type !== undefined) data.type = body.type;
+    if (body.visibility !== undefined) data.visibility = body.visibility;
+    if (body.headline !== undefined) data.headline = body.headline;
+    if (body.website !== undefined) data.website = body.website;
+    if (body.location !== undefined) data.location = body.location;
+    if (body.industry !== undefined) data.industry = body.industry;
+    if (body.foundedAt !== undefined) data.foundedAt = body.foundedAt ? new Date(body.foundedAt) : null;
 
     const team = await prisma.team.update({
       where: { id: params.id },

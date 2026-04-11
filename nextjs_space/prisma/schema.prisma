@@ -74,6 +74,9 @@ model User {
   marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
   marketplaceSubs      MarketplaceSubscription[] @relation("MarketplaceSubscriptions")
   marketplaceExecs     MarketplaceExecution[]   @relation("MarketplaceExecutions")
+  contactPlatformLinks Contact[]                @relation("ContactPlatformLinks")
+  teamFollows          TeamFollow[]
+  teamAgentGrants      TeamAgentAccess[]        @relation("TeamAgentGrantedBy")
 
   @@map("users")
 }
@@ -196,6 +199,12 @@ model Contact {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
+  // ── Platform User Bridge ──
+  platformUserId     String?   // Links to User.id if this contact is on DiviDen
+  platformUserStatus String?   // "matched" | "invited" | "confirmed"
+  matchedAt          DateTime? // When the link was established
+
+  platformUser  User?         @relation("ContactPlatformLinks", fields: [platformUserId], references: [id], onDelete: SetNull)
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards             CardContact[]
   commsMessages     CommsMessage[]
@@ -203,6 +212,8 @@ model Contact {
   relationshipsFrom ContactRelationship[] @relation("RelFrom")
   relationshipsTo   ContactRelationship[] @relation("RelTo")
 
+  @@index([platformUserId])
+  @@index([email])
   @@map("contacts")
 }
 
@@ -617,6 +628,14 @@ model Connection {
   nickname        String?  // How the requester refers to the other party
   peerNickname    String?  // How the accepter refers to the requester
 
+  // ── Relationship Context ──
+  notes            String?   @db.Text  // "Met at Web Summit 2025" — private to each side
+  connectionTags   String?   // JSON array: ["investor", "ai", "NYC"]
+  context          String?   // "How I know them" freeform
+  relationshipType String?   // "colleague" | "client" | "friend" | "mentor" | "collaborator" | "partner"
+  firstMetAt       DateTime? // When did you first meet?
+  strength         String?   // "strong" | "moderate" | "weak" — manual or auto-decayed
+
   // Federation fields (cross-instance connections)
   isFederated     Boolean  @default(false)
   peerInstanceUrl String?  // The remote instance's base URL
@@ -1010,14 +1029,34 @@ model Team {
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
+  // ── Network Entity Fields ──
+  type        String       @default("work")     // "work" | "community" | "hybrid"
+  visibility  String       @default("private")   // "private" | "network" | "public"
+  headline    String?      // One-liner like user profiles
+  website     String?
+  location    String?
+  industry    String?
+  foundedAt   DateTime?
+
+  // ── Team Agent ──
+  agentEnabled Boolean     @default(false)       // Requires Team Pro subscription
+  agentConfig  String?     // JSON: system prompt overrides, check-in frequency, notification prefs
+
   createdBy   User         @relation("TeamsCreated", fields: [createdById], references: [id], onDelete: Cascade)
   members     TeamMember[]
   projects    Project[]
   queueItems  QueueItem[]
   relays      AgentRelay[]
   goals       Goal[]
+  subscription  TeamSubscription?
+  billing       TeamBilling?
+  spendingPolicies TeamSpendingPolicy[]
+  agentAccess   TeamAgentAccess[]
+  followers     TeamFollow[]
 
   @@index([createdById])
+  @@index([type])
+  @@index([visibility])
   @@map("teams")
 }
 
@@ -1469,6 +1508,7 @@ model MarketplaceAgent {
 
   subscriptions   MarketplaceSubscription[]
   executions      MarketplaceExecution[]
+  teamAccess      TeamAgentAccess[]
 
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -1556,4 +1596,106 @@ model MarketplaceExecution {
   @@index([agentId, createdAt])  // Composite: agent execution history
   @@index([userId, createdAt])   // Composite: user execution history
   @@map("marketplace_executions")
+}
+
+// ─── Team Premium Features ───────────────────────────────────────────────────
+// Teams are premium network entities with subscription billing, spending controls,
+// agent sharing, and optional AI team coordination agent.
+
+model TeamSubscription {
+  id                    String    @id @default(cuid())
+  teamId                String    @unique
+  tier                  String    @default("starter") // "starter" | "pro"
+  status                String    @default("trialing") // "active" | "past_due" | "canceled" | "trialing"
+  memberLimit           Int       @default(5) // 5 for starter, 10 base for pro
+  currentMembers        Int       @default(0)
+  monthlyPrice          Float     @default(29) // $29 starter, $79 pro
+  perSeatPrice          Float?    // null for starter, $9 for pro (beyond base)
+  billingCycleStart     DateTime  @default(now())
+  trialEndsAt           DateTime? // 14-day free trial
+  canceledAt            DateTime?
+  stripeSubscriptionId  String?   @unique
+  stripeCustomerId      String?   // Team-level Stripe customer (separate from individual)
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  team                  Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([tier])
+  @@map("team_subscriptions")
+}
+
+model TeamBilling {
+  id                String    @id @default(cuid())
+  teamId            String    @unique
+  stripeCustomerId  String?   // Stripe customer for team-level charges
+  monthlyBudget     Float?    // Monthly spending cap (null = unlimited)
+  currentSpend      Float     @default(0)
+  billingCycleStart DateTime  @default(now())
+  isActive          Boolean   @default(true)
+
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  team              Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("team_billing")
+}
+
+model TeamSpendingPolicy {
+  id            String    @id @default(cuid())
+  teamId        String
+  type          String    // "per_member" | "per_project" | "per_agent"
+  targetId      String?   // memberId, projectId, or agentId depending on type
+  limit         Float     // $ limit for this policy
+  currentSpend  Float     @default(0)
+  period        String    @default("monthly") // "monthly" | "weekly"
+  isActive      Boolean   @default(true)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  team          Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([teamId, type])
+  @@map("team_spending_policies")
+}
+
+model TeamAgentAccess {
+  id          String    @id @default(cuid())
+  teamId      String
+  agentId     String    // MarketplaceAgent ID
+  grantedById String    // User who shared the agent with the team
+  isActive    Boolean   @default(true)
+  usageLimit  Int?      // Optional: max executions per member per billing cycle
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  team        Team             @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  agent       MarketplaceAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  grantedBy   User             @relation("TeamAgentGrantedBy", fields: [grantedById], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, agentId])
+  @@index([teamId])
+  @@index([agentId])
+  @@map("team_agent_access")
+}
+
+model TeamFollow {
+  id        String    @id @default(cuid())
+  userId    String
+  teamId    String
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team      Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, teamId])
+  @@index([userId])
+  @@index([teamId])
+  @@map("team_follows")
 }

@@ -75,6 +75,26 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       }
     }
 
+    // Handle new relationship context fields
+    if (body.notes !== undefined) {
+      data.notes = body.notes;
+    }
+    if (body.connectionTags !== undefined) {
+      data.connectionTags = typeof body.connectionTags === 'string' ? body.connectionTags : JSON.stringify(body.connectionTags);
+    }
+    if (body.context !== undefined) {
+      data.context = body.context;
+    }
+    if (body.relationshipType !== undefined) {
+      data.relationshipType = body.relationshipType;
+    }
+    if (body.firstMetAt !== undefined) {
+      data.firstMetAt = body.firstMetAt ? new Date(body.firstMetAt) : null;
+    }
+    if (body.strength !== undefined) {
+      data.strength = body.strength;
+    }
+
     const updated = await prisma.connection.update({
       where: { id },
       data,
@@ -84,6 +104,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         _count: { select: { relays: true } },
       },
     });
+
+    // Fire-and-forget: link CRM contacts when connection becomes active
+    if (data.status === 'active' && updated.requester && updated.accepter) {
+      import('@/lib/contact-platform-bridge').then(({ linkContactsOnConnection }) => {
+        linkContactsOnConnection(
+          updated.requester!.id, updated.requester!.email,
+          updated.accepter!.id, updated.accepter!.email
+        ).catch(() => {});
+      });
+    }
 
     return NextResponse.json(updated);
   } catch (error: any) {

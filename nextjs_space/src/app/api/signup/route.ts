@@ -53,6 +53,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Fire-and-forget: link any CRM contacts that match this new user's email
+    import('@/lib/contact-platform-bridge').then(({ linkContactsByEmail }) => {
+      linkContactsByEmail(user.id, user.email).catch(() => {});
+    });
+
     return NextResponse.json({
       success: true,
       data: { userId: user.id, email: user.email },

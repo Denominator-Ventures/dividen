@@ -54,6 +54,16 @@ export async function GET(req: NextRequest) {
           card: { select: { id: true, title: true, status: true } },
         },
       },
+      platformUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          profile: {
+            select: { headline: true, capacity: true, visibility: true },
+          },
+        },
+      },
     },
   });
 
