@@ -977,6 +977,9 @@ Current time: ${timeStr}`;
   // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
   const group10 = await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length);
 
+  // ── Group 11: Business Operations (Jobs, Contracts, Marketplace, Recordings, Reputation) ──
+  const group11 = await buildBusinessOperationsLayer(userId);
+
   // ── Assemble ──
   const layers = [
     group1,   // Identity, Rules, Time
@@ -989,9 +992,194 @@ Current time: ${timeStr}`;
     group8,   // Connections & Relay Protocol
     group9,   // Extensions (conditional)
     group10,  // Platform Setup (conditional)
+    group11,  // Business Operations (conditional)
   ].filter(Boolean);
 
   return layers.join('\n\n---\n\n');
+}
+
+// ─── Business Operations Layer (Jobs, Contracts, Marketplace, Recordings, Reputation, Integrations) ──
+
+async function buildBusinessOperationsLayer(userId: string): Promise<string> {
+  try {
+    const [
+      activeContracts,
+      postedJobs,
+      appliedJobs,
+      recentEarnings,
+      reputation,
+      recordings,
+      integrations,
+      marketplaceAgents,
+      pendingApplications,
+    ] = await Promise.all([
+      // Active contracts where user is client or worker
+      prisma.jobContract.findMany({
+        where: {
+          OR: [{ clientId: userId }, { workerId: userId }],
+          status: { in: ['active', 'paused'] },
+        },
+        include: {
+          job: { select: { id: true, title: true } },
+          client: { select: { id: true, name: true } },
+          worker: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      // Jobs the user posted
+      prisma.networkJob.findMany({
+        where: { posterId: userId, status: { in: ['open', 'in_progress'] } },
+        include: { _count: { select: { applications: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      // Jobs the user applied to
+      prisma.jobApplication.findMany({
+        where: { applicantId: userId, status: { in: ['pending', 'shortlisted'] } },
+        include: { job: { select: { id: true, title: true, compensationType: true, compensationAmount: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      // Recent payments (last 90 days) where user is worker
+      prisma.jobPayment.findMany({
+        where: {
+          contract: { workerId: userId },
+          stripePaymentStatus: 'succeeded',
+          createdAt: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      }),
+      // User's reputation score
+      prisma.reputationScore.findUnique({ where: { userId } }),
+      // Recent recordings
+      prisma.recording.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+      }),
+      // Integration accounts
+      prisma.integrationAccount.findMany({
+        where: { userId, isActive: true },
+        select: { provider: true, service: true, identity: true, label: true },
+      }),
+      // User's marketplace agents (if they're a developer)
+      prisma.marketplaceAgent.findMany({
+        where: { developerId: userId, status: 'active' },
+        select: { id: true, name: true, category: true, pricingModel: true, avgRating: true, totalExecutions: true },
+        take: 5,
+      }),
+      // Pending applications on user's posted jobs
+      prisma.jobApplication.findMany({
+        where: { job: { posterId: userId }, status: 'pending' },
+        include: {
+          job: { select: { title: true } },
+          applicant: { select: { name: true, email: true } },
+        },
+        take: 10,
+      }),
+    ]);
+
+    // Skip entire section if user has no business activity
+    const hasActivity = activeContracts.length > 0 || postedJobs.length > 0 || appliedJobs.length > 0 
+      || recentEarnings.length > 0 || reputation || recordings.length > 0 
+      || integrations.length > 0 || marketplaceAgents.length > 0 || pendingApplications.length > 0;
+    
+    if (!hasActivity) return '';
+
+    let text = '## Business Operations\n';
+
+    // Active Contracts
+    if (activeContracts.length > 0) {
+      text += `\n### Active Contracts (${activeContracts.length})\n`;
+      for (const c of activeContracts) {
+        const role = c.clientId === userId ? 'CLIENT' : 'WORKER';
+        const counterparty = role === 'CLIENT' ? c.worker?.name : c.client?.name;
+        text += `- [${role}] "${c.job?.title}" with ${counterparty || 'Unknown'} — $${c.compensationAmount}/${c.compensationType} | Status: ${c.status} | Paid: $${c.totalPaid}\n`;
+      }
+    }
+
+    // Posted Jobs
+    if (postedJobs.length > 0) {
+      text += `\n### Your Posted Jobs (${postedJobs.length})\n`;
+      for (const j of postedJobs) {
+        text += `- "${j.title}" (${j.status}) — ${j._count.applications} applications\n`;
+      }
+    }
+
+    // Pending applications on your jobs - ACTION REQUIRED
+    if (pendingApplications.length > 0) {
+      text += `\n### 📋 Pending Applications — ACTION REQUIRED (${pendingApplications.length})\n`;
+      for (const a of pendingApplications) {
+        text += `- **${a.applicant?.name || a.applicant?.email}** applied for "${a.job?.title}"\n`;
+      }
+      text += `Surface these to the operator. They can hire applicants from the Marketplace → Jobs tab.\n`;
+    }
+
+    // Applied Jobs
+    if (appliedJobs.length > 0) {
+      text += `\n### Your Applications (${appliedJobs.length})\n`;
+      for (const a of appliedJobs) {
+        const comp = a.job?.compensationAmount ? `$${a.job.compensationAmount}/${a.job.compensationType}` : 'volunteer';
+        text += `- "${a.job?.title}" — ${a.status} | ${comp}\n`;
+      }
+    }
+
+    // Earnings
+    if (recentEarnings.length > 0) {
+      const totalEarned = recentEarnings.reduce((sum, p) => sum + p.workerPayout, 0);
+      text += `\n### Earnings (last 90 days)\n`;
+      text += `Total earned: $${totalEarned.toFixed(2)} across ${recentEarnings.length} payments\n`;
+    }
+
+    // Reputation
+    if (reputation) {
+      text += `\n### Reputation\n`;
+      text += `Level: **${reputation.level}** | Score: ${reputation.score}/100 | ⭐ ${reputation.avgRating.toFixed(1)} (${reputation.totalRatings} reviews) | Jobs completed: ${reputation.jobsCompleted} | On-time: ${(reputation.onTimeRate * 100).toFixed(0)}%\n`;
+    }
+
+    // Recordings
+    if (recordings.length > 0) {
+      text += `\n### Recent Recordings (${recordings.length})\n`;
+      for (const r of recordings) {
+        const dur = r.duration ? ` (${Math.round(r.duration / 60)}min)` : '';
+        text += `- [${r.id}] "${r.title}" (${r.source})${dur} — ${r.status}${r.cardId ? ` 🔗 linked to card` : ''}\n`;
+      }
+    }
+
+    // Integration accounts
+    if (integrations.length > 0) {
+      text += `\n### Active Integrations\n`;
+      for (const i of integrations) {
+        text += `- ${i.provider}/${i.service} (${i.identity})${i.label ? ` — "${i.label}"` : ''}\n`;
+      }
+    }
+
+    // Marketplace agents (developer's own)
+    if (marketplaceAgents.length > 0) {
+      text += `\n### Your Marketplace Agents\n`;
+      for (const a of marketplaceAgents) {
+        text += `- **${a.name}** (${a.category}) — ${a.pricingModel} | ⭐ ${a.avgRating?.toFixed(1) || 'N/A'} | ${a.totalExecutions} executions\n`;
+      }
+    }
+
+    // Business-specific behavioral rules
+    text += `\n### Business Operations Rules
+- When the operator asks about earnings, show totals from contracts + marketplace.
+- When a job application comes in, surface it proactively with applicant details.
+- When a contract is active, track milestones and payment status.
+- Proactively remind about pending reviews on completed jobs.
+- If recordings exist without summaries, offer to help review them.
+- When the operator asks about their reputation, explain the scoring components.
+- For Stripe payment issues, guide them to Settings → 💳 Payments or the Marketplace → Earnings tab.
+- The platform charges a ${process.env.RECRUITING_FEE_PERCENT || '7'}% recruiting fee on job contracts and a ${process.env.MARKETPLACE_FEE_PERCENT || '3'}% fee on marketplace agent transactions. These are deducted automatically from payments.`;
+
+    return text;
+  } catch (e) {
+    console.error('Business operations layer error:', e);
+    return '';
+  }
 }
 
 // ─── Consolidated People Layer (CRM + Profiles) ─────────────────────────────
@@ -1146,6 +1334,27 @@ When a job offer or project invite arrives:
 - [[update_profile:{"skills":["..."],"taskTypes":["..."],"languages":[{"language":"...","proficiency":"..."}],"headline":"...","capacityStatus":"available|busy|limited|unavailable"}]] — Arrays MERGE (safe to add incrementally)
 - [[update_memory:{"tier":1|2|3,"category":"...","key":"...","value":"..."}]] / [[save_learning:{"category":"...","observation":"...","confidence":0.5}]]
 
+### Job Lifecycle & Contracts
+- [[accept_invite:{"inviteId":"..."}]] — Accept a project/job invite. Joins the user as a project member.
+- [[decline_invite:{"inviteId":"..."}]] — Decline a project/job invite.
+- [[list_invites:{}]] — Show all pending project/job invites for the operator.
+- [[complete_job:{"jobId":"..."}]] — Mark a job as complete (triggers review/payment flow).
+- [[review_job:{"jobId":"...","rating":1-5,"comment":"..."}]] — Leave a review for a completed job.
+
+### Marketplace Agents
+- [[list_marketplace:{"category":"optional filter"}]] — Browse available marketplace agents (research, coding, writing, analysis, etc.)
+- [[execute_agent:{"agentId":"...","prompt":"..."}]] — Execute a marketplace agent with a given prompt.
+- [[subscribe_agent:{"agentId":"..."}]] — Subscribe to a marketplace agent for recurring use.
+
+### Recordings
+- [[link_recording:{"recordingId":"...","cardId":"..."}]] — Link a meeting recording to a Kanban card.
+
+### Federation Intelligence (FVP Brief)
+- [[entity_resolve:{"query":"email/name/domain"}]] — Cross-surface entity resolution: find everything about a person/company across contacts, connections, cards, events, emails, relays, and team members.
+- [[serendipity_matches:{}]] — Graph topology matching: "who should I meet?" based on triadic closure, complementary expertise, and structural bridges.
+- [[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]] — Network-level intelligent task routing. Scores candidates on skill match, completion rate, capacity, trust, reputation, latency, and domain proximity.
+- [[network_briefing:{}]] — Composite cross-instance network pulse. Aggregates activity from federation peers.
+
 ### Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]]
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-..."}]]
@@ -1178,7 +1387,16 @@ async function buildSetupLayer_conditional(
   if (hasApiKey && hasProfile && hasCards && hasContacts) {
     return `## Platform Status
 API: ${apiKeys.map(k => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
-If user asks "set up X" → do it with action tags or give step-by-step directions.`;
+
+### Navigation Reference (for guiding users)
+- **Dashboard**: Board (Kanban), Queue, CRM, Calendar, Inbox, Comms, Goals, Recordings
+- **Marketplace**: Agent Marketplace (browse/subscribe/execute agents), Job Board (post/find/apply), Earnings (job + agent earnings)
+- **Connections**: Connections list, Relays, Directory (find people on the network)
+- **Settings**: Profile, Integrations (email/calendar/webhooks), Notifications, Federation, Payments (Stripe Connect/payment methods), Security, Appearance
+- **Activity**: Full activity timeline with filters
+
+If user asks "set up X" → do it with action tags or give step-by-step directions.
+If user asks "where is X?" → reference the navigation above.`;
   }
 
   // Otherwise, show guidance for missing items

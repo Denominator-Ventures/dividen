@@ -291,3 +291,62 @@ export async function resolveEntity(
     },
   };
 }
+
+
+// ─── Serendipity Matching Stub ────────────────────────────────────────────────
+// Graph topology matching: "who should I meet?"
+// Based on triadic closure, complementary expertise, structural bridges.
+
+export async function computeSerendipityMatches(userId: string) {
+  const { prisma } = await import('./prisma');
+
+  // Get user's connections
+  const connections = await prisma.connection.findMany({
+    where: { OR: [{ requesterId: userId }, { accepterId: userId }], status: 'active' },
+  });
+  const connectedIds = new Set(
+    connections.map(c => c.requesterId === userId ? c.accepterId : c.requesterId).filter(Boolean)
+  );
+
+  // Get profiles of connected users' connections (2nd degree)
+  const secondDegreeConnections = await prisma.connection.findMany({
+    where: {
+      status: 'active',
+      OR: [
+        { requesterId: { in: [...connectedIds].filter((id): id is string => !!id) } },
+        { accepterId: { in: [...connectedIds].filter((id): id is string => !!id) } },
+      ],
+    },
+    include: {
+      requester: { select: { id: true, name: true, email: true } },
+      accepter: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  // Find people who are connected to your connections but not to you
+  const candidates = new Map<string, { name: string; mutualConnections: number }>();
+  for (const c of secondDegreeConnections) {
+    const otherId = connectedIds.has(c.requesterId) ? c.accepterId : c.requesterId;
+    const otherUser = connectedIds.has(c.requesterId) ? c.accepter : c.requester;
+    if (!otherId || otherId === userId || connectedIds.has(otherId)) continue;
+    const existing = candidates.get(otherId);
+    if (existing) {
+      existing.mutualConnections++;
+    } else {
+      candidates.set(otherId, { name: otherUser?.name || otherUser?.email || 'Unknown', mutualConnections: 1 });
+    }
+  }
+
+  // Sort by mutual connections (triadic closure strength)
+  const sorted = [...candidates.entries()]
+    .sort((a, b) => b[1].mutualConnections - a[1].mutualConnections)
+    .slice(0, 10)
+    .map(([id, data]) => ({ userId: id, name: data.name, mutualConnections: data.mutualConnections }));
+
+  return {
+    matches: sorted,
+    summary: sorted.length > 0
+      ? `Found ${sorted.length} potential connections. Top match: ${sorted[0].name} (${sorted[0].mutualConnections} mutual connections).`
+      : 'No serendipity matches found yet. Build more connections to unlock network topology matching.',
+  };
+}

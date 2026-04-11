@@ -666,3 +666,42 @@ export async function storeBrief(params: {
     },
   });
 }
+
+
+// ─── Federation Intelligence Stubs ────────────────────────────────────────────
+// These are invoked by action tags. They return basic data now;
+// full federation wire-up will enrich them later.
+
+export async function generateNetworkBriefing(userId: string) {
+  const { prisma } = await import('./prisma');
+  const connections = await prisma.connection.findMany({
+    where: { OR: [{ requesterId: userId }, { accepterId: userId }], status: 'active' },
+    include: { requester: { select: { name: true } }, accepter: { select: { name: true } } },
+  });
+  const recentRelays = await prisma.agentRelay.findMany({
+    where: { OR: [{ fromUserId: userId }, { toUserId: userId }] },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+  return {
+    connections: connections.length,
+    recentRelays: recentRelays.length,
+    summary: `Network pulse: ${connections.length} active connections, ${recentRelays.length} recent relays.`,
+  };
+}
+
+export async function intelligentTaskRoute(userId: string, task: { description: string; skills: string[]; taskType: string }) {
+  const matches = await findSkillMatches(userId, task.skills, [task.taskType]);
+  return {
+    task: task.description,
+    candidates: matches.slice(0, 5).map(m => ({
+      name: m.userName,
+      score: m.score,
+      matchedSkills: m.matchedSkills,
+      capacity: m.capacity,
+    })),
+    recommendation: matches.length > 0
+      ? `Best match: ${matches[0].userName} (score: ${matches[0].score})`
+      : 'No matching connections found. Consider posting as a network job.',
+  };
+}

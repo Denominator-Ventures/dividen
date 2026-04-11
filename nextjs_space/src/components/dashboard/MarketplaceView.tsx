@@ -90,16 +90,19 @@ interface EarningsData {
 type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents' | 'earnings';
 type EarningsTab = 'agent' | 'job';
 
+interface JobEarningsTotals {
+  totalContracts: number;
+  activeContracts: number;
+  totalEarned: number;
+  totalPaid: number;
+  totalPending: number;
+  totalFees: number;
+  totalSpent: number;
+}
+
 interface JobEarningsData {
-  contracts: any[];
-  totals: {
-    totalContracts: number;
-    activeContracts: number;
-    totalEarned: number;
-    totalPaid: number;
-    totalPending: number;
-    totalFees: number;
-  };
+  asWorker: { contracts: any[]; totals: JobEarningsTotals };
+  asClient: { contracts: any[]; totals: JobEarningsTotals };
 }
 
 interface MarketplaceViewProps {

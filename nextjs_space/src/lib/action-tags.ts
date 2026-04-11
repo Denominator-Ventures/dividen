@@ -1590,6 +1590,197 @@ async function executeTag(
         return { tag: name, success: true, data: resolution };
       }
 
+      // ─── Job & Project Invite Actions ───────────────────────────────────────
+
+      case 'accept_invite': {
+        if (!params.inviteId) {
+          return { tag: name, success: false, error: 'inviteId is required' };
+        }
+        const invite = await prisma.projectInvite.findUnique({
+          where: { id: params.inviteId },
+          include: { project: true, job: true },
+        });
+        if (!invite || invite.inviteeId !== userId) {
+          return { tag: name, success: false, error: 'Invite not found or not yours' };
+        }
+        if (invite.status !== 'pending') {
+          return { tag: name, success: false, error: `Invite already ${invite.status}` };
+        }
+        // Accept: update invite + create project membership
+        await prisma.$transaction([
+          prisma.projectInvite.update({ where: { id: params.inviteId }, data: { status: 'accepted', acceptedAt: new Date() } }),
+          prisma.projectMember.create({
+            data: { projectId: invite.projectId, userId, role: invite.role || 'member' },
+          }),
+        ]);
+        return { tag: name, success: true, data: { message: `Accepted invite to project "${invite.project?.name}". You are now a ${invite.role || 'member'}.` } };
+      }
+
+      case 'decline_invite': {
+        if (!params.inviteId) {
+          return { tag: name, success: false, error: 'inviteId is required' };
+        }
+        const decInvite = await prisma.projectInvite.findUnique({
+          where: { id: params.inviteId },
+          include: { project: true },
+        });
+        if (!decInvite || decInvite.inviteeId !== userId) {
+          return { tag: name, success: false, error: 'Invite not found or not yours' };
+        }
+        await prisma.projectInvite.update({ where: { id: params.inviteId }, data: { status: 'declined', declinedAt: new Date() } });
+        return { tag: name, success: true, data: { message: `Declined invite to project "${decInvite.project?.name}".` } };
+      }
+
+      case 'list_invites': {
+        const invites = await prisma.projectInvite.findMany({
+          where: { inviteeId: userId, status: 'pending' },
+          include: {
+            project: { select: { name: true, description: true } },
+            inviter: { select: { name: true, email: true } },
+            job: { select: { title: true, compensationType: true, compensationAmount: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        return { tag: name, success: true, data: { count: invites.length, invites: invites.map(i => ({
+          id: i.id, project: i.project?.name, from: i.inviter?.name || i.inviter?.email,
+          role: i.role, job: i.job ? { title: i.job.title, compensation: `$${i.job.compensationAmount}/${i.job.compensationType}` } : null,
+        })) } };
+      }
+
+      case 'complete_job': {
+        if (!params.jobId) {
+          return { tag: name, success: false, error: 'jobId is required' };
+        }
+        const completeJob = await prisma.networkJob.findUnique({ where: { id: params.jobId } });
+        if (!completeJob) return { tag: name, success: false, error: 'Job not found' };
+        if (completeJob.posterId !== userId && completeJob.assigneeId !== userId) {
+          return { tag: name, success: false, error: 'Only the poster or assigned user can complete a job' };
+        }
+        await prisma.networkJob.update({ where: { id: params.jobId }, data: { status: 'completed' } });
+        // Also complete any active contracts
+        await prisma.jobContract.updateMany({
+          where: { jobId: params.jobId, status: 'active' },
+          data: { status: 'completed', endDate: new Date() },
+        });
+        return { tag: name, success: true, data: { message: `Job "${completeJob.title}" marked as completed.` } };
+      }
+
+      case 'review_job': {
+        if (!params.jobId || !params.rating) {
+          return { tag: name, success: false, error: 'jobId and rating (1-5) are required' };
+        }
+        const reviewJob = await prisma.networkJob.findUnique({ where: { id: params.jobId } });
+        if (!reviewJob) return { tag: name, success: false, error: 'Job not found' };
+        const isReviewerPoster = reviewJob.posterId === userId;
+        const revieweeId = isReviewerPoster ? reviewJob.assigneeId : reviewJob.posterId;
+        if (!revieweeId) return { tag: name, success: false, error: 'No counterparty to review' };
+        const reviewType = isReviewerPoster ? 'poster_to_worker' : 'worker_to_poster';
+        await prisma.jobReview.create({
+          data: {
+            jobId: params.jobId,
+            reviewerId: userId,
+            revieweeId,
+            rating: Math.min(5, Math.max(1, Number(params.rating))),
+            comment: params.comment || '',
+            type: reviewType,
+          },
+        });
+        return { tag: name, success: true, data: { message: `Review submitted for job "${reviewJob.title}".` } };
+      }
+
+      // ─── Marketplace Actions ────────────────────────────────────────────────
+
+      case 'list_marketplace': {
+        const where: any = { status: 'active' };
+        if (params.category) where.category = params.category;
+        const agents = await prisma.marketplaceAgent.findMany({
+          where,
+          select: { id: true, name: true, description: true, category: true, pricingModel: true, pricePerTask: true, avgRating: true, totalExecutions: true, developerName: true },
+          orderBy: { avgRating: 'desc' },
+          take: 20,
+        });
+        return { tag: name, success: true, data: { count: agents.length, agents } };
+      }
+
+      case 'execute_agent': {
+        if (!params.agentId || !params.prompt) {
+          return { tag: name, success: false, error: 'agentId and prompt are required' };
+        }
+        const agent = await prisma.marketplaceAgent.findUnique({ where: { id: params.agentId } });
+        if (!agent || agent.status !== 'active') return { tag: name, success: false, error: 'Agent not found or inactive' };
+        // Create execution record
+        const execution = await prisma.marketplaceExecution.create({
+          data: { agentId: params.agentId, userId, taskInput: params.prompt, status: 'pending' },
+        });
+        // Call the agent endpoint
+        try {
+          const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (agent.authMethod === 'bearer' && agent.authToken) headers['Authorization'] = `Bearer ${agent.authToken}`;
+          else if (agent.authMethod === 'api_key' && agent.authToken) headers['X-API-Key'] = agent.authToken;
+          else if (agent.authMethod === 'header' && agent.authHeader && agent.authToken) headers[agent.authHeader] = agent.authToken;
+          const resp = await fetch(agent.endpointUrl, { method: 'POST', headers, body: JSON.stringify({ prompt: params.prompt, userId }), signal: AbortSignal.timeout(30000) });
+          const result = await resp.text();
+          await prisma.marketplaceExecution.update({ where: { id: execution.id }, data: { status: 'completed', taskOutput: result, completedAt: new Date() } });
+          return { tag: name, success: true, data: { executionId: execution.id, result: result.substring(0, 2000) } };
+        } catch (err: any) {
+          await prisma.marketplaceExecution.update({ where: { id: execution.id }, data: { status: 'failed', errorMessage: err.message } });
+          return { tag: name, success: false, error: `Agent execution failed: ${err.message}` };
+        }
+      }
+
+      case 'subscribe_agent': {
+        if (!params.agentId) {
+          return { tag: name, success: false, error: 'agentId is required' };
+        }
+        const existing = await prisma.marketplaceSubscription.findFirst({
+          where: { agentId: params.agentId, userId, status: 'active' },
+        });
+        if (existing) return { tag: name, success: true, data: { message: 'Already subscribed to this agent.' } };
+        await prisma.marketplaceSubscription.create({
+          data: { agentId: params.agentId, userId, status: 'active' },
+        });
+        return { tag: name, success: true, data: { message: 'Subscribed to agent.' } };
+      }
+
+      // ─── Federation Intelligence Actions ────────────────────────────────────
+
+      case 'serendipity_matches': {
+        try {
+          const { computeSerendipityMatches } = await import('./entity-resolution');
+          const matches = await computeSerendipityMatches(userId);
+          return { tag: name, success: true, data: matches };
+        } catch (e: any) {
+          return { tag: name, success: false, error: e.message || 'Serendipity matching not available' };
+        }
+      }
+
+      case 'network_briefing': {
+        try {
+          const { generateNetworkBriefing } = await import('./brief-assembly');
+          const briefing = await generateNetworkBriefing(userId);
+          return { tag: name, success: true, data: briefing };
+        } catch (e: any) {
+          return { tag: name, success: false, error: e.message || 'Network briefing not available' };
+        }
+      }
+
+      case 'route_task': {
+        if (!params.taskDescription) {
+          return { tag: name, success: false, error: 'taskDescription is required' };
+        }
+        try {
+          const { intelligentTaskRoute } = await import('./brief-assembly');
+          const result = await intelligentTaskRoute(userId, {
+            description: params.taskDescription,
+            skills: params.taskSkills || [],
+            taskType: params.taskType || 'custom',
+          });
+          return { tag: name, success: true, data: result };
+        } catch (e: any) {
+          return { tag: name, success: false, error: e.message || 'Task routing not available' };
+        }
+      }
+
       default:
         return { tag: name, success: false, error: `Unknown tag: ${name}` };
     }
