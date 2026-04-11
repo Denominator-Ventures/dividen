@@ -17,6 +17,7 @@ import { JobBoardView } from './JobBoardView';
 import { ExtensionsView } from './ExtensionsView';
 import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
+import DiscoverView from './DiscoverView';
 import { TabErrorBoundary } from './TabErrorBoundary';
 
 interface CenterPanelProps {
@@ -41,6 +42,7 @@ const primaryTabs: { id: CenterTab; label: string; icon: string }[] = [
 ];
 
 const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
+  { id: 'discover', label: 'Discover', icon: '🌍' },
   { id: 'connections', label: 'Connections', icon: '🔗' },
   { id: 'teams', label: 'Teams', icon: '🏢' },
   { id: 'jobs', label: 'Jobs', icon: '💼' },
@@ -128,7 +130,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
 
           {/* Network group */}
           <button
-            onClick={() => onTabChange(isNetworkActive ? activeTab : 'connections')}
+            onClick={() => onTabChange(isNetworkActive ? activeTab : 'discover')}
             className={tabClass(isNetworkActive)}
           >
             🌐 Network
@@ -186,6 +188,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'inbox' && <TabErrorBoundary tabName="Inbox"><InboxView /></TabErrorBoundary>}
         {activeTab === 'recordings' && <TabErrorBoundary tabName="Recordings"><RecordingsView /></TabErrorBoundary>}
         {activeTab === 'drive' && <TabErrorBoundary tabName="Drive"><DriveView /></TabErrorBoundary>}
+        {activeTab === 'discover' && <TabErrorBoundary tabName="Discover"><DiscoverView /></TabErrorBoundary>}
         {activeTab === 'connections' && <TabErrorBoundary tabName="Connections"><ConnectionsView /></TabErrorBoundary>}
         {activeTab === 'teams' && <TabErrorBoundary tabName="Teams"><TeamsView /></TabErrorBoundary>}
         {activeTab === 'goals' && <TabErrorBoundary tabName="Goals"><GoalsView /></TabErrorBoundary>}

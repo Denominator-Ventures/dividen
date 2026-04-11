@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation';
 
 interface SearchResult {
   id: string;
-  type: 'card' | 'contact' | 'document' | 'recording' | 'calendar' | 'email' | 'comms' | 'queue';
+  type: string;
   title: string;
   subtitle: string;
   icon: string;
   meta?: string;
+  url?: string;
+  section: 'personal' | 'network';
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -21,6 +23,10 @@ const TYPE_LABELS: Record<string, string> = {
   email: 'Inbox',
   comms: 'Comms',
   queue: 'Queue',
+  person: 'People',
+  team: 'Teams',
+  agent: 'Agents',
+  job: 'Jobs',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -32,7 +38,18 @@ const TYPE_COLORS: Record<string, string> = {
   email: '#f97316',
   comms: '#06b6d4',
   queue: '#6b7280',
+  person: '#10b981',
+  team: '#8b5cf6',
+  agent: '#ec4899',
+  job: '#eab308',
 };
+
+const SECTION_LABELS: Record<string, string> = {
+  personal: 'Your Data',
+  network: 'Network',
+};
+
+type SearchScope = 'all' | 'personal' | 'network';
 
 interface GlobalSearchProps {
   isOpen: boolean;
@@ -46,6 +63,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [scope, setScope] = useState<SearchScope>('all');
   const inputRef = useRef<HTMLInputElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -56,12 +74,13 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
       setQuery('');
       setResults([]);
       setSelectedIndex(0);
+      setScope('all');
       setTimeout(() => inputRef.current?.focus(), 50);
     }
   }, [isOpen]);
 
   // Debounced search
-  const search = useCallback(async (q: string) => {
+  const search = useCallback(async (q: string, s: SearchScope) => {
     if (q.length < 2) {
       setResults([]);
       setLoading(false);
@@ -69,7 +88,7 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=25`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=30&scope=${s}`);
       if (res.ok) {
         const data = await res.json();
         setResults(data.results || []);
@@ -88,23 +107,35 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
       return;
     }
     setLoading(true);
-    debounceRef.current = setTimeout(() => search(query), 250);
+    debounceRef.current = setTimeout(() => search(query, scope), 250);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query, search]);
+  }, [query, scope, search]);
 
   // Navigate to result
   const navigateTo = useCallback((result: SearchResult) => {
     onClose();
+
+    // Network results with direct URLs
+    if (result.url) {
+      router.push(result.url);
+      return;
+    }
+
+    // Tab-based navigation for personal results
     const tabMap: Record<string, string> = {
-      card: 'board',
+      card: 'kanban',
       contact: 'crm',
       document: 'drive',
       recording: 'recordings',
       calendar: 'calendar',
       email: 'inbox',
       queue: 'queue',
+      agent: 'marketplace',
+      job: 'jobs',
+      team: 'teams',
+      person: 'connections',
     };
     if (result.type === 'comms') {
       router.push('/dashboard/comms');
@@ -137,70 +168,133 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
   // Scroll selected item into view
   useEffect(() => {
     if (resultsRef.current) {
-      const selected = resultsRef.current.children[selectedIndex] as HTMLElement;
-      if (selected) {
-        selected.scrollIntoView({ block: 'nearest' });
-      }
+      const items = resultsRef.current.querySelectorAll('[data-result-item]');
+      const selected = items[selectedIndex] as HTMLElement;
+      if (selected) selected.scrollIntoView({ block: 'nearest' });
     }
   }, [selectedIndex]);
 
-  // Reset selected index when results change
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [results]);
+  useEffect(() => { setSelectedIndex(0); }, [results]);
 
   if (!isOpen) return null;
 
-  // Group results by type
-  const grouped = results.reduce<Record<string, SearchResult[]>>((acc, r) => {
-    if (!acc[r.type]) acc[r.type] = [];
-    acc[r.type].push(r);
-    return acc;
-  }, {});
+  // Group results by section, then by type
+  const personalResults = results.filter(r => r.section === 'personal');
+  const networkResults = results.filter(r => r.section === 'network');
 
-  // Build flat list for keyboard navigation while rendering groups
+  const groupByType = (items: SearchResult[]) =>
+    items.reduce<Record<string, SearchResult[]>>((acc, r) => {
+      if (!acc[r.type]) acc[r.type] = [];
+      acc[r.type].push(r);
+      return acc;
+    }, {});
+
+  const personalGrouped = groupByType(personalResults);
+  const networkGrouped = groupByType(networkResults);
+
   let flatIndex = 0;
+
+  const renderResultItem = (result: SearchResult) => {
+    const idx = flatIndex++;
+    return (
+      <button
+        key={`${result.type}-${result.id}`}
+        data-result-item
+        onClick={() => navigateTo(result)}
+        onMouseEnter={() => setSelectedIndex(idx)}
+        className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+          idx === selectedIndex ? 'bg-brand-500/10' : 'hover:bg-[var(--bg-surface)]'
+        }`}
+      >
+        <span className="text-base flex-shrink-0">{result.icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-[var(--text-primary)] truncate">{result.title}</div>
+          <div className="text-[11px] text-[var(--text-muted)] truncate">{result.subtitle}</div>
+        </div>
+        {/* Connection/status badge for network results */}
+        {result.meta && result.section === 'network' && (
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${
+            result.meta === 'active' ? 'bg-emerald-500/15 text-emerald-400' :
+            result.meta === 'pending' ? 'bg-amber-500/15 text-amber-400' :
+            result.meta === 'high' || result.meta === 'critical' ? 'bg-red-500/15 text-red-400' :
+            'bg-[var(--bg-surface)] text-[var(--text-muted)]'
+          }`}>
+            {result.meta === 'active' ? 'Connected' : result.meta === 'pending' ? 'Pending' : result.meta}
+          </span>
+        )}
+        {result.url && (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-[var(--text-muted)] flex-shrink-0 opacity-50">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        )}
+        {idx === selectedIndex && !result.url && (
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[9px] text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono">
+            &#x21B5;
+          </kbd>
+        )}
+      </button>
+    );
+  };
+
+  const renderGroup = (type: string, items: SearchResult[]) => (
+    <div key={type}>
+      <div className="px-4 py-1.5 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: TYPE_COLORS[type] }} />
+        <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>{TYPE_LABELS[type] || type}</span>
+      </div>
+      {items.map(renderResultItem)}
+    </div>
+  );
+
+  const scopeButtons: { id: SearchScope; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'personal', label: 'My Data' },
+    { id: 'network', label: 'Network' },
+  ];
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50"
-        onClick={onClose}
-      />
-
-      {/* Command Palette */}
-      <div className="fixed top-[15%] left-1/2 -translate-x-1/2 w-[90vw] max-w-[600px] z-50">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50" onClick={onClose} />
+      <div className="fixed top-[12%] left-1/2 -translate-x-1/2 w-[90vw] max-w-[640px] z-50">
         <div className="bg-[#141414] border border-[var(--border-color)] rounded-xl shadow-2xl overflow-hidden">
           {/* Search Input */}
           <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--border-color)]">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text-muted)] flex-shrink-0">
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search cards, contacts, documents, events, emails…"
+              placeholder="Search everything \u2014 your data, people, teams, agents, jobs\u2026"
               className="flex-1 bg-transparent text-[var(--text-primary)] text-sm placeholder:text-[var(--text-muted)] outline-none"
               autoComplete="off"
               spellCheck={false}
             />
-            {loading && (
-              <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />
-            )}
-            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono">
-              ESC
-            </kbd>
+            {loading && <div className="w-4 h-4 border-2 border-brand-500/30 border-t-brand-500 rounded-full animate-spin" />}
+            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono">ESC</kbd>
+          </div>
+
+          {/* Scope Pills */}
+          <div className="flex items-center gap-1.5 px-4 py-2 border-b border-[var(--border-color)]">
+            {scopeButtons.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setScope(s.id)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${
+                  scope === s.id
+                    ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
 
           {/* Results */}
-          <div
-            ref={resultsRef}
-            className="max-h-[50vh] overflow-y-auto"
-          >
+          <div ref={resultsRef} className="max-h-[50vh] overflow-y-auto">
             {query.length >= 2 && !loading && results.length === 0 && (
               <div className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
                 No results for &ldquo;{query}&rdquo;
@@ -209,17 +303,11 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
 
             {query.length < 2 && !loading && (
               <div className="px-4 py-6 text-center">
-                <p className="text-sm text-[var(--text-muted)] mb-3">Search across your entire command center</p>
+                <p className="text-sm text-[var(--text-muted)] mb-3">Search across your command center and the DiviDen network</p>
                 <div className="flex flex-wrap justify-center gap-2">
                   {Object.entries(TYPE_LABELS).map(([type, label]) => (
-                    <span
-                      key={type}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border border-[var(--border-color)] text-[var(--text-muted)]"
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: TYPE_COLORS[type] }}
-                      />
+                    <span key={type} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full border border-[var(--border-color)] text-[var(--text-muted)]">
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: TYPE_COLORS[type] }} />
                       {label}
                     </span>
                   ))}
@@ -227,63 +315,39 @@ export function GlobalSearch({ isOpen, onClose, onNavigate }: GlobalSearchProps)
               </div>
             )}
 
-            {Object.entries(grouped).map(([type, items]) => (
-              <div key={type}>
-                {/* Type Header */}
-                <div className="px-4 py-1.5 flex items-center gap-2">
-                  <span
-                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: TYPE_COLORS[type] }}
-                  />
-                  <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>
-                    {TYPE_LABELS[type] || type}
+            {/* Personal results */}
+            {Object.keys(personalGrouped).length > 0 && Object.keys(networkGrouped).length > 0 && (
+              <div className="px-4 pt-2 pb-1">
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">{SECTION_LABELS.personal}</span>
+              </div>
+            )}
+            {Object.entries(personalGrouped).map(([type, items]) => renderGroup(type, items))}
+
+            {/* Network results */}
+            {Object.keys(networkGrouped).length > 0 && (
+              <>
+                {Object.keys(personalGrouped).length > 0 && (
+                  <div className="mx-4 my-1 border-t border-[var(--border-color)]" />
+                )}
+                <div className="px-4 pt-2 pb-1">
+                  <span className="text-[9px] font-semibold uppercase tracking-wider text-emerald-400">
+                    {SECTION_LABELS.network}
                   </span>
                 </div>
-
-                {/* Items */}
-                {items.map((result) => {
-                  const idx = flatIndex++;
-                  return (
-                    <button
-                      key={`${result.type}-${result.id}`}
-                      onClick={() => navigateTo(result)}
-                      onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                        idx === selectedIndex
-                          ? 'bg-brand-500/10'
-                          : 'hover:bg-[var(--bg-surface)]'
-                      }`}
-                    >
-                      <span className="text-base flex-shrink-0">{result.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-[var(--text-primary)] truncate">
-                          {result.title}
-                        </div>
-                        <div className="text-[11px] text-[var(--text-muted)] truncate">
-                          {result.subtitle}
-                        </div>
-                      </div>
-                      {idx === selectedIndex && (
-                        <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[9px] text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono">
-                          ↵
-                        </kbd>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+                {Object.entries(networkGrouped).map(([type, items]) => renderGroup(type, items))}
+              </>
+            )}
           </div>
 
           {/* Footer */}
           <div className="px-4 py-2 border-t border-[var(--border-color)] flex items-center justify-between">
             <div className="flex items-center gap-3 text-[10px] text-[var(--text-muted)]">
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono text-[9px]">↑↓</kbd>
+                <kbd className="px-1 py-0.5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono text-[9px]">&uarr;&darr;</kbd>
                 navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="px-1 py-0.5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono text-[9px]">↵</kbd>
+                <kbd className="px-1 py-0.5 bg-[var(--bg-surface)] border border-[var(--border-color)] rounded font-mono text-[9px]">&#x21B5;</kbd>
                 open
               </span>
               <span className="flex items-center gap-1">
