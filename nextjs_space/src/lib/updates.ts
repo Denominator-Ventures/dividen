@@ -17,6 +17,111 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'developer-experience-overhaul',
+    date: '2026-04-11',
+    time: '9:45 PM',
+    title: 'Developer Experience Overhaul — One Command to Running',
+    subtitle: 'Setup scripts, docker-compose for local Postgres, README rewrite, enhanced health checks. Getting from git clone to localhost:3000 should take five minutes, not five hours.',
+    tags: ['dx', 'open-source', 'setup', 'docker', 'onboarding', 'community'],
+    content: `Huge thank you to **Robert** for putting in the work to clone, configure, and bring up a self-hosted DiviDen instance — and then writing honest, detailed notes about every friction point he hit. That's the kind of feedback that makes open-source projects actually usable instead of just theoretically open.
+
+Robert's notes identified eight specific issues, and every single one of them is addressed in this build.
+
+## What Changed
+
+### One-Command Setup Scripts
+
+Two new scripts in \`scripts/\`:
+
+- **\`bash scripts/setup.sh\`** — macOS, Linux, WSL
+- **\`.\\scripts\\setup.ps1\`** — Windows PowerShell
+
+Both scripts handle the entire setup sequence automatically:
+1. Check Node.js version (18+ required)
+2. Detect package manager (yarn or npm — both work)
+3. Install dependencies
+4. Create \`.env\` from \`.env.example\` with an auto-generated \`NEXTAUTH_SECRET\`
+5. Start local PostgreSQL via Docker (if available and using default config)
+6. Run \`prisma generate\`
+7. Run \`prisma migrate deploy\` (with \`db push\` fallback)
+8. Seed demo data (admin account + default notification rules)
+9. Print login credentials and next steps
+
+No more discovering the startup sequence through trial and error. One command, clear output at every step, colored status messages so you can see exactly what succeeded and what needs attention.
+
+### Local Database via Docker Compose
+
+New \`docker-compose.yml\` in the project root:
+
+\`\`\`bash
+docker compose up -d
+\`\`\`
+
+Spins up PostgreSQL 16 on port 5432 with credentials that match the default \`DATABASE_URL\` in \`.env.example\`. Zero configuration needed. The setup scripts detect this automatically.
+
+**Docker is entirely optional.** If you already have Postgres — local, Neon, Supabase, Railway, whatever — just set your \`DATABASE_URL\` in \`.env\` and skip Docker completely. The README now makes this explicit.
+
+### .env.example — Actually Useful
+
+The previous \`.env.example\` existed but didn't explain enough. The new version:
+- Clearly separates **REQUIRED** vs **OPTIONAL** variables
+- Includes inline instructions for generating secrets
+- Default \`DATABASE_URL\` matches the docker-compose config
+- Comments explain each variable's purpose and alternatives
+
+### README — Complete Rewrite
+
+The README went from protocol-spec-first to **Quick Start-first**. The first thing you see is how to get running in five minutes:
+
+- **One-command setup** front and center
+- **"What to Do After First Launch"** table — log in, land in dashboard, chat with Divi, add LLM key
+- **Manual setup** in a collapsible section for power users who want to run each step
+- **Environment variables** table with Required/Optional/Default columns
+- **Troubleshooting** as expandable FAQ sections:
+  - \`@prisma/client did not initialize yet\` — run \`prisma generate\`
+  - Database connection refused — check Docker or \`DATABASE_URL\`
+  - \`.yarnrc.yml\` errors — delete it and use npm
+  - "I see a landing page, not the dashboard" — go to \`/login\`
+  - Docker — do I need it? — No.
+  - Windows-specific issues — use PowerShell, execution policy, etc.
+
+The protocol philosophy, architecture, and API documentation are all still there — they just come after the Quick Start instead of before it.
+
+### Enhanced Health Check
+
+\`GET /api/status\` now returns a comprehensive health report:
+
+- **Database connection** — connected/disconnected with user count
+- **Migration check** — validates that all core tables exist (User, Card, QueueItem, Contact, ChatMessage, Connection)
+- **Environment validation** — confirms NEXTAUTH_SECRET, ADMIN_PASSWORD, and LLM key status
+- Returns **200 (healthy)** or **503 (unhealthy)** with structured JSON
+
+Hit \`http://localhost:3000/api/status\` after setup to confirm everything is wired correctly.
+
+### Cross-Platform Support
+
+Every instruction in the README and setup scripts works on macOS, Linux, WSL, and Windows. The PowerShell script handles Windows-specific differences (execution policy, sed vs string replacement, Docker Desktop). No more Linux-only commands in setup docs.
+
+## Robert's Issues → Resolutions
+
+| # | Issue | Resolution |
+|---|---|---|
+| 1 | Missing .env.example / unclear setup guide | Enhanced \`.env.example\` with clear Required/Optional sections + inline docs |
+| 2 | Prisma initialization not automated | Both setup scripts run \`prisma generate\` + \`migrate deploy\` automatically |
+| 3 | Database not self-contained | \`docker-compose.yml\` for one-command local Postgres |
+| 4 | Docker confusion (required vs optional) | README explicitly states "Docker is 100% optional" with FAQ section |
+| 5 | No canonical startup sequence | \`setup.sh\` / \`setup.ps1\` — one command does everything |
+| 6 | Landing page vs functional product gap | README "What to Do After First Launch" table guides you to \`/login\` → dashboard |
+| 7 | No health checks / validation | \`/api/status\` now validates DB, migrations, and env vars |
+| 8 | OS-specific commands | PowerShell script for Windows, bash for everything else |
+
+## Why This Matters
+
+Open source that you can't run isn't open. The protocol spec, the architecture docs, the API surface — none of it means anything if a motivated person can't get from \`git clone\` to a working instance without reverse-engineering the setup. Robert proved that our onboarding had gaps. Now it doesn't.
+
+The bar for "can I try this?" should be five minutes and one command. That's what this build delivers.`,
+  },
+  {
     id: 'universal-activity-feed',
     date: '2026-04-11',
     time: '3:15 PM',
