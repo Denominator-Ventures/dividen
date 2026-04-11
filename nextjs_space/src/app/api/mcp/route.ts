@@ -179,6 +179,38 @@ const TOOLS = [
     },
   },
   {
+    name: 'serendipity_matches',
+    description: 'Find serendipitous connection opportunities using graph topology analysis. Surfaces "you should meet X" recommendations based on structural patterns like triadic closure, complementary expertise, and structural bridges — not just keyword matching.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        maxResults: { type: 'number', description: 'Max results (default 5)' },
+      },
+    },
+  },
+  {
+    name: 'route_task',
+    description: 'Intelligently route a task to the best candidate in the network. Uses a weighted scoring model: skill match (30%), completion rate (20%), capacity (15%), trust level (10%), reputation (10%), latency (5%), domain proximity (10%). Returns ranked candidates with strategy recommendation (direct/auction/broadcast).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        taskDescription: { type: 'string', description: 'What needs to be done' },
+        taskSkills: { type: 'array', items: { type: 'string' }, description: 'Required skills' },
+        taskType: { type: 'string', description: 'Task type (e.g. research, development, design)' },
+        maxCandidates: { type: 'number', description: 'Max candidates to evaluate (default 5)' },
+      },
+      required: ['taskDescription'],
+    },
+  },
+  {
+    name: 'network_briefing',
+    description: 'Generate a comprehensive network briefing by aggregating activity from this instance and connected federation peers. Shows active jobs, open requests, available expertise, and urgent items across the network. Perfect for morning briefings or "what\'s happening across my network?" queries.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
+  {
     name: 'relay_send',
     description: 'Send a relay message to a connection, optionally continuing an existing thread. This creates a new A2A task that will be routed to the specified connection\'s agent.',
     inputSchema: {
@@ -453,6 +485,25 @@ async function executeTool(toolName: string, args: any, userId: string) {
       return { id: relay.id, threadId, subject: relay.subject, status: 'pending', message: 'Relay sent' };
     }
 
+    case 'serendipity_matches': {
+      const { findSerendipityMatches } = await import('@/lib/federation/graph-matching');
+      const matches = await findSerendipityMatches(userId, args.maxResults || 5);
+      return { matches, count: matches.length };
+    }
+
+    case 'route_task': {
+      if (!args.taskDescription) return { error: 'taskDescription is required' };
+      const { routeTask } = await import('@/lib/federation/task-routing');
+      const decision = await routeTask(userId, args.taskDescription, args.taskSkills || [], args.taskType || null, args.maxCandidates || 5);
+      return decision;
+    }
+
+    case 'network_briefing': {
+      const { compileNetworkBriefing } = await import('@/lib/federation/composite-prompts');
+      const briefing = await compileNetworkBriefing(userId);
+      return briefing;
+    }
+
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -504,8 +555,8 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     name: 'DiviDen MCP Server',
-    version: '1.2.0',
-    description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, and activity tools. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
+    version: '1.3.0',
+    description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, activity, entity resolution, graph intelligence, task routing, and network briefing tools. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
     tools: TOOLS,
     authentication: {
       type: 'bearer',

@@ -17,6 +17,70 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'fvp-integration-brief',
+    date: '2026-04-11',
+    time: '11:45 PM',
+    title: 'FVP Integration Brief — 14 Proposals, One Build',
+    subtitle: 'Full implementation of the Fractional Venture Partners integration brief. Protocol hardening, federation marketplace, cross-instance intelligence, and network-level task routing.',
+    tags: ['federation', 'protocol', 'a2a', 'mcp', 'intelligence', 'fvp', 'network'],
+    content: `This is the biggest single protocol expansion since DiviDen launched. Robert and the FVP team submitted a 14-proposal integration brief covering everything from basic protocol improvements to network-level AI intelligence. Every proposal is now implemented.
+
+## Tier 1: Foundation (Proposals #1–5)
+
+**Webhook Push for Relay Events** — When relay state changes (pending → delivered → completed), connected instances get real-time webhook notifications. No more polling. The \`relay_state_changed\` event fires automatically.
+
+**Relay Threading** — Multi-turn agent conversations now have a \`threadId\` that groups related relays. Threads auto-generate, inherit from parent relays, or accept explicit IDs. MCP tools: \`relay_thread_list\`, \`relay_threads\`.
+
+**Structured Artifacts** — Seven typed artifact formats: text, code, document, data, contact_card, calendar_invite, email_draft. Relays can now carry rich payloads, not just text.
+
+**Agent Card Capability Negotiation** — The agent card (/.well-known/agent-card.json) now advertises supported methods, artifact types, MCP tools, and webhook events. Agents can discover each other's capabilities before attempting to communicate.
+
+**Universal Entity Resolution** — One function that answers "what do we know about this person/company?" across all surfaces: contacts, connections, cards, events, emails, relays, and team members. MCP tool: \`entity_resolve\`.
+
+## Tier 2: Marketplace (Proposals #6–7)
+
+**Federated Job Broadcast + Application Routing** — Jobs posted on one instance can receive applications from connected federation peers. The relay protocol handles application routing with trust-level gating.
+
+**Portable Reputation with Signed Attestations** — Reputation scores now include HMAC-signed attestations that can be verified across instances. Your score travels with you. Federated reputation merges local and remote signals.
+
+## Tier 3: Cross-Instance (Proposals #8–10)
+
+**Cross-Instance MCP Tool Invocation** — Trusted connections can invoke each other's MCP tools remotely through a federation proxy. Trust level gates access: \`restricted\` connections can only read, \`supervised\`/\`full_auto\` can execute.
+
+**Agent-Initiated Task Exchange** — When a job is posted, the engine automatically matches the best-suited connections by skill overlap, task type, capacity, and reputation, then proposes the match via relay.
+
+**Federated Entity Search** — Privacy-respecting cross-instance entity lookup. Connected instances can search each other's contact graphs with appropriate access controls.
+
+## Tier 4: Intelligence (Proposals #11–14)
+
+**Shared Ambient Learning Patterns** — The ambient relay learning engine now shares anonymized, aggregated patterns across federation peers. No raw signals cross boundaries — only synthesized insights. Patterns merge using weighted confidence scoring.
+
+**Graph Topology Matching (Serendipity Engine)** — Structural graph analysis surfaces "you should meet X" recommendations based on triadic closure, complementary expertise, and structural bridges. MCP tool: \`serendipity_matches\`.
+
+**Composite Cross-Instance Prompts** — Network briefing aggregation that queries connected instances for contextual intelligence. "What's happening across my network?" now returns a unified digest. MCP tool: \`network_briefing\`.
+
+**Network-Level Task Routing Intelligence** — Weighted scoring model that learns from past task outcomes to route new tasks optimally. Seven signals: skill match (30%), completion rate (20%), capacity (15%), trust (10%), reputation (10%), latency (5%), domain proximity (10%). Returns ranked candidates with strategy recommendation. MCP tool: \`route_task\`.
+
+## By the Numbers
+
+- **14 proposals** implemented across 4 tiers
+- **4 new federation API endpoints**: /patterns, /briefing, /routing, /graph
+- **6 new MCP tools**: entity_resolve, relay_thread_list, relay_threads, relay_send, serendipity_matches, route_task, network_briefing
+- **Agent card v0.3.0** with full capability advertisement
+- **MCP server v1.3.0** — 22 total tools
+- **2 new Prisma migrations** (relay threading + portable reputation)
+
+## What This Means
+
+DiviDen isn't just a coordination tool anymore. It's a learning network. Every interaction makes the routing smarter. Every federation connection extends the intelligence graph. Every pattern shared makes every instance better at timing, phrasing, and routing.
+
+The FVP Command Center at cc.fractionalventure.partners is the first external node implementing against this protocol. As more instances come online, the network effects compound.
+
+The protocol is the product. The network is the moat.
+
+— Jon`
+  },
+  {
     id: 'developer-experience-overhaul',
     date: '2026-04-11',
     time: '9:45 PM',

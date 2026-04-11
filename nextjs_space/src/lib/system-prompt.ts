@@ -1077,6 +1077,12 @@ Post tasks to the network or find matching work. The job board is DiviDen's mark
 - [[assemble_brief:{"cardId":"...","teamId":"optional","projectId":"optional"}]] — Generate reasoning brief without routing
 - [[project_dashboard:{"projectId":"..."}]] — Cross-member project activity dashboard
 
+### Federation Intelligence (FVP Brief)
+- [[entity_resolve:{"query":"email/name/domain"}]] — Cross-surface entity resolution: find everything about a person/company across contacts, connections, cards, events, emails, relays, and team members.
+- [[serendipity_matches:{}]] — Graph topology matching: "who should I meet?" based on triadic closure, complementary expertise, and structural bridges. Proactively surface when the operator is networking or looking for introductions.
+- [[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]] — Network-level intelligent task routing. Scores candidates on skill match, completion rate, capacity, trust, reputation, latency, and domain proximity. Returns ranked candidates + strategy (direct/auction/broadcast).
+- [[network_briefing:{}]] — Composite cross-instance network pulse. Aggregates activity from connected federation peers. Great for morning briefings or "what's happening across my network?" queries.
+
 ### Profile & Memory
 - [[update_profile:{"skills":["..."],"taskTypes":["..."],"languages":[{"language":"...","proficiency":"..."}],"headline":"...","capacityStatus":"available|busy|limited|unavailable"}]] — Arrays MERGE (safe to add incrementally)
 - [[update_memory:{"tier":1|2|3,"category":"...","key":"...","value":"..."}]] / [[save_learning:{"category":"...","observation":"...","confidence":0.5}]]

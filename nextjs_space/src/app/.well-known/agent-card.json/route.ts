@@ -41,6 +41,7 @@ export async function GET(req: NextRequest) {
       'job_post', 'job_browse', 'job_match', 'reputation_get',
       'relay_thread_list', 'relay_threads', 'relay_send',
       'entity_resolve',
+      'serendipity_matches', 'route_task', 'network_briefing',
     ];
 
     const agentCard = {
@@ -191,6 +192,10 @@ export async function GET(req: NextRequest) {
           reputation: `${baseUrl}/api/federation/reputation`,
           mcp: `${baseUrl}/api/federation/mcp`,
           entitySearch: `${baseUrl}/api/federation/entity-search`,
+          patterns: `${baseUrl}/api/federation/patterns`,
+          briefing: `${baseUrl}/api/federation/briefing`,
+          routing: `${baseUrl}/api/federation/routing`,
+          graph: `${baseUrl}/api/federation/graph`,
         },
         agentApi: `${baseUrl}/api/v2`,
         docs: `${baseUrl}/api/v2/docs`,
