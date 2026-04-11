@@ -116,6 +116,15 @@
 /* Hydration error suppression */
 [data-hydration-error] { display: none !important; }
 
+/* Hide scrollbar but keep scrolling — used on tab bars */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ── Mobile Utilities ──────────────────────────────────────── */
 
 /* ── App shell: dynamic viewport height for dashboard/settings ── */
