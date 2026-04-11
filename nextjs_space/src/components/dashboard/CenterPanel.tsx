@@ -15,6 +15,7 @@ import { TeamsView } from './TeamsView';
 import { GoalsView } from './GoalsView';
 import { JobBoardView } from './JobBoardView';
 import { ExtensionsView } from './ExtensionsView';
+import { MarketplaceView } from './MarketplaceView';
 
 interface CenterPanelProps {
   activeTab: CenterTab;
@@ -39,6 +40,7 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'connections', label: 'Connections', icon: '🔗' },
   { id: 'teams', label: 'Teams', icon: '🏢' },
   { id: 'jobs', label: 'Jobs', icon: '💼' },
+  { id: 'marketplace', label: 'Marketplace', icon: '🏪' },
 ];
 
 const messagesTabs: { id: CenterTab; label: string; icon: string }[] = [
@@ -183,6 +185,7 @@ export function CenterPanel({ activeTab, onTabChange }: CenterPanelProps) {
         {activeTab === 'teams' && <TeamsView />}
         {activeTab === 'goals' && <GoalsView />}
         {activeTab === 'jobs' && <JobBoardView />}
+        {activeTab === 'marketplace' && <MarketplaceView />}
         {activeTab === 'extensions' && <ExtensionsView />}
       </div>
     </div>

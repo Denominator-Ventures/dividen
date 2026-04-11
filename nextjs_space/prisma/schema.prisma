@@ -57,6 +57,9 @@ model User {
   projectMemberships   ProjectMember[]
   goals                Goal[]
   agentExtensions      AgentExtension[]
+  marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
+  marketplaceSubs      MarketplaceSubscription[] @relation("MarketplaceSubscriptions")
+  marketplaceExecs     MarketplaceExecution[]   @relation("MarketplaceExecutions")
 
   @@map("users")
 }
@@ -1233,4 +1236,123 @@ model TelemetryEvent {
   @@index([createdAt])
   @@index([path])
   @@map("telemetry_events")
+}
+
+// ─── Agent Marketplace ──────────────────────────────────────────────────────────
+
+model MarketplaceAgent {
+  id              String    @id @default(cuid())
+  name            String
+  slug            String    @unique
+  description     String    @db.Text
+  longDescription String?   @db.Text  // rich markdown
+  endpointUrl     String    // where the agent listens
+  authMethod      String    @default("bearer") // "bearer" | "api_key" | "none" | "header"
+  authHeader      String?   // custom header name if authMethod = "header"
+  authToken       String?   // encrypted token / key for calling the agent
+
+  // Developer info
+  developerId     String
+  developer       User      @relation("MarketplaceAgentsListed", fields: [developerId], references: [id], onDelete: Cascade)
+  developerName   String    // display name
+  developerUrl    String?   // website / github
+
+  // Capabilities
+  category        String    @default("general") // "research" | "coding" | "writing" | "analysis" | "operations" | "creative" | "general"
+  tags            String?   @db.Text  // JSON array of tags
+  inputFormat     String    @default("text") // "text" | "json" | "a2a"
+  outputFormat    String    @default("text") // "text" | "json" | "a2a"
+  samplePrompts   String?   @db.Text  // JSON array of example prompts
+
+  // Pricing
+  pricingModel    String    @default("free") // "free" | "per_task" | "subscription" | "tiered"
+  pricePerTask    Float?    // $ per execution (if per_task)
+  subscriptionPrice Float?  // $ per month (if subscription)
+  taskLimit       Int?      // monthly task limit for subscription tier (null = unlimited)
+  pricingDetails  String?   @db.Text  // JSON for complex tiered pricing
+
+  // Status & stats
+  status          String    @default("pending") // "pending" | "active" | "disabled" | "suspended"
+  featured        Boolean   @default(false)
+  totalExecutions Int       @default(0)
+  avgResponseTime Float?    // ms
+  successRate     Float?    // 0-1
+  avgRating       Float     @default(0)
+  totalRatings    Int       @default(0)
+
+  // Protocol support
+  supportsA2A     Boolean   @default(false)
+  supportsMCP     Boolean   @default(false)
+  agentCardUrl    String?   // URL to .well-known/agent-card.json
+
+  subscriptions   MarketplaceSubscription[]
+  executions      MarketplaceExecution[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([developerId])
+  @@index([status])
+  @@index([category])
+  @@index([featured])
+  @@index([pricingModel])
+  @@index([createdAt])
+  @@map("marketplace_agents")
+}
+
+model MarketplaceSubscription {
+  id              String    @id @default(cuid())
+  agentId         String
+  agent           MarketplaceAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation("MarketplaceSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  status          String    @default("active") // "active" | "cancelled" | "expired" | "paused"
+  tier            String    @default("standard") // "standard" | "pro" | "enterprise"
+  tasksUsed       Int       @default(0)
+  taskLimit       Int?      // null = unlimited
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime?
+  cancelledAt     DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([agentId, userId])
+  @@index([agentId])
+  @@index([userId])
+  @@index([status])
+  @@map("marketplace_subscriptions")
+}
+
+model MarketplaceExecution {
+  id              String    @id @default(cuid())
+  agentId         String
+  agent           MarketplaceAgent @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation("MarketplaceExecutions", fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId  String?   // if execution was against a subscription
+
+  // Task details
+  taskInput       String    @db.Text  // what the user sent
+  taskOutput      String?   @db.Text  // what came back
+  status          String    @default("pending") // "pending" | "running" | "completed" | "failed" | "timeout"
+  errorMessage    String?   @db.Text
+
+  // Performance
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  responseTimeMs  Int?
+  
+  // Feedback
+  rating          Int?      // 1-5
+  feedback        String?   @db.Text
+
+  createdAt       DateTime  @default(now())
+
+  @@index([agentId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("marketplace_executions")
 }

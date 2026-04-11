@@ -1,0 +1,992 @@
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { cn } from '@/lib/utils';
+
+/* ── Types ─────────────────────────────────────────────────── */
+
+interface MarketplaceAgent {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  longDescription?: string;
+  category: string;
+  tags?: string;
+  pricingModel: string;
+  pricePerTask?: number | null;
+  subscriptionPrice?: number | null;
+  taskLimit?: number | null;
+  status: string;
+  featured: boolean;
+  totalExecutions: number;
+  avgRating: number;
+  totalRatings: number;
+  avgResponseTime?: number | null;
+  successRate?: number | null;
+  developerName: string;
+  developerUrl?: string | null;
+  supportsA2A: boolean;
+  supportsMCP: boolean;
+  inputFormat: string;
+  outputFormat: string;
+  createdAt: string;
+  _count?: { subscriptions: number };
+  // Detail fields
+  isOwner?: boolean;
+  subscription?: any;
+  recentExecutions?: Execution[];
+  endpointUrl?: string;
+  authMethod?: string;
+  samplePrompts?: string;
+  pricingDetails?: string;
+}
+
+interface Execution {
+  id: string;
+  taskInput: string;
+  taskOutput?: string | null;
+  status: string;
+  responseTimeMs?: number | null;
+  rating?: number | null;
+  createdAt: string;
+  completedAt?: string | null;
+}
+
+type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents';
+
+/* ── Constants ─────────────────────────────────────────────── */
+
+const CATEGORIES = [
+  { id: 'all', label: 'All', icon: '🌐' },
+  { id: 'research', label: 'Research', icon: '🔍' },
+  { id: 'coding', label: 'Coding', icon: '💻' },
+  { id: 'writing', label: 'Writing', icon: '✍️' },
+  { id: 'analysis', label: 'Analysis', icon: '📊' },
+  { id: 'operations', label: 'Ops', icon: '⚙️' },
+  { id: 'creative', label: 'Creative', icon: '🎨' },
+  { id: 'general', label: 'General', icon: '🤖' },
+];
+
+const PRICING_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'free', label: 'Free' },
+  { id: 'per_task', label: 'Per Task' },
+  { id: 'subscription', label: 'Subscription' },
+];
+
+const PRICING_BADGES: Record<string, { label: string; className: string }> = {
+  free: { label: 'Free', className: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' },
+  per_task: { label: 'Per Task', className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
+  subscription: { label: 'Subscription', className: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
+  tiered: { label: 'Tiered', className: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+};
+
+const CATEGORY_COLORS: Record<string, string> = {
+  research: 'text-blue-400',
+  coding: 'text-green-400',
+  writing: 'text-purple-400',
+  analysis: 'text-amber-400',
+  operations: 'text-red-400',
+  creative: 'text-pink-400',
+  general: 'text-zinc-400',
+};
+
+/* ── Component ─────────────────────────────────────────────── */
+
+export function MarketplaceView() {
+  const [view, setView] = useState<ViewMode>('browse');
+  const [agents, setAgents] = useState<MarketplaceAgent[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<MarketplaceAgent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('all');
+  const [pricing, setPricing] = useState('all');
+  const [sort, setSort] = useState('popular');
+  const [total, setTotal] = useState(0);
+
+  // Execution state
+  const [taskInput, setTaskInput] = useState('');
+  const [executing, setExecuting] = useState(false);
+  const [executionResult, setExecutionResult] = useState<any>(null);
+
+  // Registration form
+  const [regForm, setRegForm] = useState({
+    name: '', description: '', longDescription: '', endpointUrl: '',
+    authMethod: 'bearer', authToken: '', authHeader: '',
+    developerName: '', developerUrl: '',
+    category: 'general', tags: '',
+    inputFormat: 'text', outputFormat: 'text',
+    samplePrompts: '',
+    pricingModel: 'free', pricePerTask: '', subscriptionPrice: '', taskLimit: '',
+    supportsA2A: false, supportsMCP: false, agentCardUrl: '',
+  });
+  const [registering, setRegistering] = useState(false);
+  const [regError, setRegError] = useState('');
+
+  /* ── Fetch agents ─────────────────────────────────────────── */
+
+  const fetchAgents = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (category !== 'all') params.set('category', category);
+      if (pricing !== 'all') params.set('pricing', pricing);
+      if (search) params.set('search', search);
+      params.set('sort', sort);
+
+      const res = await fetch(`/api/marketplace?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAgents(data.agents);
+        setTotal(data.total);
+      }
+    } catch (e) {
+      console.error('Failed to fetch marketplace agents:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [category, pricing, search, sort]);
+
+  useEffect(() => {
+    if (view === 'browse' || view === 'my_agents') {
+      fetchAgents();
+    }
+  }, [fetchAgents, view]);
+
+  /* ── Fetch agent detail ──────────────────────────────────── */
+
+  const openDetail = async (agentId: string) => {
+    try {
+      const res = await fetch(`/api/marketplace/${agentId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setSelectedAgent(data);
+        setView('detail');
+        setTaskInput('');
+        setExecutionResult(null);
+      }
+    } catch (e) {
+      console.error('Failed to fetch agent detail:', e);
+    }
+  };
+
+  /* ── Execute task ─────────────────────────────────────────── */
+
+  const executeTask = async () => {
+    if (!selectedAgent || !taskInput.trim() || executing) return;
+    setExecuting(true);
+    setExecutionResult(null);
+    try {
+      const res = await fetch(`/api/marketplace/${selectedAgent.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: taskInput }),
+      });
+      const data = await res.json();
+      setExecutionResult(data);
+    } catch (e: any) {
+      setExecutionResult({ status: 'failed', error: e.message });
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  /* ── Subscribe / Unsubscribe ─────────────────────────────── */
+
+  const toggleSubscription = async () => {
+    if (!selectedAgent) return;
+    try {
+      if (selectedAgent.subscription?.status === 'active') {
+        await fetch(`/api/marketplace/${selectedAgent.id}/subscribe`, { method: 'DELETE' });
+      } else {
+        await fetch(`/api/marketplace/${selectedAgent.id}/subscribe`, { method: 'POST' });
+      }
+      // Refresh detail
+      openDetail(selectedAgent.id);
+    } catch (e) {
+      console.error('Subscription error:', e);
+    }
+  };
+
+  /* ── Rate execution ──────────────────────────────────────── */
+
+  const rateExecution = async (executionId: string, rating: number) => {
+    if (!selectedAgent) return;
+    try {
+      await fetch(`/api/marketplace/${selectedAgent.id}/rate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ executionId, rating }),
+      });
+      openDetail(selectedAgent.id);
+    } catch (e) {
+      console.error('Rating error:', e);
+    }
+  };
+
+  /* ── Register agent ──────────────────────────────────────── */
+
+  const submitRegistration = async () => {
+    setRegistering(true);
+    setRegError('');
+    try {
+      const payload: any = {
+        ...regForm,
+        tags: regForm.tags ? regForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        samplePrompts: regForm.samplePrompts ? regForm.samplePrompts.split('\n').filter(Boolean) : [],
+      };
+      const res = await fetch('/api/marketplace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        setRegError(err.error || 'Registration failed');
+        return;
+      }
+      const agent = await res.json();
+      setRegForm({
+        name: '', description: '', longDescription: '', endpointUrl: '',
+        authMethod: 'bearer', authToken: '', authHeader: '',
+        developerName: '', developerUrl: '',
+        category: 'general', tags: '',
+        inputFormat: 'text', outputFormat: 'text',
+        samplePrompts: '',
+        pricingModel: 'free', pricePerTask: '', subscriptionPrice: '', taskLimit: '',
+        supportsA2A: false, supportsMCP: false, agentCardUrl: '',
+      });
+      openDetail(agent.id);
+    } catch (e: any) {
+      setRegError(e.message);
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  /* ── Helpers ──────────────────────────────────────────────── */
+
+  const formatPrice = (agent: MarketplaceAgent) => {
+    if (agent.pricingModel === 'free') return 'Free';
+    if (agent.pricingModel === 'per_task' && agent.pricePerTask) return `$${agent.pricePerTask}/task`;
+    if (agent.pricingModel === 'subscription' && agent.subscriptionPrice) {
+      const limit = agent.taskLimit ? ` (${agent.taskLimit} tasks/mo)` : ' (unlimited)';
+      return `$${agent.subscriptionPrice}/mo${limit}`;
+    }
+    return agent.pricingModel;
+  };
+
+  const parseTags = (tags?: string | null): string[] => {
+    if (!tags) return [];
+    try { return JSON.parse(tags); } catch { return []; }
+  };
+
+  const parseSamplePrompts = (sp?: string | null): string[] => {
+    if (!sp) return [];
+    try { return JSON.parse(sp); } catch { return []; }
+  };
+
+  const stars = (rating: number) => {
+    const full = Math.floor(rating);
+    const half = rating - full >= 0.5;
+    return '★'.repeat(full) + (half ? '½' : '') + '☆'.repeat(5 - full - (half ? 1 : 0));
+  };
+
+  /* ── Render: Browse ──────────────────────────────────────── */
+
+  const renderBrowse = () => (
+    <div className="space-y-4">
+      {/* Search + Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px]">
+          <input
+            type="text"
+            placeholder="Search agents..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 pl-9 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+          />
+          <span className="absolute left-3 top-2.5 text-white/30">🔍</span>
+        </div>
+        <select
+          value={sort}
+          onChange={e => setSort(e.target.value)}
+          className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none"
+        >
+          <option value="popular">Most Popular</option>
+          <option value="rating">Highest Rated</option>
+          <option value="newest">Newest</option>
+        </select>
+      </div>
+
+      {/* Category chips */}
+      <div className="flex flex-wrap gap-2">
+        {CATEGORIES.map(cat => (
+          <button
+            key={cat.id}
+            onClick={() => setCategory(cat.id)}
+            className={cn(
+              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
+              category === cat.id
+                ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
+                : 'bg-white/5 text-white/50 border-white/10 hover:border-white/20'
+            )}
+          >
+            {cat.icon} {cat.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Pricing chips */}
+      <div className="flex gap-2">
+        {PRICING_FILTERS.map(p => (
+          <button
+            key={p.id}
+            onClick={() => setPricing(p.id)}
+            className={cn(
+              'px-3 py-1 rounded-full text-xs border transition-all',
+              pricing === p.id
+                ? 'bg-white/10 text-white/80 border-white/20'
+                : 'bg-white/3 text-white/40 border-white/8 hover:border-white/15'
+            )}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Results count */}
+      <div className="text-xs text-white/40">
+        {loading ? 'Loading...' : `${total} agent${total !== 1 ? 's' : ''} found`}
+      </div>
+
+      {/* Agent Grid */}
+      {loading ? (
+        <div className="text-center py-12 text-white/30">Loading marketplace...</div>
+      ) : agents.length === 0 ? (
+        <div className="text-center py-12">
+          <div className="text-3xl mb-2">🏪</div>
+          <div className="text-white/50 text-sm">No agents found</div>
+          <div className="text-white/30 text-xs mt-1">Try adjusting your filters or be the first to list one</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {agents.map(agent => (
+            <button
+              key={agent.id}
+              onClick={() => openDetail(agent.id)}
+              className="text-left bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.12] rounded-xl p-4 transition-all group"
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={cn('text-lg', CATEGORY_COLORS[agent.category] || 'text-white/60')}>
+                      {CATEGORIES.find(c => c.id === agent.category)?.icon || '🤖'}
+                    </span>
+                    <h3 className="font-medium text-white/90 truncate group-hover:text-brand-400 transition-colors">
+                      {agent.name}
+                    </h3>
+                    {agent.featured && <span className="text-xs">⭐</span>}
+                  </div>
+                  <div className="text-xs text-white/40 mt-0.5">by {agent.developerName}</div>
+                </div>
+                <div className={cn(
+                  'px-2 py-0.5 rounded-full text-[10px] font-medium border whitespace-nowrap',
+                  PRICING_BADGES[agent.pricingModel]?.className || 'bg-white/10 text-white/50'
+                )}>
+                  {formatPrice(agent)}
+                </div>
+              </div>
+
+              <p className="text-xs text-white/50 line-clamp-2 mb-3">{agent.description}</p>
+
+              {/* Tags */}
+              {parseTags(agent.tags).length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {parseTags(agent.tags).slice(0, 4).map((tag, i) => (
+                    <span key={i} className="px-1.5 py-0.5 bg-white/5 rounded text-[10px] text-white/40">{tag}</span>
+                  ))}
+                  {parseTags(agent.tags).length > 4 && (
+                    <span className="text-[10px] text-white/30">+{parseTags(agent.tags).length - 4}</span>
+                  )}
+                </div>
+              )}
+
+              {/* Stats row */}
+              <div className="flex items-center gap-3 text-[10px] text-white/35">
+                <span>🚀 {agent.totalExecutions} runs</span>
+                {agent.totalRatings > 0 && (
+                  <span className="text-amber-400/70">{stars(agent.avgRating)} ({agent.totalRatings})</span>
+                )}
+                {agent.avgResponseTime && (
+                  <span>⚡ {agent.avgResponseTime < 1000 ? `${agent.avgResponseTime}ms` : `${(agent.avgResponseTime / 1000).toFixed(1)}s`}</span>
+                )}
+                {agent.successRate != null && (
+                  <span>✅ {Math.round(agent.successRate * 100)}%</span>
+                )}
+                {agent.supportsA2A && <span className="text-blue-400/60">A2A</span>}
+                {agent.supportsMCP && <span className="text-green-400/60">MCP</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  /* ── Render: Detail ──────────────────────────────────────── */
+
+  const renderDetail = () => {
+    if (!selectedAgent) return null;
+    const a = selectedAgent;
+    const samples = parseSamplePrompts(a.samplePrompts);
+    const tags = parseTags(a.tags);
+    const hasSubscription = a.subscription?.status === 'active';
+    const needsSubscription = a.pricingModel === 'subscription' && !hasSubscription;
+
+    return (
+      <div className="space-y-4">
+        {/* Back button */}
+        <button
+          onClick={() => { setView('browse'); setSelectedAgent(null); }}
+          className="text-xs text-white/40 hover:text-white/60 transition-colors"
+        >
+          ← Back to marketplace
+        </button>
+
+        {/* Header */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">{CATEGORIES.find(c => c.id === a.category)?.icon || '🤖'}</span>
+                <h2 className="text-lg font-semibold text-white/90">{a.name}</h2>
+                {a.featured && <span className="text-sm">⭐ Featured</span>}
+              </div>
+              <div className="text-xs text-white/40 mt-1">
+                by {a.developerUrl ? <a href={a.developerUrl} target="_blank" rel="noopener" className="text-brand-400 hover:underline">{a.developerName}</a> : a.developerName}
+              </div>
+            </div>
+            <div className={cn(
+              'px-3 py-1 rounded-full text-xs font-medium border',
+              PRICING_BADGES[a.pricingModel]?.className
+            )}>
+              {formatPrice(a)}
+            </div>
+          </div>
+
+          <p className="text-sm text-white/60 mb-4">{a.description}</p>
+
+          {/* Stats */}
+          <div className="flex flex-wrap gap-4 text-xs text-white/40">
+            <span>🚀 {a.totalExecutions} executions</span>
+            {a.totalRatings > 0 && (
+              <span className="text-amber-400/70">{stars(a.avgRating)} {a.avgRating.toFixed(1)} ({a.totalRatings} ratings)</span>
+            )}
+            {a.avgResponseTime && <span>⚡ Avg {a.avgResponseTime < 1000 ? `${a.avgResponseTime}ms` : `${(a.avgResponseTime / 1000).toFixed(1)}s`}</span>}
+            {a.successRate != null && <span>✅ {Math.round(a.successRate * 100)}% success</span>}
+            <span>📊 {a._count?.subscriptions || 0} subscribers</span>
+          </div>
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {tags.map((tag, i) => (
+                <span key={i} className="px-2 py-0.5 bg-white/5 rounded-full text-[11px] text-white/50">{tag}</span>
+              ))}
+            </div>
+          )}
+
+          {/* Protocol badges */}
+          <div className="flex gap-2 mt-3">
+            {a.supportsA2A && <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded text-[10px]">A2A Compatible</span>}
+            {a.supportsMCP && <span className="px-2 py-0.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded text-[10px]">MCP Compatible</span>}
+            <span className="px-2 py-0.5 bg-white/5 text-white/40 border border-white/10 rounded text-[10px]">In: {a.inputFormat} → Out: {a.outputFormat}</span>
+          </div>
+
+          {/* Subscription button for subscription agents */}
+          {a.pricingModel === 'subscription' && !a.isOwner && (
+            <div className="mt-4">
+              <button
+                onClick={toggleSubscription}
+                className={cn(
+                  'px-4 py-2 rounded-lg text-sm font-medium transition-all',
+                  hasSubscription
+                    ? 'bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30'
+                    : 'bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30'
+                )}
+              >
+                {hasSubscription ? '✕ Cancel Subscription' : '✓ Subscribe'}
+              </button>
+              {hasSubscription && a.subscription && (
+                <div className="text-xs text-white/30 mt-1">
+                  {a.subscription.tasksUsed}{a.subscription.taskLimit ? `/${a.subscription.taskLimit}` : ''} tasks used this period
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Long description */}
+        {a.longDescription && (
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white/70 mb-2">About</h3>
+            <div className="text-xs text-white/50 whitespace-pre-wrap">{a.longDescription}</div>
+          </div>
+        )}
+
+        {/* Execute Task */}
+        <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+          <h3 className="text-sm font-medium text-white/70 mb-3">🚀 Execute Task</h3>
+
+          {needsSubscription ? (
+            <div className="text-xs text-amber-400/70 bg-amber-500/10 border border-amber-500/20 rounded-lg p-3">
+              Subscribe to this agent to execute tasks.
+            </div>
+          ) : (
+            <>
+              {/* Sample prompts */}
+              {samples.length > 0 && (
+                <div className="mb-3">
+                  <div className="text-[10px] text-white/30 mb-1.5">Try a sample:</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {samples.map((s, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setTaskInput(s)}
+                        className="px-2 py-1 bg-white/5 hover:bg-white/10 border border-white/10 rounded text-[10px] text-white/50 transition-all"
+                      >
+                        {s.length > 60 ? s.slice(0, 60) + '...' : s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <textarea
+                  value={taskInput}
+                  onChange={e => setTaskInput(e.target.value)}
+                  placeholder="Describe your task..."
+                  rows={3}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+                />
+              </div>
+              <button
+                onClick={executeTask}
+                disabled={!taskInput.trim() || executing}
+                className={cn(
+                  'mt-2 px-4 py-2 rounded-lg text-sm font-medium transition-all w-full',
+                  executing
+                    ? 'bg-white/5 text-white/30 cursor-wait'
+                    : 'bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30'
+                )}
+              >
+                {executing ? '⏳ Executing...' : '▶ Run Task'}
+              </button>
+            </>
+          )}
+
+          {/* Execution result */}
+          {executionResult && (
+            <div className={cn(
+              'mt-3 rounded-lg border p-3',
+              executionResult.status === 'completed'
+                ? 'bg-emerald-500/5 border-emerald-500/20'
+                : 'bg-red-500/5 border-red-500/20'
+            )}>
+              <div className="flex items-center justify-between mb-2">
+                <span className={cn(
+                  'text-xs font-medium',
+                  executionResult.status === 'completed' ? 'text-emerald-400' : 'text-red-400'
+                )}>
+                  {executionResult.status === 'completed' ? '✓ Completed' : '✕ ' + (executionResult.status || 'Failed')}
+                </span>
+                {executionResult.responseTimeMs && (
+                  <span className="text-[10px] text-white/30">{executionResult.responseTimeMs}ms</span>
+                )}
+              </div>
+              {executionResult.output ? (
+                <div className="text-xs text-white/70 whitespace-pre-wrap max-h-64 overflow-y-auto bg-black/20 rounded p-2 font-mono">
+                  {executionResult.output}
+                </div>
+              ) : executionResult.error ? (
+                <div className="text-xs text-red-400/70">{executionResult.error}</div>
+              ) : null}
+
+              {/* Rate */}
+              {executionResult.status === 'completed' && executionResult.executionId && (
+                <div className="mt-2 flex items-center gap-1">
+                  <span className="text-[10px] text-white/30 mr-1">Rate:</span>
+                  {[1, 2, 3, 4, 5].map(r => (
+                    <button
+                      key={r}
+                      onClick={() => rateExecution(executionResult.executionId, r)}
+                      className="text-sm hover:scale-110 transition-transform"
+                    >
+                      {r <= (executionResult.rating || 0) ? '★' : '☆'}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Recent Executions */}
+        {a.recentExecutions && a.recentExecutions.length > 0 && (
+          <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+            <h3 className="text-sm font-medium text-white/70 mb-3">📜 Your Recent Executions</h3>
+            <div className="space-y-2">
+              {a.recentExecutions.map(exec => (
+                <div key={exec.id} className="bg-white/[0.02] border border-white/[0.04] rounded-lg p-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-white/60 truncate flex-1">{exec.taskInput.slice(0, 80)}{exec.taskInput.length > 80 ? '...' : ''}</span>
+                    <span className={cn(
+                      'text-[10px] px-1.5 py-0.5 rounded ml-2',
+                      exec.status === 'completed' ? 'bg-emerald-500/20 text-emerald-400' :
+                      exec.status === 'failed' ? 'bg-red-500/20 text-red-400' :
+                      'bg-white/10 text-white/40'
+                    )}>
+                      {exec.status}
+                    </span>
+                  </div>
+                  {exec.taskOutput && (
+                    <div className="text-[10px] text-white/40 mt-1 line-clamp-2">{exec.taskOutput}</div>
+                  )}
+                  <div className="flex items-center gap-2 mt-1 text-[10px] text-white/25">
+                    {exec.responseTimeMs && <span>{exec.responseTimeMs}ms</span>}
+                    {exec.rating && <span className="text-amber-400/60">{'★'.repeat(exec.rating)}</span>}
+                    <span>{new Date(exec.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  /* ── Render: Register ────────────────────────────────────── */
+
+  const renderRegister = () => (
+    <div className="space-y-4">
+      <button
+        onClick={() => setView('browse')}
+        className="text-xs text-white/40 hover:text-white/60 transition-colors"
+      >
+        ← Back to marketplace
+      </button>
+
+      <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
+        <h2 className="text-lg font-semibold text-white/90 mb-1">🏗️ Register Your Agent</h2>
+        <p className="text-xs text-white/40 mb-4">List your agent on the DiviDen marketplace for others to discover and use.</p>
+
+        {regError && (
+          <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2 mb-4">{regError}</div>
+        )}
+
+        <div className="space-y-4">
+          {/* Basic info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] text-white/40 uppercase tracking-wider">Agent Name *</label>
+              <input
+                value={regForm.name}
+                onChange={e => setRegForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="My Research Agent"
+                className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-white/40 uppercase tracking-wider">Developer Name *</label>
+              <input
+                value={regForm.developerName}
+                onChange={e => setRegForm(p => ({ ...p, developerName: e.target.value }))}
+                placeholder="Your name or org"
+                className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-[10px] text-white/40 uppercase tracking-wider">Short Description *</label>
+            <input
+              value={regForm.description}
+              onChange={e => setRegForm(p => ({ ...p, description: e.target.value }))}
+              placeholder="One-liner about what your agent does"
+              className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+            />
+          </div>
+
+          <div>
+            <label className="text-[10px] text-white/40 uppercase tracking-wider">Detailed Description</label>
+            <textarea
+              value={regForm.longDescription}
+              onChange={e => setRegForm(p => ({ ...p, longDescription: e.target.value }))}
+              placeholder="Full description, capabilities, limitations... (Markdown supported)"
+              rows={4}
+              className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+            />
+          </div>
+
+          {/* Endpoint */}
+          <div className="border-t border-white/[0.06] pt-4">
+            <h3 className="text-sm font-medium text-white/60 mb-3">🔌 Connection</h3>
+            <div>
+              <label className="text-[10px] text-white/40 uppercase tracking-wider">Endpoint URL *</label>
+              <input
+                value={regForm.endpointUrl}
+                onChange={e => setRegForm(p => ({ ...p, endpointUrl: e.target.value }))}
+                placeholder="https://your-agent.example.com/api/execute"
+                className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 font-mono"
+              />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Auth Method</label>
+                <select
+                  value={regForm.authMethod}
+                  onChange={e => setRegForm(p => ({ ...p, authMethod: e.target.value }))}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none"
+                >
+                  <option value="none">None</option>
+                  <option value="bearer">Bearer Token</option>
+                  <option value="api_key">API Key</option>
+                  <option value="header">Custom Header</option>
+                </select>
+              </div>
+              {regForm.authMethod !== 'none' && (
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider">
+                    {regForm.authMethod === 'bearer' ? 'Bearer Token' : regForm.authMethod === 'api_key' ? 'API Key' : 'Token Value'}
+                  </label>
+                  <input
+                    type="password"
+                    value={regForm.authToken}
+                    onChange={e => setRegForm(p => ({ ...p, authToken: e.target.value }))}
+                    placeholder="sk-..."
+                    className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 font-mono"
+                  />
+                </div>
+              )}
+              {regForm.authMethod === 'header' && (
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider">Header Name</label>
+                  <input
+                    value={regForm.authHeader}
+                    onChange={e => setRegForm(p => ({ ...p, authHeader: e.target.value }))}
+                    placeholder="X-Custom-Key"
+                    className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 font-mono"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Category & Tags */}
+          <div className="border-t border-white/[0.06] pt-4">
+            <h3 className="text-sm font-medium text-white/60 mb-3">🏷️ Classification</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Category</label>
+                <select
+                  value={regForm.category}
+                  onChange={e => setRegForm(p => ({ ...p, category: e.target.value }))}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none"
+                >
+                  {CATEGORIES.filter(c => c.id !== 'all').map(c => (
+                    <option key={c.id} value={c.id}>{c.icon} {c.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Input Format</label>
+                <select
+                  value={regForm.inputFormat}
+                  onChange={e => setRegForm(p => ({ ...p, inputFormat: e.target.value }))}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none"
+                >
+                  <option value="text">Text</option>
+                  <option value="json">JSON</option>
+                  <option value="a2a">A2A Protocol</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Output Format</label>
+                <select
+                  value={regForm.outputFormat}
+                  onChange={e => setRegForm(p => ({ ...p, outputFormat: e.target.value }))}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none"
+                >
+                  <option value="text">Text</option>
+                  <option value="json">JSON</option>
+                  <option value="a2a">A2A Protocol</option>
+                </select>
+              </div>
+            </div>
+            <div className="mt-3">
+              <label className="text-[10px] text-white/40 uppercase tracking-wider">Tags (comma-separated)</label>
+              <input
+                value={regForm.tags}
+                onChange={e => setRegForm(p => ({ ...p, tags: e.target.value }))}
+                placeholder="research, summarization, academic, papers"
+                className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+              />
+            </div>
+            <div className="mt-3">
+              <label className="text-[10px] text-white/40 uppercase tracking-wider">Sample Prompts (one per line)</label>
+              <textarea
+                value={regForm.samplePrompts}
+                onChange={e => setRegForm(p => ({ ...p, samplePrompts: e.target.value }))}
+                placeholder={"Summarize this research paper\nFind recent publications on..."}
+                rows={3}
+                className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+              />
+            </div>
+          </div>
+
+          {/* Protocol support */}
+          <div className="flex gap-4">
+            <label className="flex items-center gap-2 text-xs text-white/50 cursor-pointer">
+              <input type="checkbox" checked={regForm.supportsA2A} onChange={e => setRegForm(p => ({ ...p, supportsA2A: e.target.checked }))} className="rounded" />
+              A2A Compatible
+            </label>
+            <label className="flex items-center gap-2 text-xs text-white/50 cursor-pointer">
+              <input type="checkbox" checked={regForm.supportsMCP} onChange={e => setRegForm(p => ({ ...p, supportsMCP: e.target.checked }))} className="rounded" />
+              MCP Compatible
+            </label>
+          </div>
+
+          {/* Pricing */}
+          <div className="border-t border-white/[0.06] pt-4">
+            <h3 className="text-sm font-medium text-white/60 mb-3">💰 Pricing</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">Pricing Model</label>
+                <select
+                  value={regForm.pricingModel}
+                  onChange={e => setRegForm(p => ({ ...p, pricingModel: e.target.value }))}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/70 focus:outline-none"
+                >
+                  <option value="free">Free</option>
+                  <option value="per_task">Per Task</option>
+                  <option value="subscription">Subscription</option>
+                </select>
+              </div>
+              {regForm.pricingModel === 'per_task' && (
+                <div>
+                  <label className="text-[10px] text-white/40 uppercase tracking-wider">Price Per Task ($)</label>
+                  <input
+                    type="number" step="0.01" min="0"
+                    value={regForm.pricePerTask}
+                    onChange={e => setRegForm(p => ({ ...p, pricePerTask: e.target.value }))}
+                    placeholder="1.00"
+                    className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                  />
+                </div>
+              )}
+              {regForm.pricingModel === 'subscription' && (
+                <>
+                  <div>
+                    <label className="text-[10px] text-white/40 uppercase tracking-wider">Monthly Price ($)</label>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={regForm.subscriptionPrice}
+                      onChange={e => setRegForm(p => ({ ...p, subscriptionPrice: e.target.value }))}
+                      placeholder="29.99"
+                      className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-white/40 uppercase tracking-wider">Task Limit (blank = unlimited)</label>
+                    <input
+                      type="number" min="0"
+                      value={regForm.taskLimit}
+                      onChange={e => setRegForm(p => ({ ...p, taskLimit: e.target.value }))}
+                      placeholder="100"
+                      className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Developer URL */}
+          <div>
+            <label className="text-[10px] text-white/40 uppercase tracking-wider">Developer Website / GitHub</label>
+            <input
+              value={regForm.developerUrl}
+              onChange={e => setRegForm(p => ({ ...p, developerUrl: e.target.value }))}
+              placeholder="https://github.com/your-org"
+              className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+            />
+          </div>
+
+          <button
+            onClick={submitRegistration}
+            disabled={registering || !regForm.name || !regForm.description || !regForm.endpointUrl || !regForm.developerName}
+            className={cn(
+              'w-full py-2.5 rounded-lg text-sm font-medium transition-all',
+              registering
+                ? 'bg-white/5 text-white/30 cursor-wait'
+                : 'bg-brand-500/20 text-brand-400 border border-brand-500/30 hover:bg-brand-500/30'
+            )}
+          >
+            {registering ? 'Registering...' : '🚀 Register Agent'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  /* ── Main Render ─────────────────────────────────────────── */
+
+  return (
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Header */}
+      <div className="flex-shrink-0 p-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-base font-semibold text-white/90">🏪 Agent Marketplace</h1>
+            <p className="text-[10px] text-white/35 mt-0.5">Discover, connect, and execute tasks with community agents</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setView('browse')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                view === 'browse'
+                  ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                  : 'bg-white/5 text-white/50 hover:bg-white/10'
+              )}
+            >
+              Browse
+            </button>
+            <button
+              onClick={() => setView('register')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                view === 'register'
+                  ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
+                  : 'bg-white/5 text-white/50 hover:bg-white/10'
+              )}
+            >
+              + List Agent
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4">
+        {view === 'browse' && renderBrowse()}
+        {view === 'detail' && renderDetail()}
+        {view === 'register' && renderRegister()}
+      </div>
+    </div>
+  );
+}
