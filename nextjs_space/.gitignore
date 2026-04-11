@@ -1,0 +1,41 @@
+# ─── Environment & Secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ─── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Build Output ──────────────────────────────────────────────────────────────
+.next/
+.build/
+out/
+dist/
+build/
+*.tgz
+
+# ─── IDE / OS ──────────────────────────────────────────────────────────────────
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ─── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Prisma ────────────────────────────────────────────────────────────────────
+# Keep schema.prisma and migrations tracked
+# Ignore generated client (it's in node_modules)
+
+# ─── Testing ───────────────────────────────────────────────────────────────────
+coverage/
+
+# ─── System ────────────────────────────────────────────────────────────────────
+.abacus.donotdelete
+yarn.lock
+package.json
