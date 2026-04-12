@@ -373,8 +373,18 @@ export default function SettingsPage() {
               <ApiKeyManager
                 apiKeys={data?.apiKeys || []}
                 onKeyAdded={(key) => {
+                  setData((prev) => {
+                    if (!prev) return prev;
+                    // Deactivate old keys for the same provider (mirrors backend behavior)
+                    const updated = prev.apiKeys.map(k =>
+                      k.provider === key.provider ? { ...k, isActive: false } : k
+                    );
+                    return { ...prev, apiKeys: [...updated, key] };
+                  });
+                }}
+                onKeyDeleted={(keyId) => {
                   setData((prev) =>
-                    prev ? { ...prev, apiKeys: [...prev.apiKeys, key] } : prev
+                    prev ? { ...prev, apiKeys: prev.apiKeys.filter(k => k.id !== keyId) } : prev
                   );
                 }}
               />

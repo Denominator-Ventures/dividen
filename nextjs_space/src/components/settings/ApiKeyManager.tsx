@@ -13,9 +13,10 @@ interface ApiKey {
 interface ApiKeyManagerProps {
   apiKeys: ApiKey[];
   onKeyAdded: (key: ApiKey) => void;
+  onKeyDeleted?: (keyId: string) => void;
 }
 
-export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
+export function ApiKeyManager({ apiKeys, onKeyAdded, onKeyDeleted }: ApiKeyManagerProps) {
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState({
     provider: 'openai',
@@ -23,6 +24,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
     label: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [autoDetected, setAutoDetected] = useState(false);
 
@@ -76,6 +78,25 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
     }
   };
 
+  const handleDelete = async (keyId: string) => {
+    if (!confirm('Remove this API key? Divi will no longer be able to use it.')) return;
+    setDeletingId(keyId);
+    try {
+      const res = await fetch(`/api/settings?id=${keyId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        onKeyDeleted?.(keyId);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Only show active keys (inactive ones are superseded)
+  const activeKeys = apiKeys.filter(k => k.isActive);
+
   return (
     <div className="space-y-4">
       <p className="text-sm text-[var(--text-secondary)]">
@@ -84,19 +105,15 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
       </p>
 
       {/* Existing Keys */}
-      {apiKeys.length > 0 && (
+      {activeKeys.length > 0 && (
         <div className="space-y-2">
-          {apiKeys.map((key) => (
+          {activeKeys.map((key) => (
             <div
               key={key.id}
               className="flex items-center justify-between bg-[var(--bg-surface)] rounded-lg p-3"
             >
               <div className="flex items-center gap-3">
-                <span
-                  className={`w-2 h-2 rounded-full ${
-                    key.isActive ? 'bg-green-400' : 'bg-gray-500'
-                  }`}
-                />
+                <span className="w-2 h-2 rounded-full bg-green-400" />
                 <div>
                   <div className="text-sm font-medium capitalize">
                     {key.provider}
@@ -107,19 +124,18 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
                     )}
                   </div>
                   <div className="text-xs text-[var(--text-muted)]">
-                    •••••••• (hidden)
+                    •••••••• (hidden) · Active
                   </div>
                 </div>
               </div>
-              <span
-                className={`text-xs px-2 py-0.5 rounded-full ${
-                  key.isActive
-                    ? 'bg-green-500/10 text-green-400'
-                    : 'bg-gray-500/10 text-gray-400'
-                }`}
+              <button
+                onClick={() => handleDelete(key.id)}
+                disabled={deletingId === key.id}
+                className="text-xs px-2 py-1 rounded text-red-400 hover:bg-red-400/10 transition-colors disabled:opacity-50"
+                title="Remove key"
               >
-                {key.isActive ? 'Active' : 'Inactive'}
-              </span>
+                {deletingId === key.id ? '...' : '✕'}
+              </button>
             </div>
           ))}
         </div>
@@ -145,6 +161,9 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1">
               Paste your OpenAI or Anthropic API key — we&apos;ll auto-detect the provider.
+              {activeKeys.some(k => k.provider === form.provider) && (
+                <span className="text-amber-400"> Adding a new key will replace the existing {form.provider} key.</span>
+              )}
             </p>
           </div>
           <div>
@@ -195,7 +214,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded }: ApiKeyManagerProps) {
           className="btn-secondary text-sm"
           onClick={() => setAdding(true)}
         >
-          + Add API Key
+          {activeKeys.length > 0 ? '+ Replace / Add Key' : '+ Add API Key'}
         </button>
       )}
     </div>

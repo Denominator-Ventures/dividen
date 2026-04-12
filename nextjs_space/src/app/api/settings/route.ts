@@ -160,7 +160,7 @@ export async function PUT(request: NextRequest) {
   return NextResponse.json({ success: true });
 }
 
-// POST: Add API key
+// POST: Add API key (upsert — deactivates old keys for same provider first)
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -182,11 +182,18 @@ export async function POST(request: NextRequest) {
 
   const userId = (session.user as any).id;
 
+  // Deactivate any existing keys for this provider (same as onboarding flow)
+  await prisma.agentApiKey.updateMany({
+    where: { userId, provider: result.data.provider },
+    data: { isActive: false },
+  });
+
   const apiKey = await prisma.agentApiKey.create({
     data: {
       provider: result.data.provider,
       apiKey: result.data.apiKey,
       label: result.data.label,
+      isActive: true,
       user: { connect: { id: userId } },
     },
   });
@@ -197,6 +204,36 @@ export async function POST(request: NextRequest) {
       id: apiKey.id,
       provider: apiKey.provider,
       label: apiKey.label,
+      isActive: true,
     },
   });
+}
+
+// DELETE: Remove an API key
+export async function DELETE(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
+  }
+
+  const userId = (session.user as any).id;
+  const { searchParams } = new URL(request.url);
+  const keyId = searchParams.get('id');
+
+  if (!keyId) {
+    return NextResponse.json(
+      { success: false, error: 'Key ID is required' },
+      { status: 400 }
+    );
+  }
+
+  // Only delete keys belonging to this user
+  await prisma.agentApiKey.deleteMany({
+    where: { id: keyId, userId },
+  });
+
+  return NextResponse.json({ success: true });
 }
