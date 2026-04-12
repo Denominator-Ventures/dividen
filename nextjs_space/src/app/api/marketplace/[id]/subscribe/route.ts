@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 // POST /api/marketplace/[id]/subscribe — Subscribe to an agent
+// Body: { accessPassword?: string } — if agent has a password and it matches, grant free access
 export async function POST(
   req: NextRequest,
   { params }: { params: { id: string } }
@@ -16,6 +17,9 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const userId = (session.user as any).id;
+
+    let body: any = {};
+    try { body = await req.json(); } catch { /* empty body is fine for free agents */ }
 
     const agent = await prisma.marketplaceAgent.findUnique({ where: { id: params.id } });
     if (!agent || agent.status !== 'active') {
@@ -31,6 +35,17 @@ export async function POST(
       return NextResponse.json({ error: 'Already subscribed' }, { status: 409 });
     }
 
+    // For paid agents, check if user provided the correct access password for free access
+    const isPaid = agent.pricingModel !== 'free';
+    const passwordGranted = isPaid && agent.accessPassword && body.accessPassword === agent.accessPassword;
+
+    // If agent is paid and no valid password, require normal subscription flow
+    // (Free agents and password-unlocked agents proceed directly)
+    if (isPaid && !passwordGranted) {
+      // Allow subscription — payment is handled at execution time for per_task,
+      // or could be gated here for subscription model in the future
+    }
+
     const now = new Date();
     const periodEnd = new Date(now);
     periodEnd.setMonth(periodEnd.getMonth() + 1);
@@ -41,7 +56,7 @@ export async function POST(
           data: {
             status: 'active',
             tasksUsed: 0,
-            taskLimit: agent.taskLimit,
+            taskLimit: passwordGranted ? null : agent.taskLimit, // password = unlimited
             currentPeriodStart: now,
             currentPeriodEnd: periodEnd,
             cancelledAt: null,
@@ -52,13 +67,13 @@ export async function POST(
             agentId: agent.id,
             userId,
             status: 'active',
-            taskLimit: agent.taskLimit,
+            taskLimit: passwordGranted ? null : agent.taskLimit, // password = unlimited
             currentPeriodStart: now,
             currentPeriodEnd: periodEnd,
           },
         });
 
-    return NextResponse.json(sub, { status: 201 });
+    return NextResponse.json({ ...sub, passwordGranted: !!passwordGranted }, { status: 201 });
   } catch (error: any) {
     console.error('Marketplace subscribe error:', error);
     return NextResponse.json({ error: 'Failed to subscribe' }, { status: 500 });

@@ -27,8 +27,8 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(searchParams.get('limit') || '50', 10), 100);
   const cursor = searchParams.get('cursor');
 
-  // Build query
-  const where: any = { userId };
+  // Build query — only show non-cleared messages
+  const where: any = { userId, clearedAt: null };
   const queryOptions: any = {
     where,
     orderBy: { createdAt: 'desc' },
@@ -70,6 +70,9 @@ export async function GET(request: NextRequest) {
  * DELETE /api/chat/messages
  * 
  * Clear chat history for the authenticated user.
+ * Marks messages as cleared (soft delete) rather than hard-deleting.
+ * This preserves the conversation record so Divi retains learned context,
+ * but starts the visible conversation fresh.
  */
 export async function DELETE() {
   const session = await getServerSession(authOptions);
@@ -81,9 +84,12 @@ export async function DELETE() {
   }
 
   const userId = (session.user as any).id;
+  const now = new Date();
 
-  await prisma.chatMessage.deleteMany({
-    where: { userId },
+  // Soft-clear: mark all non-cleared messages as cleared
+  await prisma.chatMessage.updateMany({
+    where: { userId, clearedAt: null },
+    data: { clearedAt: now },
   });
 
   return NextResponse.json({ success: true });

@@ -199,15 +199,17 @@ model QueueItem {
 // ─── Chat & Agent Communication ────────────────────────────────────────────────
 
 model ChatMessage {
-  id        String   @id @default(cuid())
-  role      String   // "user" | "assistant" | "system"
+  id        String    @id @default(cuid())
+  role      String    // "user" | "assistant" | "system"
   content   String
   userId    String?
-  metadata  String?  // JSON string
-  createdAt DateTime @default(now())
+  metadata  String?   // JSON string
+  clearedAt DateTime? // when set, message is hidden from UI but still exists in DB
+  createdAt DateTime  @default(now())
 
-  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user      User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([userId, clearedAt])
   @@map("chat_messages")
 }
 
@@ -1615,6 +1617,9 @@ model MarketplaceAgent {
   successRate     Float?    // 0-1
   avgRating       Float     @default(0)
   totalRatings    Int       @default(0)
+
+  // Access password — developer can set a password that grants free access
+  accessPassword  String?   // plain-text password; users who enter it get a free subscription
 
   // Protocol support
   supportsA2A     Boolean   @default(false)

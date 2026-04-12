@@ -51,6 +51,9 @@ interface MarketplaceAgent {
   developerId?: string;
   version?: string;
   changelog?: string | null;
+  // Access password
+  accessPassword?: string | null; // only exposed to owner
+  hasAccessPassword?: boolean;
 }
 
 interface Execution {
@@ -204,6 +207,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
     inputFormat: 'text', outputFormat: 'text',
     samplePrompts: '',
     pricingModel: 'free', pricePerTask: '', subscriptionPrice: '', taskLimit: '',
+    accessPassword: '',
     supportsA2A: false, supportsMCP: false, agentCardUrl: '',
     // Agent Integration Kit
     taskTypes: '',
@@ -216,6 +220,8 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
   });
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState('');
+  const [accessPasswordInput, setAccessPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
 
   // Handle prefill from extensions/connections
   useEffect(() => {
@@ -322,6 +328,31 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
     }
   };
 
+  const unlockWithPassword = async () => {
+    if (!selectedAgent || !accessPasswordInput.trim()) return;
+    setPasswordError('');
+    try {
+      const res = await fetch(`/api/marketplace/${selectedAgent.id}/subscribe`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessPassword: accessPasswordInput.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPasswordError(data.error || 'Failed to unlock');
+        return;
+      }
+      if (data.passwordGranted) {
+        setAccessPasswordInput('');
+        openDetail(selectedAgent.id);
+      } else {
+        setPasswordError('Incorrect password');
+      }
+    } catch (e) {
+      setPasswordError('Failed to unlock agent');
+    }
+  };
+
   /* ── Install / Uninstall toggle ──────────────────────────── */
 
   const [installing, setInstalling] = useState(false);
@@ -369,6 +400,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
     try {
       const payload: any = {
         ...regForm,
+        accessPassword: regForm.accessPassword || null,
         tags: regForm.tags ? regForm.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
         samplePrompts: regForm.samplePrompts ? regForm.samplePrompts.split('\n').filter(Boolean) : [],
         // Agent Integration Kit
@@ -401,6 +433,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
         inputFormat: 'text', outputFormat: 'text',
         samplePrompts: '',
         pricingModel: 'free', pricePerTask: '', subscriptionPrice: '', taskLimit: '',
+        accessPassword: '',
         supportsA2A: false, supportsMCP: false, agentCardUrl: '',
         taskTypes: '', contextInstructions: '', requiredInputSchema: '',
         outputSchema: '', usageExamples: '', contextPreparation: '', executionNotes: '',
@@ -726,6 +759,48 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                 <div className="text-xs text-white/30 mt-1">
                   {a.subscription.tasksUsed}{a.subscription.taskLimit ? `/${a.subscription.taskLimit}` : ''} tasks used this period
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Owner: show access password */}
+          {a.isOwner && a.accessPassword && (
+            <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🔑</span>
+                <span className="text-xs font-medium text-white/50">Access Password:</span>
+                <code className="text-xs text-brand-400 bg-white/5 px-2 py-0.5 rounded font-mono">{a.accessPassword}</code>
+              </div>
+              <p className="text-[10px] text-white/30 mt-1">Share this with people you want to give free access to this agent.</p>
+            </div>
+          )}
+
+          {/* Password unlock — for agents with access passwords */}
+          {!a.isOwner && !hasSubscription && a.hasAccessPassword && (
+            <div className="mt-4 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">🔑</span>
+                <span className="text-xs font-medium text-white/60">Have an access password?</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={accessPasswordInput}
+                  onChange={e => { setAccessPasswordInput(e.target.value); setPasswordError(''); }}
+                  placeholder="Enter password"
+                  onKeyDown={e => e.key === 'Enter' && unlockWithPassword()}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                />
+                <button
+                  onClick={unlockWithPassword}
+                  disabled={!accessPasswordInput.trim()}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  Unlock Free Access
+                </button>
+              </div>
+              {passwordError && (
+                <p className="text-[10px] text-red-400 mt-1">{passwordError}</p>
               )}
             </div>
           )}
@@ -1390,6 +1465,20 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                 </>
               )}
             </div>
+          </div>
+
+          {/* Access Password */}
+          <div className="border-t border-white/[0.06] pt-4">
+            <h3 className="text-sm font-medium text-white/60 mb-1">🔑 Access Password</h3>
+            <p className="text-[10px] text-white/30 mb-3">
+              Set a password that you can share with people to give them free access to your agent — even if it&apos;s a paid agent. They enter the password when subscribing and skip payment entirely.
+            </p>
+            <input
+              value={regForm.accessPassword}
+              onChange={e => setRegForm(p => ({ ...p, accessPassword: e.target.value }))}
+              placeholder="Leave blank for no password access"
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+            />
           </div>
 
           {/* Developer URL */}

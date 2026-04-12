@@ -77,10 +77,13 @@ export async function POST(request: Request) {
   });
 
   // ── Build Message History ─────────────────────────────────────────────
+  // Use up to 50 recent non-cleared messages for context continuity.
+  // The thread continues as long as the user wants — clearing starts fresh
+  // but Divi still has underlying knowledge via system prompt + memory.
   const recentMessages = await prisma.chatMessage.findMany({
-    where: { userId },
+    where: { userId, clearedAt: null },
     orderBy: { createdAt: 'desc' },
-    take: 20,
+    take: 50,
   });
 
   const llmMessages: LLMMessage[] = [

@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
           supportsA2A: true, supportsMCP: true,
           inputFormat: true, outputFormat: true,
           taskTypes: true, contextInstructions: true,
+          accessPassword: true,
           createdAt: true,
           _count: { select: { subscriptions: true } },
         },
@@ -64,7 +65,14 @@ export async function GET(req: NextRequest) {
       prisma.marketplaceAgent.count({ where }),
     ]);
 
-    return NextResponse.json({ agents, total, limit, offset });
+    // Don't expose actual password — just whether one exists
+    const safeAgents = agents.map((a: any) => ({
+      ...a,
+      hasAccessPassword: !!a.accessPassword,
+      accessPassword: undefined,
+    }));
+
+    return NextResponse.json({ agents: safeAgents, total, limit, offset });
   } catch (error: any) {
     console.error('Marketplace browse error:', error);
     return NextResponse.json({ error: 'Failed to fetch agents' }, { status: 500 });
@@ -91,6 +99,8 @@ export async function POST(req: NextRequest) {
       // Agent Integration Kit
       taskTypes, contextInstructions, requiredInputSchema, outputSchema,
       usageExamples, contextPreparation, executionNotes,
+      // Access password
+      accessPassword,
       // Versioning
       version,
     } = body;
@@ -135,6 +145,7 @@ export async function POST(req: NextRequest) {
         supportsA2A: supportsA2A || false,
         supportsMCP: supportsMCP || false,
         agentCardUrl: agentCardUrl || null,
+        accessPassword: accessPassword || null,
         // Agent Integration Kit
         taskTypes: taskTypes ? JSON.stringify(taskTypes) : null,
         contextInstructions: contextInstructions || null,

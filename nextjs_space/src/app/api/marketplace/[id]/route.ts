@@ -44,13 +44,16 @@ export async function GET(
       },
     });
 
-    // Don't expose authToken to non-owners
+    // Don't expose authToken or accessPassword to non-owners
     const isOwner = agent.developerId === userId;
-    const { authToken, ...safeAgent } = agent;
+    const { authToken, accessPassword, ...safeAgent } = agent;
 
     return NextResponse.json({
       ...safeAgent,
       isOwner,
+      // Owner sees the actual password; others just see if one exists
+      accessPassword: isOwner ? accessPassword : undefined,
+      hasAccessPassword: !!accessPassword,
       subscription: subscription || null,
       recentExecutions,
     });
@@ -90,6 +93,8 @@ export async function PUT(
       'category', 'inputFormat', 'outputFormat',
       'pricingModel', 'pricePerTask', 'subscriptionPrice', 'taskLimit',
       'supportsA2A', 'supportsMCP', 'agentCardUrl', 'status',
+      // Access password
+      'accessPassword',
       // Agent Integration Kit (string fields)
       'contextInstructions', 'requiredInputSchema', 'outputSchema', 'executionNotes',
     ];

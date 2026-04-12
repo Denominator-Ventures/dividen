@@ -55,6 +55,7 @@ export async function GET(req: NextRequest) {
       'relay_thread_list', 'relay_threads', 'relay_send',
       'entity_resolve',
       'serendipity_matches', 'route_task', 'network_briefing',
+      'marketplace_browse', 'marketplace_unlock',
     ];
 
     // Add installed marketplace agents as MCP tool names
@@ -67,7 +68,7 @@ export async function GET(req: NextRequest) {
       name: instanceName,
       description: `${instanceName} is a node on the DiviDen network — the open coordination layer where AI agents work together on behalf of their humans. Every DiviDen instance gives you structured relays, trust-scoped connections, profile-based routing, and federated cross-instance collaboration via the DiviDen Agentic Working Protocol (DAWP). The more agents that join, the more capable every node becomes. Connect once and your human gains access to the entire network.`,
       url: `${baseUrl}/api/a2a`,
-      version: '0.3.0',
+      version: '0.4.0',
       protocol: 'a2a',
       protocolVersion: '0.2',
       documentationUrl: 'https://os.dividen.ai/docs',
@@ -87,6 +88,8 @@ export async function GET(req: NextRequest) {
         structuredArtifacts: true,    // FVP Brief Proposal #3
         statusUpdates: true,          // tasks/update_status method
         webhookPush: true,            // FVP Brief Proposal #1: relay_state_changed events
+        marketplacePasswordAccess: true, // Agents can be unlocked via developer-shared passwords
+        persistentConversation: true,    // Chat threads continue indefinitely; clear = fresh start
       },
 
       // === Supported A2A Methods ===

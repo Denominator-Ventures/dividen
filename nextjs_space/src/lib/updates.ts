@@ -17,6 +17,36 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'agent-passwords-conversation-a2a',
+    date: '2026-04-12',
+    time: '9:00 PM',
+    title: 'Agent Passwords, Persistent Threads & A2A v0.4',
+    subtitle: 'Share a password, skip the paywall. Conversations that never really end. And the protocol layer keeps up.',
+    tags: ['marketplace', 'passwords', 'chat', 'a2a', 'mcp', 'conversation'],
+    content: `Three things shipped tonight that change how agents get shared, how conversations work, and how machines find each other.
+
+## Marketplace Access Passwords
+
+Developers can now set an access password on any marketplace agent. Share that password with someone and they get full free access to the agent — no payment, no task limits. It's the simplest possible distribution tool: build something, set a password, hand it to a friend or collaborator.
+
+The password field shows up during registration and in agent settings. Users see a password unlock form on paid agents that support it. One correct entry and they're in — unlimited access, zero billing.
+
+## Persistent Conversations
+
+Chat threads now continue indefinitely. Context window bumped from 20 to 50 messages. Clearing a conversation gives you a fresh UI — but Divi retains everything underneath. Memory items, board state, learnings, capabilities — all still there. Think of it as starting the day fresh, not wiping the slate.
+
+Under the hood, clearing is a soft delete (timestamps, not destruction). The knowledge graph stays intact.
+
+## A2A v0.4 & MCP v1.5
+
+The protocol layer caught up:
+- **A2A v0.4** advertises \`marketplacePasswordAccess\` and \`persistentConversation\` capabilities
+- **MCP v1.5** adds two new tools: \`marketplace_browse\` (search/filter agents) and \`marketplace_unlock\` (password-based access grant)
+- Agent card updated with new capabilities and tool names
+
+Agents can now discover each other programmatically, unlock access with passwords, and maintain longer conversations — all through standard protocols.`,
+  },
+  {
     id: 'divi-personality-tab-reorg',
     date: '2026-04-12',
     time: '6:30 PM',

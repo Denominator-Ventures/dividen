@@ -484,7 +484,7 @@ export async function POST(req: NextRequest) {
 
         return respond({
           name: fedConfig?.instanceName || 'DiviDen',
-          version: '0.3.0',
+          version: '0.4.0',
           protocol: 'a2a',
           protocolVersion: '0.2',
           capabilities: {
@@ -492,6 +492,8 @@ export async function POST(req: NextRequest) {
             structuredArtifacts: true,
             statusUpdates: true,
             webhookPush: true,
+            marketplacePasswordAccess: true,
+            persistentConversation: true,
           },
           supportedArtifactTypes: ARTIFACT_TYPES,
           methods: ['tasks/send', 'tasks/get', 'tasks/list', 'tasks/respond', 'tasks/cancel', 'tasks/update_status', 'agent/info'],
@@ -523,14 +525,16 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     name: 'DiviDen A2A Endpoint',
-    version: '0.3.0',
-    description: 'Agent-to-Agent protocol endpoint for DiviDen. Supports threaded conversations, typed artifacts, status updates, and webhook push.',
+    version: '0.4.0',
+    description: 'Agent-to-Agent protocol endpoint for DiviDen. Supports threaded conversations, typed artifacts, status updates, webhook push, marketplace password-based access, and persistent conversation threads.',
     methods: ['tasks/send', 'tasks/get', 'tasks/list', 'tasks/respond', 'tasks/cancel', 'tasks/update_status', 'agent/info'],
     capabilities: {
       threading: true,
       structuredArtifacts: true,
       statusUpdates: true,
       webhookPush: true,
+      marketplacePasswordAccess: true,
+      persistentConversation: true,
     },
     supportedArtifactTypes: ARTIFACT_TYPES,
     authentication: {

@@ -143,6 +143,30 @@ const TOOLS = [
     inputSchema: { type: 'object', properties: {} },
   },
   {
+    name: 'marketplace_browse',
+    description: 'Browse available agents in the DiviDen marketplace. Returns agents with their capabilities, pricing, and whether they support password-based free access. Agents are the building blocks of the coordination network — the more agents your operator has access to, the more tasks they can handle.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        category: { type: 'string', description: 'Filter by category (research, coding, writing, analysis, operations, creative, general)' },
+        search: { type: 'string', description: 'Search query' },
+        pricing: { type: 'string', enum: ['free', 'per_task', 'subscription', 'all'], description: 'Filter by pricing model' },
+      },
+    },
+  },
+  {
+    name: 'marketplace_unlock',
+    description: 'Unlock free access to a marketplace agent using an access password provided by the agent developer. This creates a free subscription that bypasses payment. Essential for agent collaboration — developers share passwords with trusted users to enable cross-agent workflows.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        agentId: { type: 'string', description: 'Marketplace agent ID' },
+        accessPassword: { type: 'string', description: 'Access password provided by the agent developer' },
+      },
+      required: ['agentId', 'accessPassword'],
+    },
+  },
+  {
     name: 'relay_thread_list',
     description: 'List all relay messages in a specific conversation thread. Threads group multi-turn agent interactions — use this to review conversation history before continuing a thread.',
     inputSchema: {
@@ -390,6 +414,61 @@ async function executeTool(toolName: string, args: any, userId: string) {
       return rep;
     }
 
+    case 'marketplace_browse': {
+      const where: any = { status: 'active' };
+      if (args.category && args.category !== 'all') where.category = args.category;
+      if (args.pricing && args.pricing !== 'all') where.pricingModel = args.pricing;
+      if (args.search) {
+        where.OR = [
+          { name: { contains: args.search, mode: 'insensitive' } },
+          { description: { contains: args.search, mode: 'insensitive' } },
+          { tags: { contains: args.search, mode: 'insensitive' } },
+        ];
+      }
+      const agents = await prisma.marketplaceAgent.findMany({
+        where,
+        orderBy: { totalExecutions: 'desc' },
+        take: 20,
+        select: {
+          id: true, name: true, slug: true, description: true,
+          category: true, pricingModel: true, pricePerTask: true,
+          totalExecutions: true, avgRating: true, accessPassword: true,
+          supportsA2A: true, supportsMCP: true,
+          _count: { select: { subscriptions: true } },
+        },
+      });
+      return agents.map((a: any) => ({
+        ...a,
+        hasAccessPassword: !!a.accessPassword,
+        accessPassword: undefined,
+      }));
+    }
+
+    case 'marketplace_unlock': {
+      if (!args.agentId || !args.accessPassword) return { error: 'agentId and accessPassword are required' };
+      const agent = await prisma.marketplaceAgent.findUnique({ where: { id: args.agentId } });
+      if (!agent || agent.status !== 'active') return { error: 'Agent not found or not active' };
+      if (!agent.accessPassword || agent.accessPassword !== args.accessPassword) {
+        return { error: 'Incorrect access password' };
+      }
+      const existing = await prisma.marketplaceSubscription.findUnique({
+        where: { agentId_userId: { agentId: agent.id, userId } },
+      });
+      if (existing && existing.status === 'active') return { message: 'Already subscribed', id: existing.id };
+      const now = new Date();
+      const periodEnd = new Date(now);
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+      const sub = existing
+        ? await prisma.marketplaceSubscription.update({
+            where: { id: existing.id },
+            data: { status: 'active', tasksUsed: 0, taskLimit: null, currentPeriodStart: now, currentPeriodEnd: periodEnd, cancelledAt: null },
+          })
+        : await prisma.marketplaceSubscription.create({
+            data: { agentId: agent.id, userId, status: 'active', taskLimit: null, currentPeriodStart: now, currentPeriodEnd: periodEnd },
+          });
+      return { message: 'Access granted via password', subscriptionId: sub.id, agentName: agent.name };
+    }
+
     case 'relay_thread_list': {
       if (!args.threadId) return { error: 'threadId is required' };
       const relays = await prisma.agentRelay.findMany({
@@ -547,7 +626,7 @@ export async function POST(req: NextRequest) {
 
         for (const sub of installedSubs) {
           if (!sub.agent || sub.agent.status !== 'active') continue;
-          const a = sub.agent;
+          const a = sub.agent as any;
           let inputSchema: any = {
             type: 'object',
             properties: {
@@ -662,8 +741,8 @@ export async function POST(req: NextRequest) {
 export async function GET() {
   return NextResponse.json({
     name: 'DiviDen MCP Server',
-    version: '1.4.0',
-    description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, activity, entity resolution, graph intelligence, task routing, network briefing tools, and dynamically installed marketplace agents. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
+    version: '1.5.0',
+    description: 'Model Context Protocol endpoint for DiviDen — the open coordination network for AI agents and their humans. Exposes queue, CRM, kanban, briefing, activity, entity resolution, graph intelligence, task routing, marketplace browsing/unlocking, network briefing tools, and dynamically installed marketplace agents. Part of a growing network of DiviDen instances that communicate via structured relays and federated connections.',
     tools: TOOLS,
     note: 'Authenticated tools/list includes additional marketplace agent tools based on the user\'s installed agents.',
     authentication: {
