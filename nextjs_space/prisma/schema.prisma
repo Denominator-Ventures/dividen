@@ -125,6 +125,7 @@ model ChecklistItem {
   completed   Boolean    @default(false)
   order       Int        @default(0)
   cardId      String
+  dueDate     DateTime?  // When this task should be completed by
 
   // ── Source traceability ──
   sourceType  String?    // Signal type that generated this task (e.g., "email", "calendar", "slack_webhook")

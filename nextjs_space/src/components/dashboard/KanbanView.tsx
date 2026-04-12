@@ -519,6 +519,12 @@ export function KanbanView() {
           onClose={() => setSelectedCard(null)}
           onUpdated={handleCardUpdated}
           onDeleted={handleCardDeleted}
+          allCards={cards}
+          onMerged={(targetId, deletedId) => {
+            setCards(prev => prev.filter(c => c.id !== deletedId));
+            setSelectedCard(null);
+            fetchCards();
+          }}
         />
       )}
     </>

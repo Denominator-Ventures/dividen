@@ -78,6 +78,7 @@ export const SUPPORTED_TAGS = [
   // ── Marketplace Install/Uninstall ──
   'install_agent',     // install a marketplace agent into Divi's active toolkit
   'uninstall_agent',   // uninstall a marketplace agent from Divi's toolkit
+  'merge_cards',       // merge two project cards into one (combines tasks, contacts, artifacts)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -367,6 +368,7 @@ async function executeTag(
             cardId: params.cardId,
             text: params.text,
             order: params.order || 0,
+            dueDate: params.dueDate ? new Date(params.dueDate) : null,
             sourceType: params.sourceType || null,
             sourceId: params.sourceId || null,
             sourceLabel: params.sourceLabel || null,
@@ -376,7 +378,7 @@ async function executeTag(
             delegationStatus,
           },
         });
-        return { tag: name, success: true, data: { id: item.id, text: item.text, assigneeType, assigneeName, delegationStatus } };
+        return { tag: name, success: true, data: { id: item.id, text: item.text, assigneeType, assigneeName, delegationStatus, dueDate: item.dueDate } };
       }
 
       case 'complete_checklist': {
@@ -2144,6 +2146,85 @@ async function executeTag(
           where: { userId, key: { startsWith: `agent:${uAgentId}` } },
         });
         return { tag: name, success: true, data: { message: `Agent uninstalled. ${deleted.count} knowledge entries removed from Divi's memory.`, agentId: uAgentId, memoryEntriesRemoved: deleted.count } };
+      }
+
+      case 'merge_cards': {
+        // Merge sourceCardId INTO targetCardId — all tasks, contacts, artifacts move to target; source is deleted
+        const { targetCardId, sourceCardId } = params;
+        if (!targetCardId || !sourceCardId) return { tag: name, success: false, error: 'targetCardId and sourceCardId are required' };
+        if (targetCardId === sourceCardId) return { tag: name, success: false, error: 'Cannot merge a card into itself' };
+
+        // Verify both cards belong to user
+        const [target, source] = await Promise.all([
+          prisma.kanbanCard.findFirst({ where: { id: targetCardId, userId }, include: { checklist: true } }),
+          prisma.kanbanCard.findFirst({ where: { id: sourceCardId, userId }, include: { checklist: true, contacts: true } }),
+        ]);
+        if (!target) return { tag: name, success: false, error: 'Target card not found' };
+        if (!source) return { tag: name, success: false, error: 'Source card not found' };
+
+        const nextOrder = target.checklist.length;
+
+        // Move all checklist items from source to target
+        const movedTasks = await prisma.checklistItem.updateMany({
+          where: { cardId: sourceCardId },
+          data: { cardId: targetCardId },
+        });
+
+        // Re-order moved items so they come after existing target items
+        const movedItems = await prisma.checklistItem.findMany({
+          where: { cardId: targetCardId },
+          orderBy: { order: 'asc' },
+        });
+        for (let i = 0; i < movedItems.length; i++) {
+          if (movedItems[i].order !== i) {
+            await prisma.checklistItem.update({ where: { id: movedItems[i].id }, data: { order: i } });
+          }
+        }
+
+        // Move CardContacts — upsert to avoid duplicates
+        for (const cc of source.contacts) {
+          await prisma.cardContact.upsert({
+            where: { cardId_contactId: { cardId: targetCardId, contactId: cc.contactId } },
+            create: { cardId: targetCardId, contactId: cc.contactId, role: cc.role, involvement: (cc as any).involvement || 'contributor', canDelegate: (cc as any).canDelegate || false },
+            update: {},  // keep existing if already linked
+          });
+        }
+
+        // Move CardArtifacts — upsert to avoid duplicates
+        const sourceArtifacts = await prisma.cardArtifact.findMany({ where: { cardId: sourceCardId } });
+        for (const art of sourceArtifacts) {
+          await prisma.cardArtifact.upsert({
+            where: { cardId_artifactType_artifactId: { cardId: targetCardId, artifactType: art.artifactType, artifactId: art.artifactId } },
+            create: { cardId: targetCardId, artifactType: art.artifactType, artifactId: art.artifactId, label: art.label, metadata: art.metadata || undefined },
+            update: {},
+          });
+        }
+
+        // Move direct FK artifact links from source to target (emails, documents, etc.)
+        await prisma.kanbanCard.update({
+          where: { id: targetCardId },
+          data: {
+            // Append source description to target if source has one
+            description: source.description
+              ? (target.description ? target.description + '\n\n---\nMerged from "' + source.title + '":\n' + source.description : source.description)
+              : target.description,
+          },
+        });
+
+        // Delete source card (cascades CardContact and CardArtifact for source)
+        await prisma.kanbanCard.delete({ where: { id: sourceCardId } });
+
+        return {
+          tag: name, success: true,
+          data: {
+            targetCardId,
+            deletedSourceCardId: sourceCardId,
+            deletedSourceTitle: source.title,
+            tasksMoved: movedTasks.count,
+            contactsMoved: source.contacts.length,
+            artifactsMoved: sourceArtifacts.length,
+          },
+        };
       }
 
       default:

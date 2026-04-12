@@ -16,6 +16,8 @@ interface CardDetailModalProps {
   onClose: () => void;
   onUpdated: (card: KanbanCardData) => void;
   onDeleted: (cardId: string) => void;
+  allCards?: KanbanCardData[];
+  onMerged?: (targetCardId: string, deletedCardId: string) => void;
 }
 
 const priorities: { id: CardPriority; label: string; color: string }[] = [
@@ -25,7 +27,7 @@ const priorities: { id: CardPriority; label: string; color: string }[] = [
   { id: 'urgent', label: 'Urgent', color: 'bg-red-600/30 text-red-400' },
 ];
 
-export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDetailModalProps) {
+export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards, onMerged }: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
   const [status, setStatus] = useState<CardStatus>(card.status);
@@ -35,7 +37,14 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
   const [newChecklistItem, setNewChecklistItem] = useState('');
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showMerge, setShowMerge] = useState(false);
+  const [mergeTargetId, setMergeTargetId] = useState('');
+  const [merging, setMerging] = useState(false);
+  const [mergeConfirm, setMergeConfirm] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Available merge targets (other cards)
+  const mergeTargets = (allCards || []).filter(c => c.id !== card.id);
 
   // Close on Escape
   useEffect(() => {
@@ -74,6 +83,29 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
       onDeleted(card.id);
     } catch {
       // ignore
+    }
+  }
+
+  // ─── Merge card ─────────────────────────────────────────────────────────
+
+  async function handleMerge() {
+    if (!mergeTargetId) return;
+    setMerging(true);
+    try {
+      const res = await fetch('/api/kanban/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetCardId: mergeTargetId, sourceCardId: card.id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        onMerged?.(mergeTargetId, card.id);
+        onClose();
+      }
+    } catch {
+      // ignore
+    } finally {
+      setMerging(false);
     }
   }
 
@@ -362,32 +394,88 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted }: CardDet
           </div>
         </div>
 
+        {/* Merge Panel */}
+        {showMerge && mergeTargets.length > 0 && (
+          <div className="px-6 py-4 border-t border-[var(--border-color)] bg-[var(--bg-secondary)]">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-sm font-medium text-[var(--text-primary)]">🔀 Merge into another project</span>
+              <span className="text-xs text-[var(--text-muted)]">All tasks, people, and artifacts move to the target</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={mergeTargetId}
+                onChange={(e) => { setMergeTargetId(e.target.value); setMergeConfirm(false); }}
+                className="flex-1 text-sm rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-primary)] px-3 py-2"
+              >
+                <option value="">Select target project…</option>
+                {mergeTargets.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title} ({c.checklist?.length || 0} tasks)</option>
+                ))}
+              </select>
+              {!mergeConfirm ? (
+                <button
+                  onClick={() => setMergeConfirm(true)}
+                  disabled={!mergeTargetId || merging}
+                  className="text-sm px-3 py-2 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 transition-colors disabled:opacity-40"
+                >
+                  Merge
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-amber-400">This card will be deleted</span>
+                  <button
+                    onClick={handleMerge}
+                    disabled={merging}
+                    className="text-sm px-3 py-2 rounded-lg bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 transition-colors"
+                  >
+                    {merging ? 'Merging…' : 'Confirm'}
+                  </button>
+                  <button
+                    onClick={() => setMergeConfirm(false)}
+                    className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Footer Actions */}
         <div className="p-6 border-t border-[var(--border-color)] flex items-center justify-between">
-          <div>
+          <div className="flex items-center gap-3">
             {!confirmDelete ? (
               <button
                 onClick={() => setConfirmDelete(true)}
                 className="text-sm text-red-400 hover:text-red-300 transition-colors"
               >
-                Delete Card
+                Delete
               </button>
             ) : (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-red-400">Are you sure?</span>
+                <span className="text-sm text-red-400">Sure?</span>
                 <button
                   onClick={handleDelete}
                   className="text-sm bg-red-600/20 text-red-400 px-3 py-1 rounded hover:bg-red-600/30 transition-colors"
                 >
-                  Yes, delete
+                  Yes
                 </button>
                 <button
                   onClick={() => setConfirmDelete(false)}
                   className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] px-2 py-1"
                 >
-                  Cancel
+                  No
                 </button>
               </div>
+            )}
+            {mergeTargets.length > 0 && (
+              <button
+                onClick={() => setShowMerge(!showMerge)}
+                className={cn('text-sm transition-colors', showMerge ? 'text-brand-400' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]')}
+              >
+                🔀 Merge
+              </button>
             )}
           </div>
 
