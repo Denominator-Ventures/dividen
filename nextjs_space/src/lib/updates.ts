@@ -17,6 +17,95 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'signals-capabilities-triage',
+    date: '2026-04-12',
+    time: '12:00 PM',
+    title: 'Signals, Capabilities, and the Full Loop',
+    subtitle: 'Everything you connect is now a Signal. Every signal can be triaged. Catch Up respects your priorities. Divi can send emails and schedule meetings. The loop is closed.',
+    tags: ['signals', 'capabilities', 'triage', 'catch-up', 'queue', 'architecture'],
+    content: `Big morning. Four commits that change how DiviDen fundamentally works. This one's been brewing since the conversation about what "incoming information" actually means in the context of an AI agent that's supposed to handle your workflow. The answer: **Signals**.
+
+## Signals — Everything Incoming Is Now a Signal
+
+Every source of incoming information — email, calendar, recordings, CRM, drive, network connections — is now formally defined as a Signal. Not just a tab in the dashboard. A Signal has structure:
+
+- **Inbound description** — what data comes in from this source
+- **Triage prompt** — what Divi should do when reviewing this signal
+- **Card types** — what kinds of kanban cards this signal generates
+- **Capabilities** — what outbound actions are available through this source
+- **Category** — communication, meetings, content, or data
+
+Six built-in signals shipped today. But the architecture supports adding custom signals via webhook — any integration you connect gets its own triage prompt, its own card types, and gets folded into the master Catch Up.
+
+The \`CustomSignal\` model stores everything: signal ID, name, icon, description, triage prompt, card types, category, webhook URL, webhook secret. Hit \`POST /api/signals/custom\` and your integration is a first-class signal.
+
+## Triage — One Button to Process Any Signal
+
+Every signal view in the dashboard now has a Triage button. Click it on your Inbox view → Divi reviews your email. Click it on Calendar → Divi reviews your schedule. Click it on Recordings → Divi extracts action items from transcripts.
+
+The triage prompt for each signal is a smart default that actually makes sense for that source. Email triage looks for replies needed, action items, meeting requests. Calendar triage looks for prep work, scheduling conflicts, deep work blocks. Recordings triage extracts commitments and decisions.
+
+But here's the thing — you can edit any of these. Open Catch Up Settings, click a signal, and you're looking at the triage prompt in an editable textarea. Add your own rules. Tell Divi to always prioritize emails from a specific domain. Tell it to ignore newsletters. Tell it to flag anything from your board members. The smart default is just the starting point.
+
+## Catch Up — Triage Everything, In Your Order
+
+The 🔄 Catch Up button in the header triages ALL your signals at once. One click, full sweep. But now it's configurable:
+
+**Catch Up Settings** (the ⚙ gear next to the button, or from the 📡 Signals tab):
+
+- **Drag to reorder** — signals at the top get triaged first. If email is your highest priority signal, drag it to position 1.
+- **Toggle catch-up** — exclude signals you don't want in the master sweep. Maybe you don't need CRM triaged every morning.
+- **Toggle triage** — hide the triage button from specific signal views entirely.
+- **Edit prompts** — click any signal to expand its triage prompt editor. Customize what Divi does when it reviews that source.
+
+The prompt is built dynamically from your config. If you've excluded Calendar and Drive, Catch Up only triages the four signals you've kept enabled, in the priority order you set.
+
+\`SignalConfig\` lives in the database: per-user priority, catch-up enabled, triage enabled, and custom triage prompt. The API is simple — \`GET /api/signals/config\` returns your merged config (built-in + custom signals), \`PUT /api/signals/config\` saves it.
+
+## Capabilities — Divi Can Act, Not Just Observe
+
+Signals are incoming. Capabilities are outgoing. Two shipped today:
+
+**Outbound Email** — Divi can draft and send emails on your behalf. You choose the identity: send as you (operator), send as Divi (agent), or context-dependent (both). You set the rules: always get approval for new contacts, match your tone, CC me on everything, never send cold outreach. The setup wizard walks through it in four steps.
+
+**Meeting Scheduling** — Same model. Identity choice, rules (no meetings before 9am, 15-minute buffers, protect focus blocks), and it all routes through your Queue for approval.
+
+When Divi triages your email and finds something that needs a reply, it doesn't just create a kanban card anymore. It drafts the reply and queues it. The queue item shows ✉️, the recipient, the subject, and three buttons: Approve, Review, Skip. Same for meetings — Divi identifies scheduling needs and queues them with proposed times.
+
+The \`AgentCapability\` model stores type, name, status, identity, rules, and config. Capabilities live inside the Signals tab — because they're the outbound side of an inbound signal. Email signal → email capability. Calendar signal → meetings capability.
+
+The system prompt now dynamically injects your active capabilities (Group 13). If you've enabled outbound email with specific rules, Divi knows. If you've paused meeting scheduling, Divi knows that too.
+
+## The Full Loop
+
+This is the architecture I've been working toward:
+
+> **Signals** → **Triage** → **Kanban Board** → **NOW** → **Chat** → **Queue** → **Execution**
+
+All tracked from the board. Signals bring information in. Triage turns it into actionable cards and queued tasks. The board organizes them. NOW prioritizes what matters right now. Chat is where you work through tasks with Divi. Queue is where outbound actions wait for your approval. Execution closes the loop.
+
+Every piece of this now exists and is wired together.
+
+## Onboarding Reframed
+
+The onboarding flow was rewritten to match the signals-first worldview. Shoutout to Geoff for helping streamline this — the sequence now makes way more sense:
+
+1. Chat with Divi → 2. Connect email (your first signal) → 3. Triage email → 4. Review your board → 5. Connect calendar → 6. Triage calendar → 7. Configure capabilities → 8. Catch up → 9. Teach a rule → 10. Set a goal → 11. Marketplace → 12. Invite someone
+
+The old onboarding was a list of features. The new one is a story: connect a signal, see Divi work, trust it enough to give it capabilities, then expand from there. That's the compound loop.
+
+---
+
+## What's Next
+
+- **Queue execution layer** — when you hit Approve on an outbound email, actually send it
+- **Automatic triage triggers** — background signal scanning without clicking Triage
+- **Card-to-queue linking** — queue items reference their kanban card, auto-update status on completion
+- **Signal connection status** — show which signals are actually connected vs. available
+
+The loop is architecturally complete. Now it needs to run.`,
+  },
+  {
     id: 'teams-federation-apis',
     date: '2026-04-11',
     time: '11:00 PM',
