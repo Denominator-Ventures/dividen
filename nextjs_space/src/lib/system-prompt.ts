@@ -40,9 +40,11 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       take: 30,
       include: {
         checklist: true,
+        contacts: {
+          include: { contact: { select: { name: true, platformUserId: true } } },
+        },
         _count: {
           select: {
-            contacts: true,
             documents: true,
             recordings: true,
             calendarEvents: true,
@@ -118,39 +120,55 @@ Current time: ${timeStr}`;
     group2 += `### 🎯 NOW\nNo cards currently in progress.\n\n`;
   }
 
-  // Kanban
+  // Kanban — Project Cards
   if (kanbanCards.length > 0) {
     const byStatus: Record<string, typeof kanbanCards> = {};
     for (const card of kanbanCards) {
       if (!byStatus[card.status]) byStatus[card.status] = [];
       byStatus[card.status].push(card);
     }
-    group2 += `### Board (${kanbanCards.length} cards)\n`;
+    group2 += `### Board (${kanbanCards.length} projects)\n`;
     for (const [status, items] of Object.entries(byStatus)) {
       group2 += `**${status.replace('_', ' ').toUpperCase()}** (${items.length}): `;
       group2 += items.map((c: any) => {
         const due = c.dueDate ? ` Due:${c.dueDate.toISOString().split('T')[0]}` : '';
         const checks = c.checklist.length > 0 ? ` ✓${c.checklist.filter((x: any) => x.completed).length}/${c.checklist.length}` : '';
-        // Artifact counts — show what's already linked so triage knows context
+        // Artifact counts
         const counts = c._count || {};
         const arts: string[] = [];
         if (counts.emailMessages) arts.push(`📧${counts.emailMessages}`);
         if (counts.documents) arts.push(`📄${counts.documents}`);
         if (counts.recordings) arts.push(`🎙️${counts.recordings}`);
         if (counts.calendarEvents) arts.push(`📅${counts.calendarEvents}`);
-        if (counts.contacts) arts.push(`👤${counts.contacts}`);
         if (counts.commsMessages) arts.push(`💬${counts.commsMessages}`);
-        if (counts.artifacts) arts.push(`🔗${counts.artifacts}`); // generic/custom artifacts
+        if (counts.artifacts) arts.push(`🔗${counts.artifacts}`);
         const artStr = arts.length > 0 ? ` ${arts.join('')}` : '';
-        const assignee = c.assignee ? ` @${c.assignee}` : '';
-        // Show task sources for recent uncompleted tasks
-        const pendingTasks = c.checklist.filter((t: any) => !t.completed);
-        const taskHint = pendingTasks.length > 0 ? ` tasks:${pendingTasks.length}` : '';
-        return `[${c.id}] "${c.title}" (${c.priority})${assignee}${due}${checks}${taskHint}${artStr}`;
+        // Task delegation breakdown
+        const pending = c.checklist.filter((t: any) => !t.completed);
+        const myTasks = pending.filter((t: any) => t.assigneeType === 'self').length;
+        const diviTasks = pending.filter((t: any) => t.assigneeType === 'divi').length;
+        const delegated = pending.filter((t: any) => t.assigneeType === 'delegated').length;
+        const taskParts: string[] = [];
+        if (myTasks) taskParts.push(`me:${myTasks}`);
+        if (diviTasks) taskParts.push(`divi:${diviTasks}`);
+        if (delegated) taskParts.push(`via-divi:${delegated}`);
+        const taskStr = taskParts.length > 0 ? ` [${taskParts.join(' ')}]` : '';
+        // People: contributors vs related
+        const contributors = (c.contacts || []).filter((cc: any) => cc.involvement === 'contributor');
+        const contribNames = contributors.map((cc: any) => {
+          const cName = cc.contact?.name || '?';
+          return cc.canDelegate ? `${cName}🟢` : cName;
+        });
+        const relatedCount = (c.contacts || []).length - contributors.length;
+        const peopleParts: string[] = [];
+        if (contribNames.length) peopleParts.push(`contributors:[${contribNames.join(',')}]`);
+        if (relatedCount > 0) peopleParts.push(`related:${relatedCount}`);
+        const peopleStr = peopleParts.length > 0 ? ` 👥${peopleParts.join(' ')}` : '';
+        return `[${c.id}] "${c.title}" (${c.priority})${due}${checks}${taskStr}${peopleStr}${artStr}`;
       }).join(' | ') + '\n';
     }
   } else {
-    group2 += 'No cards on the board yet.\n';
+    group2 += 'No project cards on the board yet.\n';
   }
 
   // Queue
@@ -593,15 +611,29 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 - [[archive_card:{"id":"card_id"}]]
 
 ### Tasks (Checklist Items on Project Cards)
-- [[add_checklist:{"cardId":"card_id","text":"...","sourceType":"signal_type","sourceId":"artifact_id","sourceLabel":"Human-readable origin"}]] — Add a task to a project card. sourceType/sourceId/sourceLabel are optional but recommended during triage for traceability. sourceType can be any signal type: "email", "calendar", "recording", "crm", "drive", "connections", or any custom signal ID.
+- [[add_checklist:{"cardId":"card_id","text":"...","sourceType":"signal_type","sourceId":"artifact_id","sourceLabel":"Human-readable origin","assigneeType":"self|divi|delegated","assigneeName":"Sarah Chen","assigneeId":"connection_or_user_id"}]]
+  - **assigneeType**: "self" = operator does this personally. "divi" = Divi handles directly (email drafts, research, analysis). "delegated" = another person's Divi manages their human to deliver.
+  - **assigneeName**: For delegated tasks, the person's name (displayed as "Sarah Chen via Divi"). For divi tasks, shows "Divi".
+  - **assigneeId**: For delegated tasks, the Connection ID or platformUserId of the assignee. Enables Divi to route via relay.
+  - sourceType/sourceId/sourceLabel are optional but recommended for traceability.
 - [[complete_checklist:{"id":"item_id","completed":true}]]
+
+**Task Delegation Flow**: When you assign a task to someone "via Divi":
+1. The task is created with assigneeType="delegated" and delegationStatus="pending"
+2. Use [[relay_request:{}]] to send the task to their Divi agent
+3. Their Divi manages their human to complete it and relays back when done
+4. You track progress on YOUR board — the card stays here as the project hub
 
 ### Artifact Linking
 - [[link_artifact:{"cardId":"card_id","type":"...","artifactId":"artifact_id","label":"optional human label"}]] — Link any artifact to a project card. Built-in types: "email", "document", "recording", "calendar_event", "contact", "comms". Custom signal types can use ANY string as the type (e.g., "slack_message", "github_pr", "notion_page"). The label is optional but helps the operator see context at a glance.
 
-### Contacts & Relationships
+### People on Project Cards
+People on cards have two roles:
+- **Contributors** (involvement="contributor"): Actively working on the project. If they're DiviDen users (canDelegate=true, shown with 🟢), tasks can be delegated to their Divi.
+- **Related** (involvement="related"): Contextually relevant (stakeholders, mentioned contacts) but not actively doing tasks.
+
+- [[link_contact:{"cardId":"...","contactId":"...","role":"CTO","involvement":"contributor|related"}]] — Link a person to a project card. Role is their contextual role (e.g., "Project Lead", "Investor"). Involvement determines if they can take tasks. canDelegate is auto-detected from whether they're a DiviDen user.
 - [[create_contact:{"name":"...","email":"...","company":"...","role":"...","tags":"tag1,tag2","cardId":"optional"}]]
-- [[link_contact:{"cardId":"...","contactId":"...","role":"..."}]]
 - [[add_relationship:{"fromName":"A","toName":"B","type":"colleague|manager|report|partner|friend|referral|custom"}]]
 - [[update_contact:{"name":"...","company":"...","role":"...","tags":"..."}]]
 
@@ -666,7 +698,11 @@ The operator's information sources are called **Signals**. Each signal (Inbox, C
   [[add_checklist:{"cardId":"NEW_CARD_ID","text":"Reply to initial cold email from Jamie @ TechCorp","sourceType":"email","sourceId":"EMAIL_ID"}]]
   [[link_artifact:{"cardId":"NEW_CARD_ID","type":"email","artifactId":"EMAIL_ID","label":"Jamie @ TechCorp intro email"}]]
 
-**Step 5 — ASSIGN:** Every card should have an owner (assignee: "human" or "agent"). For tasks needing outside help, use [[task_route:{}]] or [[relay_request:{}]] to delegate — the card stays on the Board as the tracking hub.
+**Step 5 — ASSIGN EACH TASK:** Every task (checklist item) gets an owner:
+- assigneeType "self" — the operator must do this personally (default)
+- assigneeType "divi" — you (Divi) handle directly: drafting emails, researching, analyzing, summarizing
+- assigneeType "delegated" — another person's Divi manages them to deliver. Set assigneeName to the person's name (shows as "Sarah via Divi"). Use [[relay_request:{}]] to send the task to their agent.
+Only contributors who are DiviDen users (marked 🟢 on the Board) can receive delegated tasks. CRM-only contacts can't — suggest inviting them to DiviDen first.
 
 **Step 6 — QUEUE ACTIONS:** Draft replies, schedule meetings via [[queue_capability_action:{}]]. Check for duplicates first.
 
@@ -682,12 +718,13 @@ The operator's information sources are called **Signals**. Each signal (Inbox, C
 **Key Principles:**
 - **Cards = Projects**: Never name a card after a single task. Name it after the initiative, relationship, workstream, or goal it represents. Tasks live as checklist items.
 - **Convergence**: The Board should shrink over time as projects complete. Each triage pass adds tasks to existing projects, not new cards.
-- **Source traceability**: Every checklist item can carry sourceType/sourceId/sourceLabel so the operator knows WHERE a task came from. This works for any signal type — built-in or custom.
-- **Extensible artifacts**: link_artifact supports any artifactType string — not just built-in types. Custom signals (webhooks, integrations) can link their own artifact types.
+- **Three task owners**: "self" (operator), "divi" (you handle directly), "delegated" (another user's Divi manages). The Board shows [me:2 divi:3 via-divi:1] breakdown per card.
+- **People = Contributors + Related**: Contributors actively work on a project (🟢 = DiviDen user, can receive delegated tasks). Related people are contextual (stakeholders, mentioned contacts). CRM-only contacts can't take tasks — suggest inviting them.
+- **Divi as Project Manager**: In cockpit mode, you are reactive to the operator — helping them manage their tasks and routing outgoing tasks to other agents. You orchestrate; they execute.
+- **Source traceability**: Every task carries sourceType/sourceId/sourceLabel. Every artifact is linked via CardArtifact. The operator can always see WHERE something came from.
 - **NOW = urgency x impact**: The NOW panel shows in-progress cards. Prioritize what moves goals forward fastest.
-- **Everything on the Board**: Human tasks, agent tasks, delegated tasks — all live as checklist items on project cards.
 
-**The full loop**: Signals → Extract Tasks → Route to Project Cards (update or create) → Board (projects) → NOW (focus) → Queue (execution) → tracked back to Board
+**The full loop**: Signals → Extract Tasks → Route to Project Cards → Assign (self/divi/delegated) → Board (projects with people) → NOW (focus) → Queue (execution) → Relay (delegation) → tracked back to Board
 
 ### Outbound Capabilities
 Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:

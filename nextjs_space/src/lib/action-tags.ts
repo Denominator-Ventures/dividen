@@ -345,6 +345,23 @@ async function executeTag(
         if (!params.cardId || !params.text) {
           return { tag: name, success: false, error: 'Missing cardId or text' };
         }
+        // Determine assignee type: "self" (operator), "divi" (Divi direct), "delegated" (another user via their Divi)
+        const aType = params.assigneeType || params.assignTo || 'self';
+        let assigneeType = 'self';
+        let assigneeName: string | null = null;
+        let assigneeId: string | null = null;
+        let delegationStatus: string | null = null;
+
+        if (aType === 'divi' || aType === 'agent') {
+          assigneeType = 'divi';
+          assigneeName = 'Divi';
+        } else if (aType === 'delegated' || params.delegateTo) {
+          assigneeType = 'delegated';
+          assigneeId = params.assigneeId || params.delegateTo || null;
+          assigneeName = params.assigneeName ? `${params.assigneeName} via Divi` : 'Delegated via Divi';
+          delegationStatus = 'pending';
+        }
+
         const item = await prisma.checklistItem.create({
           data: {
             cardId: params.cardId,
@@ -353,9 +370,13 @@ async function executeTag(
             sourceType: params.sourceType || null,
             sourceId: params.sourceId || null,
             sourceLabel: params.sourceLabel || null,
+            assigneeType,
+            assigneeName,
+            assigneeId,
+            delegationStatus,
           },
         });
-        return { tag: name, success: true, data: { id: item.id, text: item.text, sourceType: item.sourceType } };
+        return { tag: name, success: true, data: { id: item.id, text: item.text, assigneeType, assigneeName, delegationStatus } };
       }
 
       case 'complete_checklist': {
@@ -418,26 +439,41 @@ async function executeTag(
                 },
               });
             }
-            const link = await prisma.cardContact.create({
-              data: {
+            // Determine involvement + delegation capability
+            const involvement = params.involvement || params.as || 'related'; // "contributor" or "related"
+            const isDiviUser = !!contact.platformUserId;
+            const link = await prisma.cardContact.upsert({
+              where: { cardId_contactId: { cardId: params.cardId, contactId: contact.id } },
+              update: { role: params.role || null, involvement, canDelegate: isDiviUser },
+              create: {
                 cardId: params.cardId,
                 contactId: contact.id,
                 role: params.role || null,
+                involvement,
+                canDelegate: isDiviUser,
               },
             });
-            return { tag: name, success: true, data: { id: link.id, contactId: contact.id } };
+            return { tag: name, success: true, data: { id: link.id, contactId: contact.id, involvement, canDelegate: isDiviUser } };
           }
           return { tag: name, success: false, error: 'Missing cardId or contactId/contactName' };
         }
         try {
-          const link = await prisma.cardContact.create({
-            data: {
+          // Look up contact to determine if they're a DiviDen user
+          const contactRecord = await prisma.contact.findUnique({ where: { id: params.contactId }, select: { platformUserId: true } });
+          const isDiviUser = !!contactRecord?.platformUserId;
+          const involvement = params.involvement || params.as || 'related';
+          const link = await prisma.cardContact.upsert({
+            where: { cardId_contactId: { cardId: params.cardId, contactId: params.contactId } },
+            update: { role: params.role || null, involvement, canDelegate: isDiviUser },
+            create: {
               cardId: params.cardId,
               contactId: params.contactId,
               role: params.role || null,
+              involvement,
+              canDelegate: isDiviUser,
             },
           });
-          return { tag: name, success: true, data: { id: link.id } };
+          return { tag: name, success: true, data: { id: link.id, involvement, canDelegate: isDiviUser } };
         } catch {
           return { tag: name, success: false, error: 'Link already exists or invalid IDs' };
         }

@@ -125,9 +125,18 @@ model ChecklistItem {
   completed   Boolean    @default(false)
   order       Int        @default(0)
   cardId      String
+
+  // ── Source traceability ──
   sourceType  String?    // Signal type that generated this task (e.g., "email", "calendar", "slack_webhook")
   sourceId    String?    // ID of the source artifact (email ID, event ID, etc.)
   sourceLabel String?    // Human-readable origin (e.g., "Email from John", "Meeting: Standup")
+
+  // ── Task assignment & delegation ──
+  assigneeType  String   @default("self")  // "self" = operator, "divi" = Divi direct, "delegated" = another user's Divi
+  assigneeName  String?  // Display name: null for self, "Divi" for divi, "Sarah Chen via Divi" for delegated
+  assigneeId    String?  // For delegated: the Connection.id or Contact.platformUserId of the person responsible
+  delegationStatus String? // For delegated tasks: "pending" | "sent" | "accepted" | "in_progress" | "completed" | "declined"
+
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -263,14 +272,16 @@ model ContactRelationship {
 }
 
 model CardContact {
-  id        String     @id @default(cuid())
-  cardId    String
-  contactId String
-  role      String?    // Contact's role in this card
-  createdAt DateTime   @default(now())
+  id            String     @id @default(cuid())
+  cardId        String
+  contactId     String
+  role          String?    // Contact's contextual role (e.g., "CTO", "Project Lead", "Investor")
+  involvement   String     @default("related") // "contributor" = can take/is taking tasks | "related" = contextual only
+  canDelegate   Boolean    @default(false)      // true if this person is a DiviDen user (has platformUserId on Contact)
+  createdAt     DateTime   @default(now())
 
-  card      KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
-  contact   Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  card          KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  contact       Contact    @relation(fields: [contactId], references: [id], onDelete: Cascade)
 
   @@unique([cardId, contactId])
   @@map("card_contacts")
