@@ -162,6 +162,12 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
       if (linkedGoal) score += (IMPACT_WEIGHT[linkedGoal.impact] || 0) * 0.5;
     }
 
+    // Parse metadata for onboarding flags
+    let parsedMeta: Record<string, any> = {};
+    if (q.metadata) {
+      try { parsedMeta = JSON.parse(q.metadata); } catch {}
+    }
+
     items.push({
       id: `queue_${q.id}`,
       type: 'queue',
@@ -170,7 +176,7 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
       score,
       urgency: urgencyFromScore(score),
       sourceId: q.id,
-      meta: { priority: q.priority, status: q.status, queueType: q.type },
+      meta: { priority: q.priority, status: q.status, queueType: q.type, ...(parsedMeta.onboarding ? { onboarding: true, stepKey: parsedMeta.stepKey, order: parsedMeta.order } : {}) },
     });
   }
 

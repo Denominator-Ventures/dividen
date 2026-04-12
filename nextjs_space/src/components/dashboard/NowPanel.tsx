@@ -13,6 +13,11 @@ interface NowItem {
   meta?: Record<string, any>;
 }
 
+// Track onboarding task action in progress
+interface OnboardingActionState {
+  [taskId: string]: 'completing' | 'skipping';
+}
+
 interface CalendarGap {
   start: string;
   end: string;
@@ -61,6 +66,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
   const [showNewTask, setShowNewTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [onboardingActions, setOnboardingActions] = useState<OnboardingActionState>({});
 
   const fetchNow = useCallback(async () => {
     try {
@@ -103,6 +109,26 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
       setCreating(false);
     }
   };
+
+  const handleOnboardingAction = useCallback(async (sourceId: string, action: 'complete' | 'skip') => {
+    setOnboardingActions((prev) => ({ ...prev, [sourceId]: action === 'complete' ? 'completing' : 'skipping' }));
+    try {
+      await fetch('/api/onboarding/task', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: sourceId, action }),
+      });
+      fetchNow();
+    } catch (e) {
+      console.error('Failed to update onboarding task:', e);
+    } finally {
+      setOnboardingActions((prev) => {
+        const next = { ...prev };
+        delete next[sourceId];
+        return next;
+      });
+    }
+  }, [fetchNow]);
 
   const items = data?.items ?? [];
   const summary = data?.activeGoalsSummary ?? { total: 0, critical: 0, approaching: 0, onTrack: 0 };
@@ -196,21 +222,45 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
             <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Priority Stack</h4>
             {items.slice(0, 10).map((item, idx) => {
               const colors = URGENCY_COLORS[item.urgency] || URGENCY_COLORS.low;
+              const isOnboarding = item.meta?.onboarding === true;
+              const actionInProgress = onboardingActions[item.sourceId];
+
               return (
-                <button
-                  key={item.id}
-                  onClick={() => onItemClick?.(item.title)}
-                  className={`w-full text-left flex items-center gap-2 px-2.5 py-2 rounded-lg border ${colors.bg} transition-colors hover:brightness-125 cursor-pointer`}
-                >
-                  <span className="text-[9px] text-[var(--text-muted)] font-mono w-3">{idx + 1}</span>
-                  <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
-                  <span className="text-[10px] flex-shrink-0">{TYPE_ICONS[item.type] || '📋'}</span>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs truncate">{item.title}</div>
-                    {item.subtitle && <div className={`text-[9px] ${colors.text} truncate`}>{item.subtitle}</div>}
-                  </div>
-                  <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
-                </button>
+                <div key={item.id} className={`rounded-lg border ${colors.bg} transition-colors`}>
+                  <button
+                    onClick={() => onItemClick?.(item.title)}
+                    className="w-full text-left flex items-center gap-2 px-2.5 py-2 hover:brightness-125 cursor-pointer"
+                  >
+                    <span className="text-[9px] text-[var(--text-muted)] font-mono w-3">{idx + 1}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
+                    <span className="text-[10px] flex-shrink-0">{isOnboarding ? '🚀' : (TYPE_ICONS[item.type] || '📋')}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs truncate">{item.title}</div>
+                      {item.subtitle && <div className={`text-[9px] ${colors.text} truncate`}>{item.subtitle}</div>}
+                    </div>
+                    <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
+                  </button>
+
+                  {/* Onboarding task actions */}
+                  {isOnboarding && (
+                    <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'complete'); }}
+                        disabled={!!actionInProgress}
+                        className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                      >
+                        {actionInProgress === 'completing' ? '...' : '✓ Done'}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'skip'); }}
+                        disabled={!!actionInProgress}
+                        className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
+                      >
+                        {actionInProgress === 'skipping' ? '...' : 'Skip'}
+                      </button>
+                    </div>
+                  )}
+                </div>
               );
             })}
             {items.length > 10 && (

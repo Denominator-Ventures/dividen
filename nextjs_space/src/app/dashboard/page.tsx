@@ -48,6 +48,29 @@ export default function DashboardPage() {
     setActiveTab('chat');
   }, []);
 
+  // Handle onboarding completion — trigger Divi's intro conversation
+  const handleOnboardingComplete = useCallback(async (options?: { triggerDiviIntro?: boolean }) => {
+    setShowOnboarding(false);
+    setActiveTab('chat');
+
+    if (options?.triggerDiviIntro) {
+      // Send a hidden system message that triggers Divi's self-introduction
+      try {
+        await fetch('/api/chat/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: '[SYSTEM: User just completed onboarding setup. Introduce yourself warmly. Explain what you can do across all your capabilities (task management, CRM, email, calendar, marketplace, goals, connections). Then enthusiastically encourage them to connect their email — explain that this is the #1 way to see your value immediately. Offer to help them do it step-by-step. Frame it as: "Let me show you what I can do — connect your email and I\'ll read through everything, tell you what needs attention right now, and draft responses for the urgent ones. It\'s the fastest way to see the impact." Be direct, builder-log tone, not salesy. Keep it concise but compelling.]',
+          }),
+        });
+        // The chat view will auto-scroll to show Divi's response
+        setChatPrefill(null);
+      } catch {
+        // Silent — chat will still work normally
+      }
+    }
+  }, []);
+
   // Check for tab navigation from Comms/Extensions/Connections pages
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -148,12 +171,7 @@ export default function DashboardPage() {
       {showWalkthrough && <Walkthrough onComplete={handleWalkthroughComplete} />}
 
       {/* Onboarding wizard — fires after walkthrough or if walkthrough was already seen */}
-      {showOnboarding && !showWalkthrough && (
-        <OnboardingWizard
-          userName={userName}
-          onComplete={() => setShowOnboarding(false)}
-        />
-      )}
+      {/* Now renders inline in the layout below, not as a modal */}
 
       {/* Keyboard navigation (global hotkeys + ? overlay) */}
       <KeyboardNav
@@ -316,37 +334,51 @@ export default function DashboardPage() {
           {/* ── Cockpit Notification Banners ── */}
           <CockpitBanners mode={mode} />
 
-          {/* ── Desktop: 3-column layout ── */}
-          <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
-            <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} />
+          {/* ── Desktop: 3-column layout (or onboarding center) ── */}
+          {showOnboarding && !showWalkthrough ? (
+            <div className="hidden md:flex flex-1 items-center justify-center p-6 min-h-0">
+              <OnboardingWizard userName={userName} onComplete={handleOnboardingComplete} />
             </div>
-            <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
+          ) : (
+            <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
+              <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
+                <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} />
+              </div>
+              <div className="flex-1 min-w-0" data-walkthrough="center-panel">
+                <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
+              </div>
+              <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
+                <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
+              </div>
             </div>
-            <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-              <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
-            </div>
-          </div>
+          )}
 
           {/* ── Mobile: Single panel + bottom nav ── */}
           <div className="flex md:hidden flex-1 flex-col min-h-0">
             {/* Active panel */}
             <div className="flex-1 min-h-0 p-1 flex flex-col">
-              {mobilePanel === 'now' && (
-                <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} />
+              {showOnboarding && !showWalkthrough ? (
+                <div className="flex-1 min-h-0 flex items-center justify-center p-4">
+                  <OnboardingWizard userName={userName} onComplete={handleOnboardingComplete} />
                 </div>
-              )}
-              {mobilePanel === 'center' && (
-                <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
-                </div>
-              )}
-              {mobilePanel === 'queue' && (
-                <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                  <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} />
-                </div>
+              ) : (
+                <>
+                  {mobilePanel === 'now' && (
+                    <div className="flex-1 min-h-0" data-walkthrough="now-panel">
+                      <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} />
+                    </div>
+                  )}
+                  {mobilePanel === 'center' && (
+                    <div className="flex-1 min-h-0" data-walkthrough="center-panel">
+                      <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
+                    </div>
+                  )}
+                  {mobilePanel === 'queue' && (
+                    <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
+                      <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} />
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
