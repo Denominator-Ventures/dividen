@@ -324,6 +324,7 @@ model SignalConfig {
   priority        Int      @default(50) // Lower = higher priority (1-100)
   catchUpEnabled  Boolean  @default(true) // Include in catch-up triage
   triageEnabled   Boolean  @default(true) // Show triage button
+  triagePrompt    String?  // User-customized triage prompt (null = use smart default)
   userId          String
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

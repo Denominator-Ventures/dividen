@@ -51,10 +51,24 @@ export default function DashboardPage() {
     setActiveTab('chat');
   }, []);
 
-  /** Triage a specific signal — kicks off Divi review */
-  const handleTriage = useCallback((signalId: string) => {
-    const prompt = getSignalTriagePrompt(signalId);
-    setChatPrefill(prompt);
+  /** Triage a specific signal — uses user's custom prompt if set, else smart default */
+  const handleTriage = useCallback(async (signalId: string) => {
+    try {
+      const res = await fetch('/api/signals/config');
+      const json = await res.json();
+      if (json.success) {
+        const signalConfig = json.data.find((s: any) => s.signalId === signalId);
+        if (signalConfig?.triagePrompt) {
+          setChatPrefill(signalConfig.triagePrompt);
+        } else {
+          setChatPrefill(getSignalTriagePrompt(signalId));
+        }
+      } else {
+        setChatPrefill(getSignalTriagePrompt(signalId));
+      }
+    } catch {
+      setChatPrefill(getSignalTriagePrompt(signalId));
+    }
     setActiveTab('chat');
     setMobilePanel('center');
   }, []);

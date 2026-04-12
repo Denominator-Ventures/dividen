@@ -12,6 +12,8 @@ interface SignalConfigItem {
   priority: number;
   catchUpEnabled: boolean;
   triageEnabled: boolean;
+  triagePrompt: string | null;        // user override
+  defaultTriagePrompt: string;         // smart default
 }
 
 interface CatchUpSettingsProps {
@@ -24,6 +26,7 @@ export function CatchUpSettings({ open, onClose }: CatchUpSettingsProps) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [expandedSignal, setExpandedSignal] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const dragItem = useRef<number | null>(null);
   const dragOverItem = useRef<number | null>(null);
@@ -90,6 +93,24 @@ export function CatchUpSettings({ open, onClose }: CatchUpSettingsProps) {
     setDirty(true);
   };
 
+  const updateTriagePrompt = (index: number, prompt: string) => {
+    setConfigs(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], triagePrompt: prompt || null };
+      return next;
+    });
+    setDirty(true);
+  };
+
+  const resetTriagePrompt = (index: number) => {
+    setConfigs(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], triagePrompt: null };
+      return next;
+    });
+    setDirty(true);
+  };
+
   // Move signal up/down in priority
   const moveSignal = (index: number, direction: 'up' | 'down') => {
     const newIndex = direction === 'up' ? index - 1 : index + 1;
@@ -144,6 +165,7 @@ export function CatchUpSettings({ open, onClose }: CatchUpSettingsProps) {
             priority: c.priority,
             catchUpEnabled: c.catchUpEnabled,
             triageEnabled: c.triageEnabled,
+            triagePrompt: c.triagePrompt,
           })),
         }),
       });
@@ -167,7 +189,7 @@ export function CatchUpSettings({ open, onClose }: CatchUpSettingsProps) {
       {/* Panel */}
       <div
         ref={panelRef}
-        className="relative z-10 w-full max-w-md mx-4 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden"
+        className="relative z-10 w-full max-w-lg mx-4 bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-2xl shadow-2xl overflow-hidden"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-color)]">
@@ -196,131 +218,178 @@ export function CatchUpSettings({ open, onClose }: CatchUpSettingsProps) {
               {/* Info bar */}
               <div className="bg-[var(--bg-surface)] rounded-lg px-3 py-2 mb-2">
                 <p className="text-[10px] text-[var(--text-muted)]">
-                  <span className="text-brand-400 font-medium">Priority order</span> — signals at the top are triaged first during Catch Up.
-                  Disabled signals are skipped entirely.
+                  <span className="text-brand-400 font-medium">Priority &amp; prompts</span> — signals at the top are triaged first.
+                  Click any signal to edit its triage prompt. Each starts with a smart default.
                 </p>
               </div>
 
-              {configs.map((config, index) => (
-                <div
-                  key={config.signalId}
-                  draggable
-                  onDragStart={() => handleDragStart(index)}
-                  onDragEnter={() => handleDragEnter(index)}
-                  onDragEnd={handleDragEnd}
-                  onDragOver={(e) => e.preventDefault()}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all cursor-grab active:cursor-grabbing',
-                    config.catchUpEnabled
-                      ? 'bg-[var(--bg-secondary)] border-[var(--border-color)] hover:border-brand-500/20'
-                      : 'bg-[var(--bg-secondary)]/50 border-[var(--border-color)]/50 opacity-60',
-                  )}
-                >
-                  {/* Priority number */}
-                  <span className={cn(
-                    'text-[10px] font-bold w-4 text-center flex-shrink-0',
-                    config.catchUpEnabled ? 'text-brand-400' : 'text-[var(--text-muted)]'
-                  )}>
-                    {index + 1}
-                  </span>
+              {configs.map((config, index) => {
+                const isExpanded = expandedSignal === config.signalId;
+                const activePrompt = config.triagePrompt || config.defaultTriagePrompt;
+                const isCustomized = !!config.triagePrompt;
 
-                  {/* Drag handle */}
-                  <span className="text-[var(--text-muted)] text-xs flex-shrink-0 cursor-grab select-none" title="Drag to reorder">
-                    ⠿
-                  </span>
-
-                  {/* Signal info */}
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-base flex-shrink-0">{config.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-medium text-[var(--text-primary)] truncate">{config.name}</span>
-                        {config.isCustom && (
-                          <span className="text-[8px] px-1 py-0.5 rounded bg-orange-500/10 text-orange-400 font-medium flex-shrink-0">custom</span>
-                        )}
-                      </div>
+                return (
+                  <div key={config.signalId} className="rounded-lg border border-[var(--border-color)] overflow-hidden">
+                    {/* Main row */}
+                    <div
+                      draggable={!isExpanded}
+                      onDragStart={() => handleDragStart(index)}
+                      onDragEnter={() => handleDragEnter(index)}
+                      onDragEnd={handleDragEnd}
+                      onDragOver={(e) => e.preventDefault()}
+                      className={cn(
+                        'flex items-center gap-3 px-3 py-2.5 transition-all',
+                        !isExpanded && 'cursor-grab active:cursor-grabbing',
+                        config.catchUpEnabled
+                          ? 'bg-[var(--bg-secondary)] hover:bg-[var(--bg-secondary)]/80'
+                          : 'bg-[var(--bg-secondary)]/50 opacity-60',
+                      )}
+                    >
+                      {/* Priority number */}
                       <span className={cn(
-                        'text-[9px]',
-                        config.category === 'communication' ? 'text-blue-400' :
-                        config.category === 'meetings' ? 'text-purple-400' :
-                        config.category === 'content' ? 'text-green-400' :
-                        'text-orange-400'
+                        'text-[10px] font-bold w-4 text-center flex-shrink-0',
+                        config.catchUpEnabled ? 'text-brand-400' : 'text-[var(--text-muted)]'
                       )}>
-                        {config.category}
+                        {index + 1}
                       </span>
-                    </div>
-                  </div>
 
-                  {/* Move buttons */}
-                  <div className="flex flex-col gap-0.5 flex-shrink-0">
-                    <button
-                      onClick={() => moveSignal(index, 'up')}
-                      disabled={index === 0}
-                      className={cn(
-                        'text-[10px] w-5 h-4 rounded flex items-center justify-center transition-colors',
-                        index === 0 ? 'text-[var(--text-muted)]/30 cursor-not-allowed' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
-                      )}
-                      title="Move up"
-                    >
-                      ▲
-                    </button>
-                    <button
-                      onClick={() => moveSignal(index, 'down')}
-                      disabled={index === configs.length - 1}
-                      className={cn(
-                        'text-[10px] w-5 h-4 rounded flex items-center justify-center transition-colors',
-                        index === configs.length - 1 ? 'text-[var(--text-muted)]/30 cursor-not-allowed' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
-                      )}
-                      title="Move down"
-                    >
-                      ▼
-                    </button>
-                  </div>
+                      {/* Drag handle */}
+                      <span className="text-[var(--text-muted)] text-xs flex-shrink-0 cursor-grab select-none" title="Drag to reorder">
+                        ⠿
+                      </span>
 
-                  {/* Toggles */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Catch Up toggle */}
-                    <div className="flex flex-col items-center gap-0.5">
+                      {/* Signal info — clickable to expand */}
                       <button
-                        onClick={() => toggleCatchUp(index)}
-                        className={cn(
-                          'relative w-8 h-[18px] rounded-full transition-colors',
-                          config.catchUpEnabled ? 'bg-green-500' : 'bg-[var(--bg-surface-hover)]'
-                        )}
-                        title={config.catchUpEnabled ? 'Included in Catch Up' : 'Excluded from Catch Up'}
+                        onClick={() => setExpandedSignal(isExpanded ? null : config.signalId)}
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
                       >
-                        <div
-                          className={cn(
-                            'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform',
-                            config.catchUpEnabled ? 'translate-x-[16px]' : 'translate-x-[2px]'
-                          )}
-                        />
+                        <span className="text-base flex-shrink-0">{config.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-xs font-medium text-[var(--text-primary)] truncate">{config.name}</span>
+                            {config.isCustom && (
+                              <span className="text-[8px] px-1 py-0.5 rounded bg-orange-500/10 text-orange-400 font-medium flex-shrink-0">custom</span>
+                            )}
+                            {isCustomized && (
+                              <span className="text-[8px] px-1 py-0.5 rounded bg-brand-500/10 text-brand-400 font-medium flex-shrink-0">edited</span>
+                            )}
+                          </div>
+                          <span className={cn(
+                            'text-[9px]',
+                            config.category === 'communication' ? 'text-blue-400' :
+                            config.category === 'meetings' ? 'text-purple-400' :
+                            config.category === 'content' ? 'text-green-400' :
+                            'text-orange-400'
+                          )}>
+                            {config.category} · <span className="text-[var(--text-muted)]">click to edit prompt</span>
+                          </span>
+                        </div>
+                        <span className={cn(
+                          'text-[10px] text-[var(--text-muted)] transition-transform flex-shrink-0',
+                          isExpanded && 'rotate-180'
+                        )}>▼</span>
                       </button>
-                      <span className="text-[8px] text-[var(--text-muted)]">catch up</span>
+
+                      {/* Move buttons */}
+                      <div className="flex flex-col gap-0.5 flex-shrink-0">
+                        <button
+                          onClick={() => moveSignal(index, 'up')}
+                          disabled={index === 0}
+                          className={cn(
+                            'text-[10px] w-5 h-4 rounded flex items-center justify-center transition-colors',
+                            index === 0 ? 'text-[var(--text-muted)]/30 cursor-not-allowed' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
+                          )}
+                          title="Move up"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          onClick={() => moveSignal(index, 'down')}
+                          disabled={index === configs.length - 1}
+                          className={cn(
+                            'text-[10px] w-5 h-4 rounded flex items-center justify-center transition-colors',
+                            index === configs.length - 1 ? 'text-[var(--text-muted)]/30 cursor-not-allowed' : 'text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]'
+                          )}
+                          title="Move down"
+                        >
+                          ▼
+                        </button>
+                      </div>
+
+                      {/* Toggles */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <button
+                            onClick={() => toggleCatchUp(index)}
+                            className={cn(
+                              'relative w-8 h-[18px] rounded-full transition-colors',
+                              config.catchUpEnabled ? 'bg-green-500' : 'bg-[var(--bg-surface-hover)]'
+                            )}
+                            title={config.catchUpEnabled ? 'Included in Catch Up' : 'Excluded from Catch Up'}
+                          >
+                            <div className={cn(
+                              'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform',
+                              config.catchUpEnabled ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                            )} />
+                          </button>
+                          <span className="text-[8px] text-[var(--text-muted)]">catch up</span>
+                        </div>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <button
+                            onClick={() => toggleTriage(index)}
+                            className={cn(
+                              'relative w-8 h-[18px] rounded-full transition-colors',
+                              config.triageEnabled ? 'bg-blue-500' : 'bg-[var(--bg-surface-hover)]'
+                            )}
+                            title={config.triageEnabled ? 'Triage button visible' : 'Triage button hidden'}
+                          >
+                            <div className={cn(
+                              'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform',
+                              config.triageEnabled ? 'translate-x-[16px]' : 'translate-x-[2px]'
+                            )} />
+                          </button>
+                          <span className="text-[8px] text-[var(--text-muted)]">triage</span>
+                        </div>
+                      </div>
                     </div>
 
-                    {/* Triage toggle */}
-                    <div className="flex flex-col items-center gap-0.5">
-                      <button
-                        onClick={() => toggleTriage(index)}
-                        className={cn(
-                          'relative w-8 h-[18px] rounded-full transition-colors',
-                          config.triageEnabled ? 'bg-blue-500' : 'bg-[var(--bg-surface-hover)]'
-                        )}
-                        title={config.triageEnabled ? 'Triage button visible' : 'Triage button hidden'}
-                      >
-                        <div
-                          className={cn(
-                            'absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform',
-                            config.triageEnabled ? 'translate-x-[16px]' : 'translate-x-[2px]'
-                          )}
+                    {/* Expanded: Triage Prompt Editor */}
+                    {isExpanded && (
+                      <div className="px-3 py-3 bg-[var(--bg-surface)] border-t border-[var(--border-color)]">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[10px] font-medium text-[var(--text-secondary)]">
+                            Triage Prompt for {config.name}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {isCustomized && (
+                              <button
+                                onClick={() => resetTriagePrompt(index)}
+                                className="text-[9px] text-orange-400 hover:text-orange-300 transition-colors"
+                              >
+                                ↺ Reset to default
+                              </button>
+                            )}
+                            {!isCustomized && (
+                              <span className="text-[9px] text-green-400">Using smart default</span>
+                            )}
+                          </div>
+                        </div>
+                        <textarea
+                          value={activePrompt}
+                          onChange={(e) => updateTriagePrompt(index, e.target.value)}
+                          rows={6}
+                          className="w-full text-[11px] leading-relaxed bg-[var(--bg-primary)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-brand-500/40 resize-y min-h-[80px]"
+                          placeholder="Tell Divi what to do when triaging this signal..."
                         />
-                      </button>
-                      <span className="text-[8px] text-[var(--text-muted)]">triage</span>
-                    </div>
+                        <p className="text-[9px] text-[var(--text-muted)] mt-1.5">
+                          This prompt tells Divi exactly what to look for, how to prioritize, and what actions to take when triaging {config.name}.
+                          {!isCustomized && ' Edit to customize — it starts with a smart default based on the signal type.'}
+                        </p>
+                      </div>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

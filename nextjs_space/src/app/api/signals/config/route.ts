@@ -32,6 +32,8 @@ export async function GET() {
       const existing = configMap.get(signalId);
       const builtIn = SIGNAL_DEFINITIONS.find(s => s.id === signalId);
       const custom = customSignals.find(s => s.signalId === signalId);
+      // Smart default triage prompt from the signal definition
+      const defaultPrompt = builtIn?.triagePrompt || custom?.triagePrompt || `Triage my ${custom?.name || signalId} signal. Review recent activity and:\n1. Identify action items and create kanban cards\n2. Flag anything urgent\n3. Queue any outbound actions for my approval\n4. Summarize what needs my attention.`;
       return {
         signalId,
         name: builtIn?.name || custom?.name || signalId,
@@ -41,6 +43,8 @@ export async function GET() {
         priority: existing?.priority ?? (index + 1) * 10,
         catchUpEnabled: existing?.catchUpEnabled ?? true,
         triageEnabled: existing?.triageEnabled ?? true,
+        triagePrompt: existing?.triagePrompt || null, // user override (null = using default)
+        defaultTriagePrompt: defaultPrompt,           // smart default from signal definition
       };
     });
 
@@ -62,7 +66,7 @@ export async function PUT(req: NextRequest) {
     const userId = (session!.user as any).id;
 
     const body = await req.json();
-    const configs: { signalId: string; priority: number; catchUpEnabled: boolean; triageEnabled: boolean }[] = body.configs;
+    const configs: { signalId: string; priority: number; catchUpEnabled: boolean; triageEnabled: boolean; triagePrompt?: string | null }[] = body.configs;
 
     if (!Array.isArray(configs)) {
       return NextResponse.json({ error: 'configs must be an array' }, { status: 400 });
@@ -79,11 +83,13 @@ export async function PUT(req: NextRequest) {
             priority: c.priority,
             catchUpEnabled: c.catchUpEnabled,
             triageEnabled: c.triageEnabled,
+            triagePrompt: c.triagePrompt ?? null,
           },
           update: {
             priority: c.priority,
             catchUpEnabled: c.catchUpEnabled,
             triageEnabled: c.triageEnabled,
+            ...(c.triagePrompt !== undefined ? { triagePrompt: c.triagePrompt } : {}),
           },
         })
       )
