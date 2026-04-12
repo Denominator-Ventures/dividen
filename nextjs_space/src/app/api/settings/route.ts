@@ -31,7 +31,7 @@ export async function GET() {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true },
+    select: { id: true, name: true, email: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true },
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({

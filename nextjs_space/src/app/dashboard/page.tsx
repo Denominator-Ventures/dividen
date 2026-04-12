@@ -112,9 +112,17 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Check for tab navigation from Comms/Extensions/Connections pages
+  // Check for tab navigation from Comms/Extensions/Connections pages or URL params
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Check URL query param first
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get('tab');
+      if (tabParam) {
+        setActiveTab(tabParam as CenterTab);
+        // Clean up URL
+        window.history.replaceState({}, '', window.location.pathname);
+      }
       const openTab = sessionStorage.getItem('openTab');
       if (openTab) {
         setActiveTab(openTab as CenterTab);
@@ -359,6 +367,18 @@ export default function DashboardPage() {
               </button>
 
               <div className="w-px h-5 bg-[var(--border-color)]" />
+
+              {/* Profile */}
+              <button
+                onClick={() => setActiveTab('profile')}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
+                title="Your Profile"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+              </button>
 
               {/* Settings */}
               <Link

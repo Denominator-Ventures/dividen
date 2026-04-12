@@ -436,20 +436,31 @@ export default function SettingsPage() {
         />
       )}
 
-      {/* Profile Tab */}
+      {/* Profile Tab — now redirects to dedicated profile view */}
       {activeTab === 'profile' && (
         <div className="panel">
           <div className="panel-header">
             <div>
               <h2 className="font-semibold">👤 Personal Profile</h2>
               <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Your professional background, lived experience, availability, and privacy settings.
-                This is what Divi uses to understand who you are — and what connections see.
+                Your profile has moved to its own dedicated view — with photo upload, a public preview of how others see you, and all the same editing tools.
               </p>
             </div>
           </div>
-          <div className="panel-body">
-            <ProfileEditor />
+          <div className="panel-body py-8 text-center">
+            <a
+              href="/dashboard"
+              onClick={(e) => {
+                e.preventDefault();
+                window.location.href = '/dashboard?tab=profile';
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--brand-primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
+            >
+              👤 Open Profile View
+            </a>
+            <p className="text-xs text-[var(--text-muted)] mt-3">
+              Go to your dashboard and click the profile icon in the header, or use the button above.
+            </p>
           </div>
         </div>
       )}

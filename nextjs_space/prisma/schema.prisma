@@ -84,6 +84,9 @@ model User {
   signalConfigs        SignalConfig[]
   customSignals        CustomSignal[]
 
+  // Profile
+  profilePhotoUrl   String?   // Public S3 URL for profile photo
+
   // Divi personalization
   diviName          String?   // Custom name for their agent (default "Divi")
   workingStyle      Json?     // { verbosity: 1-5, proactivity: 1-5, autonomy: 1-5, formality: 1-5 }

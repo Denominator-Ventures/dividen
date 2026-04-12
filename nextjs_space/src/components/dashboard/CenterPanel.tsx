@@ -17,6 +17,7 @@ import { JobBoardView } from './JobBoardView';
 import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
 import DiscoverView from './DiscoverView';
+import ProfileView from './ProfileView';
 import { TriageButton } from './TriageButton';
 import { TAB_TO_SIGNAL, getSignalById } from '@/lib/signals';
 import { TabErrorBoundary } from './TabErrorBoundary';
@@ -211,6 +212,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
+        {activeTab === 'profile' && <TabErrorBoundary tabName="Profile"><ProfileView /></TabErrorBoundary>}
       </div>
     </div>
   );

@@ -35,8 +35,29 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tagResults, setTagResults] = useState<TagResult[]>([]);
+  const [userPhoto, setUserPhoto] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [diviName, setDiviName] = useState('Divi');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Fetch user info (photo, API key status, divi name) ──────────────
+  useEffect(() => {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const u = data.data?.user;
+          if (u?.profilePhotoUrl) setUserPhoto(u.profilePhotoUrl);
+          if (u?.name) setUserName(u.name);
+          if (u?.diviName) setDiviName(u.diviName);
+          const keys = data.data?.apiKeys || [];
+          setHasApiKey(keys.some((k: any) => k.isActive));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Scroll to bottom ──────────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
@@ -195,11 +216,18 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     }
   };
 
-  // ── Quick actions ─────────────────────────────────────────────────────
+  // ── Quick actions (no API key) ───────────────────────────────────────
   const quickActions = [
     { label: '📊 What\'s my status?', message: 'Give me a status update on all my tasks and projects.' },
     { label: '➕ Create a task', message: 'Help me create a new task.' },
     { label: '📋 Show my board', message: 'Show me my current Kanban board state.' },
+  ];
+
+  // ── Engagement actions (has API key, cleared chat) ─────────────────
+  const engagementActions = [
+    { label: '☀️ Catch me up', message: 'Catch me up on everything — what happened since we last talked, what\'s urgent, what needs my attention.' },
+    { label: '🧠 Let\'s strategize', message: 'I want to think through something strategic. Help me work through my priorities and what to focus on next.' },
+    { label: '⚡ Quick task', message: 'I have something quick I need done. Let me tell you what it is.' },
   ];
 
   // ── Render ────────────────────────────────────────────────────────────
@@ -209,7 +237,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-[var(--border-color)]">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-[var(--text-secondary)]">
-            AI Chat
+            Chat with {diviName}
           </span>
           {isStreaming && (
             <span className="text-xs text-[var(--brand-primary)] animate-pulse">
@@ -238,24 +266,32 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           <div className="flex flex-col items-center justify-center h-full text-center">
             <div className="text-5xl mb-4 opacity-20">⬡</div>
             <h3 className="text-lg font-medium text-[var(--text-secondary)] mb-2">
-              DiviDen Command Center
+              {hasApiKey ? `What can ${diviName} help with?` : 'DiviDen Command Center'}
             </h3>
-            <p className="text-sm text-[var(--text-muted)] max-w-md mb-3">
-              Chat with Divi, your AI agent. Ask questions, delegate tasks, or get
-              status updates on your projects.
-            </p>
-            <div className="bg-[var(--bg-surface)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
-              <p className="text-xs text-[var(--text-secondary)]">
-                <span className="font-semibold text-brand-400">Bring your own AI.</span>{' '}
-                Add your OpenAI or Anthropic API key in{' '}
-                <a href="/settings" className="text-brand-400 hover:text-brand-300 underline">
-                  Settings
-                </a>{' '}
-                to enable the chat agent. Nothing runs on our dime — you control your own AI.
+            {!hasApiKey && hasApiKey !== null ? (
+              <>
+                <p className="text-sm text-[var(--text-muted)] max-w-md mb-3">
+                  Chat with {diviName}, your AI agent. Ask questions, delegate tasks, or get
+                  status updates on your projects.
+                </p>
+                <div className="bg-[var(--bg-surface)] border border-[var(--border-primary)] rounded-lg px-4 py-3 max-w-md mb-5">
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    <span className="font-semibold text-brand-400">Bring your own AI.</span>{' '}
+                    Add your OpenAI or Anthropic API key in{' '}
+                    <a href="/settings" className="text-brand-400 hover:text-brand-300 underline">
+                      Settings
+                    </a>{' '}
+                    to enable the chat agent. Nothing runs on our dime — you control your own AI.
+                  </p>
+                </div>
+              </>
+            ) : hasApiKey ? (
+              <p className="text-sm text-[var(--text-muted)] max-w-md mb-5">
+                Start a conversation or pick one of these to get going.
               </p>
-            </div>
+            ) : null}
             <div className="flex gap-2 flex-wrap justify-center">
-              {quickActions.map((action) => (
+              {(hasApiKey ? engagementActions : quickActions).map((action) => (
                 <button
                   key={action.label}
                   className="btn-secondary text-sm"
@@ -269,14 +305,14 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} />
             ))}
 
             {/* Streaming response */}
             {isStreaming && streamingContent && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  AI
+                  {(diviName || 'D')[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-[var(--bg-surface)] rounded-lg p-3 max-w-[80%]">
                   <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
@@ -291,7 +327,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             {isStreaming && !streamingContent && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                  AI
+                  {(diviName || 'D')[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-[var(--bg-surface)] rounded-lg p-3 max-w-[80%]">
                   <div className="flex gap-1">
@@ -347,7 +383,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? 'Divi is thinking...' : 'Message Divi...'}
+            placeholder={isStreaming ? `${diviName} is thinking...` : `Message ${diviName}...`}
             className="input-field flex-1 text-sm md:text-base"
             disabled={isStreaming}
             onKeyDown={(e) => {
@@ -375,22 +411,33 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
 // ─── Message Bubble Component ────────────────────────────────────────────────
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+function MessageBubble({ message, userPhoto, userName, diviName }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string }) {
   const isUser = message.role === 'user';
+  const initials = isUser
+    ? (userName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+    : (diviName || 'D')[0].toUpperCase();
 
   return (
     <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
       {/* Avatar */}
-      <div
-        className={cn(
-          'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
-          isUser
-            ? 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
-            : 'bg-[var(--brand-primary)] text-white'
-        )}
-      >
-        {isUser ? 'U' : 'D'}
-      </div>
+      {isUser && userPhoto ? (
+        <img
+          src={userPhoto}
+          alt={userName || 'You'}
+          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+        />
+      ) : (
+        <div
+          className={cn(
+            'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
+            isUser
+              ? 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
+              : 'bg-[var(--brand-primary)] text-white'
+          )}
+        >
+          {initials}
+        </div>
+      )}
 
       {/* Content */}
       <div

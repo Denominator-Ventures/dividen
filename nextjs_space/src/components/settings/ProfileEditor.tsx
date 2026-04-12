@@ -9,7 +9,7 @@ import {
 
 type ProfileTab = 'professional' | 'lived' | 'availability' | 'jobs' | 'privacy' | 'import';
 
-export default function ProfileEditor() {
+export default function ProfileEditor({ onSaved }: { onSaved?: () => void } = {}) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,6 +59,7 @@ export default function ProfileEditor() {
         setDirty(false);
         setSaveMessage('Profile saved');
         setTimeout(() => setSaveMessage(''), 3000);
+        onSaved?.();
       }
     } catch (e) {
       setSaveMessage('Failed to save');
