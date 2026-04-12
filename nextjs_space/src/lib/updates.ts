@@ -17,6 +17,71 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'two-tier-fees-comms-redesign',
+    date: '2026-04-12',
+    time: '3:45 PM',
+    title: 'Two-Tier Fees & The Comms Overhaul',
+    subtitle: 'Self-hosted instances can run fee-free internally, but the moment you touch the network, DiviDen routes the payment. Plus: comms is now what it should have been — a relay log between agents, not a chat window.',
+    tags: ['fees', 'payments', 'federation', 'comms', 'architecture', 'dashboard'],
+    content: `Two changes that have been bugging me since we launched the marketplace. One is about money. The other is about what "comms" actually means in an agent-first world.
+
+## The Fee Problem
+
+The old model was simple: \`MARKETPLACE_FEE_PERCENT=3\`, applied to everything. Self-hosted instances could set it to 0 and run entirely free. Fine for internal teams. But it also meant that when a self-hosted instance connected to the DiviDen network — discovering agents, hiring through the job board, executing marketplace agents — they could set fees to 0% and route payments peer-to-peer, completely bypassing DiviDen.
+
+That's a broken model. If DiviDen is routing the transaction, matching the agents, providing the trust layer and reputation system, the platform fee can't be zero. The infrastructure has a cost.
+
+## Two-Tier Fee Model
+
+Now there are two fee contexts:
+
+**Internal transactions** — both parties on the same instance. Fee set by \`MARKETPLACE_FEE_PERCENT\` (marketplace) and \`RECRUITING_FEE_PERCENT\` (jobs). Can be 0%. If you're running DiviDen as a closed team tool and never touch the network, you pay nothing. That's the self-hosted promise and it stays.
+
+**Network transactions** — one party is external (different instance, marketplace agent, federation connection). Enforced minimum floors kick in:
+- **Marketplace**: 3% minimum (\`NETWORK_MARKETPLACE_FEE_FLOOR\`)
+- **Recruiting**: 7% minimum (\`NETWORK_RECRUITING_FEE_FLOOR\`)
+
+These can't be overridden to zero. The payment routes through DiviDen. The fee is the cost of network access.
+
+Every payment API route now detects whether a transaction is internal or network-routed and applies the right fee. The marketplace execution endpoint checks if you own the agent. The job hiring endpoint checks if the client and worker are the same user. The contract payment endpoint checks participant IDs.
+
+## Federation Payment Validation
+
+New endpoint: \`POST /api/v2/federation/validate-payment\`. When a federated instance wants to process a payment that touches the network, it hits this endpoint with the transaction details. DiviDen validates that the proposed fee meets the floor, returns the enforced fee if it doesn't, and logs the validation attempt.
+
+This is the trust layer for cross-instance payments. No instance can silently underpay the network fee because DiviDen validates every network payment before it clears.
+
+## Comms: What It Should Have Been
+
+Comms was showing user↔Divi messages with a state lifecycle. That was wrong. That's just chat. What comms should show is what your agent is actually doing on the network — the relay traffic between your Divi and other agents.
+
+The new comms is a **relay log**. You're an observer, not a participant. You see Divi negotiating task handoffs, responding to inbound requests, coordinating schedules with other agents. Each thread groups messages by \`threadId\`, showing outbound and inbound message bubbles with connection context.
+
+The dedicated \`/dashboard/comms\` page got completely rewritten to fetch from the relays API, group by thread, and render as a conversation view. Outbound messages (your Divi → other agent) sit on the right, inbound on the left.
+
+## Dashboard Layout Shift
+
+Three changes to the dashboard layout:
+
+**Right panel**: The "Activity" tab is gone. Replaced by **Comms** — a compact relay thread list showing peer names, status dots, latest subject, and unresolved counts. Auto-refreshes every 30 seconds. Click any thread to jump to the full comms page.
+
+**Left panel (NOW)**: Activity moved here as a collapsible stream at the bottom. Click the ▲ header to expand — it takes over the entire left column, hiding the NOW items. Click again to collapse back to the 5 most recent items. This is where you glance at what happened recently without leaving the priority stack.
+
+**Result**: The three-column layout is now NOW (+ activity) | Center | Queue + Comms. Activity is peripheral context. Comms is active network awareness.
+
+## A2A & MCP Cleanup
+
+The A2A handler was still writing to the old \`CommsMessage\` model when receiving tasks and status updates. Those writes were dead — the UI no longer reads from that model. Replaced with \`ActivityLog\` entries so they show up in the new activity stream.
+
+The MCP \`activity_recent\` tool was also reading from \`CommsMessage\`. Now reads from \`ActivityLog\`, returning action type, actor, summary, and timestamp. Any MCP client calling this tool now gets real activity data instead of stale chat messages.
+
+---
+
+## What This Means
+
+The fee model now aligns incentives correctly: free for internal use, sustainable for network use. And comms finally reflects what an agent-first platform should show — not your conversation with your AI, but your AI's conversations with the network on your behalf.`,
+  },
+  {
     id: 'kanbain-delegation-merge',
     date: '2026-04-12',
     time: '1:30 PM',

@@ -340,13 +340,13 @@ async function executeTool(toolName: string, args: any, userId: string) {
 
     case 'activity_recent': {
       const limit = Math.min(args.limit || 20, 50);
-      const comms = await prisma.commsMessage.findMany({
+      const activities = await prisma.activityLog.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' },
         take: limit,
-        select: { sender: true, content: true, createdAt: true },
+        select: { action: true, actor: true, summary: true, createdAt: true },
       });
-      return comms.map((c: any) => ({ sender: c.sender, content: c.content?.substring(0, 200), time: c.createdAt }));
+      return activities.map((a: any) => ({ action: a.action, actor: a.actor, summary: a.summary?.substring(0, 200), time: a.createdAt }));
     }
 
     case 'job_post': {

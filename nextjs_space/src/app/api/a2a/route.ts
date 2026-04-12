@@ -166,18 +166,17 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // Notify recipient
+        // Log as activity (comms is now relay-based — the relay itself is the record)
         if (toUserId) {
-          await prisma.commsMessage.create({
+          await prisma.activityLog.create({
             data: {
-              sender: 'system',
-              content: `🌐 A2A Task received: ${subject}`,
-              state: 'new',
-              priority: metadata?.priority || 'normal',
+              action: 'relay_sent',
+              actor: 'system',
+              summary: `A2A task received: ${subject}`,
               userId: toUserId,
               metadata: JSON.stringify({ type: 'a2a_task', relayId: relay.id, threadId }),
             },
-          });
+          }).catch(() => {});
         }
 
         // Push webhook
@@ -348,20 +347,19 @@ export async function POST(req: NextRequest) {
           data: { status: mappedStatus },
         });
 
-        // Log progress message as comms if provided
+        // Log progress as activity (comms is now relay-based)
         if (statusMessage) {
           const recipientId = relay.fromUserId === userId ? relay.toUserId : relay.fromUserId;
           if (recipientId) {
-            await prisma.commsMessage.create({
+            await prisma.activityLog.create({
               data: {
-                sender: 'system',
-                content: `📊 Task update [${relay.subject}]: ${statusMessage}`,
-                state: 'new',
-                priority: 'normal',
+                action: 'relay_responded',
+                actor: 'system',
+                summary: `Task update [${relay.subject}]: ${statusMessage}`,
                 userId: recipientId,
                 metadata: JSON.stringify({ type: 'a2a_status_update', relayId, threadId: relay.threadId }),
               },
-            });
+            }).catch(() => {});
           }
         }
 

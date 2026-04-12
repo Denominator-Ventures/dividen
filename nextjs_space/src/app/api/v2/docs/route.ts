@@ -514,6 +514,37 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         },
       },
     },
+    '/federation/validate-payment': {
+      post: {
+        tags: ['Federation'],
+        summary: 'Validate network payment fee',
+        description: 'Validates that a proposed payment fee meets the network minimum floor. Used by federated instances before processing any network-routed transaction. Returns the enforced fee if the proposed fee is below the floor.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['transactionType', 'grossAmount', 'proposedFeePercent'],
+                properties: {
+                  transactionType: { type: 'string', enum: ['marketplace', 'recruiting'], description: 'Type of transaction being validated' },
+                  grossAmount: { type: 'number', description: 'Total transaction amount' },
+                  proposedFeePercent: { type: 'number', description: 'Fee percentage the instance proposes to charge' },
+                  agentId: { type: 'string', description: 'Marketplace agent ID (for marketplace transactions)' },
+                  executionId: { type: 'string', description: 'Execution ID (for marketplace transactions)' },
+                  contractId: { type: 'string', description: 'Contract ID (for recruiting transactions)' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Validation result with enforced fee details' },
+          '401': { description: 'Invalid or missing platformToken' },
+          '400': { description: 'Missing required fields' },
+        },
+      },
+    },
   },
 };
 
