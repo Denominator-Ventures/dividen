@@ -40,7 +40,7 @@ export const SIGNAL_DEFINITIONS: SignalDefinition[] = [
     icon: '📧',
     description: 'Your email inbox — the primary source of external communication, requests, and action items.',
     inboundDescription: 'New emails, threads, replies, scheduling requests, action items embedded in conversations, follow-up reminders.',
-    triagePrompt: `Triage my email inbox. Review my recent and unread emails and for each one:\n1. Identify if it requires action, is informational, or can be archived\n2. For action items: create a kanban card with appropriate priority and deadline\n3. For emails needing a reply: draft a response and queue it for my approval\n4. For meeting requests: check my calendar and propose times\n5. Summarize what you found and what you've queued up for me.`,
+    triagePrompt: `Triage my email inbox. First, review my existing Board and Queue for context — update existing cards rather than creating duplicates.\n\nFor each recent/unread email:\n1. Identify if it requires action, is informational, or can be archived\n2. Check if a related card already exists on the Board. If yes → UPDATE it with the new email context (add details, adjust priority/status). If no → create a new card only if it's genuinely new work.\n3. For emails needing a reply: draft a response and queue it for my approval\n4. For meeting requests: check my calendar and propose times\n5. Summarize: what was UPDATED (with card IDs), what was NEWLY CREATED, and what was skipped.`,
     cardTypes: ['Follow-up', 'Reply needed', 'Meeting request', 'Action item', 'Decision needed', 'FYI'],
     capabilities: [
       {
@@ -67,7 +67,7 @@ export const SIGNAL_DEFINITIONS: SignalDefinition[] = [
     icon: '📅',
     description: 'Your calendar — meetings, events, and time blocks that shape your day.',
     inboundDescription: 'Upcoming meetings, new invitations, schedule changes, meeting prep needs, follow-up items from past meetings.',
-    triagePrompt: `Triage my calendar. Review my upcoming schedule and for each event:\n1. Identify meetings that need prep work — create prep cards on the kanban\n2. Flag scheduling conflicts or back-to-back meetings without buffer\n3. Suggest optimal times for deep work based on gaps\n4. For past meetings without follow-up: create follow-up cards\n5. Summarize my schedule outlook and what you've queued up.`,
+    triagePrompt: `Triage my calendar. First, cross-reference with my existing Board — many meetings may already have related cards.\n\nFor each event:\n1. Check if a related card already exists (meeting prep, follow-up, etc.). If yes → UPDATE it with the latest context (e.g., new attendees, agenda changes, add prep notes). If no → create a new card only for genuinely untracked items.\n2. Flag scheduling conflicts or back-to-back meetings without buffer\n3. Suggest optimal times for deep work based on gaps\n4. For past meetings without follow-up: check if a follow-up card exists first before creating\n5. Summarize: what was UPDATED, what was NEWLY CREATED, and schedule outlook.`,
     cardTypes: ['Meeting prep', 'Follow-up', 'Schedule conflict', 'Deep work block', 'Reschedule needed'],
     capabilities: [
       {
@@ -94,7 +94,7 @@ export const SIGNAL_DEFINITIONS: SignalDefinition[] = [
     icon: '🎙️',
     description: 'Meeting recordings and transcripts — the source of action items, decisions, and commitments.',
     inboundDescription: 'Meeting transcripts, action items, decisions made, commitments given, follow-up tasks, key topics discussed.',
-    triagePrompt: `Triage my recent recordings and transcripts. For each one:\n1. Extract all action items and commitments — create kanban cards for each\n2. Identify decisions that were made and log them\n3. Flag any follow-ups that are overdue or approaching deadline\n4. Note any topics that need further discussion\n5. Summarize key takeaways and what you've added to my board.`,
+    triagePrompt: `Triage my recent recordings and transcripts. Cross-reference with my existing Board first.\n\nFor each recording:\n1. Extract action items and commitments. For each, check if a related card already exists — UPDATE it with the new commitment/action item context rather than creating a duplicate.\n2. Identify decisions that were made and log them (update existing cards if relevant)\n3. Flag any follow-ups that are overdue or approaching deadline — update their priority/status on existing cards\n4. Only create NEW cards for genuinely new action items not already tracked\n5. Summarize: what was UPDATED, what was NEWLY CREATED, and key takeaways.`,
     cardTypes: ['Action item', 'Decision log', 'Follow-up', 'Discussion needed', 'Commitment tracking'],
     capabilities: [],
     setupPath: '/settings#integrations',
@@ -106,7 +106,7 @@ export const SIGNAL_DEFINITIONS: SignalDefinition[] = [
     icon: '👥',
     description: 'Your relationship network — contacts, interactions, and relationship health signals.',
     inboundDescription: 'New contacts, relationship activity, stale relationships needing attention, networking opportunities, introduction requests.',
-    triagePrompt: `Triage my CRM and contacts. Review my relationships and:\n1. Identify contacts I haven't engaged with recently who are important\n2. Flag any relationship signals from recent emails or meetings\n3. Suggest introductions that could be valuable\n4. Create follow-up cards for relationships that need nurturing\n5. Summarize relationship health and what needs attention.`,
+    triagePrompt: `Triage my CRM and contacts. Cross-reference with my existing Board — many follow-ups may already be tracked.\n\n1. Identify contacts I haven't engaged with recently who are important\n2. Flag any relationship signals from recent emails or meetings\n3. For follow-ups needed: check if a card already exists for that contact/relationship. If yes → UPDATE it with fresh context. If no → create a new card.\n4. Suggest introductions that could be valuable\n5. Summarize: what was UPDATED, what was NEWLY CREATED, and overall relationship health.`,
     cardTypes: ['Follow-up', 'Introduction', 'Relationship nurture', 'Check-in needed'],
     capabilities: [],
     setupPath: '/settings#integrations',
@@ -118,7 +118,7 @@ export const SIGNAL_DEFINITIONS: SignalDefinition[] = [
     icon: '📁',
     description: 'Your documents and files — notes, reports, templates, and shared resources.',
     inboundDescription: 'New documents, shared files, documents needing review, stale drafts, collaborative edits.',
-    triagePrompt: `Triage my Drive and documents. Review recent activity and:\n1. Identify documents that need my review or input\n2. Flag stale drafts that should be completed or archived\n3. Surface documents related to my active kanban cards\n4. Create cards for any document-related tasks\n5. Summarize what needs attention in my documents.`,
+    triagePrompt: `Triage my Drive and documents. Cross-reference with my existing Board first.\n\n1. Identify documents that need my review or input\n2. Flag stale drafts that should be completed or archived\n3. Surface documents related to my active kanban cards — UPDATE those cards with document links/context\n4. Only create NEW cards for document tasks not already tracked on the Board\n5. Summarize: what was UPDATED, what was NEWLY CREATED, and what needs attention.`,
     cardTypes: ['Review needed', 'Draft completion', 'Document update', 'Share/publish'],
     capabilities: [],
     setupPath: '/settings#integrations',
@@ -130,7 +130,7 @@ export const SIGNAL_DEFINITIONS: SignalDefinition[] = [
     icon: '🔗',
     description: 'Your DiviDen network — connections, relays, project invites, and collaboration signals.',
     inboundDescription: 'New connection requests, relay messages, project invites, team updates, job opportunities, collaboration requests.',
-    triagePrompt: `Triage my network and connections. Review recent activity and:\n1. Surface any unanswered connection requests or relay messages\n2. Check for project invites that need response\n3. Identify collaboration opportunities from the network\n4. Create cards for any network-related action items\n5. Summarize network activity and what needs my attention.`,
+    triagePrompt: `Triage my network and connections. Cross-reference with my existing Board.\n\n1. Surface any unanswered connection requests or relay messages\n2. Check for project invites that need response\n3. Identify collaboration opportunities from the network\n4. For action items: check if a related card already exists — UPDATE it. Only create NEW cards for genuinely untracked items.\n5. Summarize: what was UPDATED, what was NEWLY CREATED, and network activity overview.`,
     cardTypes: ['Connection response', 'Relay follow-up', 'Project invite', 'Collaboration opportunity'],
     capabilities: [],
     setupPath: '/settings#connections',
@@ -148,7 +148,7 @@ export function getSignalTriagePrompt(signalId: string, customPrompt?: string): 
   // Custom prompt override (for custom/webhook signals stored in DB)
   if (customPrompt) return customPrompt;
   const signal = getSignalById(signalId);
-  if (!signal) return `Triage my ${signalId} — review recent activity and surface anything that needs my attention. Create kanban cards for action items.`;
+  if (!signal) return `Triage my ${signalId} — review recent activity and cross-reference with my existing Board. Update existing cards with new context before creating new ones. Only create new kanban cards for genuinely untracked items. Summarize what was updated vs. newly created.`;
   return signal.triagePrompt;
 }
 
@@ -185,7 +185,7 @@ export function getCatchUpPrompt(configs?: SignalCatchUpConfig[]): string {
   const signalList = enabledSignals.map((s, i) => `${i + 1}. ${s.icon} ${s.name}`).join('\n');
   const signalNames = enabledSignals.map(s => s.name.toLowerCase()).join(', ');
 
-  return `Catch me up on everything. Triage my connected signals in this priority order:\n\n${signalList}\n\nFor each signal (${signalNames}):\n1. Review what's new or changed since we last caught up\n2. Identify action items, deadlines, and decisions needed\n3. Create kanban cards for anything that needs tracking\n4. Queue any outbound actions (email replies, meeting scheduling) for my approval\n5. Flag anything urgent that needs immediate attention\n\nGive me a structured summary organized by signal source in the priority order above, starting with the most urgent items. End with your recommended priorities for what I should focus on right now.`;
+  return `Catch me up on everything. Triage my connected signals in this priority order:\n\n${signalList}\n\n**IMPORTANT — Update first, create second.** You have my full Board and Queue context. Cross-reference everything against existing cards before creating new ones.\n\nFor each signal (${signalNames}):\n1. Review what's new or changed since we last caught up\n2. Cross-reference against existing Board cards — UPDATE cards with new context, adjust priorities/statuses, add checklist items where things have progressed\n3. Only CREATE new kanban cards for genuinely new items not already tracked in any form\n4. Queue any outbound actions (email replies, meeting scheduling) for my approval — but check if similar actions are already queued\n5. Flag anything urgent that needs immediate attention\n\nGive me a structured summary organized by signal source in the priority order above. For each signal, clearly show: ✏️ UPDATED (card ID + what changed), ➕ NEW (what was created), ⏭️ SKIPPED (already handled). End with your recommended priorities for what I should focus on right now.`;
 }
 
 /** Map center tab IDs to signal IDs where triage makes sense */

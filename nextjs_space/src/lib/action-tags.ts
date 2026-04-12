@@ -59,6 +59,7 @@ export const SUPPORTED_TAGS = [
   'relay_ambient',     // low-priority ambient ask — receiving agent weaves it in naturally
   'accept_connection', // accept a pending connection request
   'relay_respond',     // respond to an inbound relay (complete/decline)
+  'upsert_card',             // find existing card by title/context and update, or create new if not found
   'queue_capability_action', // queue an outbound capability action (email reply, meeting schedule)
   'update_profile',    // update user profile from conversation (skills, languages, etc.)
   // ── Orchestration Actions ──
@@ -192,6 +193,97 @@ async function executeTag(
           data: { status: 'completed' },
         });
         return { tag: name, success: true, data: { id: card.id } };
+      }
+
+      // ── Upsert Card (find by title similarity, update or create) ───
+      case 'upsert_card': {
+        const upsertTitle = params.title || 'Untitled';
+        // Search for existing cards with similar titles belonging to this user
+        const existingCards = await prisma.kanbanCard.findMany({
+          where: {
+            userId,
+            status: { notIn: ['completed', 'archived'] },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: 50,
+        });
+
+        // Find best match by title similarity
+        let bestMatch: any = null;
+        let bestSim = 0;
+        const { similarity: simFn } = await import('./queue-dedup');
+        for (const ec of existingCards) {
+          const sim = simFn(upsertTitle, ec.title);
+          if (sim > bestSim) {
+            bestSim = sim;
+            bestMatch = ec;
+          }
+        }
+
+        // If strong match (≥80% similar), update the existing card
+        if (bestMatch && bestSim >= 0.80) {
+          const updateData: Record<string, any> = {};
+          if (params.description) {
+            // Append new context to existing description
+            const existing = bestMatch.description || '';
+            const newContext = params.description;
+            if (existing && simFn(existing, newContext) < 0.65) {
+              updateData.description = `${existing}\n\n---\n📡 Updated via triage:\n${newContext}`;
+            } else if (!existing) {
+              updateData.description = newContext;
+            }
+          }
+          if (params.status) updateData.status = params.status;
+          if (params.priority) updateData.priority = params.priority;
+          if (params.dueDate) updateData.dueDate = new Date(params.dueDate);
+
+          if (Object.keys(updateData).length > 0) {
+            const updated = await prisma.kanbanCard.update({
+              where: { id: bestMatch.id },
+              data: updateData,
+            });
+            return {
+              tag: name,
+              success: true,
+              data: {
+                id: updated.id,
+                title: updated.title,
+                action: 'updated',
+                similarity: `${(bestSim * 100).toFixed(0)}%`,
+                fieldsUpdated: Object.keys(updateData),
+              },
+            };
+          }
+          // No new fields to update — return existing as-is
+          return {
+            tag: name,
+            success: true,
+            data: {
+              id: bestMatch.id,
+              title: bestMatch.title,
+              action: 'unchanged',
+              similarity: `${(bestSim * 100).toFixed(0)}%`,
+              note: 'Card already exists and is up to date',
+            },
+          };
+        }
+
+        // No match — create new card
+        const newCard = await prisma.kanbanCard.create({
+          data: {
+            title: upsertTitle,
+            description: params.description || null,
+            status: params.status || 'leads',
+            priority: params.priority || 'medium',
+            dueDate: params.dueDate ? new Date(params.dueDate) : null,
+            userId,
+          },
+        });
+        return {
+          tag: name,
+          success: true,
+          data: { id: newCard.id, title: newCard.title, action: 'created' },
+        };
       }
 
       // ── Checklist ────────────────────────────────────────────────────

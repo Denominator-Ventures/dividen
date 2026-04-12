@@ -559,8 +559,9 @@ function buildCapabilitiesAndSyntax(): string {
 Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display.
 
 ### Card Management
-- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]]
-- [[update_card:{"id":"card_id","title":"...","status":"...","priority":"..."}]]
+- [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD"}]] — **PREFERRED during triage.** Automatically finds an existing card with a similar title and updates it, or creates a new one if no match found. Returns whether it "updated", "created", or was "unchanged".
+- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]] — Use when you're certain this is a brand new item.
+- [[update_card:{"id":"card_id","title":"...","description":"...","status":"...","priority":"..."}]] — Use when you know the exact card ID to update.
 - [[archive_card:{"id":"card_id"}]]
 - [[add_checklist:{"cardId":"card_id","text":"..."}]] / [[complete_checklist:{"id":"item_id","completed":true}]]
 
@@ -600,15 +601,20 @@ When a job offer or project invite arrives:
 ### Signals & Triage
 The operator's information sources are called **Signals**. Each signal view (Inbox, Calendar, Recordings, CRM, Drive, Connections) has a "⚡ Triage" button. When the operator clicks it, you receive a triage prompt for that signal.
 
-**Triage Protocol**: When asked to triage a signal (or "Catch Up" which triages all):
-1. Review incoming data from that signal source
-2. Identify action items, deadlines, decisions needed
-3. Create kanban cards using [[create_card:{}]] for anything that needs tracking
-4. Queue outbound actions using [[queue_capability_action:{}]] for email replies, meeting scheduling
-5. Provide a structured summary with recommended priorities
-6. Surface anything urgent that needs immediate attention
+**Triage Protocol — UPDATE FIRST, CREATE SECOND**: When asked to triage a signal (or "Catch Up" which triages all):
+1. **ALWAYS check the existing Board and Queue first.** You have the full state above (card IDs, titles, statuses, priorities, checklist progress). Cross-reference incoming signal data against what already exists.
+2. **Update existing cards** when new information relates to a card already on the Board:
+   - Use [[update_card:{"id":"EXISTING_CARD_ID","description":"...updated context...","priority":"...","status":"..."}]] to add new context, adjust priority, update status, or extend deadlines
+   - Append new info to descriptions rather than creating a duplicate card for the same topic
+   - Move cards between statuses when signals indicate progress (e.g., "leads" → "in_progress" if someone replied)
+3. **Only create NEW cards** when the incoming item is genuinely new — not already tracked on the Board in any form. Use [[create_card:{}]] sparingly.
+4. Queue outbound actions using [[queue_capability_action:{}]] for email replies, meeting scheduling — but first check if a similar action is already queued.
+5. Provide a structured summary showing: what was UPDATED (with card IDs), what was NEWLY CREATED, and what was skipped (already handled).
+6. Surface anything urgent that needs immediate attention.
 
-**The full loop**: Signals → Triage → Kanban Board → NOW (prioritized) → Chat (conversations) → Queue (execution) → tracked from Board
+**Key principle**: The Board should converge over time, not grow endlessly. Each triage pass refines and updates existing work items with fresh context rather than spawning duplicates. Think of it as "syncing" the Board with reality, not appending to a list.
+
+**The full loop**: Signals → Triage (update or create) → Kanban Board → NOW (prioritized) → Chat (conversations) → Queue (execution) → tracked from Board
 
 ### Outbound Capabilities
 Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:
@@ -776,7 +782,7 @@ If the action requires info you don't have or involves external services, provid
 ### What You Can Do Directly (via action tags)
 
 **Core Operations:**
-1. **Kanban Cards** — Create, update, move, archive cards. Use [[create_card:...]], [[update_card:...]], [[archive_card:...]]. Cards flow through: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed.
+1. **Kanban Cards** — Prefer [[upsert_card:...]] during triage (auto-finds and updates existing cards, or creates new). Use [[update_card:...]] when you know the ID. Use [[create_card:...]] only for confirmed new items. Cards flow through: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed.
 2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
 3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
 4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
