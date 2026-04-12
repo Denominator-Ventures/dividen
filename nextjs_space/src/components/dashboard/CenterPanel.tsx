@@ -18,6 +18,7 @@ import { ExtensionsView } from './ExtensionsView';
 import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
 import DiscoverView from './DiscoverView';
+import { CapabilitiesView } from './CapabilitiesView';
 import { TabErrorBoundary } from './TabErrorBoundary';
 
 interface CenterPanelProps {
@@ -168,6 +169,11 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
             🧩 Extensions
           </button>
 
+          {/* Capabilities — standalone */}
+          <button onClick={() => onTabChange('capabilities')} className={tabClass(activeTab === 'capabilities')}>
+            ⚡ Capabilities
+          </button>
+
           {/* Earnings — standalone */}
           <button onClick={() => onTabChange('earnings')} className={tabClass(activeTab === 'earnings')}>
             💰 Earnings
@@ -214,6 +220,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'extensions' && <TabErrorBoundary tabName="Extensions"><ExtensionsView /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
+        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesView /></TabErrorBoundary>}
       </div>
     </div>
   );

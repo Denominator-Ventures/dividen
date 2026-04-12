@@ -23,6 +23,22 @@ const priorityIndicator: Record<CardPriority, { dot: string; label: string }> = 
   low: { dot: 'bg-gray-500', label: 'Low' },
 };
 
+// ─── Capability metadata parser ──────────────────────────────────────────────
+
+function parseCapabilityMeta(metadata?: string | null): { capabilityType?: string; action?: string; identity?: string; draft?: string; recipient?: string; subject?: string; meetingWith?: string; proposedTime?: string } | null {
+  if (!metadata) return null;
+  try {
+    const m = JSON.parse(metadata);
+    if (m.capabilityType) return m;
+    return null;
+  } catch { return null; }
+}
+
+const capabilityIcons: Record<string, string> = {
+  email: '✉️',
+  meetings: '📅',
+};
+
 // ─── Queue Item Card ────────────────────────────────────────────────────────
 
 function QueueItemCard({
@@ -37,26 +53,81 @@ function QueueItemCard({
   onSendToComms?: (id: string, title: string) => void;
 }) {
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
+  const capMeta = parseCapabilityMeta(item.metadata);
+  const isCapabilityAction = !!capMeta?.capabilityType;
+  const capIcon = capMeta ? (capabilityIcons[capMeta.capabilityType || ''] || '⚡') : '';
 
   return (
-    <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-3 group hover:border-brand-500/30 transition-all">
+    <div className={cn(
+      "bg-[var(--bg-secondary)] border rounded-lg p-3 group transition-all",
+      isCapabilityAction
+        ? "border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40"
+        : "border-[var(--border-color)] hover:border-brand-500/30"
+    )}>
       <div className="flex items-start gap-2">
         <div className={cn('w-2 h-2 rounded-full mt-1.5 shrink-0', pi.dot)} title={pi.label} />
         <div className="flex-1 min-w-0">
-          <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight">
-            {item.title}
-          </h4>
+          <div className="flex items-center gap-1.5">
+            {isCapabilityAction && <span className="text-sm">{capIcon}</span>}
+            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight">
+              {item.title}
+            </h4>
+          </div>
           {item.description && (
             <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-1">
               {item.description}
             </p>
           )}
+
+          {/* Capability-specific details */}
+          {capMeta?.capabilityType === 'email' && capMeta.recipient && (
+            <div className="mt-1.5 text-[10px] text-[var(--text-muted)] flex items-center gap-1.5">
+              <span>To: {capMeta.recipient}</span>
+              {capMeta.subject && <span>· {capMeta.subject}</span>}
+            </div>
+          )}
+          {capMeta?.capabilityType === 'meetings' && capMeta.meetingWith && (
+            <div className="mt-1.5 text-[10px] text-[var(--text-muted)] flex items-center gap-1.5">
+              <span>With: {capMeta.meetingWith}</span>
+              {capMeta.proposedTime && <span>· {capMeta.proposedTime}</span>}
+            </div>
+          )}
+
+          {/* Capability action buttons (approve / edit) */}
+          {isCapabilityAction && item.status === 'ready' && (
+            <div className="flex items-center gap-1.5 mt-2">
+              <button
+                onClick={() => onStatusChange(item.id, 'done_today')}
+                className="text-[10px] px-2 py-0.5 rounded-md bg-green-600/15 text-green-400 hover:bg-green-600/25 font-medium"
+              >
+                ✓ Approve
+              </button>
+              <button
+                onClick={() => onStatusChange(item.id, 'in_progress')}
+                className="text-[10px] px-2 py-0.5 rounded-md bg-blue-600/15 text-blue-400 hover:bg-blue-600/25 font-medium"
+              >
+                ✏️ Review
+              </button>
+              <button
+                onClick={() => onStatusChange(item.id, 'blocked')}
+                className="text-[10px] px-2 py-0.5 rounded-md bg-red-600/10 text-red-400/70 hover:bg-red-600/20 font-medium"
+              >
+                ✕ Skip
+              </button>
+            </div>
+          )}
+
           <div className="flex items-center gap-2 mt-2">
             <span className="text-[10px] text-[var(--text-muted)]">
               {timeAgo(item.createdAt)}
             </span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-muted)]">
-              {item.type}
+            <span className={cn(
+              "text-[10px] px-1.5 py-0.5 rounded",
+              isCapabilityAction
+                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
+                : "bg-[var(--bg-surface)] text-[var(--text-muted)]"
+            )}>
+              {isCapabilityAction ? `${capMeta.capabilityType} · ${capMeta.action || 'outbound'}` : item.type}
             </span>
           </div>
         </div>

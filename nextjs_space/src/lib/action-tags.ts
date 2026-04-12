@@ -59,6 +59,7 @@ export const SUPPORTED_TAGS = [
   'relay_ambient',     // low-priority ambient ask — receiving agent weaves it in naturally
   'accept_connection', // accept a pending connection request
   'relay_respond',     // respond to an inbound relay (complete/decline)
+  'queue_capability_action', // queue an outbound capability action (email reply, meeting schedule)
   'update_profile',    // update user profile from conversation (skills, languages, etc.)
   // ── Orchestration Actions ──
   'task_route',        // decompose a kanban card into tasks, match skills, route to best connection
@@ -312,6 +313,49 @@ async function executeTag(
             deduplicated: !dedupResult.created,
             ...(dedupResult.reason ? { reason: dedupResult.reason } : {}),
           },
+        };
+      }
+
+      // ── Capability Actions (outbound email, meeting scheduling) ──────
+      case 'queue_capability_action': {
+        const capType = params.capabilityType || 'email';
+        const action = params.action || 'outbound';
+        const titleMap: Record<string, string> = {
+          'email:reply': `Draft reply to ${params.recipient || 'contact'}`,
+          'email:compose': `Draft email to ${params.recipient || 'contact'}`,
+          'meetings:schedule': `Schedule meeting with ${params.meetingWith || 'contact'}`,
+        };
+        const capTitle = titleMap[`${capType}:${action}`] || params.title || `${capType} — ${action}`;
+
+        const capMeta = JSON.stringify({
+          capabilityType: capType,
+          action,
+          identity: params.identity || 'operator',
+          recipient: params.recipient,
+          subject: params.subject,
+          draft: params.draft,
+          meetingWith: params.meetingWith,
+          proposedTime: params.proposedTime,
+          duration: params.duration,
+        });
+
+        const capItem = await prisma.queueItem.create({
+          data: {
+            type: 'agent_suggestion',
+            title: capTitle,
+            description: params.subject || params.draft?.substring(0, 100) || `${capType} action`,
+            priority: params.priority || 'high',
+            status: 'ready',
+            source: 'agent',
+            metadata: capMeta,
+            userId,
+          },
+        });
+
+        return {
+          tag: name,
+          success: true,
+          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action },
         };
       }
 

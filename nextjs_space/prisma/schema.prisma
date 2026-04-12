@@ -44,6 +44,7 @@ model User {
   memoryItems   MemoryItem[]
   userLearnings UserLearning[]
   agentApiKeys  AgentApiKey[]
+  agentCapabilities AgentCapability[]
   externalApiKeys ExternalApiKey[]
   webhooks      Webhook[]
   serviceApiKeys ServiceApiKey[]
@@ -288,6 +289,29 @@ model AgentRule {
 
   @@index([userId])
   @@map("agent_rules")
+}
+
+// ─── Agent Capabilities ─────────────────────────────────────────────────────────
+// Outbound actions Divi can perform on behalf of the user.
+// Each capability has a type, status (enabled/disabled/setup), and user-defined rules.
+
+model AgentCapability {
+  id          String   @id @default(cuid())
+  type        String   // "email" | "meetings" | "custom"
+  name        String   // Display name, e.g. "Outbound Email" or "Meeting Scheduling"
+  status      String   @default("setup") // "setup" | "enabled" | "disabled" | "paused"
+  identity    String   @default("operator") // "operator" (send as user) | "agent" (send as Divi) | "both"
+  rules       String?  // JSON array of rules — e.g. [{ "rule": "Always CC me on emails to clients", "enabled": true }]
+  config      String?  // JSON — capability-specific config (e.g. signature, tone, scheduling prefs)
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([userId])
+  @@map("agent_capabilities")
 }
 
 model UserLearning {

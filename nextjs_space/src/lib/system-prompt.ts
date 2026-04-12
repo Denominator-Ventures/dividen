@@ -218,6 +218,9 @@ Current time: ${timeStr}`;
   // ── Group 12: Team Agent Context (conditional — only if user is in teams with agents enabled) ──
   const group12 = await buildTeamAgentContext(userId);
 
+  // ── Group 13: Active Capabilities (conditional — only if capabilities configured) ──
+  const group13 = await buildActiveCapabilitiesContext(userId);
+
   // ── Assemble ──
   const layers = [
     group1,   // Identity, Rules, Time
@@ -232,6 +235,7 @@ Current time: ${timeStr}`;
     group10,  // Platform Setup (conditional)
     group11,  // Business Operations (conditional)
     group12,  // Team Agent Context (conditional)
+    group13,  // Active Capabilities (conditional)
   ].filter(Boolean);
 
   return layers.join('\n\n---\n\n');
@@ -592,6 +596,18 @@ When a job offer or project invite arrives:
 - [[list_invites:{}]] — Show pending project invites for the operator
 
 **Jobs are special projects.** When someone is hired for a job, a Project is automatically created. Both parties become project members. Shared project members show up on each other's kanban cards — making collaboration visible.
+
+### Outbound Capabilities
+Operators configure capabilities (Outbound Email, Meeting Scheduling) in the ⚡ Capabilities tab. Each has:
+- **Identity**: "operator" (send as user), "agent" (send as Divi/agent email), or "both" (you decide)
+- **Rules**: Conditions like "always get approval for new contacts", "match my tone", "no meetings before 9am"
+- **Status**: enabled / disabled / paused
+
+When a capability is enabled, you should proactively use it:
+- **Outbound Email**: After inbox analysis, draft replies and queue them for approval. Use [[queue_capability_action:{"capabilityType":"email","action":"reply","recipient":"...","subject":"...","draft":"...","identity":"operator|agent"}]]
+- **Meeting Scheduling**: When meetings are needed, propose times and queue for approval. Use [[queue_capability_action:{"capabilityType":"meetings","action":"schedule","meetingWith":"...","proposedTime":"ISO","duration":"30m|60m","identity":"operator|agent"}]]
+
+These actions appear in the Queue with Approve / Review / Skip buttons. **Always respect the operator's rules.** If identity is "both", pick the best fit based on context (use agent identity for cold outreach, operator identity for warm relationships).
 
 ### Documents & Comms
 - [[create_document:{"title":"...","content":"markdown","type":"note|report|template|meeting_notes"}]]
@@ -1283,6 +1299,54 @@ async function buildTeamAgentContext(userId: string): Promise<string> {
     return text;
   } catch (err) {
     console.error('buildTeamAgentContext error:', err);
+    return '';
+  }
+}
+
+
+// ─── Active Capabilities Context (Group 13) ─────────────────────────────────
+
+async function buildActiveCapabilitiesContext(userId: string): Promise<string> {
+  try {
+    const capabilities = await prisma.agentCapability.findMany({
+      where: { userId },
+    });
+
+    if (capabilities.length === 0) return '';
+
+    let text = '## Active Outbound Capabilities\n';
+    text += 'The operator has configured the following outbound capabilities. Use them proactively when appropriate.\n\n';
+
+    for (const cap of capabilities) {
+      const rules = (cap.rules as unknown as any[]) || [];
+      const config = (cap.config as unknown as Record<string, any>) || {};
+      const enabledRules = rules.filter((r: any) => r.enabled !== false);
+
+      text += `### ${cap.name} (${cap.status})\n`;
+      text += `- Identity: ${cap.identity === 'operator' ? 'Send as user' : cap.identity === 'agent' ? 'Send as Divi (agent email)' : 'Both — you decide'}\n`;
+
+      if (cap.identity === 'agent' || cap.identity === 'both') {
+        if (config.agentEmail) {
+          text += `- Agent email: ${config.agentEmail}\n`;
+        }
+      }
+
+      if (enabledRules.length > 0) {
+        text += `- Rules:\n`;
+        for (const rule of enabledRules) {
+          text += `  - ${rule.label || rule.text || JSON.stringify(rule)}\n`;
+        }
+      }
+
+      if (cap.status === 'paused') {
+        text += `⚠️ This capability is PAUSED — do NOT use it until the operator re-enables it.\n`;
+      }
+      text += '\n';
+    }
+
+    return text.trim();
+  } catch (err) {
+    console.error('buildActiveCapabilitiesContext error:', err);
     return '';
   }
 }
