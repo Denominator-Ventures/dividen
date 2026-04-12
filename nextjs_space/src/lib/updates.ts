@@ -17,6 +17,124 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'kanbain-delegation-merge',
+    date: '2026-04-12',
+    time: '1:30 PM',
+    title: 'KanbAIn — The Board That Manages Itself',
+    subtitle: 'Tasks own the triage. Projects own the tasks. People are contributors or context. Divi is the project manager. Cards merge, deadlines infer, and nothing hits the board without your say-so.',
+    tags: ['kanban', 'delegation', 'triage', 'merge', 'architecture', 'people'],
+    content: `This might be the most architecturally dense update yet. Four hours of building that fundamentally changes what the kanban board is and how Divi interacts with it. The board is no longer a place you drag cards around. It's a living project management layer that Divi orchestrates on your behalf. We're calling it KanbAIn.
+
+## The Mental Model Shift
+
+Before today, Divi triaged signals and created **cards**. One email = one card. One calendar event = one card. The board filled up fast, and nothing converged.
+
+Now: **Cards are Projects. Checklist items are Tasks.** Every signal item produces a task, not a card. Tasks get routed to the right project. New projects only get created when something genuinely represents a new initiative or workstream.
+
+The difference is huge. Instead of 30 cards from an inbox sweep, you get 30 tasks distributed across 5-8 existing projects, with maybe 1-2 new projects created for genuinely new workstreams. The board converges instead of sprawling.
+
+## Task-First Triage Protocol
+
+The system prompt was completely rewritten around an 8-step Task-First Routing protocol:
+
+- **EXTRACT TASKS** — Pull actionable tasks from every signal item
+- **ROUTE TO PROJECT** — Match tasks to existing board projects using fuzzy title matching (Levenshtein similarity ≥80%)
+- **ADD TO EXISTING** — Attach as checklist item + link the source artifact
+- **CREATE NEW PROJECT** — Only when nothing matches. Name it as an initiative, not a task. "TechCorp Partnership Exploration" not "Reply to cold email"
+- **ASSIGN + DUE DATE** — Every task gets an owner and a deadline (more on both below)
+- **QUEUE ACTIONS** — Draft replies, schedule meetings
+- **LEARN** — Save routing patterns for next time
+- **SUMMARIZE** — Show what was added where
+
+The \`upsert_card\` action tag now does fuzzy matching automatically. Divi says "add to Acme Partnership" and the system finds the existing card even if the exact title is "Acme Corp Partnership Exploration". No duplicate cards, no fragmentation.
+
+## Extensible Artifact Linking
+
+Every signal type can now link artifacts to project cards. Built-in types — email, document, recording, calendar_event, contact, comms — get direct FK relationships for query performance. But custom signal types (Slack messages, GitHub PRs, Notion pages, anything from a webhook) use the new **CardArtifact** generic join table:
+
+\`cardId + artifactType + artifactId\` → unique, extensible to any string type.
+
+The \`link_artifact\` action tag dual-writes: sets the direct FK for built-in types AND creates the CardArtifact record. This means the board rendering shows artifact counts per card: 📧📄🎙️📅👤💬🔗 — and custom artifacts just work.
+
+Every task also carries **source traceability**: \`sourceType\`, \`sourceId\`, \`sourceLabel\`. You can always trace back to WHERE a task came from — which email, which calendar event, which Slack message.
+
+## The Delegation Model
+
+This is the big one. Tasks now have three owner types:
+
+- **self** — you do it personally
+- **divi** — Divi handles it directly (drafting emails, researching, analyzing)
+- **delegated** — another person's Divi manages them to deliver
+
+When you delegate a task, it shows as **"Sarah via Divi"** on your board. Not "delegated to agent." Not a cryptic ID. A human name, managed through their AI agent. Your board looks like a real project team, not a human talking to a robot.
+
+The flow: You → Your Divi (project manager) → Their Divi (via relay) → Their Human. Your Divi tracks progress. Their Divi manages their person. The task stays on YOUR board as the project hub.
+
+**delegationStatus** tracks the lifecycle: pending → accepted → in_progress → completed (or declined). The board rendering shows a breakdown per card: \`[me:2 divi:3 via-divi:1]\`.
+
+## People on Project Cards: Contributors vs Related
+
+Not everyone on a card should receive tasks. The new model:
+
+- **Contributors** (involvement="contributor") — actively working on the project. If they're a DiviDen user (shown with 🟢), tasks can be delegated to their Divi.
+- **Related** (involvement="related") — contextual contacts. Stakeholders, people mentioned in emails, meeting attendees. Shown as a count, not individual names.
+
+The \`canDelegate\` flag on CardContact auto-detects from the contact's \`platformUserId\`. If someone is a DiviDen user, Divi knows it can route tasks to them. If they're CRM-only, Divi suggests inviting them to DiviDen first.
+
+## Card Merging
+
+When two projects end up covering the same workstream, you can now merge them. Two ways:
+
+**From the UI** — Open any card, click 🔀 Merge in the footer. Pick a target project from the dropdown. Two-step confirm (warns you the source card will be deleted). All tasks, contacts, and artifacts move to the target. Source description gets appended.
+
+**Via Divi** — Tell Divi "merge the TechCorp and Acme cards" and it uses \`merge_cards\`. But Divi will **never auto-merge**. If it notices overlap, it'll suggest the merge and explain what would combine. You decide.
+
+This is key to the convergence principle: the board should get simpler over time, not more complex.
+
+## Due Date Discipline
+
+Every task should have a deadline. A task without a due date is a task that drifts.
+
+Divi now infers deadlines from context: "by Friday" → next Friday. "End of month" → last day. "ASAP" → today. For tasks with no temporal signal, it suggests defaults based on priority:
+
+- 🔴 Urgent → today
+- 🟠 High → +2 days
+- 🔵 Medium → +1 week
+- ⚪ Low → +2 weeks
+
+And it confirms with you before locking it in. The \`dueDate\` field lives on ChecklistItem now, not just on the card.
+
+## No Silent Board Mutations
+
+One explicit guardrail we added: **nothing hits the board without going through a triage conversation first.** Divi doesn't silently watch your email and populate cards in the background. Signal items get surfaced in a triage conversation where you see what Divi found and decide what becomes tasks. You're always in the loop.
+
+This was a conscious decision. The architecture could support auto-routing. But trust is earned incrementally, and an AI that silently reorganizes your project board before you've seen the inputs is an AI that's going to create anxiety, not productivity.
+
+## Board Rendering
+
+The kanban prompt Divi sees now includes per-card:
+- Task delegation breakdown: \`[me:2 divi:3 via-divi:1]\`
+- Contributor names with 🟢 for DiviDen users
+- Related contact count
+- Artifact counts by type
+- Pending task count and completion progress
+
+Divi sees your board the way you see it. It can make intelligent routing decisions because it knows who's on what card, what's delegated, and what's stale.
+
+---
+
+## What This Means
+
+The board isn't a passive display anymore. It's an active project management system where:
+- Tasks route to the right place automatically (with your oversight)
+- People have clear roles (contributor vs related, delegatable vs not)
+- Work flows through agent-to-agent relay (your Divi → their Divi)
+- Projects converge through merge and smart routing
+- Deadlines are always present, always inferred, always confirmed
+
+KanbAIn. The board that manages itself — with you in the cockpit.`,
+  },
+  {
     id: 'signals-capabilities-triage',
     date: '2026-04-12',
     time: '12:00 PM',
