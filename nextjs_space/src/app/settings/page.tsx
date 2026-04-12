@@ -14,6 +14,7 @@ import { FederationManager } from '@/components/settings/FederationManager';
 import ProfileEditor from '@/components/settings/ProfileEditor';
 import RelaySettings from '@/components/settings/RelaySettings';
 import PaymentSettings from '@/components/settings/PaymentSettings';
+import { DiviSettings } from '@/components/settings/DiviSettings';
 import { cn } from '@/lib/utils';
 
 interface SettingsData {
@@ -43,7 +44,7 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'general' | 'profile' | 'payments' | 'relay' | 'integrations' | 'notifications' | 'federation';
+type SettingsTab = 'general' | 'divi' | 'profile' | 'payments' | 'relay' | 'integrations' | 'notifications' | 'federation';
 
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -146,6 +147,17 @@ export default function SettingsPage() {
           )}
         >
           ⚙️ General
+        </button>
+        <button
+          onClick={() => setActiveTab('divi')}
+          className={cn(
+            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
+            activeTab === 'divi'
+              ? 'bg-[var(--brand-primary)] text-white'
+              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+          )}
+        >
+          🤖 Your Divi
         </button>
         <button
           onClick={() => setActiveTab('profile')}
@@ -412,6 +424,16 @@ export default function SettingsPage() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Your Divi Tab */}
+      {activeTab === 'divi' && data?.user && (
+        <DiviSettings
+          diviName={(data.user as any).diviName || null}
+          workingStyle={(data.user as any).workingStyle || null}
+          triageSettings={(data.user as any).triageSettings || null}
+          goalsEnabled={(data.user as any).goalsEnabled || false}
+        />
       )}
 
       {/* Profile Tab */}

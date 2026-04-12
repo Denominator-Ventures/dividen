@@ -84,6 +84,12 @@ model User {
   signalConfigs        SignalConfig[]
   customSignals        CustomSignal[]
 
+  // Divi personalization
+  diviName          String?   // Custom name for their agent (default "Divi")
+  workingStyle      Json?     // { verbosity: 1-5, proactivity: 1-5, autonomy: 1-5, formality: 1-5 }
+  triageSettings    Json?     // { autoMerge: bool, autoRouteToBoard: bool, triageStyle: string, dueDateDefaults: json }
+  goalsEnabled      Boolean   @default(false) // Whether Goals section is active
+
   @@map("users")
 }
 

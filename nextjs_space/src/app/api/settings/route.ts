@@ -31,7 +31,7 @@ export async function GET() {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true },
+    select: { id: true, name: true, email: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true },
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({
@@ -155,6 +155,23 @@ export async function PUT(request: NextRequest) {
       where: { id: userId },
       data: { hasCompletedOnboarding: body.hasCompletedOnboarding },
     });
+  }
+
+  // Update Divi personalization settings
+  if (body.diviSettings) {
+    const ds = body.diviSettings;
+    const updateData: Record<string, any> = {};
+    if (typeof ds.diviName === 'string') updateData.diviName = ds.diviName.trim() || null;
+    if (ds.workingStyle && typeof ds.workingStyle === 'object') updateData.workingStyle = ds.workingStyle;
+    if (ds.triageSettings && typeof ds.triageSettings === 'object') updateData.triageSettings = ds.triageSettings;
+    if (typeof ds.goalsEnabled === 'boolean') updateData.goalsEnabled = ds.goalsEnabled;
+
+    if (Object.keys(updateData).length > 0) {
+      await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+      });
+    }
   }
 
   return NextResponse.json({ success: true });

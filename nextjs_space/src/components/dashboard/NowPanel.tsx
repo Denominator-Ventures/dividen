@@ -39,10 +39,18 @@ interface NowData {
   focusSuggestion: string | null;
 }
 
+interface EarningsData {
+  jobEarnings: number;
+  agentEarnings: number;
+  visible: boolean; // only show if user has marketplace agents or is listed for jobs
+}
+
 interface NowPanelProps {
   onNewTask?: () => void;
   onQuickChat?: () => void;
   onItemClick?: (title: string) => void;
+  onOpenBoard?: () => void;
+  onOpenEarnings?: () => void;
 }
 
 const URGENCY_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
@@ -61,7 +69,7 @@ const TYPE_ICONS: Record<string, string> = {
   goal_check: '⚡',
 };
 
-export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps) {
+export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings }: NowPanelProps) {
   const [data, setData] = useState<NowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTask, setShowNewTask] = useState(false);
@@ -69,6 +77,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
   const [creating, setCreating] = useState(false);
   const [onboardingActions, setOnboardingActions] = useState<OnboardingActionState>({});
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [earnings, setEarnings] = useState<EarningsData>({ jobEarnings: 0, agentEarnings: 0, visible: false });
 
   const fetchNow = useCallback(async () => {
     try {
@@ -82,12 +91,23 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
     }
   }, []);
 
+  const fetchEarnings = useCallback(async () => {
+    try {
+      const res = await fetch('/api/earnings/summary');
+      if (res.ok) {
+        const json = await res.json();
+        if (json?.success) setEarnings(json.data);
+      }
+    } catch { /* non-critical */ }
+  }, []);
+
   useEffect(() => {
     fetchNow();
+    fetchEarnings();
     // Refresh every 2 minutes
     const interval = setInterval(fetchNow, 120000);
     return () => clearInterval(interval);
-  }, [fetchNow]);
+  }, [fetchNow, fetchEarnings]);
 
   const handleNewTask = async () => {
     if (!newTaskTitle?.trim()) return;
@@ -212,6 +232,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
               <div className="flex gap-1.5">
                 <button onClick={() => setShowNewTask(true)} className="flex-1 btn-secondary text-xs text-left py-1.5">+ Task</button>
                 <button onClick={() => onQuickChat?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">💬 Chat</button>
+                <button onClick={() => onOpenBoard?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">📋 Board</button>
               </div>
             )}
           </div>
@@ -283,6 +304,25 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
             </div>
           )}
         </div>
+      )}
+
+      {/* Earnings Widget — only visible if user has marketplace agents or is listed for jobs */}
+      {earnings.visible && !activityExpanded && (
+        <button
+          onClick={() => onOpenEarnings?.()}
+          className="mx-3 mb-2 px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 transition-colors cursor-pointer flex items-center justify-between group"
+        >
+          <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">💰 Earnings</span>
+          <div className="flex gap-3 text-xs">
+            <span className="text-[var(--text-secondary)]">
+              Jobs: <span className="font-semibold text-green-400">${earnings.jobEarnings.toLocaleString()}</span>
+            </span>
+            <span className="text-[var(--text-secondary)]">
+              Agents: <span className="font-semibold text-green-400">${earnings.agentEarnings.toLocaleString()}</span>
+            </span>
+          </div>
+          <span className="text-[9px] text-[var(--text-muted)] group-hover:text-[var(--brand-primary)] transition-colors">→</span>
+        </button>
       )}
 
       {/* Activity Stream — expands upward to take over panel */}

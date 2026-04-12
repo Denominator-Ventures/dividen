@@ -14,11 +14,9 @@ import { ConnectionsView } from './ConnectionsView';
 import { TeamsView } from './TeamsView';
 import { GoalsView } from './GoalsView';
 import { JobBoardView } from './JobBoardView';
-import { ExtensionsView } from './ExtensionsView';
 import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
 import DiscoverView from './DiscoverView';
-import { CapabilitiesView } from './CapabilitiesView';
 import { TriageButton } from './TriageButton';
 import { TAB_TO_SIGNAL, getSignalById } from '@/lib/signals';
 import { TabErrorBoundary } from './TabErrorBoundary';
@@ -35,17 +33,17 @@ interface CenterPanelProps {
 }
 
 /* ── Tab Organization ──────────────────────────────────────── */
-/*  Primary row:  Chat · Board · CRM · Calendar · Goals        */
-/*                | Network ▾ | Messages ▾ | Drive | Extensions */
-/*  Sub-row:      Network  → Connections · Teams · Jobs         */
-/*                Messages → Inbox · Recordings                 */
+/*  Primary row:  Chat · CRM · Calendar · Inbox · Recordings   */
+/*                | Network ▾ | Drive                           */
+/*  Sub-row:      Network  → Discover · Connections · Teams ·   */
+/*                            Jobs · Marketplace · Fed Intel    */
 
 const primaryTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
-  { id: 'kanban', label: 'Board', icon: '📋' },
   { id: 'crm', label: 'CRM', icon: '👥' },
   { id: 'calendar', label: 'Calendar', icon: '📅' },
-  { id: 'goals', label: 'Goals', icon: '🎯' },
+  { id: 'inbox', label: 'Inbox', icon: '📧' },
+  { id: 'recordings', label: 'Recordings', icon: '🎙️' },
 ];
 
 const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
@@ -57,21 +55,14 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'federation', label: 'Federation Intel', icon: '🧠' },
 ];
 
-const messagesTabs: { id: CenterTab; label: string; icon: string }[] = [
-  { id: 'inbox', label: 'Inbox', icon: '📧' },
-  { id: 'recordings', label: 'Recordings', icon: '🎙️' },
-];
-
 const networkTabIds = new Set(networkTabs.map((t) => t.id));
-const messagesTabIds = new Set(messagesTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
 export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onOpenCatchUpSettings }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
-  const isMessagesActive = messagesTabIds.has(activeTab);
-  const hasSubRow = isNetworkActive || isMessagesActive;
-  const activeSubTabs = isNetworkActive ? networkTabs : isMessagesActive ? messagesTabs : [];
+  const hasSubRow = isNetworkActive;
+  const activeSubTabs = isNetworkActive ? networkTabs : [];
 
   /* ── Drag-to-scroll for touch & mouse (with threshold to allow clicks) ── */
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -152,35 +143,12 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
             🌐 Network
           </button>
 
-          {/* Messages group (Inbox + Recordings) */}
-          <button
-            onClick={() => onTabChange(isMessagesActive ? activeTab : 'inbox')}
-            className={tabClass(isMessagesActive)}
-          >
-            📨 Messages
-          </button>
-
           {/* Divider */}
           <div className="w-px h-4 bg-[var(--border-color)] mx-1 flex-shrink-0" />
 
           {/* Drive — standalone */}
           <button onClick={() => onTabChange('drive')} className={tabClass(activeTab === 'drive')}>
             📁 Drive
-          </button>
-
-          {/* Extensions — standalone */}
-          <button onClick={() => onTabChange('extensions')} className={tabClass(activeTab === 'extensions')}>
-            🧩 Extensions
-          </button>
-
-          {/* Signals & Capabilities — standalone */}
-          <button onClick={() => onTabChange('capabilities')} className={tabClass(activeTab === 'capabilities')}>
-            📡 Signals
-          </button>
-
-          {/* Earnings — standalone */}
-          <button onClick={() => onTabChange('earnings')} className={tabClass(activeTab === 'earnings')}>
-            💰 Earnings
           </button>
         </div>
         </div>
@@ -241,10 +209,8 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'goals' && <TabErrorBoundary tabName="Goals"><GoalsView /></TabErrorBoundary>}
         {activeTab === 'jobs' && <TabErrorBoundary tabName="Jobs"><JobBoardView /></TabErrorBoundary>}
         {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
-        {activeTab === 'extensions' && <TabErrorBoundary tabName="Extensions"><ExtensionsView /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
-        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesView onOpenCatchUpSettings={onOpenCatchUpSettings} /></TabErrorBoundary>}
       </div>
     </div>
   );

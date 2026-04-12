@@ -17,6 +17,58 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'divi-personality-tab-reorg',
+    date: '2026-04-12',
+    time: '6:30 PM',
+    title: 'Divi Gets a Personality & The Tab Diet',
+    subtitle: 'Your agent is no longer a generic assistant — it\'s a high-agency chief of staff. Plus: we ripped out 5 tabs and made the whole dashboard tighter.',
+    tags: ['personality', 'identity', 'settings', 'dashboard', 'tabs', 'triage', 'auto-merge'],
+    content: `Three things happened in this session that change how DiviDen feels.
+
+## Divi Has a Personality Now
+
+Before this, Divi's identity was one line: "You are Divi, the AI agent inside the DiviDen Command Center." That's not a personality. That's a badge.
+
+Now Divi is a high-agency chief of staff. Strategic, commercially minded, execution-obsessed. It thinks in terms of leverage, incentives, sequencing, and people fit. It assumes every problem has three versions — the obvious one, the real one, and the interpersonal one. It's direct, a little irreverent, and never robotic. Think: competent consigliere with good taste, good instincts, and strong follow-through.
+
+The full personality is hardcoded — this IS Divi's character, not a template. But four behavioral dials are user-configurable: **verbosity** (concise ↔ detailed), **proactivity** (reactive ↔ proactive), **autonomy** (ask-first ↔ act-then-report), and **formality** (casual ↔ professional). Find them in Settings → 🤖 Your Divi.
+
+## Auto-Merge Is Default
+
+"Never auto-merge" was a guardrail from when we didn't trust the triage protocol. Now we do. Divi auto-merges duplicate project cards by default, tells you what it did, and splits them back if you disagree. Reduces board entropy. You can turn it off in Settings → Your Divi → Triage & Organization.
+
+## The Tab Diet
+
+We had too many tabs. Extensions, Signals, Goals, and Earnings were all cluttering the top row. Here's what changed:
+
+- **Extensions removed entirely** — Find agents on the Marketplace. That's where skills live now.
+- **Signals/Capabilities moved to Settings** — Signal configuration doesn't need its own tab. It's a settings concern.
+- **Goals moved to Settings** — Optional, off by default. When enabled, Divi considers them for board prioritization.
+- **Earnings removed from top row** — Now a compact widget in the NOW panel (only visible if you have marketplace agents or job activity). Click it to open the full view.
+- **Board removed from top row** — There's now a 📋 Board button in the NOW panel quick actions. Your board is one click away, but the primary surface is NOW + Chat.
+- **Messages broken up** — Inbox and Recordings are now separate top-level tabs instead of grouped under "Messages."
+
+**New tab layout:**
+\`\`\`
+PRIMARY:   Chat · CRM · Calendar · Inbox · Recordings
+NETWORK:   Discover · Connections · Teams · Jobs · Marketplace · Federation Intel
+STANDALONE: Drive
+\`\`\`
+
+## Name Your Agent
+
+You can now rename Divi to anything you want. Settings → Your Divi → Agent Name. Everything — system prompt, comms, identity statement — respects the custom name. The personality stays the same though. You can tune the dials, but you can't make Divi into a different person.
+
+## Triage Settings
+
+New configurable triage settings in Settings → Your Divi:
+- **Auto-merge** (default: on)
+- **Auto-route to board** (default: off) — turn on if you want Divi to add items to the board without asking first during triage
+- **Triage style** — Task-First (default), Card-Per-Item, or Minimal. Each changes how aggressively Divi manipulates the board during signal triage.
+
+All of these inject dynamically into Divi's system prompt. Changes take effect on the next conversation.`,
+  },
+  {
     id: 'two-tier-fees-comms-redesign',
     date: '2026-04-12',
     time: '3:45 PM',
