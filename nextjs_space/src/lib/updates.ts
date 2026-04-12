@@ -17,6 +17,38 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'profile-view-photo-chat',
+    date: '2026-04-12',
+    time: '11:00 PM',
+    title: 'Your Profile Has a Home Now',
+    subtitle: 'Dedicated profile view, photo upload, and a smarter chat experience.',
+    tags: ['profile', 'photo', 'chat', 'dashboard', 'ux'],
+    content: `Three things that make DiviDen feel more personal.
+
+## Profile View
+
+Your profile is no longer buried in Settings. It has its own dedicated view in the dashboard — hit the person icon in the header bar.
+
+Two modes: **Preview** shows exactly how others see you (bio, skills, experience, languages, values, availability — the whole thing). **Edit** is the same editor you already know, with all the tabs. Switch between them with a toggle. Upload a profile photo by hovering over your avatar.
+
+The photo uploads directly to S3, shows up everywhere — including your chat bubbles.
+
+## Smarter Chat Empty State
+
+When you clear the chat (or start fresh), the empty state now knows whether you have an API key configured.
+
+If you do, no more "add your API key" prompt. Instead you get three ways to kick things off:
+- **☀️ Catch me up** — what happened, what's urgent, what needs attention
+- **🧠 Let's strategize** — think through priorities and focus
+- **⚡ Quick task** — hand something off fast
+
+If you don't have a key yet, you still get the setup instructions.
+
+## Chat Personalization
+
+Chat now uses your Divi's name everywhere — header, placeholder, streaming avatar. If you renamed your agent to "Atlas" in settings, the chat says "Chat with Atlas" and shows "A" in the avatar circle instead of "AI". Your profile photo shows up on your own messages.`,
+  },
+  {
     id: 'agent-passwords-conversation-a2a',
     date: '2026-04-12',
     time: '9:00 PM',

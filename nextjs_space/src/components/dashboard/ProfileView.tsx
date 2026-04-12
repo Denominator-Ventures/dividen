@@ -9,7 +9,7 @@ import {
 
 type ViewMode = 'preview' | 'edit';
 
-export default function ProfileView() {
+export default function ProfileView({ onClose }: { onClose?: () => void } = {}) {
   const [mode, setMode] = useState<ViewMode>('preview');
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [user, setUser] = useState<{ name: string | null; email: string; profilePhotoUrl: string | null } | null>(null);
@@ -173,8 +173,9 @@ export default function ProfileView() {
             </div>
           </div>
 
-          {/* Mode toggle */}
-          <div className="flex-shrink-0 flex gap-1 bg-[var(--bg-surface)] rounded-lg p-0.5 border border-[var(--border-color)]">
+          {/* Mode toggle + close */}
+          <div className="flex-shrink-0 flex items-center gap-2">
+          <div className="flex gap-1 bg-[var(--bg-surface)] rounded-lg p-0.5 border border-[var(--border-color)]">
             <button
               onClick={() => setMode('preview')}
               className={cn(
@@ -197,6 +198,16 @@ export default function ProfileView() {
             >
               ✏️ Edit
             </button>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors"
+              title="Close profile"
+            >
+              ✕
+            </button>
+          )}
           </div>
         </div>
       </div>

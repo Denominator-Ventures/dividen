@@ -357,7 +357,7 @@ export function LandingPage() {
                   'Onboard to Stripe Connect Express in minutes',
                   'Earn 97% of every execution — paid directly to your account',
                   'Track earnings in your real-time developer dashboard',
-                  'Internal transactions: 0% fee. Network transactions: 3% minimum routing fee',
+                  'Internal transactions: set your own fee. Network transactions: 3% minimum routing fee',
                 ].map((item, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <span className="text-green-400/70 mt-0.5 shrink-0">✓</span>

@@ -212,7 +212,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
-        {activeTab === 'profile' && <TabErrorBoundary tabName="Profile"><ProfileView /></TabErrorBoundary>}
+        {activeTab === 'profile' && <TabErrorBoundary tabName="Profile"><ProfileView onClose={() => onTabChange('chat')} /></TabErrorBoundary>}
       </div>
     </div>
   );

@@ -22,7 +22,7 @@ export const FEATURES: FeatureItem[] = [
     icon: '🧠',
     title: 'AI Agent Intelligence',
     description:
-      'Your Divi reasons across 10 consolidated prompt groups — identity, goals, connections, memory, tools — assembling full context on every decision.',
+      'Your Divi reasons across 13 consolidated prompt groups — identity, goals, connections, memory, tools, calendar, capabilities, and more — assembling full context on every decision.',
     tier: 'core',
   },
   {
@@ -36,7 +36,7 @@ export const FEATURES: FeatureItem[] = [
     icon: '⚡',
     title: 'Action Tags — Not Just Chat',
     description:
-      '32+ executable actions via natural conversation. Route tasks, create goals, assemble briefs, dispatch relays — all from chat.',
+      '53 executable actions via natural conversation. Route tasks, create goals, assemble briefs, dispatch relays, manage contacts, post jobs, install agents — all from chat.',
     tier: 'core',
   },
   {
@@ -62,10 +62,10 @@ export const FEATURES: FeatureItem[] = [
     tier: 'power',
   },
   {
-    icon: '🧩',
-    title: 'Extensions Framework',
+    icon: '💬',
+    title: 'Persistent Conversations',
     description:
-      'Installable skills and personas that extend what your Divi can do. Curated registry, one-click install, automatic prompt integration.',
+      'Chat history persists across sessions. Your Divi never starts over — context compounds over time. Soft-clear the view without losing history.',
     tier: 'power',
   },
   {
@@ -123,8 +123,8 @@ export const PROTOCOL_LAYERS: ProtocolLayer[] = [
   },
   {
     num: '07',
-    name: 'Extensions Framework',
-    desc: 'Installable skills and personas from a curated registry. Extend what your Divi can do without touching the core protocol.',
+    name: 'Capabilities & Marketplace Agents',
+    desc: 'Extend what your Divi can do through marketplace agents and configurable capabilities. Discover, install, and execute specialized agents built by other developers.',
   },
   {
     num: '08',
@@ -134,7 +134,7 @@ export const PROTOCOL_LAYERS: ProtocolLayer[] = [
   {
     num: '09',
     name: 'Integration Surface',
-    desc: 'A2A bridge, webhooks, Agent API v2 — connect anything, from anywhere.',
+    desc: 'A2A v0.4, MCP v1.5, webhooks, Agent API v2 — connect anything, from anywhere.',
   },
   {
     num: '10',
@@ -145,7 +145,7 @@ export const PROTOCOL_LAYERS: ProtocolLayer[] = [
 
 export const MARKETPLACE_STATS = [
   { label: 'Developer Revenue Share', value: '97%' },
-  { label: 'Platform Routing Fee', value: '3%' },
+  { label: 'Network Routing Fee', value: '3%' },
   { label: 'Payment Processing', value: 'Stripe' },
-  { label: 'Internal Fee', value: '0%' },
+  { label: 'Internal Fee', value: 'You Set It' },
 ];
