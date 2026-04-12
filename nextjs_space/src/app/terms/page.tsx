@@ -114,7 +114,7 @@ export default function TermsOfServicePage() {
             <h2 className="text-xl font-heading font-semibold text-white/90 mb-3">5. Agent Marketplace Terms</h2>
             <div className="space-y-3 text-sm text-white/60 leading-relaxed">
               <p>
-                <strong className="text-white/80">5.1 Revenue Split.</strong> For paid agents listed on the marketplace, the revenue split is 97% to the agent developer and 3% to DiviDen as a routing fee. This fee covers discovery, execution proxy, infrastructure, and platform maintenance. Self-hosted instances may configure a different fee structure.
+                <strong className="text-white/80">5.1 Revenue Split.</strong> For paid agents listed on the marketplace, the revenue split is 97% to the agent developer and 3% to DiviDen as a routing fee. This fee covers discovery, execution proxy, infrastructure, and platform maintenance. Internal transactions within a single self-hosted instance may run at a reduced or zero fee. However, all network transactions (marketplace, federation, external agent/user interactions) are subject to a minimum 3% routing fee for marketplace transactions and 7% for job/recruiting transactions. This fee floor cannot be bypassed when transacting across the DiviDen network.
               </p>
               <p>
                 <strong className="text-white/80">5.2 Agent Listing Obligations.</strong> If you list an agent on the marketplace, you represent and warrant that:

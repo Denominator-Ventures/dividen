@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { ActivityStream } from './ActivityStream';
 
 interface NowItem {
   id: string;
@@ -67,6 +68,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [onboardingActions, setOnboardingActions] = useState<OnboardingActionState>({});
+  const [activityExpanded, setActivityExpanded] = useState(false);
 
   const fetchNow = useCallback(async () => {
     try {
@@ -149,136 +151,145 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick }: NowPanelProps)
         </div>
       </div>
 
-      <div className="panel-body flex-1 flex flex-col overflow-y-auto">
-        {/* Focus Suggestion */}
-        {data?.focusSuggestion && (
-          <div className="mb-3 px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
-            <p className="text-xs text-brand-400 font-medium">{data.focusSuggestion}</p>
-          </div>
-        )}
-
-        {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-1.5 mb-3">
-          {[
-            { label: 'Goals', value: summary.total, color: 'text-brand-400' },
-            { label: 'Critical', value: summary.critical, color: summary.critical > 0 ? 'text-red-400' : 'text-[var(--text-muted)]' },
-            { label: 'Due Soon', value: summary.approaching, color: summary.approaching > 0 ? 'text-orange-400' : 'text-[var(--text-muted)]' },
-            { label: 'On Track', value: summary.onTrack, color: 'text-green-400' },
-          ].map(s => (
-            <div key={s.label} className="text-center py-1.5 bg-[var(--bg-surface)] rounded-md">
-              <div className={`text-sm font-bold ${s.color}`}>{s.value}</div>
-              <div className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">{s.label}</div>
-            </div>
-          ))}
-        </div>
-
-        {/* Calendar Gap Indicator */}
-        {nextGap && nextGap.minutes > 0 && (
-          <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
-            <span className="text-[10px]">🕐</span>
-            <span className="text-[10px] text-[var(--text-secondary)]">
-              {nextGap.minutes >= 60
-                ? `${Math.round(nextGap.minutes / 60)}h ${nextGap.minutes % 60}min available`
-                : `${nextGap.minutes}min gap`}
-            </span>
-          </div>
-        )}
-
-        {/* Quick Actions */}
-        <div className="space-y-1.5 mb-3">
-          {showNewTask ? (
-            <div className="space-y-1.5">
-              <input
-                type="text"
-                className="input-field text-sm"
-                placeholder="Task title..."
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleNewTask()}
-                autoFocus
-              />
-              <div className="flex gap-2">
-                <button onClick={handleNewTask} disabled={creating || !newTaskTitle.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
-                  {creating ? 'Creating...' : 'Add'}
-                </button>
-                <button onClick={() => { setShowNewTask(false); setNewTaskTitle(''); }} className="btn-secondary text-sm px-3">✕</button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex gap-1.5">
-              <button onClick={() => setShowNewTask(true)} className="flex-1 btn-secondary text-xs text-left py-1.5">+ Task</button>
-              <button onClick={() => onQuickChat?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">💬 Chat</button>
+      {/* NOW content — hidden when activity stream is expanded */}
+      {!activityExpanded && (
+        <div className="panel-body flex-1 flex flex-col overflow-y-auto">
+          {/* Focus Suggestion */}
+          {data?.focusSuggestion && (
+            <div className="mb-3 px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
+              <p className="text-xs text-brand-400 font-medium">{data.focusSuggestion}</p>
             </div>
           )}
-        </div>
 
-        {/* Ranked Items */}
-        {loading ? (
-          <div className="text-center text-[var(--text-muted)] text-xs py-8">Scoring priorities...</div>
-        ) : items.length === 0 ? (
-          <div className="text-center text-[var(--text-muted)] text-xs py-8">Clear slate. Add a task or set a goal.</div>
-        ) : (
-          <div className="space-y-1 mb-3">
-            <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Priority Stack</h4>
-            {items.slice(0, 10).map((item, idx) => {
-              const colors = URGENCY_COLORS[item.urgency] || URGENCY_COLORS.low;
-              const isOnboarding = item.meta?.onboarding === true;
-              const actionInProgress = onboardingActions[item.sourceId];
+          {/* Quick Stats */}
+          <div className="grid grid-cols-4 gap-1.5 mb-3">
+            {[
+              { label: 'Goals', value: summary.total, color: 'text-brand-400' },
+              { label: 'Critical', value: summary.critical, color: summary.critical > 0 ? 'text-red-400' : 'text-[var(--text-muted)]' },
+              { label: 'Due Soon', value: summary.approaching, color: summary.approaching > 0 ? 'text-orange-400' : 'text-[var(--text-muted)]' },
+              { label: 'On Track', value: summary.onTrack, color: 'text-green-400' },
+            ].map(s => (
+              <div key={s.label} className="text-center py-1.5 bg-[var(--bg-surface)] rounded-md">
+                <div className={`text-sm font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-[9px] text-[var(--text-muted)] uppercase tracking-wider">{s.label}</div>
+              </div>
+            ))}
+          </div>
 
-              return (
-                <div key={item.id} className={`rounded-lg border ${colors.bg} transition-colors`}>
-                  <button
-                    onClick={() => onItemClick?.(item.title)}
-                    className="w-full text-left flex items-center gap-2 px-2.5 py-2 hover:brightness-125 cursor-pointer"
-                  >
-                    <span className="text-[9px] text-[var(--text-muted)] font-mono w-3">{idx + 1}</span>
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
-                    <span className="text-[10px] flex-shrink-0">{isOnboarding ? '🚀' : (TYPE_ICONS[item.type] || '📋')}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs truncate">{item.title}</div>
-                      {item.subtitle && <div className={`text-[9px] ${colors.text} truncate`}>{item.subtitle}</div>}
-                    </div>
-                    <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
+          {/* Calendar Gap Indicator */}
+          {nextGap && nextGap.minutes > 0 && (
+            <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
+              <span className="text-[10px]">🕐</span>
+              <span className="text-[10px] text-[var(--text-secondary)]">
+                {nextGap.minutes >= 60
+                  ? `${Math.round(nextGap.minutes / 60)}h ${nextGap.minutes % 60}min available`
+                  : `${nextGap.minutes}min gap`}
+              </span>
+            </div>
+          )}
+
+          {/* Quick Actions */}
+          <div className="space-y-1.5 mb-3">
+            {showNewTask ? (
+              <div className="space-y-1.5">
+                <input
+                  type="text"
+                  className="input-field text-sm"
+                  placeholder="Task title..."
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleNewTask()}
+                  autoFocus
+                />
+                <div className="flex gap-2">
+                  <button onClick={handleNewTask} disabled={creating || !newTaskTitle.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
+                    {creating ? 'Creating...' : 'Add'}
                   </button>
-
-                  {/* Onboarding task actions */}
-                  {isOnboarding && (
-                    <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'complete'); }}
-                        disabled={!!actionInProgress}
-                        className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
-                      >
-                        {actionInProgress === 'completing' ? '...' : '✓ Done'}
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'skip'); }}
-                        disabled={!!actionInProgress}
-                        className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
-                      >
-                        {actionInProgress === 'skipping' ? '...' : 'Skip'}
-                      </button>
-                    </div>
-                  )}
+                  <button onClick={() => { setShowNewTask(false); setNewTaskTitle(''); }} className="btn-secondary text-sm px-3">✕</button>
                 </div>
-              );
-            })}
-            {items.length > 10 && (
-              <div className="text-center text-[9px] text-[var(--text-muted)] py-1">
-                +{items.length - 10} more items
+              </div>
+            ) : (
+              <div className="flex gap-1.5">
+                <button onClick={() => setShowNewTask(true)} className="flex-1 btn-secondary text-xs text-left py-1.5">+ Task</button>
+                <button onClick={() => onQuickChat?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">💬 Chat</button>
               </div>
             )}
           </div>
-        )}
 
-        {/* Done Today */}
-        {doneItems.length > 0 && (
-          <div className="mt-auto pt-3">
-            <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Done Today</h4>
-            <div className="text-xs text-[var(--text-muted)]">{doneItems.length} tasks completed</div>
-          </div>
-        )}
-      </div>
+          {/* Ranked Items */}
+          {loading ? (
+            <div className="text-center text-[var(--text-muted)] text-xs py-8">Scoring priorities...</div>
+          ) : items.length === 0 ? (
+            <div className="text-center text-[var(--text-muted)] text-xs py-8">Clear slate. Add a task or set a goal.</div>
+          ) : (
+            <div className="space-y-1 mb-3">
+              <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Priority Stack</h4>
+              {items.slice(0, 10).map((item, idx) => {
+                const colors = URGENCY_COLORS[item.urgency] || URGENCY_COLORS.low;
+                const isOnboarding = item.meta?.onboarding === true;
+                const actionInProgress = onboardingActions[item.sourceId];
+
+                return (
+                  <div key={item.id} className={`rounded-lg border ${colors.bg} transition-colors`}>
+                    <button
+                      onClick={() => onItemClick?.(item.title)}
+                      className="w-full text-left flex items-center gap-2 px-2.5 py-2 hover:brightness-125 cursor-pointer"
+                    >
+                      <span className="text-[9px] text-[var(--text-muted)] font-mono w-3">{idx + 1}</span>
+                      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${colors.dot}`} />
+                      <span className="text-[10px] flex-shrink-0">{isOnboarding ? '🚀' : (TYPE_ICONS[item.type] || '📋')}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs truncate">{item.title}</div>
+                        {item.subtitle && <div className={`text-[9px] ${colors.text} truncate`}>{item.subtitle}</div>}
+                      </div>
+                      <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
+                    </button>
+
+                    {/* Onboarding task actions */}
+                    {isOnboarding && (
+                      <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'complete'); }}
+                          disabled={!!actionInProgress}
+                          className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                        >
+                          {actionInProgress === 'completing' ? '...' : '✓ Done'}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'skip'); }}
+                          disabled={!!actionInProgress}
+                          className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
+                        >
+                          {actionInProgress === 'skipping' ? '...' : 'Skip'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              {items.length > 10 && (
+                <div className="text-center text-[9px] text-[var(--text-muted)] py-1">
+                  +{items.length - 10} more items
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Done Today */}
+          {doneItems.length > 0 && (
+            <div className="mt-auto pt-3">
+              <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Done Today</h4>
+              <div className="text-xs text-[var(--text-muted)]">{doneItems.length} tasks completed</div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Activity Stream — expands upward to take over panel */}
+      <ActivityStream
+        expanded={activityExpanded}
+        onToggleExpand={() => setActivityExpanded(prev => !prev)}
+      />
     </div>
   );
 }

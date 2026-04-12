@@ -8,6 +8,7 @@
 import { prisma } from './prisma';
 import { deduplicatedQueueCreate } from './queue-dedup';
 import { pushRelayStateChanged } from './webhook-push';
+import { getPlatformFeePercent } from './marketplace-config';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1996,7 +1997,7 @@ async function executeTag(
             userId,
             taskInput: params.prompt,
             status: 'pending',
-            feePercent: isOwnAgent ? 0 : (parseFloat(process.env.MARKETPLACE_FEE_PERCENT || '3')),
+            feePercent: isOwnAgent ? 0 : getPlatformFeePercent(!isOwnAgent),
           },
         });
         // Call the agent endpoint

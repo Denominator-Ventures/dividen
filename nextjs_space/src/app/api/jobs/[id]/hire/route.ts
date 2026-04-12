@@ -127,7 +127,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     try {
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user?.stripeCustomerId) {
-        const { recruitingFee, workerPayout } = calculateRecruitingFee(compAmount);
+        // Network: poster and applicant are different users
+        const { recruitingFee, workerPayout } = calculateRecruitingFee(compAmount, true);
 
         // Check if worker has Stripe Connect
         const worker = await prisma.user.findUnique({ where: { id: applicantId } });

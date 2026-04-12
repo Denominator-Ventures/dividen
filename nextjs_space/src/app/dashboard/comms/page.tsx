@@ -1,37 +1,65 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
-import type { CommsMessageData, CommsState, CommsPriority } from '@/types';
-import { COMMS_STATES } from '@/types';
+import { useSession } from 'next-auth/react';
 
-type FilterState = 'all' | CommsState;
+// ─── Types ─────────────────────────────────────────────────────────────────────
 
-const SENDER_ICONS: Record<string, string> = {
-  user: '👤',
-  divi: '⬡',
-  system: '⚙️',
-};
+interface RelayUser {
+  id: string;
+  name: string | null;
+  email: string;
+}
 
-const SENDER_LABELS: Record<string, string> = {
-  user: 'You',
-  divi: 'Divi',
-  system: 'System',
-};
+interface RelayConnection {
+  id: string;
+  requester: RelayUser;
+  accepter: RelayUser | null;
+  peerAgentName?: string | null;
+  peerUserName?: string | null;
+}
 
-const PRIORITY_INDICATORS: Record<string, { color: string; label: string }> = {
-  urgent: { color: '#f87171', label: 'Urgent' },
-  normal: { color: '#94a3b8', label: 'Normal' },
-  low: { color: '#6b7280', label: 'Low' },
-};
+interface Relay {
+  id: string;
+  connectionId: string;
+  fromUserId: string;
+  toUserId: string | null;
+  direction: string;
+  type: string;
+  intent: string;
+  subject: string;
+  payload: string | null;
+  status: string;
+  priority: string;
+  dueDate: string | null;
+  resolvedAt: string | null;
+  responsePayload: string | null;
+  threadId: string | null;
+  parentRelayId: string | null;
+  artifactType: string | null;
+  artifacts: string | null;
+  peerInstanceUrl: string | null;
+  createdAt: string;
+  updatedAt: string;
+  connection: RelayConnection;
+  fromUser: RelayUser;
+  toUser: RelayUser | null;
+}
 
-const STATE_ACTIONS: { from: CommsState[]; to: CommsState; label: string; icon: string }[] = [
-  { from: ['new'], to: 'read', label: 'Mark Read', icon: '👁' },
-  { from: ['new', 'read'], to: 'acknowledged', label: 'Acknowledge', icon: '✓' },
-  { from: ['new', 'read', 'acknowledged'], to: 'resolved', label: 'Resolve', icon: '✔' },
-  { from: ['new', 'read', 'acknowledged'], to: 'dismissed', label: 'Dismiss', icon: '✕' },
-];
+interface RelayThread {
+  threadId: string;
+  peerName: string;
+  peerAgentName: string | null;
+  latestRelay: Relay;
+  relays: Relay[];
+  unresolved: number;
+}
+
+type FilterType = 'all' | 'pending' | 'completed' | 'declined';
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 
 function timeAgo(dateString: string): string {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -44,129 +72,108 @@ function timeAgo(dateString: string): string {
   return `${days}d ago`;
 }
 
-export default function CommsPage() {
-  const [messages, setMessages] = useState<CommsMessageData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterState>('all');
-  const [selected, setSelected] = useState<CommsMessageData | null>(null);
-  const [composing, setComposing] = useState(false);
-  const [composeText, setComposeText] = useState('');
-  const [composePriority, setComposePriority] = useState<CommsPriority>('normal');
-  const [sending, setSending] = useState(false);
-  const composeRef = useRef<HTMLTextAreaElement>(null);
+const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
+  pending: { color: '#f59e0b', label: 'Pending' },
+  delivered: { color: '#3b82f6', label: 'Delivered' },
+  agent_handling: { color: '#8b5cf6', label: 'Agent Handling' },
+  user_review: { color: '#ec4899', label: 'Needs Review' },
+  completed: { color: '#22c55e', label: 'Completed' },
+  declined: { color: '#ef4444', label: 'Declined' },
+  expired: { color: '#6b7280', label: 'Expired' },
+};
 
-  const fetchMessages = useCallback(async () => {
+const INTENT_ICONS: Record<string, string> = {
+  get_info: '🔍',
+  assign_task: '📋',
+  request_approval: '✋',
+  share_update: '📢',
+  schedule: '📅',
+  introduce: '🤝',
+  custom: '💬',
+};
+
+const DIRECTION_ICONS = {
+  outbound: '↗',
+  inbound: '↙',
+};
+
+// ─── Component ─────────────────────────────────────────────────────────────────
+
+export default function CommsPage() {
+  const { data: session } = useSession() || {};
+  const userId = (session?.user as any)?.id;
+  const [relays, setRelays] = useState<Relay[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterType>('all');
+  const [selectedThread, setSelectedThread] = useState<string | null>(null);
+
+  const fetchRelays = useCallback(async () => {
     try {
-      const params = filter !== 'all' ? `?state=${filter}` : '';
-      const res = await fetch(`/api/comms${params}`);
+      const res = await fetch('/api/relays?limit=100');
       const data = await res.json();
-      if (data.success) {
-        setMessages(data.data);
+      if (Array.isArray(data)) {
+        setRelays(data);
       }
     } catch (e) {
-      console.error('Failed to fetch comms:', e);
+      console.error('Failed to fetch relays:', e);
     } finally {
       setLoading(false);
     }
-  }, [filter]);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchMessages();
-  }, [fetchMessages]);
-
-  // Auto-mark as read when selecting a 'new' message
-  const handleSelect = useCallback(async (msg: CommsMessageData) => {
-    setSelected(msg);
-    if (msg.state === 'new') {
-      try {
-        const res = await fetch(`/api/comms/${msg.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ state: 'read' }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          setMessages((prev) =>
-            prev.map((m) => (m.id === msg.id ? { ...m, state: 'read' as CommsState } : m))
-          );
-          setSelected((prev) => (prev && prev.id === msg.id ? { ...prev, state: 'read' as CommsState } : prev));
-        }
-      } catch { /* silent */ }
-    }
   }, []);
 
-  const handleStateChange = useCallback(async (msgId: string, newState: CommsState) => {
-    try {
-      const res = await fetch(`/api/comms/${msgId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ state: newState }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessages((prev) =>
-          prev.map((m) => (m.id === msgId ? { ...m, state: newState } : m))
-        );
-        setSelected((prev) => (prev && prev.id === msgId ? { ...prev, state: newState } : prev));
-      }
-    } catch (e) {
-      console.error('Failed to update state:', e);
-    }
-  }, []);
-
-  const handleSend = useCallback(async () => {
-    if (!composeText.trim()) return;
-    setSending(true);
-    try {
-      const res = await fetch('/api/comms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: composeText.trim(),
-          sender: 'user',
-          priority: composePriority,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        setMessages((prev) => [data.data, ...prev]);
-        setComposeText('');
-        setComposePriority('normal');
-        setComposing(false);
-        setSelected(data.data);
-      }
-    } catch (e) {
-      console.error('Failed to send:', e);
-    } finally {
-      setSending(false);
-    }
-  }, [composeText, composePriority]);
-
-  const handleDelete = useCallback(async (msgId: string) => {
-    try {
-      const res = await fetch(`/api/comms/${msgId}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (data.success) {
-        setMessages((prev) => prev.filter((m) => m.id !== msgId));
-        if (selected?.id === msgId) setSelected(null);
-      }
-    } catch (e) {
-      console.error('Failed to delete:', e);
-    }
-  }, [selected]);
-
   useEffect(() => {
-    if (composing && composeRef.current) {
-      composeRef.current.focus();
-    }
-  }, [composing]);
+    fetchRelays();
+  }, [fetchRelays]);
 
-  const unreadCount = messages.filter((m) => m.state === 'new').length;
-  const stateConfig = selected ? COMMS_STATES.find((s) => s.id === selected.state) : null;
-  const availableActions = selected
-    ? STATE_ACTIONS.filter((a) => a.from.includes(selected.state as CommsState))
-    : [];
+  // Group relays into threads
+  const threads = useMemo(() => {
+    const threadMap = new Map<string, Relay[]>();
+
+    for (const r of relays) {
+      const tid = r.threadId || r.id; // solo relays get their own thread
+      if (!threadMap.has(tid)) threadMap.set(tid, []);
+      threadMap.get(tid)!.push(r);
+    }
+
+    const result: RelayThread[] = [];
+    for (const [threadId, items] of threadMap) {
+      items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const latest = items[items.length - 1];
+
+      // Determine peer name (the other party)
+      const firstRelay = items[0];
+      const conn = firstRelay.connection;
+      let peerName = 'Unknown Agent';
+      let peerAgentName = conn?.peerAgentName || null;
+
+      if (userId && firstRelay.fromUserId === userId) {
+        // We sent it — peer is the other end
+        peerName = conn?.accepter?.name || conn?.peerUserName || firstRelay.toUser?.name || 'External Agent';
+      } else {
+        peerName = conn?.requester?.name || firstRelay.fromUser?.name || 'External Agent';
+      }
+
+      const unresolved = items.filter(r => !['completed', 'declined', 'expired'].includes(r.status)).length;
+
+      result.push({ threadId, peerName, peerAgentName, latestRelay: latest, relays: items, unresolved });
+    }
+
+    // Sort by latest activity
+    result.sort((a, b) => new Date(b.latestRelay.createdAt).getTime() - new Date(a.latestRelay.createdAt).getTime());
+    return result;
+  }, [relays, userId]);
+
+  // Filter threads
+  const filteredThreads = useMemo(() => {
+    if (filter === 'all') return threads;
+    if (filter === 'pending') return threads.filter(t => t.unresolved > 0);
+    if (filter === 'completed') return threads.filter(t => t.latestRelay.status === 'completed');
+    if (filter === 'declined') return threads.filter(t => t.latestRelay.status === 'declined');
+    return threads;
+  }, [threads, filter]);
+
+  const activeThread = threads.find(t => t.threadId === selectedThread);
+  const pendingCount = threads.filter(t => t.unresolved > 0).length;
 
   return (
     <div className="h-full flex flex-col">
@@ -179,9 +186,9 @@ export default function CommsPage() {
           </Link>
           <div className="w-px h-5 bg-[var(--border-color)]" />
           <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>Comms — Agent Relay Channel</span>
-          {unreadCount > 0 && (
+          {pendingCount > 0 && (
             <span className="bg-[var(--brand-primary)] text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-              {unreadCount}
+              {pendingCount}
             </span>
           )}
         </div>
@@ -194,16 +201,6 @@ export default function CommsPage() {
               <polyline points="15 18 9 12 15 6" />
             </svg>
             <span className="hidden sm:inline">Dashboard</span>
-          </Link>
-          <Link
-            href="/settings"
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
-            title="Settings"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
           </Link>
           <button
             onClick={() => signOut({ callbackUrl: '/login' })}
@@ -221,114 +218,92 @@ export default function CommsPage() {
 
       {/* ── Main content ── */}
       <div className="flex-1 flex min-h-0">
-        {/* ── Left: Message list ── */}
+        {/* ── Left: Thread list ── */}
         <div className="w-full md:w-96 flex-shrink-0 border-r border-[var(--border-color)] flex flex-col">
           {/* Toolbar */}
-          <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {[{ id: 'all' as FilterState, label: 'All' }, ...COMMS_STATES.slice(0, 4)].map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => setFilter(s.id)}
-                  className={`label-mono px-2 py-1 rounded text-[10px] whitespace-nowrap transition-colors ${
-                    filter === s.id
-                      ? 'bg-[var(--brand-primary)]/15 text-brand-400'
-                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setComposing(true)}
-              className="flex-shrink-0 bg-[var(--brand-primary)] text-white text-xs font-medium px-3 py-1.5 rounded-md hover:bg-brand-600 transition-colors flex items-center gap-1"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              <span className="hidden sm:inline">New</span>
-            </button>
+          <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center gap-1 overflow-x-auto">
+            {([{ id: 'all' as FilterType, label: 'All' }, { id: 'pending' as FilterType, label: 'Active' }, { id: 'completed' as FilterType, label: 'Completed' }, { id: 'declined' as FilterType, label: 'Declined' }]).map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFilter(f.id)}
+                className={`label-mono px-2 py-1 rounded text-[10px] whitespace-nowrap transition-colors ${
+                  filter === f.id
+                    ? 'bg-[var(--brand-primary)]/15 text-brand-400'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
           </div>
 
-          {/* Message list */}
+          {/* Thread list */}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center h-32">
                 <div className="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : messages.length === 0 ? (
+            ) : filteredThreads.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 px-6 text-center">
                 <div className="text-3xl mb-3">📡</div>
-                <p className="text-sm text-[var(--text-secondary)] mb-1">No relay messages yet</p>
+                <p className="text-sm text-[var(--text-secondary)] mb-1">No agent relays yet</p>
                 <p className="text-xs text-[var(--text-muted)]">
-                  This is where Divi communicates with other agents — relays, marketplace dispatches, and cross-agent coordination appear here.
+                  When your Divi communicates with other agents — relays, marketplace dispatches, and cross-agent coordination — the conversation log appears here.
                 </p>
               </div>
             ) : (
-              messages.map((msg) => {
-                const isSelected = selected?.id === msg.id;
-                const stateInfo = COMMS_STATES.find((s) => s.id === msg.state);
-                const priorityInfo = PRIORITY_INDICATORS[msg.priority];
-                const isNew = msg.state === 'new';
+              filteredThreads.map((thread) => {
+                const isSelected = selectedThread === thread.threadId;
+                const latest = thread.latestRelay;
+                const statusInfo = STATUS_CONFIG[latest.status] || STATUS_CONFIG.pending;
+                const isOutbound = latest.fromUserId === userId;
 
                 return (
                   <button
-                    key={msg.id}
-                    onClick={() => handleSelect(msg)}
+                    key={thread.threadId}
+                    onClick={() => setSelectedThread(thread.threadId)}
                     className={`w-full text-left px-3 py-3 border-b border-[var(--border-color)] transition-colors ${
-                      isSelected
-                        ? 'bg-[var(--brand-primary)]/8'
-                        : 'hover:bg-[var(--bg-surface)]'
-                    } ${isNew ? 'border-l-2 border-l-[var(--brand-primary)]' : 'border-l-2 border-l-transparent'}`}
+                      isSelected ? 'bg-[var(--brand-primary)]/8' : 'hover:bg-[var(--bg-surface)]'
+                    } ${thread.unresolved > 0 ? 'border-l-2 border-l-[var(--brand-primary)]' : 'border-l-2 border-l-transparent'}`}
                   >
                     <div className="flex items-start gap-2">
-                      {/* Sender icon */}
-                      <span className={`text-base flex-shrink-0 mt-0.5 ${msg.sender === 'divi' ? 'text-brand-400' : ''}`}>
-                        {SENDER_ICONS[msg.sender] || '💬'}
-                      </span>
-
+                      <span className="text-base flex-shrink-0 mt-0.5 text-brand-400">⬡</span>
                       <div className="flex-1 min-w-0">
-                        {/* Top row: sender + time */}
                         <div className="flex items-center justify-between gap-2 mb-0.5">
                           <div className="flex items-center gap-2">
-                            <span className={`text-xs font-medium ${
-                              msg.sender === 'divi' ? 'text-brand-400' : 'text-[var(--text-primary)]'
-                            }`}>
-                              {SENDER_LABELS[msg.sender] || msg.sender}
+                            <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                              {thread.peerName}
+                              {thread.peerAgentName && <span className="text-[var(--text-muted)] font-normal"> · {thread.peerAgentName}</span>}
                             </span>
-                            {msg.priority === 'urgent' && (
-                              <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded" style={{ background: `${priorityInfo.color}20`, color: priorityInfo.color }}>
-                                Urgent
-                              </span>
-                            )}
+                            <span className="text-[10px] text-[var(--text-muted)]">
+                              {isOutbound ? DIRECTION_ICONS.outbound : DIRECTION_ICONS.inbound}
+                            </span>
                           </div>
                           <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">
-                            {timeAgo(msg.createdAt)}
+                            {timeAgo(latest.createdAt)}
                           </span>
                         </div>
 
-                        {/* Content preview */}
                         <p className={`text-xs leading-relaxed line-clamp-2 ${
-                          isNew ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'
+                          thread.unresolved > 0 ? 'text-[var(--text-primary)] font-medium' : 'text-[var(--text-secondary)]'
                         }`}>
-                          {msg.content}
+                          {INTENT_ICONS[latest.intent] || '💬'} {latest.subject}
                         </p>
 
-                        {/* Bottom row: state + linked entities */}
                         <div className="flex items-center gap-2 mt-1.5">
                           <span
                             className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: `${stateInfo?.color}20`, color: stateInfo?.color }}
+                            style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}
                           >
-                            {stateInfo?.label}
+                            {statusInfo.label}
                           </span>
-                          {msg.linkedCard && (
-                            <span className="text-[10px] text-[var(--text-muted)] truncate">🗂 {msg.linkedCard.title}</span>
-                          )}
-                          {msg.linkedContact && (
-                            <span className="text-[10px] text-[var(--text-muted)] truncate">👤 {msg.linkedContact.name}</span>
+                          <span className="text-[10px] text-[var(--text-muted)]">
+                            {thread.relays.length} message{thread.relays.length !== 1 ? 's' : ''}
+                          </span>
+                          {thread.unresolved > 0 && (
+                            <span className="text-[10px] text-amber-400">
+                              {thread.unresolved} active
+                            </span>
                           )}
                         </div>
                       </div>
@@ -340,204 +315,147 @@ export default function CommsPage() {
           </div>
         </div>
 
-        {/* ── Right: Detail / Compose pane ── */}
+        {/* ── Right: Thread detail ── */}
         <div className="hidden md:flex flex-1 flex-col min-h-0">
-          {composing ? (
-            /* Compose view */
-            <div className="flex-1 flex flex-col p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-semibold text-[var(--text-primary)]">New Message to Divi</h3>
-                <button
-                  onClick={() => { setComposing(false); setComposeText(''); }}
-                  className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Priority selector */}
-              <div className="flex items-center gap-2 mb-3">
-                <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>Priority</span>
-                {(['low', 'normal', 'urgent'] as CommsPriority[]).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setComposePriority(p)}
-                    className={`text-[10px] uppercase font-bold px-2 py-1 rounded transition-colors ${
-                      composePriority === p
-                        ? 'text-white'
-                        : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                    }`}
-                    style={
-                      composePriority === p
-                        ? { background: PRIORITY_INDICATORS[p].color }
-                        : { background: `${PRIORITY_INDICATORS[p].color}15` }
-                    }
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-
-              {/* Text area */}
-              <textarea
-                ref={composeRef}
-                value={composeText}
-                onChange={(e) => setComposeText(e.target.value)}
-                placeholder="Describe a task, ask a question, or give Divi instructions..."
-                className="flex-1 w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-brand-500/40 resize-none font-[Inter]"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                    handleSend();
-                  }
-                }}
-              />
-
-              {/* Send button */}
-              <div className="flex items-center justify-between mt-3">
-                <span className="text-[10px] text-[var(--text-muted)]">⌘+Enter to send</span>
-                <button
-                  onClick={handleSend}
-                  disabled={sending || !composeText.trim()}
-                  className="bg-[var(--brand-primary)] text-white text-xs font-medium px-4 py-2 rounded-md hover:bg-brand-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {sending ? 'Sending...' : 'Send to Divi'}
-                </button>
-              </div>
-            </div>
-          ) : selected ? (
-            /* Detail view */
+          {activeThread ? (
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Detail header */}
+              {/* Thread header */}
               <div className="px-6 py-4 border-b border-[var(--border-color)]">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2">
-                    <span className={`text-lg ${selected.sender === 'divi' ? 'text-brand-400' : ''}`}>
-                      {SENDER_ICONS[selected.sender]}
-                    </span>
-                    <span className={`text-sm font-semibold ${
-                      selected.sender === 'divi' ? 'text-brand-400' : 'text-[var(--text-primary)]'
-                    }`}>
-                      {SENDER_LABELS[selected.sender]}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)]">
-                      {new Date(selected.createdAt).toLocaleString()}
+                    <span className="text-lg text-brand-400">⬡</span>
+                    <span className="text-sm font-semibold text-[var(--text-primary)]">
+                      Divi ↔ {activeThread.peerName}
+                      {activeThread.peerAgentName && ` (${activeThread.peerAgentName})`}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="text-[10px] uppercase font-bold px-2 py-1 rounded"
-                      style={{ background: `${stateConfig?.color}20`, color: stateConfig?.color }}
-                    >
-                      {stateConfig?.label}
-                    </span>
-                    {selected.priority !== 'normal' && (
-                      <span
-                        className="text-[10px] uppercase font-bold px-2 py-1 rounded"
-                        style={{
-                          background: `${PRIORITY_INDICATORS[selected.priority].color}20`,
-                          color: PRIORITY_INDICATORS[selected.priority].color,
-                        }}
-                      >
-                        {selected.priority}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Action buttons */}
-                <div className="flex items-center gap-2 flex-wrap">
-                  {availableActions.map((action) => (
-                    <button
-                      key={action.to}
-                      onClick={() => handleStateChange(selected.id, action.to)}
-                      className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)] transition-colors flex items-center gap-1"
-                    >
-                      <span>{action.icon}</span>
-                      {action.label}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => handleDelete(selected.id)}
-                    className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-[var(--border-color)] text-red-400/70 hover:text-red-400 hover:bg-red-500/5 transition-colors ml-auto"
+                  <span
+                    className="text-[10px] uppercase font-bold px-2 py-1 rounded"
+                    style={{
+                      background: `${(STATUS_CONFIG[activeThread.latestRelay.status] || STATUS_CONFIG.pending).color}20`,
+                      color: (STATUS_CONFIG[activeThread.latestRelay.status] || STATUS_CONFIG.pending).color,
+                    }}
                   >
-                    Delete
-                  </button>
+                    {(STATUS_CONFIG[activeThread.latestRelay.status] || STATUS_CONFIG.pending).label}
+                  </span>
                 </div>
-              </div>
-
-              {/* Message body */}
-              <div className="flex-1 overflow-y-auto px-6 py-5">
-                <p className="text-sm text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
-                  {selected.content}
+                <p className="text-[10px] text-[var(--text-muted)]">
+                  {activeThread.relays.length} relay{activeThread.relays.length !== 1 ? 's' : ''} in this thread
+                  {activeThread.latestRelay.peerInstanceUrl && ` · Federated: ${activeThread.latestRelay.peerInstanceUrl}`}
                 </p>
-
-                {/* Linked entities */}
-                {(selected.linkedCard || selected.linkedContact || selected.linkedRecording || selected.linkedDocument) && (
-                  <div className="mt-6 pt-4 border-t border-[var(--border-color)]">
-                    <span className="label-mono text-[var(--text-muted)] text-[10px] block mb-2">Linked</span>
-                    <div className="flex flex-wrap gap-2">
-                      {selected.linkedCard && (
-                        <span className="text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2.5 py-1 text-[var(--text-secondary)]">
-                          🗂 {selected.linkedCard.title}
-                        </span>
-                      )}
-                      {selected.linkedContact && (
-                        <span className="text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2.5 py-1 text-[var(--text-secondary)]">
-                          👤 {selected.linkedContact.name}
-                          {selected.linkedContact.company && ` — ${selected.linkedContact.company}`}
-                        </span>
-                      )}
-                      {selected.linkedRecording && (
-                        <span className="text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2.5 py-1 text-[var(--text-secondary)]">
-                          🎙 {selected.linkedRecording.title}
-                        </span>
-                      )}
-                      {selected.linkedDocument && (
-                        <span className="text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2.5 py-1 text-[var(--text-secondary)]">
-                          📄 {selected.linkedDocument.title}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Reply quick-action */}
-              <div className="px-6 py-3 border-t border-[var(--border-color)]">
-                <button
-                  onClick={() => { setComposing(true); setComposeText(`Re: ${selected.content.slice(0, 80)}...\n\n`); }}
-                  className="w-full text-left text-xs text-[var(--text-muted)] hover:text-[var(--text-secondary)] px-3 py-2 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)] transition-colors"
-                >
-                  Reply to this message...
-                </button>
+              {/* Conversation view */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                {activeThread.relays.map((relay) => {
+                  const isFromMe = relay.fromUserId === userId;
+                  const statusInfo = STATUS_CONFIG[relay.status] || STATUS_CONFIG.pending;
+                  let payloadObj: any = null;
+                  try { if (relay.payload) payloadObj = JSON.parse(relay.payload); } catch {}
+                  let responseObj: any = null;
+                  try { if (relay.responsePayload) responseObj = JSON.parse(relay.responsePayload); } catch {}
+
+                  return (
+                    <div
+                      key={relay.id}
+                      className={`flex ${isFromMe ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] rounded-xl p-3 ${
+                        isFromMe
+                          ? 'bg-[var(--brand-primary)]/10 border border-brand-500/20'
+                          : 'bg-[var(--bg-surface)] border border-[var(--border-color)]'
+                      }`}>
+                        {/* Sender line */}
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className={`text-[10px] font-bold uppercase ${
+                            isFromMe ? 'text-brand-400' : 'text-purple-400'
+                          }`}>
+                            {isFromMe ? 'Your Divi' : `${activeThread.peerName}'s Agent`}
+                          </span>
+                          <span className="text-[9px] text-[var(--text-muted)]">
+                            {isFromMe ? DIRECTION_ICONS.outbound : DIRECTION_ICONS.inbound} {relay.type}
+                          </span>
+                          <span className="text-[9px] text-[var(--text-muted)]">
+                            {timeAgo(relay.createdAt)}
+                          </span>
+                        </div>
+
+                        {/* Intent badge + subject */}
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <span className="text-sm">{INTENT_ICONS[relay.intent] || '💬'}</span>
+                          <span className="text-xs font-medium text-[var(--text-primary)]">
+                            {relay.subject}
+                          </span>
+                        </div>
+
+                        {/* Payload */}
+                        {payloadObj && (
+                          <div className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
+                            {typeof payloadObj === 'string' ? payloadObj : (
+                              payloadObj.message || payloadObj.body || payloadObj.text || JSON.stringify(payloadObj, null, 2)
+                            )}
+                          </div>
+                        )}
+
+                        {/* Response payload (for completed relays) */}
+                        {responseObj && (
+                          <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
+                            <span className="text-[9px] uppercase font-bold text-emerald-400 block mb-1">Response</span>
+                            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                              {typeof responseObj === 'string' ? responseObj : (
+                                responseObj.message || responseObj.result || JSON.stringify(responseObj, null, 2)
+                              )}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Status + priority */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <span
+                            className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded"
+                            style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}
+                          >
+                            {statusInfo.label}
+                          </span>
+                          {relay.priority === 'urgent' && (
+                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-red-500/15 text-red-400">
+                              Urgent
+                            </span>
+                          )}
+                          {relay.dueDate && (
+                            <span className="text-[9px] text-[var(--text-muted)]">
+                              Due: {new Date(relay.dueDate).toLocaleDateString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : (
             /* Empty state */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
               <div className="text-4xl mb-4">📡</div>
-              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Comms Channel</h3>
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Agent Relay Channel</h3>
               <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed">
-                This is where you and Divi exchange structured tasks and updates.
-                Unlike chat, every message here has a state lifecycle — new → read → acknowledged → resolved.
+                This is where your Divi communicates with other agents — connected Divis, marketplace agents, and federated instances.
+                You can observe the conversation, see tasks dispatched and responses received, and Divi&apos;s acknowledgment of each exchange.
               </p>
-              <button
-                onClick={() => setComposing(true)}
-                className="mt-4 bg-[var(--brand-primary)] text-white text-xs font-medium px-4 py-2 rounded-md hover:bg-brand-600 transition-colors"
-              >
-                Send Divi a Task
-              </button>
+              <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed mt-2">
+                Tasks your Divi can handle internally never appear here — only cross-agent communication.
+              </p>
             </div>
           )}
         </div>
 
-        {/* ── Mobile: show detail as overlay when selected ── */}
-        {(selected || composing) && (
+        {/* ── Mobile: show detail as overlay when thread selected ── */}
+        {activeThread && (
           <div className="fixed inset-0 z-50 bg-[var(--bg-primary)] flex flex-col md:hidden">
-            {/* Mobile header */}
             <div className="flex-shrink-0 px-3 py-2.5 flex items-center justify-between border-b border-[var(--border-color)]">
               <button
-                onClick={() => { setSelected(null); setComposing(false); }}
+                onClick={() => setSelectedThread(null)}
                 className="text-xs text-[var(--text-muted)] hover:text-[var(--text-primary)] flex items-center gap-1"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -546,99 +464,42 @@ export default function CommsPage() {
                 Back
               </button>
               <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>
-                {composing ? 'Compose' : stateConfig?.label}
+                Divi ↔ {activeThread.peerName}
               </span>
             </div>
-
-            {composing ? (
-              <div className="flex-1 flex flex-col p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '10px' }}>Priority</span>
-                  {(['low', 'normal', 'urgent'] as CommsPriority[]).map((p) => (
-                    <button
-                      key={p}
-                      onClick={() => setComposePriority(p)}
-                      className={`text-[10px] uppercase font-bold px-2 py-1 rounded transition-colors ${
-                        composePriority === p ? 'text-white' : 'text-[var(--text-muted)]'
-                      }`}
-                      style={
-                        composePriority === p
-                          ? { background: PRIORITY_INDICATORS[p].color }
-                          : { background: `${PRIORITY_INDICATORS[p].color}15` }
-                      }
-                    >
-                      {p}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  ref={composeRef}
-                  value={composeText}
-                  onChange={(e) => setComposeText(e.target.value)}
-                  placeholder="Describe a task for Divi..."
-                  className="flex-1 w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg p-4 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none resize-none"
-                />
-                <button
-                  onClick={handleSend}
-                  disabled={sending || !composeText.trim()}
-                  className="mt-3 bg-[var(--brand-primary)] text-white text-sm font-medium py-2.5 rounded-md disabled:opacity-40"
-                >
-                  {sending ? 'Sending...' : 'Send to Divi'}
-                </button>
-              </div>
-            ) : selected ? (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="px-4 py-3 border-b border-[var(--border-color)]">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className={selected.sender === 'divi' ? 'text-brand-400' : ''}>
-                      {SENDER_ICONS[selected.sender]}
-                    </span>
-                    <span className="text-sm font-semibold text-[var(--text-primary)]">
-                      {SENDER_LABELS[selected.sender]}
-                    </span>
-                    <span className="text-[10px] text-[var(--text-muted)]">{timeAgo(selected.createdAt)}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {availableActions.map((action) => (
-                      <button
-                        key={action.to}
-                        onClick={() => handleStateChange(selected.id, action.to)}
-                        className="text-[10px] font-medium px-2 py-1 rounded border border-[var(--border-color)] text-[var(--text-secondary)]"
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+              {activeThread.relays.map((relay) => {
+                const isFromMe = relay.fromUserId === userId;
+                const statusInfo = STATUS_CONFIG[relay.status] || STATUS_CONFIG.pending;
+                return (
+                  <div key={relay.id} className={`flex ${isFromMe ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[90%] rounded-xl p-3 ${
+                      isFromMe ? 'bg-[var(--brand-primary)]/10 border border-brand-500/20' : 'bg-[var(--bg-surface)] border border-[var(--border-color)]'
+                    }`}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`text-[10px] font-bold uppercase ${
+                          isFromMe ? 'text-brand-400' : 'text-purple-400'
+                        }`}>
+                          {isFromMe ? 'Your Divi' : `${activeThread.peerName}`}
+                        </span>
+                        <span className="text-[9px] text-[var(--text-muted)]">{timeAgo(relay.createdAt)}</span>
+                      </div>
+                      <p className="text-xs font-medium text-[var(--text-primary)] mb-1">
+                        {INTENT_ICONS[relay.intent] || '💬'} {relay.subject}
+                      </p>
+                      <span
+                        className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}
                       >
-                        {action.icon} {action.label}
-                      </button>
-                    ))}
+                        {statusInfo.label}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1 overflow-y-auto px-4 py-4">
-                  <p className="text-sm text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap">
-                    {selected.content}
-                  </p>
-                </div>
-              </div>
-            ) : null}
+                );
+              })}
+            </div>
           </div>
         )}
-      </div>
-
-      {/* Marketplace CTA */}
-      <div className="flex-shrink-0 p-3 border-t border-[var(--border-color)]">
-        <Link
-          href="/dashboard"
-          onClick={(e) => {
-            // Store a flag so the dashboard knows to open marketplace
-            if (typeof window !== 'undefined') {
-              sessionStorage.setItem('openTab', 'marketplace');
-            }
-          }}
-          className="block w-full py-3 px-4 bg-gradient-to-r from-brand-500/20 via-purple-500/15 to-brand-500/20 hover:from-brand-500/30 hover:via-purple-500/25 hover:to-brand-500/30 border border-brand-500/30 hover:border-brand-500/50 rounded-xl text-sm font-semibold text-brand-400 transition-all text-center group"
-        >
-          <span className="flex items-center justify-center gap-2">
-            <span className="text-lg group-hover:scale-110 transition-transform">🏪</span>
-            <span>Agent Marketplace</span>
-            <span className="text-[10px] bg-brand-500/20 px-1.5 py-0.5 rounded-full text-brand-400/80">Explore</span>
-          </span>
-        </Link>
       </div>
     </div>
   );

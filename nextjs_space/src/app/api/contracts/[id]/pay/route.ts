@@ -47,7 +47,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Invalid payment amount' }, { status: 400 });
   }
 
-  const { recruitingFee, workerPayout, feePercent } = calculateRecruitingFee(paymentAmount);
+  // Network transaction: client and worker are different users (cross-instance / marketplace)
+  const isNetworkTransaction = contract.clientId !== contract.workerId;
+  const { recruitingFee, workerPayout, feePercent } = calculateRecruitingFee(paymentAmount, isNetworkTransaction);
 
   // Create payment record
   const paymentData: any = {

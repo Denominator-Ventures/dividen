@@ -1,11 +1,25 @@
 /**
- * Job recruiting fee configuration.
- * Default: 7% recruiting fee when DiviDen matches an outside-network worker to a paid job.
- * Open-source / self-hosted users can set RECRUITING_FEE_PERCENT=0 to keep 100%.
- * Separate from the 3% Agent Marketplace routing fee — this is for human talent recruiting.
+ * Job recruiting fee configuration — Two-Tier Fee Model.
+ *
+ * INTERNAL jobs (both poster and worker on same instance):
+ *   Configurable via RECRUITING_FEE_PERCENT env var. Can be 0%.
+ *
+ * NETWORK jobs (worker found via federation, marketplace, or external connection):
+ *   Enforced minimum floor of NETWORK_RECRUITING_FEE_FLOOR (default 7%).
+ *   Payments route through DiviDen — the platform fee cannot be bypassed.
+ *
+ * Default: 7% recruiting fee, 93% to worker.
  */
 
-export function getRecruitingFeePercent(): number {
+/** Minimum fee % enforced for network-routed job payments */
+export const NETWORK_RECRUITING_FEE_FLOOR = parseFloat(
+  process.env.NETWORK_RECRUITING_FEE_FLOOR || '7'
+);
+
+/**
+ * Returns the configured internal recruiting fee percent.
+ */
+export function getInternalRecruitingFeePercent(): number {
   const envVal = process.env.RECRUITING_FEE_PERCENT;
   if (envVal !== undefined && envVal !== '') {
     const parsed = parseFloat(envVal);
@@ -16,11 +30,26 @@ export function getRecruitingFeePercent(): number {
   return 7; // default 7%
 }
 
-export function calculateRecruitingFee(grossAmount: number) {
-  const feePercent = getRecruitingFeePercent();
+/**
+ * Returns the recruiting fee percent for a given transaction context.
+ */
+export function getRecruitingFeePercent(isNetworkTransaction = false): number {
+  const internal = getInternalRecruitingFeePercent();
+  if (!isNetworkTransaction) return internal;
+  return Math.max(internal, NETWORK_RECRUITING_FEE_FLOOR);
+}
+
+/**
+ * Calculates recruiting fee split.
+ */
+export function calculateRecruitingFee(
+  grossAmount: number,
+  isNetworkTransaction = false
+) {
+  const feePercent = getRecruitingFeePercent(isNetworkTransaction);
   const recruitingFee = Math.round(grossAmount * (feePercent / 100) * 100) / 100;
   const workerPayout = Math.round((grossAmount - recruitingFee) * 100) / 100;
-  return { grossAmount, recruitingFee, workerPayout, feePercent };
+  return { grossAmount, recruitingFee, workerPayout, feePercent, isNetworkTransaction };
 }
 
 /**
@@ -46,14 +75,20 @@ export function formatCompensation(
  * Returns display-friendly recruiting fee info for the UI.
  */
 export function getRecruitingFeeInfo() {
-  const feePercent = getRecruitingFeePercent();
+  const internalFee = getInternalRecruitingFeePercent();
+  const networkFee = Math.max(internalFee, NETWORK_RECRUITING_FEE_FLOOR);
+  const isSelfHosted = internalFee === 0;
+
   return {
-    feePercent,
-    workerPercent: 100 - feePercent,
-    isSelfHosted: feePercent === 0,
-    label: feePercent === 0
-      ? 'Self-hosted — 0% recruiting fee'
-      : `${feePercent}% recruiting fee · ${100 - feePercent}% to worker`,
+    feePercent: internalFee,
+    networkFeePercent: networkFee,
+    workerPercent: 100 - internalFee,
+    networkWorkerPercent: 100 - networkFee,
+    isSelfHosted,
+    label: isSelfHosted
+      ? `Internal: 0% fee · Network: ${networkFee}% recruiting fee`
+      : `${internalFee}% recruiting fee · ${100 - internalFee}% to worker`,
+    networkLabel: `${networkFee}% minimum fee on all network job payments`,
   };
 }
 

@@ -196,14 +196,16 @@ export async function POST(
       }
 
       // Calculate revenue split for paid agents (zero for own agents)
+      // Network transaction = agent developer is not the executing user (cross-instance or marketplace)
+      const isNetworkTransaction = !isOwnAgent;
       let grossAmount = 0;
       if (!isOwnAgent && agent.pricingModel === 'per_task' && agent.pricePerTask) {
         grossAmount = agent.pricePerTask;
       }
       // Subscription revenue is tracked at subscription level, not per-execution
       const revSplit = isOwnAgent
-        ? { grossAmount: 0, platformFee: 0, developerPayout: 0, feePercent: 0 }
-        : calculateRevenueSplit(grossAmount);
+        ? { grossAmount: 0, platformFee: 0, developerPayout: 0, feePercent: 0, isNetworkTransaction: false }
+        : calculateRevenueSplit(grossAmount, isNetworkTransaction);
 
       // Process Stripe payment for paid executions
       if (isPaidExecution && stripe && grossAmount > 0 && agent.developer?.stripeConnectAccountId && agent.developer?.stripeConnectOnboarded) {

@@ -8,14 +8,21 @@ import { getRecruitingFeeInfo, calculateRecruitingFee } from '@/lib/recruiting-c
  */
 export async function GET() {
   const info = getRecruitingFeeInfo();
-  const example = calculateRecruitingFee(1000);
+  const internalExample = calculateRecruitingFee(1000, false);
+  const networkExample = calculateRecruitingFee(1000, true);
   return NextResponse.json({
     ...info,
-    example: {
+    internalExample: {
       gross: 1000,
-      recruitingFee: example.recruitingFee,
-      workerPayout: example.workerPayout,
-      description: `On a $1,000 job: worker gets $${example.workerPayout}, DiviDen recruiting fee is $${example.recruitingFee}`,
+      recruitingFee: internalExample.recruitingFee,
+      workerPayout: internalExample.workerPayout,
+      description: `Internal: On a $1,000 job — worker gets $${internalExample.workerPayout}, fee is $${internalExample.recruitingFee}`,
+    },
+    networkExample: {
+      gross: 1000,
+      recruitingFee: networkExample.recruitingFee,
+      workerPayout: networkExample.workerPayout,
+      description: `Network: On a $1,000 job — worker gets $${networkExample.workerPayout}, fee is $${networkExample.recruitingFee} (minimum ${info.networkFeePercent}%)`,
     },
   });
 }

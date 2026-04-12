@@ -66,9 +66,12 @@ interface Execution {
 
 interface FeeInfo {
   feePercent: number;
+  networkFeePercent: number;
   developerPercent: number;
+  networkDeveloperPercent: number;
   isSelfHosted: boolean;
   label: string;
+  networkLabel: string;
 }
 
 interface EarningsData {
@@ -1321,7 +1324,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                 </div>
                 <p className="text-[10px] text-white/35">
                   {feeInfo.isSelfHosted
-                    ? 'Self-hosted instance — no platform fees applied.'
+                    ? 'Internal transactions: 0% fee. Network transactions: minimum 3% routing fee.'
                     : `You keep ${feeInfo.developerPercent}% of every transaction. DiviDen takes a ${feeInfo.feePercent}% routing fee for discovery, execution proxy, and infrastructure.`}
                 </p>
                 {regForm.pricingModel === 'per_task' && regForm.pricePerTask && (
@@ -1655,8 +1658,8 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
           {fi && (
             <div className="mt-3 px-3 py-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[10px] text-white/40">
               💡 Revenue split: <span className="text-emerald-400 font-medium">{fi.developerPercent}% to you</span> · {fi.feePercent}% routing fee
-              {fi.isSelfHosted && <span className="ml-1 text-brand-400">(self-hosted — 0% fee)</span>}
-              {!fi.isSelfHosted && <span className="ml-1">· Set <code className="bg-white/5 px-1 rounded">MARKETPLACE_FEE_PERCENT=0</code> on self-hosted instances for 100% developer share</span>}
+              {fi.isSelfHosted && <span className="ml-1 text-brand-400">(internal: 0% · network: {fi.networkFeePercent}% min)</span>}
+              {!fi.isSelfHosted && <span className="ml-1">· Internal transactions configurable · Network: {fi.networkFeePercent}% minimum enforced</span>}
             </div>
           )}
           {t.subscriptionMRR > 0 && (

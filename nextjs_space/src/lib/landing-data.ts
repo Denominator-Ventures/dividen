@@ -147,5 +147,5 @@ export const MARKETPLACE_STATS = [
   { label: 'Developer Revenue Share', value: '97%' },
   { label: 'Platform Routing Fee', value: '3%' },
   { label: 'Payment Processing', value: 'Stripe' },
-  { label: 'Self-Hosted Fee', value: '0%' },
+  { label: 'Internal Fee', value: '0%' },
 ];

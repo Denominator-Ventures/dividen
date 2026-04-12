@@ -149,7 +149,7 @@ export function JobBoardView() {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
   const [showDetail, setShowDetail] = useState(false);
-  const [feeInfo, setFeeInfo] = useState<{ feePercent: number; workerPercent: number; isSelfHosted: boolean } | null>(null);
+  const [feeInfo, setFeeInfo] = useState<{ feePercent: number; networkFeePercent: number; workerPercent: number; networkWorkerPercent: number; isSelfHosted: boolean; label: string; networkLabel: string } | null>(null);
   const [invites, setInvites] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
 
@@ -326,7 +326,7 @@ export function JobBoardView() {
       {feeInfo && !feeInfo.isSelfHosted && (view === 'browse' || view === 'my_jobs') && (
         <div className="mx-4 mt-3 p-2.5 rounded-lg bg-amber-500/[0.06] border border-amber-500/10 text-xs text-amber-400/80">
           💰 Paid jobs include a {feeInfo.feePercent}% recruiting fee when hiring outside your network. Workers keep {feeInfo.workerPercent}%.
-          {feeInfo.isSelfHosted && ' Self-hosted: 0% fee.'}
+          {feeInfo.isSelfHosted && ' Internal: 0% fee · Network: min ' + feeInfo.networkFeePercent + '% fee.'}
         </div>
       )}
 
@@ -471,7 +471,7 @@ export function JobBoardView() {
                     <span>${(compAmount * (1 - feeInfo.feePercent / 100)).toFixed(2)}</span>
                   </div>
                   {feeInfo.isSelfHosted && (
-                    <p className="text-[10px] text-zinc-500 mt-1">Self-hosted instance — 0% fee applied.</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Internal: 0% fee · Network hires: min {feeInfo?.networkFeePercent || 7}% fee enforced.</p>
                   )}
                 </div>
               )}

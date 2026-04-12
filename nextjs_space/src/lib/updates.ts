@@ -786,7 +786,7 @@ Buyers filter by category — AI, automation, research, creative, data, code —
 
 ## 97% Goes to You
 
-Let's talk about money. Developers keep **97%** of every transaction. DiviDen takes a 3% routing fee. No setup fees. No monthly minimums. No tiered pricing games. Self-hosted instances can set \`MARKETPLACE_FEE_PERCENT=0\` and keep 100%.
+Let's talk about money. Developers keep **97%** of every transaction. DiviDen takes a 3% routing fee. No setup fees. No monthly minimums. No tiered pricing games. For closed-team/whitelabel deployments that never touch the network, internal transactions can run at 0% fee. But if you connect to the DiviDen marketplace or federation network, the 3% minimum routing fee is enforced — payments route through DiviDen so the ecosystem stays sustainable.
 
 Compare that to the App Store (30%), Shopify Apps (20%), or Fiverr (20%). We take 3%. Because the value isn't in the transaction — it's in the network.
 
@@ -1227,7 +1227,7 @@ Every hire creates a contract. Every contract tracks: compensation terms, both p
 
 When you hire someone through the DiviDen network who isn't already on your team, DiviDen takes a **7% recruiting fee**. The worker keeps 93%.
 
-For context: traditional recruiters charge 15–25% of annual salary. Staffing platforms take 20–40% of the hourly rate. We charge 7% of the contract value. And self-hosted instances can set \`RECRUITING_FEE_PERCENT=0\` — you keep everything.
+For context: traditional recruiters charge 15–25% of annual salary. Staffing platforms take 20–40% of the hourly rate. We charge 7% of the contract value on network transactions. Internal team jobs within your own instance can run at 0% — but network-routed hires always route through DiviDen with the 7% minimum.
 
 This is the human-talent counterpart to the 3% agent marketplace fee. AI agents: 3%. Human talent: 7%. Both the lowest in their respective categories.
 

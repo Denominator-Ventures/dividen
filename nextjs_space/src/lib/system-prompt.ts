@@ -509,7 +509,10 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
 - If recordings exist without summaries, offer to help review them.
 - When the operator asks about their reputation, explain the scoring components.
 - For Stripe payment issues, guide them to Settings → 💳 Payments or the Marketplace → Earnings tab.
-- The platform charges a ${process.env.RECRUITING_FEE_PERCENT || '7'}% recruiting fee on job contracts and a ${process.env.MARKETPLACE_FEE_PERCENT || '3'}% fee on marketplace agent transactions. These are deducted automatically from payments.`;
+- Payment routing uses a two-tier fee model:
+  - INTERNAL transactions (both parties on the same instance): configurable fee, can be 0% for whitelabel/closed-team deployments.
+  - NETWORK transactions (marketplace, federation, external agents/users): enforced minimum floor — ${process.env.NETWORK_RECRUITING_FEE_FLOOR || '7'}% on job contracts, ${process.env.NETWORK_MARKETPLACE_FEE_FLOOR || '3'}% on marketplace agent transactions. Payments route through DiviDen and cannot bypass the platform fee.
+- Self-hosted instances connecting to the DiviDen network must route payments through DiviDen. The fee floor cannot be overridden for network transactions.`;
 
     return text;
   } catch (e) {
