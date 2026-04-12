@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     const userId = (session!.user as any).id;
 
     const body = await req.json();
-    const { name, icon, description, inboundDescription, triagePrompt, cardTypes, category } = body;
+    const { name, icon, description, inboundDescription, triagePrompt, cardTypes, taskTypes, category } = body;
 
     if (!name || !description) {
       return NextResponse.json({ error: 'name and description are required' }, { status: 400 });
@@ -44,7 +44,9 @@ export async function POST(req: NextRequest) {
     // Generate webhook secret
     const webhookSecret = crypto.randomBytes(32).toString('hex');
 
-    // Build webhook URL (will be filled at runtime with NEXTAUTH_URL)
+    // Default task-first triage prompt for custom signals
+    const defaultTriagePrompt = `Triage my ${name} signal. Every item is a potential task.\n\n1. **EXTRACT TASKS**: What needs to happen from each item?\n2. **ROUTE**: Find the right project card on my Board for each task. Add as a checklist item with source context (sourceType: "${signalId}").\n3. **LINK**: Connect artifacts using [[link_artifact:{"type":"${signalId}","artifactId":"...","label":"..."}]]\n4. **NEW PROJECT**: Only for genuinely new initiatives. Name it as a project, not a task.\n5. **LEARN**: Save routing patterns with [[save_learning:{}]]\n6. Summarize: 📋 Tasks routed | 🆕 New projects | 🔗 Artifacts linked | ⏭️ Skipped`;
+
     const signal = await prisma.customSignal.create({
       data: {
         signalId,
@@ -52,8 +54,8 @@ export async function POST(req: NextRequest) {
         icon: icon || '🔔',
         description,
         inboundDescription: inboundDescription || `Incoming data from ${name}`,
-        triagePrompt: triagePrompt || `Triage my ${name} signal. Review recent activity and:\n1. Identify action items and create kanban cards\n2. Flag anything urgent\n3. Queue any outbound actions for my approval\n4. Summarize what needs my attention.`,
-        cardTypes: JSON.stringify(cardTypes || ['Action item', 'Follow-up', 'FYI']),
+        triagePrompt: triagePrompt || defaultTriagePrompt,
+        cardTypes: JSON.stringify(taskTypes || cardTypes || ['Extract tasks', 'Route to project', 'Follow up']),
         category: category || 'data',
         webhookSecret,
         userId,

@@ -293,57 +293,48 @@ async function executeTag(
         const artifactType = params.type || params.artifactType;
         const artifactId = params.artifactId || params.id;
         if (!artifactType || !artifactId) {
-          return { tag: name, success: false, error: 'Missing type and artifactId. Supported types: email, document, recording, calendar_event, contact' };
+          return { tag: name, success: false, error: 'Missing type and artifactId' };
         }
         try {
-          switch (artifactType) {
-            case 'email': {
-              await prisma.emailMessage.update({
-                where: { id: artifactId },
-                data: { linkedCardId: params.cardId },
-              });
-              return { tag: name, success: true, data: { cardId: params.cardId, type: 'email', artifactId, note: 'Email linked to card' } };
-            }
-            case 'document': {
-              await prisma.document.update({
-                where: { id: artifactId },
-                data: { cardId: params.cardId },
-              });
-              return { tag: name, success: true, data: { cardId: params.cardId, type: 'document', artifactId, note: 'Document linked to card' } };
-            }
-            case 'recording': {
-              await prisma.recording.update({
-                where: { id: artifactId },
-                data: { cardId: params.cardId },
-              });
-              return { tag: name, success: true, data: { cardId: params.cardId, type: 'recording', artifactId, note: 'Recording linked to card' } };
-            }
-            case 'calendar_event':
-            case 'event': {
-              await prisma.calendarEvent.update({
-                where: { id: artifactId },
-                data: { cardId: params.cardId },
-              });
-              return { tag: name, success: true, data: { cardId: params.cardId, type: 'calendar_event', artifactId, note: 'Calendar event linked to card' } };
-            }
-            case 'contact': {
-              await prisma.cardContact.upsert({
-                where: { cardId_contactId: { cardId: params.cardId, contactId: artifactId } },
-                update: { role: params.role || null },
-                create: { cardId: params.cardId, contactId: artifactId, role: params.role || null },
-              });
-              return { tag: name, success: true, data: { cardId: params.cardId, type: 'contact', artifactId, note: 'Contact linked to card' } };
-            }
-            case 'comms': {
-              await prisma.commsMessage.update({
-                where: { id: artifactId },
-                data: { linkedCardId: params.cardId },
-              });
-              return { tag: name, success: true, data: { cardId: params.cardId, type: 'comms', artifactId, note: 'Comms message linked to card' } };
-            }
-            default:
-              return { tag: name, success: false, error: `Unknown artifact type: ${artifactType}. Supported: email, document, recording, calendar_event, contact, comms` };
+          // Verify card exists and belongs to user
+          const targetCard = await prisma.kanbanCard.findFirst({ where: { id: params.cardId, userId } });
+          if (!targetCard) return { tag: name, success: false, error: 'Card not found or access denied' };
+
+          // For known built-in types, also set the direct FK for backwards compatibility
+          const BUILTIN_FK_HANDLERS: Record<string, () => Promise<void>> = {
+            email: () => prisma.emailMessage.update({ where: { id: artifactId }, data: { linkedCardId: params.cardId } }).then(() => {}),
+            document: () => prisma.document.update({ where: { id: artifactId }, data: { cardId: params.cardId } }).then(() => {}),
+            recording: () => prisma.recording.update({ where: { id: artifactId }, data: { cardId: params.cardId } }).then(() => {}),
+            calendar_event: () => prisma.calendarEvent.update({ where: { id: artifactId }, data: { cardId: params.cardId } }).then(() => {}),
+            event: () => prisma.calendarEvent.update({ where: { id: artifactId }, data: { cardId: params.cardId } }).then(() => {}),
+            contact: () => prisma.cardContact.upsert({
+              where: { cardId_contactId: { cardId: params.cardId, contactId: artifactId } },
+              update: { role: params.role || null },
+              create: { cardId: params.cardId, contactId: artifactId, role: params.role || null },
+            }).then(() => {}),
+            comms: () => prisma.commsMessage.update({ where: { id: artifactId }, data: { linkedCardId: params.cardId } }).then(() => {}),
+          };
+
+          // Try direct FK link for built-in types (best-effort — artifact might not exist yet for webhook signals)
+          const fkHandler = BUILTIN_FK_HANDLERS[artifactType];
+          if (fkHandler) {
+            try { await fkHandler(); } catch (_) { /* Artifact may not exist as a built-in record — fall through to generic link */ }
           }
+
+          // Always create a generic CardArtifact record (extensible, works for ANY signal type)
+          await prisma.cardArtifact.upsert({
+            where: { cardId_artifactType_artifactId: { cardId: params.cardId, artifactType, artifactId } },
+            update: { label: params.label || null, metadata: params.metadata ? JSON.stringify(params.metadata) : null },
+            create: {
+              cardId: params.cardId,
+              artifactType,
+              artifactId,
+              label: params.label || null,
+              metadata: params.metadata ? JSON.stringify(params.metadata) : null,
+            },
+          });
+
+          return { tag: name, success: true, data: { cardId: params.cardId, type: artifactType, artifactId, label: params.label, note: `${artifactType} artifact linked to project card` } };
         } catch (err: any) {
           return { tag: name, success: false, error: `Failed to link artifact: ${err?.message}` };
         }
@@ -359,9 +350,12 @@ async function executeTag(
             cardId: params.cardId,
             text: params.text,
             order: params.order || 0,
+            sourceType: params.sourceType || null,
+            sourceId: params.sourceId || null,
+            sourceLabel: params.sourceLabel || null,
           },
         });
-        return { tag: name, success: true, data: { id: item.id, text: item.text } };
+        return { tag: name, success: true, data: { id: item.id, text: item.text, sourceType: item.sourceType } };
       }
 
       case 'complete_checklist': {

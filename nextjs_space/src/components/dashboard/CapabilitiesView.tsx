@@ -510,13 +510,13 @@ function SignalCard({ signal }: { signal: SignalDefinition }) {
             <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{signal.inboundDescription}</p>
           </div>
 
-          {/* Card types */}
+          {/* Task types this signal produces */}
           <div>
-            <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">📋 Kanban Card Types</p>
+            <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">📋 Task Types</p>
             <div className="flex flex-wrap gap-1">
-              {signal.cardTypes.map((ct) => (
-                <span key={ct} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-color)]">
-                  {ct}
+              {(signal.taskTypes || signal.cardTypes).map((tt) => (
+                <span key={tt} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-color)]">
+                  {tt}
                 </span>
               ))}
             </div>

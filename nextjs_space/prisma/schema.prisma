@@ -113,23 +113,44 @@ model KanbanCard {
   calendarEvents CalendarEvent[]
   commsMessages  CommsMessage[]
   emailMessages  EmailMessage[]
+  artifacts      CardArtifact[]    // Generic artifacts from any signal type
 
   @@index([projectId])
   @@map("kanban_cards")
 }
 
 model ChecklistItem {
-  id        String     @id @default(cuid())
-  text      String
-  completed Boolean    @default(false)
-  order     Int        @default(0)
-  cardId    String
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id          String     @id @default(cuid())
+  text        String
+  completed   Boolean    @default(false)
+  order       Int        @default(0)
+  cardId      String
+  sourceType  String?    // Signal type that generated this task (e.g., "email", "calendar", "slack_webhook")
+  sourceId    String?    // ID of the source artifact (email ID, event ID, etc.)
+  sourceLabel String?    // Human-readable origin (e.g., "Email from John", "Meeting: Standup")
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
-  card      KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  card        KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
 
   @@map("checklist_items")
+}
+
+// Generic artifact linking — extensible for any signal type (custom webhooks, integrations, etc.)
+model CardArtifact {
+  id           String     @id @default(cuid())
+  cardId       String
+  artifactType String     // "email", "document", "recording", "calendar_event", "contact", "comms", or any custom type
+  artifactId   String     // ID of the linked artifact
+  label        String?    // Human-readable label (e.g., "Email: Re: Q4 budget")
+  metadata     String?    // JSON — extra context from the signal source
+  createdAt    DateTime   @default(now())
+
+  card         KanbanCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@unique([cardId, artifactType, artifactId]) // No duplicate links
+  @@index([artifactType, artifactId])
+  @@map("card_artifacts")
 }
 
 // ─── Queue System ──────────────────────────────────────────────────────────────

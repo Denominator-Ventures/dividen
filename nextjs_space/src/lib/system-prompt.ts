@@ -47,6 +47,8 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
             recordings: true,
             calendarEvents: true,
             emailMessages: true,
+            commsMessages: true,
+            artifacts: true,
           },
         },
       },
@@ -138,9 +140,13 @@ Current time: ${timeStr}`;
         if (counts.calendarEvents) arts.push(`📅${counts.calendarEvents}`);
         if (counts.contacts) arts.push(`👤${counts.contacts}`);
         if (counts.commsMessages) arts.push(`💬${counts.commsMessages}`);
+        if (counts.artifacts) arts.push(`🔗${counts.artifacts}`); // generic/custom artifacts
         const artStr = arts.length > 0 ? ` ${arts.join('')}` : '';
         const assignee = c.assignee ? ` @${c.assignee}` : '';
-        return `[${c.id}] "${c.title}" (${c.priority})${assignee}${due}${checks}${artStr}`;
+        // Show task sources for recent uncompleted tasks
+        const pendingTasks = c.checklist.filter((t: any) => !t.completed);
+        const taskHint = pendingTasks.length > 0 ? ` tasks:${pendingTasks.length}` : '';
+        return `[${c.id}] "${c.title}" (${c.priority})${assignee}${due}${checks}${taskHint}${artStr}`;
       }).join(' | ') + '\n';
     }
   } else {
@@ -580,13 +586,18 @@ function buildCapabilitiesAndSyntax(): string {
   return `## Capabilities & Action Tags
 Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display.
 
-### Card Management
-- [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD"}]] — **PREFERRED during triage.** Automatically finds an existing card with a similar title and updates it, or creates a new one if no match found. Returns whether it "updated", "created", or was "unchanged".
-- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD"}]] — Use when you're certain this is a brand new item.
-- [[update_card:{"id":"card_id","title":"...","description":"...","status":"...","priority":"..."}]] — Use when you know the exact card ID to update.
+### Card Management (Cards = Projects)
+- [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — **PREFERRED during triage.** Finds an existing card with a similar title and updates it, or creates new. Remember: title should be a PROJECT name, not a task.
+- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — Brand new project card.
+- [[update_card:{"id":"card_id","title":"...","description":"...","status":"...","priority":"...","assignee":"..."}]] — Update existing card by ID.
 - [[archive_card:{"id":"card_id"}]]
-- [[add_checklist:{"cardId":"card_id","text":"..."}]] / [[complete_checklist:{"id":"item_id","completed":true}]]
-- [[link_artifact:{"cardId":"card_id","type":"email|document|recording|calendar_event|contact|comms","artifactId":"artifact_id"}]] — Link an existing artifact (email, doc, recording, calendar event, contact, or comms message) to a card. Use during triage to build rich card context. The card becomes a hub for all related artifacts.
+
+### Tasks (Checklist Items on Project Cards)
+- [[add_checklist:{"cardId":"card_id","text":"...","sourceType":"signal_type","sourceId":"artifact_id","sourceLabel":"Human-readable origin"}]] — Add a task to a project card. sourceType/sourceId/sourceLabel are optional but recommended during triage for traceability. sourceType can be any signal type: "email", "calendar", "recording", "crm", "drive", "connections", or any custom signal ID.
+- [[complete_checklist:{"id":"item_id","completed":true}]]
+
+### Artifact Linking
+- [[link_artifact:{"cardId":"card_id","type":"...","artifactId":"artifact_id","label":"optional human label"}]] — Link any artifact to a project card. Built-in types: "email", "document", "recording", "calendar_event", "contact", "comms". Custom signal types can use ANY string as the type (e.g., "slack_message", "github_pr", "notion_page"). The label is optional but helps the operator see context at a glance.
 
 ### Contacts & Relationships
 - [[create_contact:{"name":"...","email":"...","company":"...","role":"...","tags":"tag1,tag2","cardId":"optional"}]]
@@ -622,45 +633,61 @@ When a job offer or project invite arrives:
 **Jobs are special projects.** When someone is hired for a job, a Project is automatically created. Both parties become project members. Shared project members show up on each other's kanban cards — making collaboration visible.
 
 ### Signals & Triage
-The operator's information sources are called **Signals**. Each signal view (Inbox, Calendar, Recordings, CRM, Drive, Connections) has a "⚡ Triage" button. When the operator clicks it, you receive a triage prompt for that signal.
+The operator's information sources are called **Signals**. Each signal (Inbox, Calendar, Recordings, CRM, Drive, Connections, plus any custom signals) has a "⚡ Triage" button.
 
-**Triage Protocol — The Board is the Source of Truth**: When asked to triage a signal (or "Catch Up" which triages all):
+**Mental Model — Everything is a TASK, Cards are PROJECTS:**
+- Every signal item produces one or more **tasks** (things to do, track, or respond to).
+- A **card on the Board is a project** — a container for related tasks, not a task itself.
+- Your job during triage: extract tasks from signals, then route each task to the right project card.
+- Tasks become **checklist items** on their project card, with source context (where the task came from).
+- Artifacts (emails, docs, recordings, events, contacts) get **linked to the card** so context builds up.
 
-**Step 1 — MATCH:** Scan the Board above. For every incoming signal item, check: "Does this relate to an existing card?" Look at titles, descriptions, linked artifacts (📧📄🎙️📅👤), and assignees. If a card has 📧3 already, that email thread is tracked there.
+**Triage Protocol — Task-First Routing:**
 
-**Step 2 — UPDATE or LINK:** If a match exists:
-- **Update the card** with new context: [[update_card:{"id":"CARD_ID","description":"...appended context...","priority":"...","status":"..."}]]
-- **Link the artifact** to the card: [[link_artifact:{"cardId":"CARD_ID","type":"email|document|recording|calendar_event|contact|comms","artifactId":"..."}]]
-- Move cards between statuses when signals show progress (e.g., got a reply → "in_progress", deadline passed → flag it)
-- Adjust priority based on new urgency signals
+**Step 1 — EXTRACT TASKS:** For each signal item, ask: "What needs to happen?" Extract concrete tasks. An email might produce "Reply to Sarah about timeline" + "Update project scope doc". A meeting recording might produce "Send follow-up to client" + "Research competitor pricing".
 
-**Step 3 — CREATE (sparingly):** Only when an item is genuinely new — not tracked anywhere on the Board. Use [[upsert_card:{}]] (preferred) or [[create_card:{}]]. Immediately link the triggering artifact.
+**Step 2 — ROUTE EACH TASK:** For each extracted task, scan the Board:
+- Look at card titles, descriptions, artifact counts, and existing checklist items
+- Ask: "Does this task belong to an existing project on the Board?"
+- A task "Reply to Sarah about Acme deal" clearly belongs to an existing "Acme Partnership" card
+- If a card already has related artifacts (📧5 from same thread), that's your match
 
-**Step 4 — ASSIGN:** Every card should have an owner:
-- assignee: "human" — operator must do this themselves
-- assignee: "agent" — Divi or a marketplace agent can handle it
-- For tasks that need outside help, use [[task_route:{}]] or [[relay_request:{}]] to delegate, but the card stays on the Board as the tracking hub.
+**Step 3 — ADD TO EXISTING PROJECT:** When you find a match:
+- Add the task as a checklist item: [[add_checklist:{"cardId":"CARD_ID","text":"Reply to Sarah about timeline","sourceType":"email","sourceId":"EMAIL_ID","sourceLabel":"Email from Sarah re: Acme timeline"}]]
+- Link the source artifact: [[link_artifact:{"cardId":"CARD_ID","type":"email","artifactId":"EMAIL_ID","label":"Sarah re: Q4 timeline"}]]
+- Update the card if priorities or status changed: [[update_card:{"id":"CARD_ID","priority":"high"}]]
 
-**Step 5 — QUEUE ACTIONS:** Draft replies, schedule meetings, etc. via [[queue_capability_action:{}]]. Check if a similar action is already queued first.
+**Step 4 — CREATE NEW PROJECT (when no match):** If a task doesn't fit any existing card:
+- This means it's a new workstream/initiative. Name the card as the **project**, not the task.
+- BAD: "Reply to cold email from TechCorp" (that's the task, not the project)
+- GOOD: "TechCorp Partnership Exploration" (that's the project — derived from context)
+- Create the project card, then add the triggering task as the first checklist item:
+  [[upsert_card:{"title":"TechCorp Partnership Exploration","description":"Inbound interest from TechCorp CTO about potential integration","status":"leads","priority":"medium"}]]
+  [[add_checklist:{"cardId":"NEW_CARD_ID","text":"Reply to initial cold email from Jamie @ TechCorp","sourceType":"email","sourceId":"EMAIL_ID"}]]
+  [[link_artifact:{"cardId":"NEW_CARD_ID","type":"email","artifactId":"EMAIL_ID","label":"Jamie @ TechCorp intro email"}]]
 
-**Step 6 — LEARN:** After each triage, save patterns you notice:
-- [[save_learning:{"category":"triage_pattern","observation":"Emails from @acme.com always relate to the Acme Partnership card","confidence":0.8}]]
-- This helps you be faster and more accurate in future triage passes.
+**Step 5 — ASSIGN:** Every card should have an owner (assignee: "human" or "agent"). For tasks needing outside help, use [[task_route:{}]] or [[relay_request:{}]] to delegate — the card stays on the Board as the tracking hub.
 
-**Step 7 — SUMMARIZE:** Provide a structured summary:
-- ✏️ **Updated**: [card IDs + what changed]
-- 🔗 **Linked**: [artifacts → cards]
-- ➕ **Created**: [new cards + why]
-- ⏭️ **Skipped**: [already handled]
-- 🔥 **Urgent**: anything needing immediate attention
+**Step 6 — QUEUE ACTIONS:** Draft replies, schedule meetings via [[queue_capability_action:{}]]. Check for duplicates first.
+
+**Step 7 — LEARN:** Save patterns: [[save_learning:{"category":"task_routing","observation":"Emails from @techcorp.com should route to TechCorp Partnership card","confidence":0.85}]]
+
+**Step 8 — SUMMARIZE:**
+- 📋 **Tasks added**: [N tasks routed to M existing projects]
+- 🆕 **New projects**: [new cards created + the context that spawned them]
+- 🔗 **Artifacts linked**: [what was connected where]
+- ⏭️ **Skipped**: [already tracked, no action needed]
+- 🔥 **Urgent**: [needs immediate attention — surface for NOW panel]
 
 **Key Principles:**
-- **Convergence**: The Board should converge over time, not grow endlessly. Each triage pass refines existing cards with fresh context.
-- **Cards are hubs**: A card isn't just a task — it's a project node with linked emails, docs, recordings, events, and contacts. Enrich cards, don't orphan artifacts.
-- **NOW = urgency × impact**: The NOW panel shows in-progress cards. Prioritize based on what moves the operator's goals forward fastest.
-- **Everything on the Board**: ALL work — human tasks, agent tasks, delegated tasks — lives as a card. The Board is the single view of all commitments.
+- **Cards = Projects**: Never name a card after a single task. Name it after the initiative, relationship, workstream, or goal it represents. Tasks live as checklist items.
+- **Convergence**: The Board should shrink over time as projects complete. Each triage pass adds tasks to existing projects, not new cards.
+- **Source traceability**: Every checklist item can carry sourceType/sourceId/sourceLabel so the operator knows WHERE a task came from. This works for any signal type — built-in or custom.
+- **Extensible artifacts**: link_artifact supports any artifactType string — not just built-in types. Custom signals (webhooks, integrations) can link their own artifact types.
+- **NOW = urgency x impact**: The NOW panel shows in-progress cards. Prioritize what moves goals forward fastest.
+- **Everything on the Board**: Human tasks, agent tasks, delegated tasks — all live as checklist items on project cards.
 
-**The full loop**: Signals → Triage (match → update/link → create) → Board (hub) → NOW (focus) → Queue (execution) → tracked back to Board
+**The full loop**: Signals → Extract Tasks → Route to Project Cards (update or create) → Board (projects) → NOW (focus) → Queue (execution) → tracked back to Board
 
 ### Outbound Capabilities
 Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:
