@@ -554,7 +554,7 @@ function SignalCard({ signal }: { signal: SignalDefinition }) {
 
 // ─── Main CapabilitiesView ────────────────────────────────────────────────────
 
-export function CapabilitiesView() {
+export function CapabilitiesView({ onOpenCatchUpSettings }: { onOpenCatchUpSettings?: () => void }) {
   const [capabilities, setCapabilities] = useState<Capability[]>([]);
   const [loading, setLoading] = useState(true);
   const [setupType, setSetupType] = useState<'email' | 'meetings' | null>(null);
@@ -696,6 +696,23 @@ export function CapabilitiesView() {
                 </div>
               </div>
             </div>
+
+            {/* Catch Up Settings shortcut */}
+            {onOpenCatchUpSettings && (
+              <button
+                onClick={onOpenCatchUpSettings}
+                className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-dashed border-[var(--border-color)] hover:border-brand-500/30 transition-all mb-5 group"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">⚙️</span>
+                  <span className="text-xs font-medium text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                    Catch Up Settings
+                  </span>
+                  <span className="text-[10px] text-[var(--text-muted)]">— set priority order, exclude signals</span>
+                </div>
+                <span className="text-[var(--text-muted)] group-hover:text-brand-400 transition-colors text-xs">→</span>
+              </button>
+            )}
 
             {/* Signal cards */}
             <div className="space-y-3">

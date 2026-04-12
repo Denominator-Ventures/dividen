@@ -81,6 +81,8 @@ model User {
   contactPlatformLinks Contact[]                @relation("ContactPlatformLinks")
   teamFollows          TeamFollow[]
   teamAgentGrants      TeamAgentAccess[]        @relation("TeamAgentGrantedBy")
+  signalConfigs        SignalConfig[]
+  customSignals        CustomSignal[]
 
   @@map("users")
 }
@@ -312,6 +314,50 @@ model AgentCapability {
   @@unique([userId, type])
   @@index([userId])
   @@map("agent_capabilities")
+}
+
+// ─── Signal Configuration ───────────────────────────────────────────────────
+
+model SignalConfig {
+  id              String   @id @default(cuid())
+  signalId        String   // Matches SignalDefinition.id or CustomSignal.id
+  priority        Int      @default(50) // Lower = higher priority (1-100)
+  catchUpEnabled  Boolean  @default(true) // Include in catch-up triage
+  triageEnabled   Boolean  @default(true) // Show triage button
+  userId          String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, signalId])
+  @@index([userId])
+  @@map("signal_configs")
+}
+
+model CustomSignal {
+  id                  String   @id @default(cuid())
+  signalId            String   // Unique identifier for this signal (slug)
+  name                String   // Display name
+  icon                String   @default("🔔") // Emoji icon
+  description         String   // What this signal is
+  inboundDescription  String   // What data comes in
+  triagePrompt        String   // Prompt for triaging this signal
+  cardTypes           String   // JSON array of card type strings
+  category            String   @default("data") // communication | meetings | content | data
+  webhookUrl          String?  // If connected via webhook, the URL to receive events
+  webhookSecret       String?  // Secret for webhook verification
+  integrationId       String?  // Link to IntegrationAccount if applicable
+  isActive            Boolean  @default(true)
+  userId              String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, signalId])
+  @@index([userId])
+  @@map("custom_signals")
 }
 
 model UserLearning {

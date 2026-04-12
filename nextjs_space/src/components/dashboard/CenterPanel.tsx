@@ -31,6 +31,7 @@ interface CenterPanelProps {
   chatPrefill?: string | null;
   onChatPrefillConsumed?: () => void;
   onTriage?: (signalId: string) => void;
+  onOpenCatchUpSettings?: () => void;
 }
 
 /* ── Tab Organization ──────────────────────────────────────── */
@@ -66,7 +67,7 @@ const messagesTabIds = new Set(messagesTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage }: CenterPanelProps) {
+export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onOpenCatchUpSettings }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
   const isMessagesActive = messagesTabIds.has(activeTab);
   const hasSubRow = isNetworkActive || isMessagesActive;
@@ -243,7 +244,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'extensions' && <TabErrorBoundary tabName="Extensions"><ExtensionsView /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
-        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesView /></TabErrorBoundary>}
+        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesView onOpenCatchUpSettings={onOpenCatchUpSettings} /></TabErrorBoundary>}
       </div>
     </div>
   );

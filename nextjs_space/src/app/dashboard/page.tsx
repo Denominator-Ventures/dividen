@@ -15,8 +15,9 @@ import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
 import { OnboardingWizard } from '@/components/dashboard/OnboardingWizard';
 import { KeyboardNav } from '@/components/dashboard/KeyboardNav';
+import { CatchUpSettings } from '@/components/dashboard/CatchUpSettings';
 import type { CenterTab } from '@/types';
-import { getSignalTriagePrompt, getCatchUpPrompt } from '@/lib/signals';
+import { getSignalTriagePrompt, getCatchUpPrompt, type SignalCatchUpConfig } from '@/lib/signals';
 
 type MobilePanel = 'now' | 'center' | 'queue';
 
@@ -33,6 +34,7 @@ export default function DashboardPage() {
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
   const [commsUnread, setCommsUnread] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [catchUpSettingsOpen, setCatchUpSettingsOpen] = useState(false);
 
   // DEP-007: Desktop notifications
   const { sendNotification } = useDesktopNotifications({
@@ -57,10 +59,18 @@ export default function DashboardPage() {
     setMobilePanel('center');
   }, []);
 
-  /** Catch Up — triage ALL connected signals at once */
-  const handleCatchUp = useCallback(() => {
-    const prompt = getCatchUpPrompt();
-    setChatPrefill(prompt);
+  /** Catch Up — triage ALL connected signals at once, respecting user config */
+  const handleCatchUp = useCallback(async () => {
+    try {
+      const res = await fetch('/api/signals/config');
+      const json = await res.json();
+      const configs: SignalCatchUpConfig[] = json.success ? json.data : [];
+      const prompt = getCatchUpPrompt(configs);
+      setChatPrefill(prompt);
+    } catch {
+      // Fallback to default prompt if config fetch fails
+      setChatPrefill(getCatchUpPrompt());
+    }
     setActiveTab('chat');
     setMobilePanel('center');
   }, []);
@@ -203,6 +213,12 @@ export default function DashboardPage() {
         onNavigate={(tab) => setActiveTab(tab as CenterTab)}
       />
 
+      {/* Catch Up Settings */}
+      <CatchUpSettings
+        open={catchUpSettingsOpen}
+        onClose={() => setCatchUpSettingsOpen(false)}
+      />
+
       {/* ── Top Header Bar ────────────────────────────────────── */}
       <header className="flex-shrink-0 px-3 md:px-4 py-2 md:py-2.5 flex items-center justify-between border-b border-[var(--border-color)] gap-2">
         {/* Left: Brand */}
@@ -285,15 +301,24 @@ export default function DashboardPage() {
                 </kbd>
               </button>
 
-              {/* Catch Up — triage all signals */}
-              <button
-                onClick={handleCatchUp}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30"
-                title="Catch up on all signals — Divi triages everything"
-              >
-                <span className="text-sm">🔄</span>
-                <span className="hidden sm:inline">Catch Up</span>
-              </button>
+              {/* Catch Up — triage all signals + settings */}
+              <div className="flex items-center">
+                <button
+                  onClick={handleCatchUp}
+                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-l-md text-[11px] font-medium transition-all bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30 border-r-0"
+                  title="Catch up on all signals — Divi triages everything"
+                >
+                  <span className="text-sm">🔄</span>
+                  <span className="hidden sm:inline">Catch Up</span>
+                </button>
+                <button
+                  onClick={() => setCatchUpSettingsOpen(true)}
+                  className="flex items-center px-1.5 py-1 rounded-r-md text-[11px] transition-all bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30"
+                  title="Catch Up settings — priority & exclusions"
+                >
+                  <span className="text-xs">⚙</span>
+                </button>
+              </div>
 
               {/* Notification Center */}
               <NotificationCenter />
@@ -372,7 +397,7 @@ export default function DashboardPage() {
                 <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} />
               </div>
               <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-                <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} />
+                <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
               </div>
               <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
                 <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
@@ -397,7 +422,7 @@ export default function DashboardPage() {
                   )}
                   {mobilePanel === 'center' && (
                     <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                      <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} />
+                      <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
                     </div>
                   )}
                   {mobilePanel === 'queue' && (

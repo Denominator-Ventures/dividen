@@ -144,22 +144,48 @@ export function getSignalById(id: string): SignalDefinition | undefined {
   return SIGNAL_DEFINITIONS.find(s => s.id === id);
 }
 
-export function getSignalTriagePrompt(signalId: string): string {
+export function getSignalTriagePrompt(signalId: string, customPrompt?: string): string {
+  // Custom prompt override (for custom/webhook signals stored in DB)
+  if (customPrompt) return customPrompt;
   const signal = getSignalById(signalId);
   if (!signal) return `Triage my ${signalId} — review recent activity and surface anything that needs my attention. Create kanban cards for action items.`;
   return signal.triagePrompt;
 }
 
-export function getCatchUpPrompt(): string {
-  return `Catch me up on everything. Triage ALL my connected signals — email, calendar, recordings, CRM, drive, and network. For each source:
+/** Signal config from API — describes per-user priority and enabled state */
+export interface SignalCatchUpConfig {
+  signalId: string;
+  name: string;
+  icon: string;
+  priority: number;
+  catchUpEnabled: boolean;
+}
 
-1. Review what's new or changed since we last caught up
-2. Identify action items, deadlines, and decisions needed
-3. Create kanban cards for anything that needs tracking
-4. Queue any outbound actions (email replies, meeting scheduling) for my approval
-5. Flag anything urgent that needs immediate attention
+/**
+ * Build a dynamic catch-up prompt respecting the user's signal config.
+ * If no config provided, falls back to all hardcoded signals.
+ */
+export function getCatchUpPrompt(configs?: SignalCatchUpConfig[]): string {
+  let enabledSignals: { id: string; name: string; icon: string }[];
 
-Give me a structured summary organized by signal source, starting with the most urgent items. End with your recommended priorities for what I should focus on right now.`;
+  if (configs && configs.length > 0) {
+    // Filter to only catch-up-enabled signals, already sorted by priority from API
+    enabledSignals = configs
+      .filter(c => c.catchUpEnabled)
+      .map(c => ({ id: c.signalId, name: c.name, icon: c.icon }));
+  } else {
+    // Fallback: all hardcoded signals
+    enabledSignals = SIGNAL_DEFINITIONS.map(s => ({ id: s.id, name: s.name, icon: s.icon }));
+  }
+
+  if (enabledSignals.length === 0) {
+    return 'All signals are currently excluded from catch-up. Go to Catch Up Settings to enable at least one signal.';
+  }
+
+  const signalList = enabledSignals.map((s, i) => `${i + 1}. ${s.icon} ${s.name}`).join('\n');
+  const signalNames = enabledSignals.map(s => s.name.toLowerCase()).join(', ');
+
+  return `Catch me up on everything. Triage my connected signals in this priority order:\n\n${signalList}\n\nFor each signal (${signalNames}):\n1. Review what's new or changed since we last caught up\n2. Identify action items, deadlines, and decisions needed\n3. Create kanban cards for anything that needs tracking\n4. Queue any outbound actions (email replies, meeting scheduling) for my approval\n5. Flag anything urgent that needs immediate attention\n\nGive me a structured summary organized by signal source in the priority order above, starting with the most urgent items. End with your recommended priorities for what I should focus on right now.`;
 }
 
 /** Map center tab IDs to signal IDs where triage makes sense */
