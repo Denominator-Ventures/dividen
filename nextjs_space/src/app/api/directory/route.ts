@@ -134,9 +134,55 @@ export async function GET(req: NextRequest) {
         return true;
       });
 
+    // ── Also include discoverable federated instances ──
+    let federatedEntries: any[] = [];
+    try {
+      const instances = await prisma.instanceRegistry.findMany({
+        where: {
+          isActive: true,
+          platformLinked: true,
+          discoveryEnabled: true,
+        },
+        select: {
+          id: true,
+          name: true,
+          baseUrl: true,
+          userCount: true,
+          agentCount: true,
+          version: true,
+          metadata: true,
+        },
+      });
+
+      federatedEntries = instances
+        .filter((inst: any) => {
+          if (!q) return true;
+          const haystack = [inst.name, inst.baseUrl].filter(Boolean).join(' ').toLowerCase();
+          return haystack.includes(q);
+        })
+        .map((inst: any) => ({
+          id: `fed_${inst.id}`,
+          name: inst.name,
+          email: null,
+          source: 'federated',
+          instanceUrl: inst.baseUrl,
+          userCount: inst.userCount,
+          agentCount: inst.agentCount,
+          version: inst.version,
+          connectionStatus: null,
+          hasProfile: false,
+          headline: `Self-hosted instance${inst.userCount ? ` • ${inst.userCount} user${inst.userCount !== 1 ? 's' : ''}` : ''}${inst.agentCount ? ` • ${inst.agentCount} agent${inst.agentCount !== 1 ? 's' : ''}` : ''}`,
+        }));
+    } catch (e) {
+      // Non-critical — federated entries are optional
+      console.warn('Failed to fetch federated instances for directory:', e);
+    }
+
+    const allResults = [...results, ...federatedEntries];
+
     return NextResponse.json({
-      users: results,
-      total: results.length,
+      users: allResults,
+      total: allResults.length,
     });
   } catch (error: any) {
     console.error('GET /api/directory error:', error);
