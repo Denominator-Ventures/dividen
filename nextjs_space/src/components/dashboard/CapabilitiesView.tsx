@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { SIGNAL_DEFINITIONS, type SignalDefinition } from '@/lib/signals';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -462,6 +463,95 @@ function CapabilityCard({
   );
 }
 
+// ─── Signal Card ──────────────────────────────────────────────────────────────
+
+function SignalCard({ signal }: { signal: SignalDefinition }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasCaps = signal.capabilities.length > 0;
+
+  return (
+    <div className="bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-xl p-4 hover:border-brand-500/20 transition-all">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full text-left flex items-start gap-3"
+      >
+        <span className="text-xl mt-0.5">{signal.icon}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-semibold text-[var(--text-primary)]">{signal.name}</h4>
+            <span className={cn(
+              'text-[9px] px-1.5 py-0.5 rounded-full font-medium',
+              signal.category === 'communication' ? 'bg-blue-500/10 text-blue-400' :
+              signal.category === 'meetings' ? 'bg-purple-500/10 text-purple-400' :
+              signal.category === 'content' ? 'bg-green-500/10 text-green-400' :
+              'bg-orange-500/10 text-orange-400'
+            )}>
+              {signal.category}
+            </span>
+            {hasCaps && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] font-medium">
+                ⚡ has capabilities
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-[var(--text-muted)] mt-0.5">{signal.description}</p>
+        </div>
+        <span className={cn(
+          'text-[var(--text-muted)] transition-transform text-xs',
+          expanded ? 'rotate-90' : ''
+        )}>▶</span>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 ml-9 space-y-3">
+          {/* Inbound */}
+          <div>
+            <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">📥 Incoming Information</p>
+            <p className="text-xs text-[var(--text-secondary)] leading-relaxed">{signal.inboundDescription}</p>
+          </div>
+
+          {/* Card types */}
+          <div>
+            <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">📋 Kanban Card Types</p>
+            <div className="flex flex-wrap gap-1">
+              {signal.cardTypes.map((ct) => (
+                <span key={ct} className="text-[10px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-color)]">
+                  {ct}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Capabilities */}
+          {signal.capabilities.length > 0 && (
+            <div>
+              <p className="text-[10px] text-[var(--text-muted)] font-medium uppercase tracking-wider mb-1">⚡ Outbound Capabilities</p>
+              {signal.capabilities.map((cap) => (
+                <div key={cap.id} className="bg-[var(--bg-surface)] rounded-lg p-3 border border-[var(--border-color)]">
+                  <p className="text-xs font-medium text-[var(--text-primary)] mb-0.5">{cap.name}</p>
+                  <p className="text-[10px] text-[var(--text-muted)] mb-2">{cap.description}</p>
+                  <div className="flex flex-wrap gap-1">
+                    {cap.identityOptions.map((io) => (
+                      <span key={io} className="text-[9px] px-1.5 py-0.5 rounded bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
+                        {io === 'operator' ? 'As you' : io === 'agent' ? 'As Divi' : 'Context-aware'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Setup link */}
+          <p className="text-[10px] text-[var(--text-muted)]">
+            Connect via <span className="text-brand-400">Settings → Integrations</span> or ask Divi in Chat.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main CapabilitiesView ────────────────────────────────────────────────────
 
 export function CapabilitiesView() {
@@ -545,99 +635,152 @@ export function CapabilitiesView() {
     );
   }
 
+  const [viewMode, setViewMode] = useState<'signals' | 'capabilities'>('signals');
+
   return (
     <div className="h-full overflow-y-auto p-4">
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="mb-6">
-          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">Capabilities</h2>
-          <p className="text-sm text-[var(--text-muted)]">
-            Outbound actions Divi can perform on your behalf. Each capability has its own rules and identity settings.
+        {/* Header with toggle */}
+        <div className="mb-5">
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-1">Signals & Capabilities</h2>
+          <p className="text-sm text-[var(--text-muted)] mb-3">
+            Signals are your incoming information sources. Capabilities are what Divi can do with them.
           </p>
-        </div>
-
-        {/* How it works */}
-        <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-4 mb-6">
-          <p className="text-[11px] text-brand-400 font-medium mb-2">How capabilities work with the Queue</p>
-          <div className="space-y-1.5">
-            <div className="flex items-start gap-2">
-              <span className="text-xs flex-shrink-0">📧</span>
-              <span className="text-xs text-[var(--text-secondary)]">Divi triages your inbox and surfaces replies that need sending → they appear in your Queue</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-xs flex-shrink-0">📅</span>
-              <span className="text-xs text-[var(--text-secondary)]">Divi identifies meetings that need scheduling → scheduling requests land in your Queue</span>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="text-xs flex-shrink-0">✅</span>
-              <span className="text-xs text-[var(--text-secondary)]">You approve, edit, or dismiss each action. Divi only executes what you greenlight.</span>
-            </div>
+          <div className="flex gap-1 bg-[var(--bg-surface)] rounded-lg p-0.5 w-fit border border-[var(--border-color)]">
+            <button
+              onClick={() => setViewMode('signals')}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                viewMode === 'signals'
+                  ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              📡 Signals
+            </button>
+            <button
+              onClick={() => setViewMode('capabilities')}
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-md transition-all',
+                viewMode === 'capabilities'
+                  ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              ⚡ Capabilities
+            </button>
           </div>
         </div>
 
-        {/* Capability Cards */}
-        <div className="space-y-4">
-          {/* Email */}
-          {emailCap ? (
-            <CapabilityCard
-              capability={emailCap}
-              onConfigure={() => setSetupType('email')}
-              onToggle={() => handleToggle('email', emailCap.status)}
-            />
-          ) : (
-            <button
-              onClick={() => setSetupType('email')}
-              className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-color)] hover:border-brand-400/50 transition-colors text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl group-hover:scale-110 transition-transform">📧</span>
-                <div>
-                  <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-brand-400 transition-colors">
-                    Set up Outbound Email
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Let Divi draft and send emails for you. Define rules, choose identity, control everything.
-                  </p>
+        {viewMode === 'signals' ? (
+          <>
+            {/* How it works */}
+            <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-4 mb-5">
+              <p className="text-[11px] text-brand-400 font-medium mb-2">How signals work</p>
+              <div className="space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">📡</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Connect a signal source — email, calendar, recordings, CRM, etc.</span>
                 </div>
-                <span className="ml-auto text-[var(--text-muted)] group-hover:text-brand-400 transition-colors">→</span>
-              </div>
-            </button>
-          )}
-
-          {/* Meetings */}
-          {meetingCap ? (
-            <CapabilityCard
-              capability={meetingCap}
-              onConfigure={() => setSetupType('meetings')}
-              onToggle={() => handleToggle('meetings', meetingCap.status)}
-            />
-          ) : (
-            <button
-              onClick={() => setSetupType('meetings')}
-              className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-color)] hover:border-brand-400/50 transition-colors text-left group"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl group-hover:scale-110 transition-transform">📅</span>
-                <div>
-                  <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-brand-400 transition-colors">
-                    Set up Meeting Scheduling
-                  </p>
-                  <p className="text-xs text-[var(--text-muted)]">
-                    Let Divi schedule meetings on your behalf. Set working hours, buffers, and preferences.
-                  </p>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">⚡</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Hit &quot;Triage&quot; on any signal view (or &quot;Catch Up&quot; for all) — Divi reviews everything</span>
                 </div>
-                <span className="ml-auto text-[var(--text-muted)] group-hover:text-brand-400 transition-colors">→</span>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">📋</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Divi creates kanban cards for action items and queues outbound actions for your approval</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">🔄</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Cards flow through NOW → Chat → Queue → execution. Everything tracked from the board.</span>
+                </div>
               </div>
-            </button>
-          )}
-        </div>
+            </div>
 
-        {/* Queue relationship callout */}
-        <div className="mt-6 p-4 rounded-xl bg-[var(--bg-primary)] border border-[var(--border-color)]">
-          <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-            <strong className="text-[var(--text-secondary)]">Pro tip:</strong> After setting up capabilities, connect your email inbox (Settings → Integrations) and ask Divi to triage it. Divi will read everything, surface what&apos;s important, and generate reply drafts and meeting requests that appear in your Queue. This is the fastest way to see the value.
-          </p>
-        </div>
+            {/* Signal cards */}
+            <div className="space-y-3">
+              {SIGNAL_DEFINITIONS.map((signal) => (
+                <SignalCard key={signal.id} signal={signal} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Capabilities view */}
+            <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] p-4 mb-5">
+              <p className="text-[11px] text-brand-400 font-medium mb-2">How capabilities work with the Queue</p>
+              <div className="space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">📧</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Divi triages your inbox and surfaces replies that need sending → they appear in your Queue</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">📅</span>
+                  <span className="text-xs text-[var(--text-secondary)]">Divi identifies meetings that need scheduling → scheduling requests land in your Queue</span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-xs flex-shrink-0">✅</span>
+                  <span className="text-xs text-[var(--text-secondary)]">You approve, edit, or dismiss each action. Divi only executes what you greenlight.</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Capability Cards */}
+            <div className="space-y-4">
+              {emailCap ? (
+                <CapabilityCard
+                  capability={emailCap}
+                  onConfigure={() => setSetupType('email')}
+                  onToggle={() => handleToggle('email', emailCap.status)}
+                />
+              ) : (
+                <button
+                  onClick={() => setSetupType('email')}
+                  className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-color)] hover:border-brand-400/50 transition-colors text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl group-hover:scale-110 transition-transform">📧</span>
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-brand-400 transition-colors">
+                        Set up Outbound Email
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Let Divi draft and send emails for you. Define rules, choose identity, control everything.
+                      </p>
+                    </div>
+                    <span className="ml-auto text-[var(--text-muted)] group-hover:text-brand-400 transition-colors">→</span>
+                  </div>
+                </button>
+              )}
+
+              {meetingCap ? (
+                <CapabilityCard
+                  capability={meetingCap}
+                  onConfigure={() => setSetupType('meetings')}
+                  onToggle={() => handleToggle('meetings', meetingCap.status)}
+                />
+              ) : (
+                <button
+                  onClick={() => setSetupType('meetings')}
+                  className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-color)] hover:border-brand-400/50 transition-colors text-left group"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl group-hover:scale-110 transition-transform">📅</span>
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-primary)] group-hover:text-brand-400 transition-colors">
+                        Set up Meeting Scheduling
+                      </p>
+                      <p className="text-xs text-[var(--text-muted)]">
+                        Let Divi schedule meetings on your behalf. Set working hours, buffers, and preferences.
+                      </p>
+                    </div>
+                    <span className="ml-auto text-[var(--text-muted)] group-hover:text-brand-400 transition-colors">→</span>
+                  </div>
+                </button>
+              )}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

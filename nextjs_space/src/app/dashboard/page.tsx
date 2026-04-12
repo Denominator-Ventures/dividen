@@ -16,6 +16,7 @@ import NotificationCenter from '@/components/dashboard/NotificationCenter';
 import { OnboardingWizard } from '@/components/dashboard/OnboardingWizard';
 import { KeyboardNav } from '@/components/dashboard/KeyboardNav';
 import type { CenterTab } from '@/types';
+import { getSignalTriagePrompt, getCatchUpPrompt } from '@/lib/signals';
 
 type MobilePanel = 'now' | 'center' | 'queue';
 
@@ -46,6 +47,22 @@ export default function DashboardPage() {
   const handleNowItemClick = useCallback((title: string) => {
     setChatPrefill(`Help me with: ${title}`);
     setActiveTab('chat');
+  }, []);
+
+  /** Triage a specific signal — kicks off Divi review */
+  const handleTriage = useCallback((signalId: string) => {
+    const prompt = getSignalTriagePrompt(signalId);
+    setChatPrefill(prompt);
+    setActiveTab('chat');
+    setMobilePanel('center');
+  }, []);
+
+  /** Catch Up — triage ALL connected signals at once */
+  const handleCatchUp = useCallback(() => {
+    const prompt = getCatchUpPrompt();
+    setChatPrefill(prompt);
+    setActiveTab('chat');
+    setMobilePanel('center');
   }, []);
 
   // Handle onboarding completion — trigger Divi's intro conversation
@@ -268,6 +285,16 @@ export default function DashboardPage() {
                 </kbd>
               </button>
 
+              {/* Catch Up — triage all signals */}
+              <button
+                onClick={handleCatchUp}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-all bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30"
+                title="Catch up on all signals — Divi triages everything"
+              >
+                <span className="text-sm">🔄</span>
+                <span className="hidden sm:inline">Catch Up</span>
+              </button>
+
               {/* Notification Center */}
               <NotificationCenter />
 
@@ -345,7 +372,7 @@ export default function DashboardPage() {
                 <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} />
               </div>
               <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-                <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
+                <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} />
               </div>
               <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
                 <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
@@ -370,7 +397,7 @@ export default function DashboardPage() {
                   )}
                   {mobilePanel === 'center' && (
                     <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                      <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} />
+                      <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} />
                     </div>
                   )}
                   {mobilePanel === 'queue' && (

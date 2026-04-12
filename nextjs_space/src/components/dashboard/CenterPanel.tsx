@@ -19,6 +19,8 @@ import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
 import DiscoverView from './DiscoverView';
 import { CapabilitiesView } from './CapabilitiesView';
+import { TriageButton } from './TriageButton';
+import { TAB_TO_SIGNAL, getSignalById } from '@/lib/signals';
 import { TabErrorBoundary } from './TabErrorBoundary';
 
 interface CenterPanelProps {
@@ -28,6 +30,7 @@ interface CenterPanelProps {
   onMarketplacePrefillConsumed?: () => void;
   chatPrefill?: string | null;
   onChatPrefillConsumed?: () => void;
+  onTriage?: (signalId: string) => void;
 }
 
 /* ── Tab Organization ──────────────────────────────────────── */
@@ -63,7 +66,7 @@ const messagesTabIds = new Set(messagesTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed }: CenterPanelProps) {
+export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
   const isMessagesActive = messagesTabIds.has(activeTab);
   const hasSubRow = isNetworkActive || isMessagesActive;
@@ -169,9 +172,9 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
             🧩 Extensions
           </button>
 
-          {/* Capabilities — standalone */}
+          {/* Signals & Capabilities — standalone */}
           <button onClick={() => onTabChange('capabilities')} className={tabClass(activeTab === 'capabilities')}>
-            ⚡ Capabilities
+            📡 Signals
           </button>
 
           {/* Earnings — standalone */}
@@ -201,6 +204,26 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
           </div>
         )}
       </div>
+
+      {/* ── Signal Triage Bar (shows on signal views) ── */}
+      {(() => {
+        const signalId = TAB_TO_SIGNAL[activeTab];
+        const signal = signalId ? getSignalById(signalId) : null;
+        if (!signal || !onTriage) return null;
+        return (
+          <div className="flex items-center justify-between px-3 py-1.5 border-b border-[var(--border-color)] bg-[var(--bg-surface)]/50">
+            <span className="text-[10px] text-[var(--text-muted)]">
+              {signal.icon} Signal: {signal.name}
+            </span>
+            <TriageButton
+              signalName={signal.name}
+              signalIcon={signal.icon}
+              onTriage={() => onTriage(signalId)}
+              variant="compact"
+            />
+          </div>
+        );
+      })()}
 
       {/* ── Tab Content ── */}
       <div className="flex-1 overflow-hidden relative">

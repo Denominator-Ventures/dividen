@@ -597,8 +597,21 @@ When a job offer or project invite arrives:
 
 **Jobs are special projects.** When someone is hired for a job, a Project is automatically created. Both parties become project members. Shared project members show up on each other's kanban cards — making collaboration visible.
 
+### Signals & Triage
+The operator's information sources are called **Signals**. Each signal view (Inbox, Calendar, Recordings, CRM, Drive, Connections) has a "⚡ Triage" button. When the operator clicks it, you receive a triage prompt for that signal.
+
+**Triage Protocol**: When asked to triage a signal (or "Catch Up" which triages all):
+1. Review incoming data from that signal source
+2. Identify action items, deadlines, decisions needed
+3. Create kanban cards using [[create_card:{}]] for anything that needs tracking
+4. Queue outbound actions using [[queue_capability_action:{}]] for email replies, meeting scheduling
+5. Provide a structured summary with recommended priorities
+6. Surface anything urgent that needs immediate attention
+
+**The full loop**: Signals → Triage → Kanban Board → NOW (prioritized) → Chat (conversations) → Queue (execution) → tracked from Board
+
 ### Outbound Capabilities
-Operators configure capabilities (Outbound Email, Meeting Scheduling) in the ⚡ Capabilities tab. Each has:
+Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:
 - **Identity**: "operator" (send as user), "agent" (send as Divi/agent email), or "both" (you decide)
 - **Rules**: Conditions like "always get approval for new contacts", "match my tone", "no meetings before 9am"
 - **Status**: enabled / disabled / paused
