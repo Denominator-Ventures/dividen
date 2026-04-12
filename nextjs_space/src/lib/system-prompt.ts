@@ -38,7 +38,18 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       where: { userId },
       orderBy: [{ priority: 'asc' }, { updatedAt: 'desc' }],
       take: 30,
-      include: { checklist: true },
+      include: {
+        checklist: true,
+        _count: {
+          select: {
+            contacts: true,
+            documents: true,
+            recordings: true,
+            calendarEvents: true,
+            emailMessages: true,
+          },
+        },
+      },
     }),
     prisma.chatMessage.findMany({
       where: { userId },
@@ -118,7 +129,18 @@ Current time: ${timeStr}`;
       group2 += items.map((c: any) => {
         const due = c.dueDate ? ` Due:${c.dueDate.toISOString().split('T')[0]}` : '';
         const checks = c.checklist.length > 0 ? ` ✓${c.checklist.filter((x: any) => x.completed).length}/${c.checklist.length}` : '';
-        return `[${c.id}] "${c.title}" (${c.priority})${due}${checks}`;
+        // Artifact counts — show what's already linked so triage knows context
+        const counts = c._count || {};
+        const arts: string[] = [];
+        if (counts.emailMessages) arts.push(`📧${counts.emailMessages}`);
+        if (counts.documents) arts.push(`📄${counts.documents}`);
+        if (counts.recordings) arts.push(`🎙️${counts.recordings}`);
+        if (counts.calendarEvents) arts.push(`📅${counts.calendarEvents}`);
+        if (counts.contacts) arts.push(`👤${counts.contacts}`);
+        if (counts.commsMessages) arts.push(`💬${counts.commsMessages}`);
+        const artStr = arts.length > 0 ? ` ${arts.join('')}` : '';
+        const assignee = c.assignee ? ` @${c.assignee}` : '';
+        return `[${c.id}] "${c.title}" (${c.priority})${assignee}${due}${checks}${artStr}`;
       }).join(' | ') + '\n';
     }
   } else {
@@ -564,6 +586,7 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 - [[update_card:{"id":"card_id","title":"...","description":"...","status":"...","priority":"..."}]] — Use when you know the exact card ID to update.
 - [[archive_card:{"id":"card_id"}]]
 - [[add_checklist:{"cardId":"card_id","text":"..."}]] / [[complete_checklist:{"id":"item_id","completed":true}]]
+- [[link_artifact:{"cardId":"card_id","type":"email|document|recording|calendar_event|contact|comms","artifactId":"artifact_id"}]] — Link an existing artifact (email, doc, recording, calendar event, contact, or comms message) to a card. Use during triage to build rich card context. The card becomes a hub for all related artifacts.
 
 ### Contacts & Relationships
 - [[create_contact:{"name":"...","email":"...","company":"...","role":"...","tags":"tag1,tag2","cardId":"optional"}]]
@@ -601,20 +624,43 @@ When a job offer or project invite arrives:
 ### Signals & Triage
 The operator's information sources are called **Signals**. Each signal view (Inbox, Calendar, Recordings, CRM, Drive, Connections) has a "⚡ Triage" button. When the operator clicks it, you receive a triage prompt for that signal.
 
-**Triage Protocol — UPDATE FIRST, CREATE SECOND**: When asked to triage a signal (or "Catch Up" which triages all):
-1. **ALWAYS check the existing Board and Queue first.** You have the full state above (card IDs, titles, statuses, priorities, checklist progress). Cross-reference incoming signal data against what already exists.
-2. **Update existing cards** when new information relates to a card already on the Board:
-   - Use [[update_card:{"id":"EXISTING_CARD_ID","description":"...updated context...","priority":"...","status":"..."}]] to add new context, adjust priority, update status, or extend deadlines
-   - Append new info to descriptions rather than creating a duplicate card for the same topic
-   - Move cards between statuses when signals indicate progress (e.g., "leads" → "in_progress" if someone replied)
-3. **Only create NEW cards** when the incoming item is genuinely new — not already tracked on the Board in any form. Use [[create_card:{}]] sparingly.
-4. Queue outbound actions using [[queue_capability_action:{}]] for email replies, meeting scheduling — but first check if a similar action is already queued.
-5. Provide a structured summary showing: what was UPDATED (with card IDs), what was NEWLY CREATED, and what was skipped (already handled).
-6. Surface anything urgent that needs immediate attention.
+**Triage Protocol — The Board is the Source of Truth**: When asked to triage a signal (or "Catch Up" which triages all):
 
-**Key principle**: The Board should converge over time, not grow endlessly. Each triage pass refines and updates existing work items with fresh context rather than spawning duplicates. Think of it as "syncing" the Board with reality, not appending to a list.
+**Step 1 — MATCH:** Scan the Board above. For every incoming signal item, check: "Does this relate to an existing card?" Look at titles, descriptions, linked artifacts (📧📄🎙️📅👤), and assignees. If a card has 📧3 already, that email thread is tracked there.
 
-**The full loop**: Signals → Triage (update or create) → Kanban Board → NOW (prioritized) → Chat (conversations) → Queue (execution) → tracked from Board
+**Step 2 — UPDATE or LINK:** If a match exists:
+- **Update the card** with new context: [[update_card:{"id":"CARD_ID","description":"...appended context...","priority":"...","status":"..."}]]
+- **Link the artifact** to the card: [[link_artifact:{"cardId":"CARD_ID","type":"email|document|recording|calendar_event|contact|comms","artifactId":"..."}]]
+- Move cards between statuses when signals show progress (e.g., got a reply → "in_progress", deadline passed → flag it)
+- Adjust priority based on new urgency signals
+
+**Step 3 — CREATE (sparingly):** Only when an item is genuinely new — not tracked anywhere on the Board. Use [[upsert_card:{}]] (preferred) or [[create_card:{}]]. Immediately link the triggering artifact.
+
+**Step 4 — ASSIGN:** Every card should have an owner:
+- assignee: "human" — operator must do this themselves
+- assignee: "agent" — Divi or a marketplace agent can handle it
+- For tasks that need outside help, use [[task_route:{}]] or [[relay_request:{}]] to delegate, but the card stays on the Board as the tracking hub.
+
+**Step 5 — QUEUE ACTIONS:** Draft replies, schedule meetings, etc. via [[queue_capability_action:{}]]. Check if a similar action is already queued first.
+
+**Step 6 — LEARN:** After each triage, save patterns you notice:
+- [[save_learning:{"category":"triage_pattern","observation":"Emails from @acme.com always relate to the Acme Partnership card","confidence":0.8}]]
+- This helps you be faster and more accurate in future triage passes.
+
+**Step 7 — SUMMARIZE:** Provide a structured summary:
+- ✏️ **Updated**: [card IDs + what changed]
+- 🔗 **Linked**: [artifacts → cards]
+- ➕ **Created**: [new cards + why]
+- ⏭️ **Skipped**: [already handled]
+- 🔥 **Urgent**: anything needing immediate attention
+
+**Key Principles:**
+- **Convergence**: The Board should converge over time, not grow endlessly. Each triage pass refines existing cards with fresh context.
+- **Cards are hubs**: A card isn't just a task — it's a project node with linked emails, docs, recordings, events, and contacts. Enrich cards, don't orphan artifacts.
+- **NOW = urgency × impact**: The NOW panel shows in-progress cards. Prioritize based on what moves the operator's goals forward fastest.
+- **Everything on the Board**: ALL work — human tasks, agent tasks, delegated tasks — lives as a card. The Board is the single view of all commitments.
+
+**The full loop**: Signals → Triage (match → update/link → create) → Board (hub) → NOW (focus) → Queue (execution) → tracked back to Board
 
 ### Outbound Capabilities
 Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:

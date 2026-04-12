@@ -60,6 +60,7 @@ export const SUPPORTED_TAGS = [
   'accept_connection', // accept a pending connection request
   'relay_respond',     // respond to an inbound relay (complete/decline)
   'upsert_card',             // find existing card by title/context and update, or create new if not found
+  'link_artifact',           // link an email, document, recording, calendar event, or contact to a kanban card
   'queue_capability_action', // queue an outbound capability action (email reply, meeting schedule)
   'update_profile',    // update user profile from conversation (skills, languages, etc.)
   // ── Orchestration Actions ──
@@ -284,6 +285,68 @@ async function executeTag(
           success: true,
           data: { id: newCard.id, title: newCard.title, action: 'created' },
         };
+      }
+
+      // ── Link Artifact (attach any entity to a kanban card) ─────────
+      case 'link_artifact': {
+        if (!params.cardId) return { tag: name, success: false, error: 'Missing cardId' };
+        const artifactType = params.type || params.artifactType;
+        const artifactId = params.artifactId || params.id;
+        if (!artifactType || !artifactId) {
+          return { tag: name, success: false, error: 'Missing type and artifactId. Supported types: email, document, recording, calendar_event, contact' };
+        }
+        try {
+          switch (artifactType) {
+            case 'email': {
+              await prisma.emailMessage.update({
+                where: { id: artifactId },
+                data: { linkedCardId: params.cardId },
+              });
+              return { tag: name, success: true, data: { cardId: params.cardId, type: 'email', artifactId, note: 'Email linked to card' } };
+            }
+            case 'document': {
+              await prisma.document.update({
+                where: { id: artifactId },
+                data: { cardId: params.cardId },
+              });
+              return { tag: name, success: true, data: { cardId: params.cardId, type: 'document', artifactId, note: 'Document linked to card' } };
+            }
+            case 'recording': {
+              await prisma.recording.update({
+                where: { id: artifactId },
+                data: { cardId: params.cardId },
+              });
+              return { tag: name, success: true, data: { cardId: params.cardId, type: 'recording', artifactId, note: 'Recording linked to card' } };
+            }
+            case 'calendar_event':
+            case 'event': {
+              await prisma.calendarEvent.update({
+                where: { id: artifactId },
+                data: { cardId: params.cardId },
+              });
+              return { tag: name, success: true, data: { cardId: params.cardId, type: 'calendar_event', artifactId, note: 'Calendar event linked to card' } };
+            }
+            case 'contact': {
+              await prisma.cardContact.upsert({
+                where: { cardId_contactId: { cardId: params.cardId, contactId: artifactId } },
+                update: { role: params.role || null },
+                create: { cardId: params.cardId, contactId: artifactId, role: params.role || null },
+              });
+              return { tag: name, success: true, data: { cardId: params.cardId, type: 'contact', artifactId, note: 'Contact linked to card' } };
+            }
+            case 'comms': {
+              await prisma.commsMessage.update({
+                where: { id: artifactId },
+                data: { linkedCardId: params.cardId },
+              });
+              return { tag: name, success: true, data: { cardId: params.cardId, type: 'comms', artifactId, note: 'Comms message linked to card' } };
+            }
+            default:
+              return { tag: name, success: false, error: `Unknown artifact type: ${artifactType}. Supported: email, document, recording, calendar_event, contact, comms` };
+          }
+        } catch (err: any) {
+          return { tag: name, success: false, error: `Failed to link artifact: ${err?.message}` };
+        }
       }
 
       // ── Checklist ────────────────────────────────────────────────────

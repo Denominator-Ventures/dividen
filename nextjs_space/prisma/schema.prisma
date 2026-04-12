@@ -106,12 +106,13 @@ model KanbanCard {
 
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   project     Project?        @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  checklist   ChecklistItem[]
-  contacts    CardContact[]
-  documents   Document[]
-  recordings    Recording[]
-  commsMessages CommsMessage[]
-  emailMessages EmailMessage[]
+  checklist      ChecklistItem[]
+  contacts       CardContact[]
+  documents      Document[]
+  recordings     Recording[]
+  calendarEvents CalendarEvent[]
+  commsMessages  CommsMessage[]
+  emailMessages  EmailMessage[]
 
   @@index([projectId])
   @@map("kanban_cards")
@@ -524,11 +525,13 @@ model CalendarEvent {
   source      String    @default("webhook") // "webhook" | "manual" | "google"
   externalId  String?   // ID from external system
   metadata    String?   // JSON string
+  cardId      String?   // Optional link to a KanbanCard
   userId      String
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([startTime])
