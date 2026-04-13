@@ -516,7 +516,7 @@ async function executeTag(
           };
         }
 
-        // Handler found — proceed with queue creation
+        // Handler found — create as pending_confirmation (user must approve)
         const dedupResult = await deduplicatedQueueCreate({
           type: taskType,
           title: taskTitle,
@@ -525,6 +525,7 @@ async function executeTag(
           source: 'agent',
           userId,
           metadata: gateResult.handler ? JSON.stringify({ handler: gateResult.handler }) : null,
+          status: 'pending_confirmation',
         });
         return {
           tag: name,
@@ -534,6 +535,7 @@ async function executeTag(
             title: dedupResult.item.title,
             handler: gateResult.handler,
             deduplicated: !dedupResult.created,
+            pending_confirmation: true,
             ...(dedupResult.reason ? { reason: dedupResult.reason } : {}),
           },
         };
@@ -568,7 +570,7 @@ async function executeTag(
             title: capTitle,
             description: params.subject || params.draft?.substring(0, 100) || `${capType} action`,
             priority: params.priority || 'high',
-            status: 'ready',
+            status: 'pending_confirmation',
             source: 'agent',
             metadata: capMeta,
             userId,
@@ -578,7 +580,7 @@ async function executeTag(
         return {
           tag: name,
           success: true,
-          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action },
+          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action, pending_confirmation: true },
         };
       }
 

@@ -1,16 +1,22 @@
 /**
- * Chief of Staff — Sequential Dispatch Engine
+ * Chief of Staff — Sequential Dispatch & Execution Engine
  * 
  * Enforces the single-task-in-flight contract for CoS mode:
- *   1. When a task is marked done_today → auto-dispatch the next highest-priority READY item
- *   2. When the user switches INTO CoS mode → if nothing is in_progress, dispatch one
+ *   1. When a task is marked done_today → auto-dispatch & execute the next highest-priority READY item
+ *   2. When the user switches INTO CoS mode → if nothing is in_progress, dispatch & execute one
  *   3. Blocks resurrection of done_today items (no done_today → ready/in_progress)
+ *
+ * "Execute" means:
+ *   a) For capability tasks (email, meeting, etc.) → invoke the capability and log as activity
+ *   b) For agent/delegation tasks → send a relay to the corresponding connected agent via comms
+ *   c) For generic tasks → mark in_progress and log activity (Divi works on it)
  *
  * Cockpit mode is unaffected — these helpers short-circuit for non-CoS.
  */
 
 import { prisma } from '@/lib/prisma';
 import { pushTaskDispatched } from '@/lib/webhook-push';
+import { logActivity } from '@/lib/activity';
 
 // ──────────────────────────────────────────────
 //  Helpers
@@ -23,7 +29,106 @@ async function getUserMode(userId: string): Promise<string> {
   return user?.mode ?? 'cockpit';
 }
 
-/** Pick the highest-priority, oldest READY item for a user and move it to in_progress. */
+/**
+ * Parse handler metadata from a queue item to determine execution strategy.
+ */
+function parseTaskHandler(item: any): { strategy: 'capability' | 'relay' | 'generic'; handler?: any; meta?: any } {
+  if (!item.metadata) return { strategy: 'generic' };
+  try {
+    const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+    // Capability action — has capabilityType (email, meetings, etc.)
+    if (meta.capabilityType) {
+      return { strategy: 'capability', handler: meta.capabilityType, meta };
+    }
+    // Delegated to connected agent — has handler with connectionId
+    if (meta.handler?.type === 'agent' && meta.handler?.connectionId) {
+      return { strategy: 'relay', handler: meta.handler, meta };
+    }
+    // Installed capability handler
+    if (meta.handler?.type === 'capability') {
+      return { strategy: 'capability', handler: meta.handler, meta };
+    }
+    return { strategy: 'generic', meta };
+  } catch {
+    return { strategy: 'generic' };
+  }
+}
+
+/**
+ * Execute a queue item based on its handler type.
+ * For capability tasks: logs the execution as activity (actual send happens via capability integration).
+ * For relay tasks: creates an AgentRelay to the connected agent.
+ * For generic tasks: logs that Divi is working on it.
+ */
+async function executeTask(userId: string, item: any): Promise<{ executed: boolean; method: string; detail?: string }> {
+  const { strategy, handler, meta } = parseTaskHandler(item);
+
+  switch (strategy) {
+    case 'capability': {
+      // Log the capability execution as an activity
+      const capType = handler?.capabilityId || meta?.capabilityType || 'unknown';
+      const action = meta?.action || 'execute';
+      await logActivity({
+        userId,
+        action: 'cos_capability_executed',
+        actor: 'divi',
+        summary: `CoS executed capability "${capType}:${action}" — ${item.title}`,
+      });
+      return { executed: true, method: 'capability', detail: `${capType}:${action}` };
+    }
+
+    case 'relay': {
+      // Send a relay to the connected agent via comms channel
+      const connectionId = handler.connectionId;
+      const connection = await prisma.connection.findUnique({ where: { id: connectionId } });
+      if (!connection) {
+        await logActivity({ userId, action: 'cos_relay_failed', actor: 'divi', summary: `CoS could not find connection for task: ${item.title}` });
+        return { executed: false, method: 'relay', detail: 'Connection not found' };
+      }
+
+      // Create a relay to the connected agent
+      await prisma.agentRelay.create({
+        data: {
+          type: 'request',
+          intent: 'assign_task',
+          subject: item.title,
+          payload: JSON.stringify({
+            source: 'cos_mode',
+            taskDescription: item.description || item.title,
+            priority: item.priority || 'medium',
+          }),
+          status: 'pending',
+          fromUserId: userId,
+          toUserId: connection.peerUserId || connection.accepterId || connection.requesterId,
+          connectionId,
+          queueItemId: item.id,
+        },
+      });
+
+      const peerName = connection.peerUserName || connection.nickname || 'connected agent';
+      await logActivity({
+        userId,
+        action: 'cos_relay_sent',
+        actor: 'divi',
+        summary: `CoS delegated "${item.title}" to ${peerName} via comms`,
+      });
+      return { executed: true, method: 'relay', detail: `Delegated to ${peerName}` };
+    }
+
+    default: {
+      // Generic task — Divi is working on it
+      await logActivity({
+        userId,
+        action: 'cos_task_started',
+        actor: 'divi',
+        summary: `CoS started working on: ${item.title}`,
+      });
+      return { executed: true, method: 'generic', detail: 'Divi is executing' };
+    }
+  }
+}
+
+/** Pick the highest-priority, oldest READY item for a user, move to in_progress, and execute. */
 async function dispatchTopReady(userId: string) {
   const readyItems = await prisma.queueItem.findMany({
     where: { userId, status: 'ready' },
@@ -54,7 +159,29 @@ async function dispatchTopReady(userId: string) {
     description: dispatched.description || undefined,
   });
 
-  return dispatched;
+  // Execute the task proactively
+  const execResult = await executeTask(userId, dispatched);
+  if (execResult.executed) {
+    // Attach execution metadata to the item
+    try {
+      const existingMeta = dispatched.metadata ? JSON.parse(dispatched.metadata) : {};
+      await prisma.queueItem.update({
+        where: { id: dispatched.id },
+        data: {
+          metadata: JSON.stringify({
+            ...existingMeta,
+            cosExecution: {
+              method: execResult.method,
+              detail: execResult.detail,
+              startedAt: new Date().toISOString(),
+            },
+          }),
+        },
+      });
+    } catch { /* metadata update is best-effort */ }
+  }
+
+  return { ...dispatched, _execResult: execResult };
 }
 
 // ──────────────────────────────────────────────
@@ -126,11 +253,12 @@ export async function onEnterCoSMode(
 //  Status Guards
 // ──────────────────────────────────────────────
 
-const VALID_STATUSES = ['ready', 'in_progress', 'done_today', 'blocked'];
+const VALID_STATUSES = ['pending_confirmation', 'ready', 'in_progress', 'done_today', 'blocked'];
 
 /** Blocked transitions — prevents resurrecting completed items. */
 const BLOCKED_TRANSITIONS: Record<string, string[]> = {
   done_today: ['ready', 'in_progress'],  // can't un-complete
+  pending_confirmation: ['in_progress', 'done_today'],  // must go through ready first
 };
 
 export interface StatusValidation {

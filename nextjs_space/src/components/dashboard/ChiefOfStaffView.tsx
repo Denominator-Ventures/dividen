@@ -118,6 +118,7 @@ export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) 
     (acc, sec) => { acc[sec.id] = queue.filter(i => i.status === sec.id); return acc; },
     {} as Record<QueueItemStatus, QueueItemData[]>
   );
+  const pendingApprovalCount = queueGrouped.pending_confirmation?.length ?? 0;
   const readyCount = queueGrouped.ready?.length ?? 0;
   const activeCount = queueGrouped.in_progress?.length ?? 0;
   const doneCount = queueGrouped.done_today?.length ?? 0;
@@ -176,7 +177,7 @@ export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) 
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl mb-3 animate-pulse">🔭</div>
+          <div className="text-4xl mb-3 animate-pulse">⚡</div>
           <p className="text-sm text-[var(--text-muted)]">Loading Chief of Staff view...</p>
         </div>
       </div>
@@ -189,10 +190,12 @@ export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) 
       <div className="flex-shrink-0 px-4 py-3 border-b border-[var(--border-color)]">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-xl">🔭</span>
+            <span className="text-xl">⚡</span>
             <div>
               <h2 className="text-sm font-semibold text-[var(--text-primary)]">Chief of Staff</h2>
-              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">Away Mode — Observing</p>
+              <p className="text-[10px] text-[var(--text-muted)] uppercase tracking-wider">
+                {activeCount > 0 ? 'Executing Queue' : readyCount > 0 ? 'Ready to Execute' : 'Queue Clear'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -250,6 +253,7 @@ export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) 
           <OverviewSection
             queue={queue}
             queueGrouped={queueGrouped}
+            pendingApprovalCount={pendingApprovalCount}
             readyCount={readyCount}
             activeCount={activeCount}
             doneCount={doneCount}
@@ -311,6 +315,7 @@ export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) 
 function OverviewSection({
   queue,
   queueGrouped,
+  pendingApprovalCount,
   readyCount,
   activeCount,
   doneCount,
@@ -323,6 +328,7 @@ function OverviewSection({
 }: {
   queue: QueueItemData[];
   queueGrouped: Record<QueueItemStatus, QueueItemData[]>;
+  pendingApprovalCount: number;
   readyCount: number;
   activeCount: number;
   doneCount: number;
@@ -365,7 +371,10 @@ function OverviewSection({
         </div>
 
         {/* Stat cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+          {pendingApprovalCount > 0 && (
+            <StatCard label="Awaiting Approval" value={pendingApprovalCount} color="text-yellow-400" bg="bg-yellow-500/10" icon="🟡" />
+          )}
           <StatCard label="Ready" value={readyCount} color="text-green-400" bg="bg-green-500/10" icon="🟢" />
           <StatCard label="Active" value={activeCount} color="text-blue-400" bg="bg-blue-500/10" icon="🔵" />
           <StatCard label="Done" value={doneCount} color="text-purple-400" bg="bg-purple-500/10" icon="✅" />

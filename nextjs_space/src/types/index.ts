@@ -72,9 +72,10 @@ export interface CardContactData {
 // ─── Queue Types ────────────────────────────────────────────────────────────
 
 export type QueueItemType = 'task' | 'notification' | 'reminder' | 'agent_suggestion';
-export type QueueItemStatus = 'ready' | 'in_progress' | 'done_today' | 'blocked' | 'later';
+export type QueueItemStatus = 'pending_confirmation' | 'ready' | 'in_progress' | 'done_today' | 'blocked' | 'later';
 
 export const QUEUE_SECTIONS: { id: QueueItemStatus; label: string; icon: string; color: string }[] = [
+  { id: 'pending_confirmation', label: 'Pending Approval', icon: '🟡', color: '#facc15' },
   { id: 'ready', label: 'Ready', icon: '🟢', color: '#34d399' },
   { id: 'in_progress', label: 'In Progress', icon: '🔵', color: '#60a5fa' },
   { id: 'done_today', label: 'Done Today', icon: '✅', color: '#a78bfa' },

@@ -530,6 +530,29 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
     }
   }
 
+  async function handleConfirmAction(id: string, action: 'approve' | 'reject') {
+    try {
+      const res = await fetch('/api/queue/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (action === 'approve') {
+          // Item moves to ready
+          setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: 'ready' as QueueItemStatus } : i)));
+        } else {
+          // Item removed
+          setItems((prev) => prev.filter((i) => i.id !== id));
+        }
+        emitSignal(`queue_${action}`, { itemId: id });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   async function handleDelete(id: string) {
     try {
       await fetch(`/api/queue/${id}`, { method: 'DELETE' });
@@ -686,6 +709,50 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                 {QUEUE_SECTIONS.map((section) => {
                   const sectionItems = grouped[section.id] || [];
                   if (sectionItems.length === 0) return null;
+
+                  // Special rendering for pending_confirmation items
+                  if (section.id === 'pending_confirmation') {
+                    return (
+                      <div key={section.id}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm">{section.icon}</span>
+                          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
+                          <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {sectionItems.map((item) => (
+                            <div key={item.id} className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-medium text-[var(--text-primary)] truncate">{item.title}</h4>
+                                  {item.description && <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{item.description}</p>}
+                                </div>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 flex-shrink-0">
+                                  {item.priority}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-yellow-400/80 mb-2">Divi suggests adding this to your queue. Approve?</p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleConfirmAction(item.id, 'approve')}
+                                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-colors"
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  onClick={() => handleConfirmAction(item.id, 'reject')}
+                                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={section.id}>
                       <div className="flex items-center gap-2 mb-2">
@@ -709,7 +776,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
           <div className="border-t border-[var(--border-color)] p-3">
             <div className="flex gap-2 text-xs">
               <span className="text-[var(--text-muted)]">
-                {readyCount} ready · {grouped.in_progress?.length ?? 0} active · {grouped.done_today?.length ?? 0} done · {grouped.blocked?.length ?? 0} blocked
+                {(grouped.pending_confirmation?.length ?? 0) > 0 ? `${grouped.pending_confirmation.length} pending · ` : ''}{readyCount} ready · {grouped.in_progress?.length ?? 0} active · {grouped.done_today?.length ?? 0} done · {grouped.blocked?.length ?? 0} blocked
               </span>
             </div>
           </div>
