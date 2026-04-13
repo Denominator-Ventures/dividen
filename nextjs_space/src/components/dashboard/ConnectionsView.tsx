@@ -14,6 +14,7 @@ import {
   ConnectionScope,
   RelayIntent,
 } from '@/types';
+import PeerProfileModal from './PeerProfileModal';
 
 type SubTab = 'find' | 'connections' | 'relays';
 
@@ -37,6 +38,7 @@ export function ConnectionsView() {
   const [loading, setLoading] = useState(true);
   const [selectedConnection, setSelectedConnection] = useState<ConnectionData | null>(null);
   const [selectedRelay, setSelectedRelay] = useState<AgentRelayData | null>(null);
+  const [peerProfile, setPeerProfile] = useState<{ userId: string; name?: string; email?: string; connectionStatus?: string | null } | null>(null);
   const [relayCounts, setRelayCounts] = useState({ pendingInbound: 0, totalActive: 0 });
 
   // New relay form
@@ -75,9 +77,7 @@ export function ConnectionsView() {
   const [showAdvancedConnect, setShowAdvancedConnect] = useState(false);
   const [federatedUrl, setFederatedUrl] = useState('');
 
-  // Peer profile peek
-  const [peerProfile, setPeerProfile] = useState<any>(null);
-  const [peerProfileLoading, setPeerProfileLoading] = useState(false);
+  // (peerProfile state is declared above, used for modal)
 
   // ─── Fetchers ──────────────────────────────────────────────────
 
@@ -299,18 +299,7 @@ export function ConnectionsView() {
     if (selectedRelay?.id === relayId) setSelectedRelay(null);
   };
 
-  const fetchPeerProfile = async (peerId: string) => {
-    setPeerProfile(null);
-    setPeerProfileLoading(true);
-    try {
-      const res = await fetch(`/api/profile/${peerId}`);
-      const data = await res.json();
-      if (data.success) setPeerProfile(data.profile);
-    } catch { /* profile not available */ }
-    setPeerProfileLoading(false);
-  };
-
-  // ─── Helpers ───────────────────────────────────────────────────
+    // ─── Helpers ───────────────────────────────────────────────────
 
   const activeConnections = connections.filter(c => c.status === 'active');
   const pendingConnections = connections.filter(c => c.status === 'pending');
@@ -611,12 +600,20 @@ export function ConnectionsView() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 min-w-0 flex-1">
-                          <div className="w-9 h-9 rounded-full bg-[var(--brand-primary)]/15 flex items-center justify-center text-[var(--brand-primary)] text-sm font-medium shrink-0">
-                            {(u.name || u.email).charAt(0).toUpperCase()}
-                          </div>
+                          <button
+                            onClick={() => u.source !== 'federated' && setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus })}
+                            disabled={u.source === 'federated'}
+                            className={cn('w-9 h-9 rounded-full bg-[var(--brand-primary)]/15 flex items-center justify-center text-[var(--brand-primary)] text-sm font-medium shrink-0', u.source !== 'federated' && 'hover:ring-2 hover:ring-[var(--brand-primary)]/30 cursor-pointer transition-all')}
+                          >
+                            {(u.name || u.email || '?').charAt(0).toUpperCase()}
+                          </button>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-[var(--text-primary)] truncate">{u.name || 'Anonymous'}</span>
+                              <button
+                                onClick={() => u.source !== 'federated' && setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus })}
+                                disabled={u.source === 'federated'}
+                                className={cn('text-sm font-medium text-[var(--text-primary)] truncate', u.source !== 'federated' && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
+                              >{u.name || 'Anonymous'}</button>
                               {u.source === 'federated' && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium shrink-0">self-hosted</span>
                               )}
@@ -712,7 +709,10 @@ export function ConnectionsView() {
                       <div key={c.id} className="p-3 rounded-lg bg-[var(--bg-surface)] border border-yellow-500/20">
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="text-sm font-medium text-[var(--text-primary)]">{peer.name}</span>
+                            <button
+                              onClick={() => { const pid = getPeerId(c); if (pid && !c.isFederated) setPeerProfile({ userId: pid, name: peer.name, email: peer.email, connectionStatus: 'pending' }); }}
+                              className={cn('text-sm font-medium text-[var(--text-primary)]', !c.isFederated && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
+                            >{peer.name}</button>
                             {c.isFederated && <span className="ml-2 text-[10px] text-blue-400">🌐 {peer.instance}</span>}
                             <p className="text-[11px] text-[var(--text-muted)]">{peer.email}</p>
                           </div>
@@ -739,7 +739,10 @@ export function ConnectionsView() {
                       <div key={c.id} className="p-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)]">
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="text-sm text-[var(--text-secondary)]">{getNickname(c) || peer.name}</span>
+                            <button
+                              onClick={() => { const pid = getPeerId(c); if (pid && !c.isFederated) setPeerProfile({ userId: pid, name: peer.name, email: peer.email, connectionStatus: 'pending' }); }}
+                              className={cn('text-sm text-[var(--text-secondary)]', !c.isFederated && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
+                            >{getNickname(c) || peer.name}</button>
                             {c.isFederated && <span className="ml-2 text-[10px] text-blue-400">🌐</span>}
                             <p className="text-[11px] text-[var(--text-muted)]">{peer.email} • Waiting for response</p>
                           </div>
@@ -791,11 +794,17 @@ export function ConnectionsView() {
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
-                              <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)]/20 flex items-center justify-center text-[var(--brand-primary)] text-sm font-medium">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); const pid = getPeerId(c); if (pid && !c.isFederated) setPeerProfile({ userId: pid, name: peer.name, email: peer.email, connectionStatus: 'active' }); }}
+                                className={cn('w-8 h-8 rounded-full bg-[var(--brand-primary)]/20 flex items-center justify-center text-[var(--brand-primary)] text-sm font-medium', !c.isFederated && 'hover:ring-2 hover:ring-[var(--brand-primary)]/30 cursor-pointer transition-all')}
+                              >
                                 {(getNickname(c) || peer.name).charAt(0).toUpperCase()}
-                              </div>
+                              </button>
                               <div>
-                                <span className="text-sm font-medium text-[var(--text-primary)]">{getNickname(c) || peer.name}</span>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); const pid = getPeerId(c); if (pid && !c.isFederated) setPeerProfile({ userId: pid, name: peer.name, email: peer.email, connectionStatus: 'active' }); }}
+                                  className={cn('text-sm font-medium text-[var(--text-primary)]', !c.isFederated && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
+                                >{getNickname(c) || peer.name}</button>
                                 {c.isFederated && <span className="ml-2 text-[10px] text-blue-400">🌐</span>}
                                 <p className="text-[11px] text-[var(--text-muted)]">{peer.email}{peer.instance ? ` • ${peer.instance}` : ''}</p>
                               </div>
@@ -853,48 +862,17 @@ export function ConnectionsView() {
                               ))}
                             </div>
 
-                            {/* Profile Peek */}
-                            <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
-                              {!peerProfile && !peerProfileLoading && !c.isFederated && getPeerId(c) && (
+                            {/* Profile Link */}
+                            {!c.isFederated && getPeerId(c) && (
+                              <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
                                 <button
-                                  onClick={() => fetchPeerProfile(getPeerId(c)!)}
-                                  className="text-[10px] text-brand-400 hover:text-brand-300 mb-2"
+                                  onClick={() => { const pid = getPeerId(c); if (pid) setPeerProfile({ userId: pid, name: peer.name, email: peer.email, connectionStatus: 'active' }); }}
+                                  className="text-[10px] text-[var(--brand-primary)] hover:text-[var(--brand-primary)]/80 transition-colors"
                                 >
-                                  👤 View Profile
+                                  👤 View Full Profile
                                 </button>
-                              )}
-                              {peerProfileLoading && <div className="text-[10px] text-white/30 mb-2">Loading profile...</div>}
-                              {peerProfile && peerProfile.userId === getPeerId(c) && (
-                                <div className="mb-2 space-y-1.5">
-                                  {peerProfile.headline && <div className="text-[11px] text-white/70 italic">{peerProfile.headline}</div>}
-                                  <div className="flex items-center gap-2 text-[10px]">
-                                    <span className={cn(
-                                      peerProfile.capacityStatus === 'available' ? 'text-green-400' :
-                                      peerProfile.capacityStatus === 'limited' ? 'text-yellow-400' :
-                                      peerProfile.capacityStatus === 'busy' ? 'text-orange-400' : 'text-red-400'
-                                    )}>
-                                      {peerProfile.capacityStatus === 'available' ? '🟢' : peerProfile.capacityStatus === 'limited' ? '🟡' : peerProfile.capacityStatus === 'busy' ? '🟠' : '🔴'}{' '}
-                                      {peerProfile.capacityStatus}
-                                    </span>
-                                    {peerProfile.timezone && <span className="text-white/30">🕐 {peerProfile.timezone}</span>}
-                                  </div>
-                                  {peerProfile.skills?.length > 0 && (
-                                    <div className="flex flex-wrap gap-1">
-                                      {peerProfile.skills.slice(0, 5).map((s: string, i: number) => (
-                                        <span key={i} className="px-1.5 py-0.5 text-[9px] bg-white/5 text-white/50 rounded">{s}</span>
-                                      ))}
-                                      {peerProfile.skills.length > 5 && <span className="text-[9px] text-white/30">+{peerProfile.skills.length - 5}</span>}
-                                    </div>
-                                  )}
-                                  {peerProfile.superpowers?.length > 0 && (
-                                    <div className="text-[9px] text-white/40">⚡ {peerProfile.superpowers.slice(0, 3).join(' · ')}</div>
-                                  )}
-                                  {peerProfile.taskTypes?.length > 0 && (
-                                    <div className="text-[9px] text-white/40">📋 Accepts: {peerProfile.taskTypes.slice(0, 4).join(', ')}</div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
+                              </div>
+                            )}
 
                             <div className="flex gap-2 mt-2 pt-2 border-t border-[var(--border-color)]">
                               <button
@@ -1097,6 +1075,21 @@ export function ConnectionsView() {
           </div>
         )}
       </div>
+
+      {/* Peer Profile Modal */}
+      {peerProfile && (
+        <PeerProfileModal
+          userId={peerProfile.userId}
+          userName={peerProfile.name}
+          userEmail={peerProfile.email}
+          connectionStatus={peerProfile.connectionStatus}
+          onClose={() => setPeerProfile(null)}
+          onConnect={(email, name) => {
+            handleDirectoryConnect(email, name);
+            setPeerProfile(null);
+          }}
+        />
+      )}
     </div>
   );
 }
