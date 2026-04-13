@@ -147,6 +147,9 @@ export function LandingPage() {
                 </span>
               )}
             </Link>
+            <a href="https://os.dividen.ai" target="_blank" rel="noopener noreferrer" className="text-sm text-white/50 hover:text-white transition-colors">
+              Open Source
+            </a>
           </div>
 
           <div className="flex items-center gap-3">
