@@ -34,5 +34,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (job.assigneeId) await recomputeReputation(job.assigneeId).catch(() => {});
   await recomputeReputation(job.posterId).catch(() => {});
 
-  return NextResponse.json({ success: true, message: 'Job marked as completed. Leave a review to build reputation.' });
+  return NextResponse.json({ success: true, message: 'Task marked as completed. Leave a review to build reputation.' });
 }

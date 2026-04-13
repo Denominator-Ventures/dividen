@@ -5,6 +5,7 @@ import InstancesTab from '@/components/admin/InstancesTab';
 import MarketplaceTab from '@/components/admin/MarketplaceTab';
 import SystemPromptTab from '@/components/admin/SystemPromptTab';
 import UsageTab from '@/components/admin/UsageTab';
+import TasksTab from '@/components/admin/TasksTab';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface UserRow {
@@ -196,7 +197,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage' | 'tasks'>('overview');
 
   const fetchStats = useCallback(async (t: string) => {
     setLoading(true);
@@ -255,6 +256,7 @@ export default function AdminPage() {
     { id: 'marketplace' as const, label: 'Marketplace', icon: '🤖' },
     { id: 'usage' as const, label: 'Usage', icon: '📈' },
     { id: 'prompt' as const, label: 'System Prompt', icon: '📝' },
+    { id: 'tasks' as const, label: 'Tasks', icon: '📋' },
     { id: 'federation' as const, label: 'Federation', icon: '🌐' },
     { id: 'telemetry' as const, label: 'Telemetry', icon: '📡' },
   ];
@@ -321,6 +323,7 @@ export default function AdminPage() {
         {activeTab === 'marketplace' && <MarketplaceTab token={token} />}
         {activeTab === 'usage' && <UsageTab token={token} />}
         {activeTab === 'prompt' && <SystemPromptTab token={token} />}
+        {activeTab === 'tasks' && <TasksTab token={token} />}
         {activeTab === 'federation' && <FederationTab token={token} />}
         {activeTab === 'telemetry' && <TelemetryTab token={token} />}
       </main>

@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { getRecruitingFeeInfo, calculateRecruitingFee } from '@/lib/recruiting-config';
 
 /**
- * GET /api/recruiting/fee-info — Public endpoint for recruiting fee structure
+ * GET /api/recruiting/fee-info — Public endpoint for platform fee structure
  */
 export async function GET() {
   const info = getRecruitingFeeInfo();
@@ -16,13 +16,13 @@ export async function GET() {
       gross: 1000,
       recruitingFee: internalExample.recruitingFee,
       workerPayout: internalExample.workerPayout,
-      description: `Internal: On a $1,000 job — worker gets $${internalExample.workerPayout}, fee is $${internalExample.recruitingFee}`,
+      description: `Internal: On a $1,000 task — contributor gets $${internalExample.workerPayout}, fee is $${internalExample.recruitingFee}`,
     },
     networkExample: {
       gross: 1000,
       recruitingFee: networkExample.recruitingFee,
       workerPayout: networkExample.workerPayout,
-      description: `Network: On a $1,000 job — worker gets $${networkExample.workerPayout}, fee is $${networkExample.recruitingFee} (minimum ${info.networkFeePercent}%)`,
+      description: `Network: On a $1,000 task — contributor gets $${networkExample.workerPayout}, fee is $${networkExample.recruitingFee} (minimum ${info.networkFeePercent}%)`,
     },
   });
 }

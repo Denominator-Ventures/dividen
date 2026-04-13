@@ -340,7 +340,7 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
   const group10 = await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length);
 
-  // ── Group 11: Business Operations (Jobs, Contracts, Marketplace, Recordings, Reputation) ──
+  // ── Group 11: Business Operations (Tasks, Agreements, Marketplace, Recordings, Reputation) ──
   const group11 = await buildBusinessOperationsLayer(userId);
 
   // ── Group 12: Team Agent Context (conditional — only if user is in teams with agents enabled) ──
@@ -369,7 +369,7 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   return layers.join('\n\n---\n\n');
 }
 
-// ─── Business Operations Layer (Jobs, Contracts, Marketplace, Recordings, Reputation, Integrations) ──
+// ─── Business Operations Layer (Tasks, Agreements, Marketplace, Recordings, Reputation, Integrations) ──
 
 async function buildBusinessOperationsLayer(userId: string): Promise<string> {
   try {
@@ -384,7 +384,7 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
       marketplaceAgents,
       pendingApplications,
     ] = await Promise.all([
-      // Active contracts where user is client or worker
+      // Active agreements where user is poster or contributor
       prisma.jobContract.findMany({
         where: {
           OR: [{ clientId: userId }, { workerId: userId }],
@@ -398,21 +398,21 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
-      // Jobs the user posted
+      // Tasks the user posted
       prisma.networkJob.findMany({
         where: { posterId: userId, status: { in: ['open', 'in_progress'] } },
         include: { _count: { select: { applications: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
-      // Jobs the user applied to
+      // Tasks the user expressed interest in
       prisma.jobApplication.findMany({
         where: { applicantId: userId, status: { in: ['pending', 'shortlisted'] } },
         include: { job: { select: { id: true, title: true, compensationType: true, compensationAmount: true } } },
         orderBy: { createdAt: 'desc' },
         take: 10,
       }),
-      // Recent payments (last 90 days) where user is worker
+      // Recent payments (last 90 days) where user is contributor
       prisma.jobPayment.findMany({
         where: {
           contract: { workerId: userId },
@@ -441,7 +441,7 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
         select: { id: true, name: true, category: true, pricingModel: true, avgRating: true, totalExecutions: true },
         take: 5,
       }),
-      // Pending applications on user's posted jobs
+      // Pending interest on user's posted tasks
       prisma.jobApplication.findMany({
         where: { job: { posterId: userId }, status: 'pending' },
         include: {
@@ -461,36 +461,36 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
 
     let text = '## Business Operations\n';
 
-    // Active Contracts
+    // Active Agreements
     if (activeContracts.length > 0) {
-      text += `\n### Active Contracts (${activeContracts.length})\n`;
+      text += `\n### Active Agreements (${activeContracts.length})\n`;
       for (const c of activeContracts) {
-        const role = c.clientId === userId ? 'CLIENT' : 'WORKER';
-        const counterparty = role === 'CLIENT' ? c.worker?.name : c.client?.name;
+        const role = c.clientId === userId ? 'POSTER' : 'CONTRIBUTOR';
+        const counterparty = role === 'POSTER' ? c.worker?.name : c.client?.name;
         text += `- [${role}] "${c.job?.title}" with ${counterparty || 'Unknown'} — $${c.compensationAmount}/${c.compensationType} | Status: ${c.status} | Paid: $${c.totalPaid}\n`;
       }
     }
 
-    // Posted Jobs
+    // Posted Tasks
     if (postedJobs.length > 0) {
-      text += `\n### Your Posted Jobs (${postedJobs.length})\n`;
+      text += `\n### Your Posted Tasks (${postedJobs.length})\n`;
       for (const j of postedJobs) {
-        text += `- "${j.title}" (${j.status}) — ${j._count.applications} applications\n`;
+        text += `- "${j.title}" (${j.status}) — ${j._count.applications} interested\n`;
       }
     }
 
-    // Pending applications on your jobs - ACTION REQUIRED
+    // Pending interest on your tasks - ACTION REQUIRED
     if (pendingApplications.length > 0) {
-      text += `\n### 📋 Pending Applications — ACTION REQUIRED (${pendingApplications.length})\n`;
+      text += `\n### 📋 Pending Interest — ACTION REQUIRED (${pendingApplications.length})\n`;
       for (const a of pendingApplications) {
-        text += `- **${a.applicant?.name || a.applicant?.email}** applied for "${a.job?.title}"\n`;
+        text += `- **${a.applicant?.name || a.applicant?.email}** expressed interest in "${a.job?.title}"\n`;
       }
-      text += `Surface these to the operator. They can hire applicants from the Marketplace → Jobs tab.\n`;
+      text += `Surface these to the operator. They can assign contributors from the Network → Tasks tab.\n`;
     }
 
-    // Applied Jobs
+    // Tasks applied to
     if (appliedJobs.length > 0) {
-      text += `\n### Your Applications (${appliedJobs.length})\n`;
+      text += `\n### Your Expressed Interest (${appliedJobs.length})\n`;
       for (const a of appliedJobs) {
         const comp = a.job?.compensationAmount ? `$${a.job.compensationAmount}/${a.job.compensationType}` : 'volunteer';
         text += `- "${a.job?.title}" — ${a.status} | ${comp}\n`;
@@ -507,7 +507,8 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
     // Reputation
     if (reputation) {
       text += `\n### Reputation\n`;
-      text += `Level: **${reputation.level}** | Score: ${reputation.score}/100 | ⭐ ${reputation.avgRating.toFixed(1)} (${reputation.totalRatings} reviews) | Jobs completed: ${reputation.jobsCompleted} | On-time: ${(reputation.onTimeRate * 100).toFixed(0)}%\n`;
+      const ratingDisplay = reputation.jobsCompleted < 5 ? '5.0 ⭐ (new — ratings factor after 5 tasks)' : `${reputation.avgRating.toFixed(1)} ⭐ (${reputation.totalRatings} reviews)`;
+      text += `Level: **${reputation.level}** | Score: ${reputation.score}/100 | ${ratingDisplay} | Tasks completed: ${reputation.jobsCompleted} | On-time: ${(reputation.onTimeRate * 100).toFixed(0)}%\n`;
     }
 
     // Recordings
@@ -584,16 +585,16 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
 
     // Business-specific behavioral rules
     text += `\n### Business Operations Rules
-- When the operator asks about earnings, show totals from contracts + marketplace.
-- When a job application comes in, surface it proactively with applicant details.
-- When a contract is active, track milestones and payment status.
-- Proactively remind about pending reviews on completed jobs.
+- When the operator asks about earnings, show totals from agreements + marketplace.
+- When someone expresses interest in a posted task, surface it proactively with their details.
+- When an agreement is active, track milestones and payment status.
+- Proactively remind about pending reviews on completed tasks.
 - If recordings exist without summaries, offer to help review them.
-- When the operator asks about their reputation, explain the scoring components.
+- When the operator asks about their reputation, explain the scoring components. Everyone starts at 5.0⭐ — real ratings don't factor until 5+ completed tasks.
 - For Stripe payment issues, guide them to Settings → 💳 Payments or the Marketplace → Earnings tab.
 - Payment routing uses a two-tier fee model:
   - INTERNAL transactions (both parties on the same instance): configurable fee, can be 0% for whitelabel/closed-team deployments.
-  - NETWORK transactions (marketplace, federation, external agents/users): enforced minimum floor — ${process.env.NETWORK_RECRUITING_FEE_FLOOR || '7'}% on job contracts, ${process.env.NETWORK_MARKETPLACE_FEE_FLOOR || '3'}% on marketplace agent transactions. Payments route through DiviDen and cannot bypass the platform fee.
+  - NETWORK transactions (marketplace, federation, external agents/users): enforced minimum floor — ${process.env.NETWORK_RECRUITING_FEE_FLOOR || '7'}% platform fee on task agreements, ${process.env.NETWORK_MARKETPLACE_FEE_FLOOR || '3'}% on marketplace agent transactions. Payments route through DiviDen and cannot bypass the platform fee. The platform does not take a cut on equity or non-monetary compensation.
 - Self-hosted instances connecting to the DiviDen network must route payments through DiviDen. The fee floor cannot be overridden for network transactions.`;
 
     return text;
@@ -742,23 +743,23 @@ People on cards have two roles:
 - [[create_goal:{"title":"...","timeframe":"week|month|quarter|year","impact":"low|medium|high|critical","deadline":"YYYY-MM-DD","description":"..."}]]
 - [[update_goal:{"id":"goal_id","progress":0-100,"status":"active|paused|completed|abandoned","title":"..."}]]
 
-### Network Job Board
-Post tasks to the network or find matching work. The job board is DiviDen's marketplace layer.
-- [[post_job:{"title":"Research market sizing for AI agents","description":"Need detailed TAM/SAM/SOM analysis...","taskType":"research","urgency":"medium","compensation":"$500","requiredSkills":"market research, data analysis","estimatedHours":"8"}]]
-- [[find_jobs:{}]] — Find jobs matching this operator's profile skills and availability. **Proactively surface matches when relevant.** If the operator mentions needing help or looking for work, check the job board.
+### Task Board
+Post paying tasks to the network or find matching work. The task board is DiviDen's work-exchange layer.
+- [[post_job:{"title":"Research market sizing for AI agents","description":"Need detailed TAM/SAM/SOM analysis...","taskType":"research","urgency":"medium","compensation":"$500","requiredSkills":"market research, data analysis","estimatedHours":"8","taskBreakdown":["Draft outline","Research competitors","Write final report"]}]]
+- [[find_jobs:{}]] — Find tasks matching this operator's profile skills and availability. **Proactively surface matches when relevant.** If the operator mentions needing help or looking for work, check the task board.
 
-### Job & Project Invite Intake (Divi Agent Routing)
-**All incoming jobs and project invites flow through you (Divi) before reaching the operator's kanban.**
-When a job offer or project invite arrives:
-1. **Check minimum compensation** — If the operator has set a minimum rate (minCompensationType + minCompensationAmount), filter out underpaying jobs. Volunteer offers pass through if acceptVolunteerWork is true.
-2. **Present the offer** — Surface the job/invite to the operator with a summary: who's offering, what the project is, compensation, and role.
-3. **Intake & task breakdown** — Once the operator shows interest, break the job/project into concrete tasks for their queue. Create kanban cards if they accept.
+### Task & Project Invite Intake (Divi Agent Routing)
+**All incoming tasks and project invites flow through you (Divi) before reaching the operator's kanban.**
+When a task offer or project invite arrives:
+1. **Check minimum compensation** — If the operator has set a minimum rate (minCompensationType + minCompensationAmount), filter out underpaying tasks. Volunteer offers pass through if acceptVolunteerWork is true.
+2. **Present the offer** — Surface the task/invite to the operator with a summary: who's offering, what the project is, compensation, and role.
+3. **Intake & task breakdown** — Once the operator shows interest, break the task/project into concrete steps for their queue. If the poster included a task breakdown, present those steps. Create kanban cards if they accept.
 4. **Acceptance flow** — The operator must explicitly accept before anything hits their kanban. Use [[accept_invite:{"inviteId":"..."}]] or [[decline_invite:{"inviteId":"..."}]] to process their decision.
 - [[accept_invite:{"inviteId":"..."}]] — Accept a project invite, joining the operator as a project member
 - [[decline_invite:{"inviteId":"..."}]] — Decline a project invite
 - [[list_invites:{}]] — Show pending project invites for the operator
 
-**Jobs are special projects.** When someone is hired for a job, a Project is automatically created. Both parties become project members. Shared project members show up on each other's kanban cards — making collaboration visible.
+**Tasks create dual projects on acceptance.** When someone is assigned to a task, TWO projects are created: the poster gets an oversight project (to track and review), and the contributor gets an execution project (with task breakdown as kanban cards). Both are linked through the task record. Tasks can also link to an existing project the poster already has.
 
 ### Signals & Triage
 The operator's information sources are called **Signals**. Each signal (Inbox, Calendar, Recordings, CRM, Drive, Connections, plus any custom signals) has a "⚡ Triage" button.
@@ -766,7 +767,7 @@ The operator's information sources are called **Signals**. Each signal (Inbox, C
 **Mental Model — Everything is a TASK, Cards are PROJECTS:**
 - Every signal item produces one or more **tasks** (things to do, track, or respond to).
 - A **card on the Board is a project** — a container for related tasks, not a task itself.
-- Your job during triage: extract tasks from signals, then route each task to the right project card.
+- Your role during triage: extract tasks from signals, then route each task to the right project card.
 - Tasks become **checklist items** on their project card, with source context (where the task came from).
 - Artifacts (emails, docs, recordings, events, contacts) get **linked to the card** so context builds up.
 
@@ -864,12 +865,12 @@ These actions appear in the Queue with Approve / Review / Skip buttons. **Always
 - [[update_profile:{"skills":["..."],"taskTypes":["..."],"languages":[{"language":"...","proficiency":"..."}],"headline":"...","capacityStatus":"available|busy|limited|unavailable"}]] — Arrays MERGE (safe to add incrementally)
 - [[update_memory:{"tier":1|2|3,"category":"...","key":"...","value":"..."}]] / [[save_learning:{"category":"...","observation":"...","confidence":0.5}]]
 
-### Job Lifecycle & Contracts
-- [[accept_invite:{"inviteId":"..."}]] — Accept a project/job invite. Joins the user as a project member.
-- [[decline_invite:{"inviteId":"..."}]] — Decline a project/job invite.
-- [[list_invites:{}]] — Show all pending project/job invites for the operator.
-- [[complete_job:{"jobId":"..."}]] — Mark a job as complete (triggers review/payment flow).
-- [[review_job:{"jobId":"...","rating":1-5,"comment":"..."}]] — Leave a review for a completed job.
+### Task Lifecycle & Agreements
+- [[accept_invite:{"inviteId":"..."}]] — Accept a project/task invite. Joins the user as a project member.
+- [[decline_invite:{"inviteId":"..."}]] — Decline a project/task invite.
+- [[list_invites:{}]] — Show all pending project/task invites for the operator.
+- [[complete_job:{"jobId":"..."}]] — Mark a task as complete (triggers review/payment flow).
+- [[review_job:{"jobId":"...","rating":1-5,"comment":"..."}]] — Leave a review for a completed task.
 
 ### Marketplace Agents
 - [[list_marketplace:{"category":"optional filter"}]] — Browse available marketplace agents (research, coding, writing, analysis, etc.)
@@ -922,7 +923,7 @@ API: ${apiKeys.map((k: any) => k.provider).join(', ')} | Webhooks: ${webhooks.le
 
 ### Navigation Reference (for guiding users)
 - **Primary**: Chat, Board (Kanban), CRM, Calendar
-- **Network**: Discover, Connections, Teams, Jobs, Marketplace (includes Earnings)
+- **Network**: Discover, Connections, Teams, Tasks, Marketplace (includes Earnings)
 - **Messages**: Inbox, Recordings
 - **Files**: Drive
 - **Right Panel**: Queue, Comms (agent relay log)

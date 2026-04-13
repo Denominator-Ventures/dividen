@@ -66,6 +66,11 @@ interface Reputation {
   responseRate: number;
 }
 
+interface UserProject {
+  id: string;
+  name: string;
+}
+
 type ViewMode = 'browse' | 'my_jobs' | 'assigned' | 'matches' | 'contracts' | 'reputation' | 'invites';
 
 const TASK_TYPES = [
@@ -152,6 +157,7 @@ export function JobBoardView() {
   const [feeInfo, setFeeInfo] = useState<{ feePercent: number; networkFeePercent: number; workerPercent: number; networkWorkerPercent: number; isSelfHosted: boolean; label: string; networkLabel: string } | null>(null);
   const [invites, setInvites] = useState<any[]>([]);
   const [invitesLoading, setInvitesLoading] = useState(false);
+  const [userProjects, setUserProjects] = useState<UserProject[]>([]);
 
   // Create form
   const [form, setForm] = useState({
@@ -159,11 +165,20 @@ export function JobBoardView() {
     compensation: '', estimatedHours: '', deadline: '',
     requiredSkills: '', preferredSkills: '', visibility: 'network',
     compensationType: '', compensationAmount: '',
+    projectId: '', taskBreakdown: '',
   });
 
   // Fetch fee info once
   useEffect(() => {
     fetch('/api/recruiting/fee-info').then(r => r.json()).then(setFeeInfo).catch(() => {});
+  }, []);
+
+  // Fetch user projects for the project selector
+  useEffect(() => {
+    fetch('/api/projects')
+      .then(r => r.json())
+      .then(data => setUserProjects((data.projects || []).map((p: any) => ({ id: p.id, name: p.name }))))
+      .catch(() => {});
   }, []);
 
   const fetchJobs = useCallback(async () => {
@@ -177,7 +192,7 @@ export function JobBoardView() {
       const res = await fetch(url);
       const data = await res.json();
       setJobs(data.jobs || []);
-    } catch (e) { console.error('Failed to fetch jobs:', e); }
+    } catch (e) { console.error('Failed to fetch tasks:', e); }
     setLoading(false);
   }, [view]);
 
@@ -187,7 +202,7 @@ export function JobBoardView() {
       const res = await fetch('/api/contracts?status=all');
       const data = await res.json();
       setContracts(data.contracts || []);
-    } catch (e) { console.error('Failed to fetch contracts:', e); }
+    } catch (e) { console.error('Failed to fetch agreements:', e); }
     setLoading(false);
   }, []);
 
@@ -230,6 +245,12 @@ export function JobBoardView() {
   }, [view, fetchJobs, fetchMatches, fetchReputation, fetchContracts, fetchInvites]);
 
   const createJob = async () => {
+    // Parse task breakdown lines into JSON array
+    const breakdownLines = form.taskBreakdown
+      .split('\n')
+      .map(l => l.trim())
+      .filter(Boolean);
+
     const payload: any = {
       ...form,
       requiredSkills: form.requiredSkills ? form.requiredSkills.split(',').map(s => s.trim()).filter(Boolean) : [],
@@ -238,11 +259,13 @@ export function JobBoardView() {
       deadline: form.deadline || undefined,
       compensationType: form.compensationType || undefined,
       compensationAmount: form.compensationAmount || undefined,
+      projectId: form.projectId || undefined,
+      taskBreakdown: breakdownLines.length > 0 ? breakdownLines : undefined,
     };
     const res = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     if (res.ok) {
       setShowCreate(false);
-      setForm({ title: '', description: '', taskType: 'custom', urgency: 'medium', compensation: '', estimatedHours: '', deadline: '', requiredSkills: '', preferredSkills: '', visibility: 'network', compensationType: '', compensationAmount: '' });
+      setForm({ title: '', description: '', taskType: 'custom', urgency: 'medium', compensation: '', estimatedHours: '', deadline: '', requiredSkills: '', preferredSkills: '', visibility: 'network', compensationType: '', compensationAmount: '', projectId: '', taskBreakdown: '' });
       fetchJobs();
     }
   };
@@ -254,7 +277,7 @@ export function JobBoardView() {
       body: JSON.stringify({ source: 'self_apply' }),
     });
     if (res.ok) {
-      alert('Application submitted!');
+      alert('Interest submitted!');
       fetchJobs();
     } else {
       const data = await res.json();
@@ -270,7 +293,7 @@ export function JobBoardView() {
       body: JSON.stringify({ completionNote: note || '' }),
     });
     if (res.ok) {
-      alert('Job completed! Consider leaving a review.');
+      alert('Task completed! Consider leaving a review.');
       fetchJobs();
     } else {
       const data = await res.json();
@@ -287,26 +310,26 @@ export function JobBoardView() {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
         <div>
-          <h2 className="text-lg font-semibold text-white">Network Job Board</h2>
-          <p className="text-xs text-zinc-500">Post tasks, find talent, build reputation</p>
+          <h2 className="text-lg font-semibold text-white">Task Board</h2>
+          <p className="text-xs text-zinc-500">Post tasks, find contributors, build reputation</p>
         </div>
         <button
           onClick={() => setShowCreate(true)}
           className="px-3 py-1.5 text-sm font-medium rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 transition-colors"
         >
-          + Post Job
+          + Post Task
         </button>
       </div>
 
       {/* Sub-tabs */}
       <div className="flex gap-1 px-4 py-2 border-b border-white/5 overflow-x-auto">
         {[
-          { id: 'browse' as ViewMode, label: '🌐 Browse' },
+          { id: 'browse' as ViewMode, label: '🌐 Open Tasks' },
           { id: 'matches' as ViewMode, label: '✨ Matches' },
-          { id: 'my_jobs' as ViewMode, label: '📤 My Posts' },
-          { id: 'assigned' as ViewMode, label: '📥 Assigned' },
+          { id: 'my_jobs' as ViewMode, label: '📤 My Tasks' },
+          { id: 'assigned' as ViewMode, label: '📥 Accepted' },
           { id: 'invites' as ViewMode, label: `📨 Invites${invites.length > 0 ? ` (${invites.length})` : ''}` },
-          { id: 'contracts' as ViewMode, label: '📄 Contracts' },
+          { id: 'contracts' as ViewMode, label: '📄 Agreements' },
           { id: 'reputation' as ViewMode, label: '⭐ Reputation' },
         ].map(tab => (
           <button
@@ -322,10 +345,10 @@ export function JobBoardView() {
         ))}
       </div>
 
-      {/* Recruiting fee banner */}
+      {/* Platform fee banner */}
       {feeInfo && !feeInfo.isSelfHosted && (view === 'browse' || view === 'my_jobs') && (
         <div className="mx-4 mt-3 p-2.5 rounded-lg bg-amber-500/[0.06] border border-amber-500/10 text-xs text-amber-400/80">
-          💰 Paid jobs include a {feeInfo.feePercent}% recruiting fee when hiring outside your network. Workers keep {feeInfo.workerPercent}%.
+          💰 Paid tasks include a {feeInfo.feePercent}% platform fee on tasks outside your network. Contributors keep {feeInfo.workerPercent}%.
           {feeInfo.isSelfHosted && ' Internal: 0% fee · Network: min ' + feeInfo.networkFeePercent + '% fee.'}
         </div>
       )}
@@ -352,13 +375,13 @@ export function JobBoardView() {
           <ReputationView reputation={reputation} />
         ) : view === 'contracts' ? (
           contracts.length === 0 ? (
-            <EmptyState icon="📄" title="No contracts yet" subtitle="Contracts are created when you hire someone for a paid job" />
+            <EmptyState icon="📄" title="No agreements yet" subtitle="Agreements are created when you assign someone to a paid task" />
           ) : (
             contracts.map(c => <ContractCard key={c.id} contract={c} onRefresh={fetchContracts} />)
           )
         ) : view === 'matches' ? (
           matches.length === 0 ? (
-            <EmptyState icon="✨" title="No matches yet" subtitle="Complete your profile with skills and task types to get matched with relevant jobs" />
+            <EmptyState icon="✨" title="No matches yet" subtitle="Complete your profile with skills and task types to get matched with relevant tasks" />
           ) : (
             matches.map(m => (
               <MatchCard key={m.jobId} match={m} onApply={() => applyToJob(m.jobId)} />
@@ -366,9 +389,9 @@ export function JobBoardView() {
           )
         ) : jobs.length === 0 ? (
           <EmptyState
-            icon={view === 'browse' ? '💼' : view === 'my_jobs' ? '📤' : '📥'}
-            title={view === 'browse' ? 'No open jobs' : view === 'my_jobs' ? 'No jobs posted' : 'No assigned jobs'}
-            subtitle={view === 'browse' ? 'Be the first to post a task to the network' : view === 'my_jobs' ? 'Post a job to get help from the network' : 'Apply to open jobs to get started'}
+            icon={view === 'browse' ? '📋' : view === 'my_jobs' ? '📤' : '📥'}
+            title={view === 'browse' ? 'No open tasks' : view === 'my_jobs' ? 'No tasks posted' : 'No accepted tasks'}
+            subtitle={view === 'browse' ? 'Be the first to post a task to the network' : view === 'my_jobs' ? 'Post a task to get help from the network' : 'Express interest in open tasks to get started'}
           />
         ) : (
           jobs.map(job => (
@@ -385,11 +408,11 @@ export function JobBoardView() {
         )}
       </div>
 
-      {/* Create Job Modal */}
+      {/* Create Task Modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
           <div className="w-full max-w-lg mx-4 bg-zinc-900 border border-white/10 rounded-xl p-6 space-y-4 max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-white">Post a Job to the Network</h3>
+            <h3 className="text-lg font-semibold text-white">Post a Task</h3>
             
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Title *</label>
@@ -403,6 +426,28 @@ export function JobBoardView() {
               <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
                 className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500 h-24 resize-none"
                 placeholder="Describe the task, deliverables, and context..." />
+            </div>
+
+            {/* Link to existing project */}
+            {userProjects.length > 0 && (
+              <div>
+                <label className="text-xs text-zinc-400 mb-1 block">Link to Project (optional)</label>
+                <select value={form.projectId} onChange={e => setForm(f => ({ ...f, projectId: e.target.value }))}
+                  className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white">
+                  <option value="">None — a new project will be created</option>
+                  {userProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <p className="text-[10px] text-zinc-600 mt-1">Linking lets you post a task from a project you already have</p>
+              </div>
+            )}
+
+            {/* Task Breakdown */}
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Task Breakdown (optional)</label>
+              <textarea value={form.taskBreakdown} onChange={e => setForm(f => ({ ...f, taskBreakdown: e.target.value }))}
+                className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500 h-20 resize-none"
+                placeholder={"One step per line, e.g.:\nDraft outline\nResearch competitors\nWrite final report"} />
+              <p className="text-[10px] text-zinc-600 mt-1">These become cards on the contributor's board when accepted</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -450,7 +495,7 @@ export function JobBoardView() {
               </div>
               {form.compensationType && form.compensationType !== 'volunteer' && (
                 <div>
-                  <label className="text-[10px] text-zinc-500 mb-1 block">Or freeform (legacy)</label>
+                  <label className="text-[10px] text-zinc-500 mb-1 block">Or freeform — equity, exchange, etc.</label>
                   <input value={form.compensation} onChange={e => setForm(f => ({ ...f, compensation: e.target.value }))}
                     className="w-full px-3 py-2 bg-zinc-800 border border-white/10 rounded-lg text-sm text-white placeholder-zinc-500"
                     placeholder="e.g. equity swap, mutual exchange (optional)" />
@@ -463,15 +508,15 @@ export function JobBoardView() {
                     <span>${compAmount.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-amber-400/80">
-                    <span>Recruiting fee ({feeInfo.feePercent}%)</span>
+                    <span>Platform fee ({feeInfo.feePercent}%)</span>
                     <span>-${(compAmount * feeInfo.feePercent / 100).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-emerald-400 font-medium border-t border-white/5 pt-1">
-                    <span>Worker receives</span>
+                    <span>Contributor receives</span>
                     <span>${(compAmount * (1 - feeInfo.feePercent / 100)).toFixed(2)}</span>
                   </div>
                   {feeInfo.isSelfHosted && (
-                    <p className="text-[10px] text-zinc-500 mt-1">Internal: 0% fee · Network hires: min {feeInfo?.networkFeePercent || 7}% fee enforced.</p>
+                    <p className="text-[10px] text-zinc-500 mt-1">Internal: 0% fee · Network tasks: min {feeInfo?.networkFeePercent || 7}% fee enforced.</p>
                   )}
                 </div>
               )}
@@ -520,14 +565,14 @@ export function JobBoardView() {
                 className="px-4 py-2 text-sm text-zinc-400 hover:text-white transition-colors">Cancel</button>
               <button onClick={createJob} disabled={!form.title || !form.description}
                 className="px-4 py-2 text-sm font-medium rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                Post Job
+                Post Task
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Job Detail Modal */}
+      {/* Task Detail Modal */}
       {showDetail && selectedJob && (
         <JobDetailModal
           job={selectedJob}
@@ -581,7 +626,7 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
         <span className="text-[10px] text-zinc-600">by {job.poster?.name || 'Unknown'}</span>
         <span className="text-[10px] text-zinc-600">{timeAgo(job.createdAt)}</span>
         {(job._count?.applications ?? 0) > 0 && (
-          <span className="text-[10px] text-blue-400">👤 {job._count?.applications} applicant{(job._count?.applications ?? 0) !== 1 ? 's' : ''}</span>
+          <span className="text-[10px] text-blue-400">👤 {job._count?.applications} interested</span>
         )}
       </div>
 
@@ -598,7 +643,7 @@ function JobCard({ job, isMine, isAssigned, onApply, onComplete, onSelect }: {
         {!isMine && !isAssigned && job.status === 'open' && (
           <button onClick={onApply}
             className="px-3 py-1 text-xs font-medium rounded-md bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 transition-colors">
-            Apply
+            Express Interest
           </button>
         )}
         {isAssigned && job.status === 'in_progress' && (
@@ -639,14 +684,14 @@ function ContractCard({ contract, onRefresh }: { contract: Contract; onRefresh: 
   };
 
   const updateStatus = async (status: string) => {
-    if (!confirm(`${status === 'completed' ? 'Complete' : status === 'cancelled' ? 'Cancel' : 'Pause'} this contract?`)) return;
+    if (!confirm(`${status === 'completed' ? 'Complete' : status === 'cancelled' ? 'Cancel' : 'Pause'} this agreement?`)) return;
     const res = await fetch(`/api/contracts/${contract.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status }),
     });
     if (res.ok) onRefresh();
-    else alert('Failed to update contract');
+    else alert('Failed to update agreement');
   };
 
   const compDisplay = formatComp(contract.compensationType, contract.compensationAmount, contract.currency);
@@ -667,10 +712,10 @@ function ContractCard({ contract, onRefresh }: { contract: Contract; onRefresh: 
       </div>
 
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div><span className="text-zinc-500">Client:</span> <span className="text-white">{contract.client.name}</span></div>
-        <div><span className="text-zinc-500">Worker:</span> <span className="text-white">{contract.worker.name}</span></div>
+        <div><span className="text-zinc-500">Poster:</span> <span className="text-white">{contract.client.name}</span></div>
+        <div><span className="text-zinc-500">Contributor:</span> <span className="text-white">{contract.worker.name}</span></div>
         <div><span className="text-zinc-500">Total paid:</span> <span className="text-emerald-400">${contract.totalPaid.toFixed(2)}</span></div>
-        <div><span className="text-zinc-500">Fees collected:</span> <span className="text-amber-400">${contract.totalRecruitingFee.toFixed(2)}</span></div>
+        <div><span className="text-zinc-500">Platform fees:</span> <span className="text-amber-400">${contract.totalRecruitingFee.toFixed(2)}</span></div>
         <div><span className="text-zinc-500">Started:</span> <span className="text-white">{new Date(contract.startDate).toLocaleDateString()}</span></div>
         {contract.endDate && (
           <div><span className="text-zinc-500">Ended:</span> <span className="text-white">{new Date(contract.endDate).toLocaleDateString()}</span></div>
@@ -745,7 +790,7 @@ function ContractCard({ contract, onRefresh }: { contract: Contract; onRefresh: 
           {parseFloat(payAmount) > 0 && (
             <div className="text-[10px] text-zinc-400">
               Fee: ${(parseFloat(payAmount) * contract.recruitingFeePercent / 100).toFixed(2)} ({contract.recruitingFeePercent}%)
-              · Worker gets: ${(parseFloat(payAmount) * (1 - contract.recruitingFeePercent / 100)).toFixed(2)}
+              · Contributor gets: ${(parseFloat(payAmount) * (1 - contract.recruitingFeePercent / 100)).toFixed(2)}
             </div>
           )}
           <button onClick={makePayment} disabled={paying || !payAmount}
@@ -772,15 +817,16 @@ function MatchCard({ match, onApply }: { match: MatchResult; onApply: () => void
         </button>
       </div>
       <p className="text-xs text-zinc-400">{match.reason}</p>
-      <p className="text-[10px] text-zinc-600">Job ID: {match.jobId.slice(0, 8)}...</p>
+      <p className="text-[10px] text-zinc-600">Task ID: {match.jobId.slice(0, 8)}...</p>
     </div>
   );
 }
 
 function ReputationView({ reputation }: { reputation: Reputation | null }) {
-  if (!reputation) return <EmptyState icon="⭐" title="No reputation data" subtitle="Complete jobs to build your network reputation" />;
+  if (!reputation) return <EmptyState icon="⭐" title="No reputation data" subtitle="Complete tasks to build your network reputation" />;
 
   const levelEmoji: Record<string, string> = { new: '🌱', rising: '📈', established: '🏛️', trusted: '🛡️', exemplary: '👑' };
+  const isNew = reputation.jobsCompleted < 5;
 
   return (
     <div className="space-y-6">
@@ -790,13 +836,16 @@ function ReputationView({ reputation }: { reputation: Reputation | null }) {
           {levelEmoji[reputation.level] || '🌱'} {reputation.level}
         </div>
         <p className="text-xs text-zinc-500">Network Reputation Score</p>
+        {isNew && (
+          <p className="text-xs text-amber-400/70">5.0 ★ (new) — ratings factor in after 5 completed tasks</p>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Jobs Completed', value: reputation.jobsCompleted, icon: '✅' },
-          { label: 'Jobs Posted', value: reputation.jobsPosted, icon: '📤' },
-          { label: 'Avg Rating', value: reputation.avgRating > 0 ? `${reputation.avgRating.toFixed(1)} ⭐` : 'No ratings', icon: '⭐' },
+          { label: 'Tasks Completed', value: reputation.jobsCompleted, icon: '✅' },
+          { label: 'Tasks Posted', value: reputation.jobsPosted, icon: '📤' },
+          { label: 'Avg Rating', value: isNew ? '5.0 ⭐ (new)' : reputation.avgRating > 0 ? `${reputation.avgRating.toFixed(1)} ⭐` : 'No ratings', icon: '⭐' },
           { label: 'On-Time Rate', value: `${Math.round(reputation.onTimeRate * 100)}%`, icon: '⏰' },
           { label: 'Response Rate', value: `${Math.round(reputation.responseRate * 100)}%`, icon: '💬' },
           { label: 'Total Reviews', value: reputation.totalRatings, icon: '📝' },
@@ -836,15 +885,15 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
   const [detail, setDetail] = useState<Job | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
-  const [hiring, setHiring] = useState(false);
+  const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     fetch(`/api/jobs/${job.id}`).then(r => r.json()).then(d => setDetail(d.job)).catch(() => {});
   }, [job.id]);
 
-  const hireApplicant = async (applicantId: string) => {
-    if (!confirm('Hire this applicant? A contract will be created with the posted compensation terms.')) return;
-    setHiring(true);
+  const assignApplicant = async (applicantId: string) => {
+    if (!confirm('Assign this contributor? An agreement will be created with the posted compensation terms.')) return;
+    setAssigning(true);
     try {
       const res = await fetch(`/api/jobs/${job.id}/hire`, {
         method: 'POST',
@@ -853,14 +902,14 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
       });
       const data = await res.json();
       if (res.ok) {
-        alert(data.message || 'Hired!');
+        alert(data.message || 'Assigned!');
         onRefresh();
         onClose();
       } else {
-        alert(data.error || 'Failed to hire');
+        alert(data.error || 'Failed to assign');
       }
-    } catch { alert('Failed to hire'); }
-    setHiring(false);
+    } catch { alert('Failed to assign'); }
+    setAssigning(false);
   };
 
   const submitReview = async () => {
@@ -931,10 +980,10 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
           </div>
         )}
 
-        {/* Applications with Hire button */}
+        {/* Applicants with Assign button */}
         {detail?.applications && detail.applications.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-zinc-400 mb-2">Applications ({detail.applications.length})</h4>
+            <h4 className="text-xs font-semibold text-zinc-400 mb-2">Interested ({detail.applications.length})</h4>
             <div className="space-y-2">
               {detail.applications.map((app: any) => (
                 <div key={app.id} className="p-3 bg-zinc-800/50 border border-white/5 rounded-lg flex items-center justify-between gap-3">
@@ -952,11 +1001,11 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
                     )}>{app.status}</span>
                     {app.status === 'pending' && job.status === 'open' && (
                       <button
-                        onClick={() => hireApplicant(app.applicant.id)}
-                        disabled={hiring}
+                        onClick={() => assignApplicant(app.applicant.id)}
+                        disabled={assigning}
                         className="px-3 py-1 text-xs font-medium rounded-md bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors disabled:opacity-50"
                       >
-                        {hiring ? '...' : '✓ Hire'}
+                        {assigning ? '...' : '✓ Assign'}
                       </button>
                     )}
                   </div>
@@ -966,7 +1015,7 @@ function JobDetailModal({ job, onClose, onRefresh }: { job: Job; onClose: () => 
           </div>
         )}
 
-        {/* Review section for completed jobs */}
+        {/* Review section for completed tasks */}
         {job.status === 'completed' && (
           <div className="border-t border-white/5 pt-4">
             <h4 className="text-xs font-semibold text-zinc-400 mb-2">Leave a Review</h4>
@@ -1030,7 +1079,7 @@ function InviteCard({ invite, onAction }: { invite: any; onAction: () => void })
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-sm">{isJobInvite ? '💼' : '📁'}</span>
+            <span className="text-sm">{isJobInvite ? '📋' : '📁'}</span>
             <h3 className="text-sm font-medium text-white truncate">
               {invite.project?.name || 'Project'}
             </h3>
@@ -1038,7 +1087,7 @@ function InviteCard({ invite, onAction }: { invite: any; onAction: () => void })
               'text-[10px] px-1.5 py-0.5 rounded',
               isJobInvite ? 'bg-amber-500/20 text-amber-400' : 'bg-brand-500/20 text-brand-400'
             )}>
-              {isJobInvite ? 'Job Offer' : 'Project Invite'}
+              {isJobInvite ? 'Task Offer' : 'Project Invite'}
             </span>
           </div>
 

@@ -1,8 +1,10 @@
 /**
- * DEP-013: Job Matching Engine
+ * DEP-013: Task Matching Engine
  * 
- * Scores how well a user profile matches a job posting.
- * Uses skills overlap, task type alignment, availability, and reputation.
+ * Scores how well a user's Divi matches a posted task.
+ * Priority order: availability within timeframe → affordable within budget → 
+ * highest rated (after 5 completed tasks) → skill match.
+ * Everyone starts at 5 stars. Ratings don't count until 5+ completed tasks.
  */
 
 import { prisma } from '@/lib/prisma';
@@ -188,9 +190,12 @@ export async function recomputeReputation(userId: string) {
     }),
   ]);
 
-  const avgRating = reviews.length > 0
+  // Everyone starts at 5 stars. Actual review scores only factor in after 5+ completed tasks.
+  const RATING_THRESHOLD = 5;
+  const rawAvgRating = reviews.length > 0
     ? reviews.reduce((sum: any, r: any) => sum + r.rating, 0) / reviews.length
-    : 0;
+    : 5.0;
+  const avgRating = completedJobs < RATING_THRESHOLD ? 5.0 : rawAvgRating;
 
   // On-time rate: completed before deadline
   let onTimeCount = 0;

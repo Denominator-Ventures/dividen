@@ -1236,7 +1236,8 @@ model Project {
   queueItems  QueueItem[]
   relays      AgentRelay[]
   goals       Goal[]
-  networkJobs NetworkJob[]    // Reverse: job(s) linked to this project (typically 0 or 1)
+  networkJobsAsPosted     NetworkJob[] @relation("JobPosterProject")       // Jobs where this is the poster's project
+  networkJobsAsContributor NetworkJob[] @relation("JobContributorProject") // Jobs where this is the contributor's project
   projectInvites ProjectInvite[]
 
   @@index([teamId])
@@ -1378,9 +1379,14 @@ model NetworkJob {
   // Results
   completionNote  String?   @db.Text
   
-  // Project link — when a hire happens, a Project is created from this job
-  projectId       String?
-  project         Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  // Project links — poster and contributor each get their own project
+  projectId              String?   // Poster's project (their oversight/management view)
+  project                Project?  @relation("JobPosterProject", fields: [projectId], references: [id], onDelete: SetNull)
+  contributorProjectId   String?   // Contributor's project (their execution view)
+  contributorProject     Project?  @relation("JobContributorProject", fields: [contributorProjectId], references: [id], onDelete: SetNull)
+
+  // Task breakdown — JSON array of tasks for the contributor's board
+  taskBreakdown   String?   @db.Text  // JSON: [{title, description, priority, dueDate?}]
 
   applications    JobApplication[]
   contracts       JobContract[]
@@ -1398,6 +1404,7 @@ model NetworkJob {
   @@index([createdAt])
   @@index([isPaid])
   @@index([projectId])
+  @@index([contributorProjectId])
   @@map("network_jobs")
 }
 

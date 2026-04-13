@@ -8,13 +8,14 @@ import { getRecruitingFeePercent, calculateRecruitingFee } from '@/lib/recruitin
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 
 /**
- * POST /api/jobs/[id]/hire — Hire an applicant, create contract, initiate payment
+ * POST /api/jobs/[id]/hire — Assign a contributor, create contract, set up dual projects
  * Body: { applicantId, compensationType?, compensationAmount?, compensationCurrency? }
  * 
- * For paid jobs:
- *   - If poster has Stripe payment methods, creates a PaymentIntent with recruiting fee
- *   - For flat-fee: single charge on hire
- *   - For recurring: creates contract, first payment triggered separately
+ * Flow:
+ *   1. Poster gets an oversight project on their board (or links to existing)
+ *   2. Contributor gets an execution project on their board with task breakdown
+ *   3. Both become project members on their respective projects
+ *   4. For paid tasks: contract + payment flow
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -49,20 +50,14 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   const feePercent = getRecruitingFeePercent();
 
-  // Start transaction: update job, create contract, update application
-  const result = await prisma.$transaction(async (tx: any) => {
-    // Update job status and assignee
-    await tx.networkJob.update({
-      where: { id: params.id },
-      data: {
-        status: 'in_progress',
-        assigneeId: applicantId,
-        compensationType: compType || job.compensationType,
-        compensationAmount: compAmount ?? job.compensationAmount,
-        isPaid,
-      },
-    });
+  // Parse task breakdown if provided
+  let taskBreakdown: { title: string; description?: string; priority?: number; dueDate?: string }[] = [];
+  try {
+    if (job.taskBreakdown) taskBreakdown = JSON.parse(job.taskBreakdown);
+  } catch {}
 
+  // Start transaction: update job, create contract, create dual projects
+  const result = await prisma.$transaction(async (tx: any) => {
     // Accept the application, reject others
     await tx.jobApplication.update({
       where: { id: application.id },
@@ -73,7 +68,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       data: { status: 'rejected' },
     });
 
-    // Create contract if it's a paid job
+    // Create contract if it's a paid task
     let contract = null;
     if (isPaid && compType && compAmount) {
       contract = await tx.jobContract.create({
@@ -90,35 +85,111 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       });
     }
 
-    // Auto-create Project from the job (jobs are "special projects")
-    const project = await tx.project.create({
+    // ── Poster's project (oversight) ──
+    // If job already has a posterProject (task posted from existing project), use it
+    let posterProject = job.projectId
+      ? await tx.project.findUnique({ where: { id: job.projectId } })
+      : null;
+
+    if (!posterProject) {
+      posterProject = await tx.project.create({
+        data: {
+          name: job.title,
+          description: job.description,
+          status: 'active',
+          visibility: 'private',
+          createdById: userId,
+          metadata: JSON.stringify({ sourceJobId: params.id, role: 'poster' }),
+        },
+      });
+      // Add poster as lead
+      await tx.projectMember.create({
+        data: { projectId: posterProject.id, userId, role: 'lead' },
+      });
+    }
+
+    // Create oversight kanban card on poster's board
+    await tx.kanbanCard.create({
+      data: {
+        title: `Manage: ${job.title}`,
+        description: `Oversight for task assigned to contributor. Track deliverables and review submissions.`,
+        status: 'in_progress',
+        priority: 2,
+        userId,
+        projectId: posterProject.id,
+        checklist: {
+          create: [
+            { title: 'Review initial delivery', sortOrder: 0, assigneeType: 'self' },
+            { title: 'Provide feedback / request revisions', sortOrder: 1, assigneeType: 'self' },
+            { title: 'Approve final delivery', sortOrder: 2, assigneeType: 'self' },
+            ...(isPaid ? [{ title: 'Release payment', sortOrder: 3, assigneeType: 'self' as const }] : []),
+          ],
+        },
+      },
+    });
+
+    // ── Contributor's project (execution) ──
+    const contributorProject = await tx.project.create({
       data: {
         name: job.title,
         description: job.description,
         status: 'active',
         visibility: 'private',
-        createdById: userId,
-        metadata: JSON.stringify({ sourceJobId: params.id, type: 'job_project' }),
+        createdById: applicantId,
+        metadata: JSON.stringify({ sourceJobId: params.id, role: 'contributor', posterUserId: userId }),
+      },
+    });
+    // Add contributor as lead on their own project
+    await tx.projectMember.create({
+      data: { projectId: contributorProject.id, userId: applicantId, role: 'lead' },
+    });
+
+    // Create execution kanban card(s) on contributor's board
+    if (taskBreakdown.length > 0) {
+      // Structured task breakdown provided
+      for (const task of taskBreakdown) {
+        await tx.kanbanCard.create({
+          data: {
+            title: task.title,
+            description: task.description || '',
+            status: 'not_started',
+            priority: task.priority ?? 3,
+            userId: applicantId,
+            projectId: contributorProject.id,
+            ...(task.dueDate ? { dueDate: new Date(task.dueDate) } : {}),
+          },
+        });
+      }
+    } else {
+      // No breakdown — create a single card from the job description
+      await tx.kanbanCard.create({
+        data: {
+          title: job.title,
+          description: job.description,
+          status: 'in_progress',
+          priority: 2,
+          userId: applicantId,
+          projectId: contributorProject.id,
+          ...(job.deadline ? { dueDate: job.deadline } : {}),
+        },
+      });
+    }
+
+    // Update job with both project links + status
+    await tx.networkJob.update({
+      where: { id: params.id },
+      data: {
+        status: 'in_progress',
+        assigneeId: applicantId,
+        compensationType: compType || job.compensationType,
+        compensationAmount: compAmount ?? job.compensationAmount,
+        isPaid,
+        projectId: posterProject.id,
+        contributorProjectId: contributorProject.id,
       },
     });
 
-    // Link job to project
-    await tx.networkJob.update({
-      where: { id: params.id },
-      data: { projectId: project.id },
-    });
-
-    // Add poster as project lead
-    await tx.projectMember.create({
-      data: { projectId: project.id, userId, role: 'lead' },
-    });
-
-    // Add hired person as contributor
-    await tx.projectMember.create({
-      data: { projectId: project.id, userId: applicantId, role: 'contributor' },
-    });
-
-    return { contract, project };
+    return { contract, posterProject, contributorProject };
   });
 
   // For flat-fee paid jobs with Stripe: create payment intent immediately
@@ -193,10 +264,11 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   return NextResponse.json({
     success: true,
     contract: result.contract,
-    project: result.project,
+    posterProject: result.posterProject,
+    contributorProject: result.contributorProject,
     payment: paymentInfo,
     message: isPaid
-      ? `Hired! Contract created with ${feePercent}% recruiting fee. Project "${result.project.name}" created.`
-      : `Hired! Project "${result.project.name}" created. No payment required.`,
+      ? `Assigned! Agreement created with ${feePercent}% platform fee. Projects created on both boards.`
+      : `Assigned! Projects created on both boards. No payment required.`,
   });
 }

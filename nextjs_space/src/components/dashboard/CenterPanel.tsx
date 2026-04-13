@@ -37,7 +37,7 @@ interface CenterPanelProps {
 /*  Primary row:  Chat · CRM · Calendar · Inbox · Recordings   */
 /*                | Network ▾ | Drive                           */
 /*  Sub-row:      Network  → Discover · Connections · Teams ·   */
-/*                            Jobs · Marketplace · Fed Intel    */
+/*                            Tasks · Marketplace · Fed Intel    */
 
 const primaryTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
@@ -51,7 +51,7 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'discover', label: 'Discover', icon: '🌍' },
   { id: 'connections', label: 'Connections', icon: '🔗' },
   { id: 'teams', label: 'Teams', icon: '🏢' },
-  { id: 'jobs', label: 'Jobs', icon: '💼' },
+  { id: 'jobs', label: 'Tasks', icon: '📋' },
   { id: 'marketplace', label: 'Marketplace', icon: '🏪' },
   { id: 'federation', label: 'Federation Intel', icon: '🧠' },
 ];

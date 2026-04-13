@@ -6,9 +6,9 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
 /**
- * DEP-013: Network Job Board
- * GET  /api/jobs — List/search jobs
- * POST /api/jobs — Create a new job posting
+ * DEP-013: Network Task Board
+ * GET  /api/jobs — List/search tasks
+ * POST /api/jobs — Post a new task (optionally linked to existing project)
  */
 
 export async function GET(req: NextRequest) {
@@ -66,13 +66,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { title, description, taskType, urgency, compensation, estimatedHours, deadline, requiredSkills, preferredSkills, visibility, compensationType, compensationAmount, compensationCurrency } = body;
+  const {
+    title, description, taskType, urgency, compensation, estimatedHours, deadline,
+    requiredSkills, preferredSkills, visibility, compensationType, compensationAmount,
+    compensationCurrency, projectId, taskBreakdown,
+  } = body;
 
   if (!title || !description) {
     return NextResponse.json({ error: 'Title and description are required' }, { status: 400 });
   }
 
-  // Determine if this is a paid job based on structured compensation
+  // If linking to existing project, verify ownership
+  if (projectId) {
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, createdById: userId },
+    });
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found or not owned by you' }, { status: 404 });
+    }
+  }
+
+  // Determine if this is a paid task based on structured compensation
   const amount = compensationAmount ? parseFloat(compensationAmount) : null;
   const isPaid = !!compensationType && compensationType !== 'volunteer' && !!amount && amount > 0;
 
@@ -93,6 +107,8 @@ export async function POST(req: NextRequest) {
       preferredSkills: preferredSkills ? JSON.stringify(preferredSkills) : null,
       visibility: visibility || 'network',
       posterId: userId,
+      projectId: projectId || null,  // Link to existing poster project if provided
+      taskBreakdown: taskBreakdown ? JSON.stringify(taskBreakdown) : null,
     },
     include: {
       poster: { select: { id: true, name: true } },
