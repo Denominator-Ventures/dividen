@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { EmailMessageData } from '@/types';
 
-type InboxFilter = 'all' | 'unread' | 'starred' | 'sent';
+type InboxFilter = 'all' | 'unread' | 'starred' | 'sent' | 'drafts';
 type ComposeMode = 'new' | 'reply' | null;
 
 interface IntegrationBrief {
@@ -60,6 +60,8 @@ export function InboxView() {
         let filtered = data.data as EmailMessageData[];
         if (filter === 'sent') {
           filtered = filtered.filter((e: EmailMessageData) => e.source === 'sent');
+        } else if (filter === 'drafts') {
+          filtered = filtered.filter((e: EmailMessageData) => (e as any).labels?.includes('draft'));
         }
         setEmails(filtered);
       }
@@ -218,7 +220,7 @@ export function InboxView() {
       <div className="w-full md:w-96 flex-shrink-0 border-r border-[var(--border-color)] flex flex-col">
         <div className="px-3 py-2 border-b border-[var(--border-color)] flex items-center justify-between gap-2">
           <div className="flex items-center gap-1 overflow-x-auto">
-            {(['all', 'unread', 'starred', 'sent'] as InboxFilter[]).map((f) => (
+            {(['all', 'unread', 'starred', 'sent', 'drafts'] as InboxFilter[]).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -226,7 +228,7 @@ export function InboxView() {
                   filter === f ? 'bg-[var(--brand-primary)]/15 text-brand-400' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
                 }`}
               >
-                {f === 'all' ? `All${emails.length ? ` (${emails.length})` : ''}` : f === 'unread' ? `Unread${unreadCount ? ` (${unreadCount})` : ''}` : f === 'sent' ? 'Sent' : 'Starred'}
+                {f === 'all' ? `All${emails.length ? ` (${emails.length})` : ''}` : f === 'unread' ? `Unread${unreadCount ? ` (${unreadCount})` : ''}` : f === 'sent' ? 'Sent' : f === 'drafts' ? 'Drafts' : 'Starred'}
               </button>
             ))}
           </div>
@@ -464,15 +466,18 @@ export function InboxView() {
                 </div>
               )}
             </div>
-            {/* Reply bar */}
+            {/* Inline reply bar */}
             {(selected as any).source !== 'sent' && selected.fromEmail && (
-              <div className="px-6 py-3 border-t border-[var(--border-color)]">
-                <button
+              <div className="px-6 py-3 border-t border-[var(--border-color)] space-y-2">
+                <div
+                  className="w-full px-3 py-2 text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg text-[var(--text-muted)] cursor-text hover:border-brand-500/30 transition-colors"
                   onClick={() => openCompose('reply', selected)}
-                  className="px-4 py-1.5 text-xs font-medium rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-brand-500/30 transition-colors"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') openCompose('reply', selected); }}
                 >
-                  ↩ Reply
-                </button>
+                  ↩ Click to reply to {selected.fromName || selected.fromEmail}...
+                </div>
               </div>
             )}
           </div>

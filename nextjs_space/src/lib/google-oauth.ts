@@ -4,18 +4,32 @@
  * This is SEPARATE from NextAuth Google SSO — this is for data access (Gmail, Calendar, Drive).
  */
 
+import { NextRequest } from 'next/server';
+
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
-// All scopes we request in a single consent — read-only per privacy policy
+// All scopes — read + write for Gmail/Calendar, read-only for Drive
 export const GOOGLE_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
-  'https://www.googleapis.com/auth/calendar.readonly',
+  'https://www.googleapis.com/auth/gmail.send',
+  'https://www.googleapis.com/auth/gmail.compose',
+  'https://www.googleapis.com/auth/calendar',         // full read+write
   'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
   'https://www.googleapis.com/auth/userinfo.profile',
 ];
+
+/**
+ * Get the public-facing base URL from a request.
+ * Uses x-forwarded-host to avoid container-internal hostnames leaking into redirects.
+ */
+export function getPublicBaseUrl(req: NextRequest): string {
+  const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  return `${protocol}://${host}`;
+}
 
 export function getGoogleClientId(): string {
   return process.env.GOOGLE_CLIENT_ID || '';

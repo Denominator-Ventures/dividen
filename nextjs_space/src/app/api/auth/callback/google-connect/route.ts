@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { exchangeCodeForTokens, getGoogleUserInfo } from '@/lib/google-oauth';
+import { exchangeCodeForTokens, getGoogleUserInfo, getPublicBaseUrl } from '@/lib/google-oauth';
 
 /**
  * GET /api/auth/callback/google-connect
@@ -12,10 +12,11 @@ import { exchangeCodeForTokens, getGoogleUserInfo } from '@/lib/google-oauth';
  * Creates/updates IntegrationAccount records for email, calendar, and drive.
  */
 export async function GET(req: NextRequest) {
+  const baseUrl = getPublicBaseUrl(req);
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
-      return NextResponse.redirect(new URL('/login', req.url));
+      return NextResponse.redirect(new URL('/login', baseUrl));
     }
     const sessionUserId = (session!.user as any).id;
 
@@ -25,11 +26,11 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error('[google-callback] OAuth error:', error);
-      return NextResponse.redirect(new URL(`/settings?tab=integrations&error=${error}`, req.url));
+      return NextResponse.redirect(new URL(`/settings?tab=integrations&error=${error}`, baseUrl));
     }
 
     if (!code || !stateStr) {
-      return NextResponse.redirect(new URL('/settings?tab=integrations&error=missing_code', req.url));
+      return NextResponse.redirect(new URL('/settings?tab=integrations&error=missing_code', baseUrl));
     }
 
     // Decode state
@@ -37,20 +38,18 @@ export async function GET(req: NextRequest) {
     try {
       state = JSON.parse(Buffer.from(stateStr, 'base64url').toString());
     } catch {
-      return NextResponse.redirect(new URL('/settings?tab=integrations&error=invalid_state', req.url));
+      return NextResponse.redirect(new URL('/settings?tab=integrations&error=invalid_state', baseUrl));
     }
 
     // Security: verify the session user matches the state user
     if (state.userId !== sessionUserId) {
-      return NextResponse.redirect(new URL('/settings?tab=integrations&error=user_mismatch', req.url));
+      return NextResponse.redirect(new URL('/settings?tab=integrations&error=user_mismatch', baseUrl));
     }
 
     const { userId, identity } = state;
 
     // Build redirect URI (must match exactly what was sent to Google)
-    const host = req.headers.get('x-forwarded-host') || req.headers.get('host') || 'localhost:3000';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const redirectUri = `${protocol}://${host}/api/auth/callback/google-connect`;
+    const redirectUri = `${baseUrl}/api/auth/callback/google-connect`;
 
     // Exchange code for tokens
     const tokens = await exchangeCodeForTokens(code, redirectUri);
@@ -108,12 +107,12 @@ export async function GET(req: NextRequest) {
     console.log(`[google-callback] Created/updated ${services.length} integration accounts for ${userInfo.email}`);
 
     return NextResponse.redirect(
-      new URL('/settings?tab=integrations&google=connected', req.url)
+      new URL('/settings?tab=integrations&google=connected', baseUrl)
     );
   } catch (error: any) {
     console.error('[google-callback] Error:', error);
     return NextResponse.redirect(
-      new URL(`/settings?tab=integrations&error=${encodeURIComponent(error.message || 'callback_failed')}`, req.url)
+      new URL(`/settings?tab=integrations&error=${encodeURIComponent(error.message || 'callback_failed')}`, baseUrl)
     );
   }
 }
