@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -16,6 +16,7 @@ import NotificationCenter from '@/components/dashboard/NotificationCenter';
 import { OnboardingWizard } from '@/components/dashboard/OnboardingWizard';
 import { KeyboardNav } from '@/components/dashboard/KeyboardNav';
 import { CatchUpSettings } from '@/components/dashboard/CatchUpSettings';
+import { CatchUpQuickMenu } from '@/components/dashboard/CatchUpQuickMenu';
 import type { CenterTab } from '@/types';
 import { getSignalTriagePrompt, getCatchUpPrompt, type SignalCatchUpConfig } from '@/lib/signals';
 
@@ -35,6 +36,8 @@ export default function DashboardPage() {
   const [commsUnread, setCommsUnread] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [catchUpSettingsOpen, setCatchUpSettingsOpen] = useState(false);
+  const [catchUpQuickOpen, setCatchUpQuickOpen] = useState(false);
+  const catchUpGearRef = useRef<HTMLButtonElement>(null);
 
   // DEP-007: Desktop notifications
   const { sendNotification } = useDesktopNotifications({
@@ -271,38 +274,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Right: Mode Toggle + Nav + Sign Out */}
+        {/* Right: Nav + Sign Out */}
         <div className="flex items-center gap-2 md:gap-3 flex-shrink-0">
-          {/* Mode Toggle Switch */}
-          <button
-            onClick={toggleMode}
-            disabled={modeLoading}
-            className="flex items-center gap-2 md:gap-2.5 group"
-            data-walkthrough="mode-toggle"
-            title={
-              mode === 'cockpit'
-                ? 'Cockpit: You drive, AI assists'
-                : 'Chief of Staff: AI drives, you approve'
-            }
-          >
-            <span className="label-mono text-[var(--text-muted)] hidden sm:inline" style={{ fontSize: '10px' }}>
-              {mode === 'cockpit' ? '🎛️ Cockpit' : '🔭 Chief of Staff'}
-            </span>
-            <div
-              className={`relative w-10 h-[22px] rounded-full transition-colors duration-200 ${
-                mode === 'chief_of_staff'
-                  ? 'bg-[var(--brand-primary)]'
-                  : 'bg-[var(--bg-surface-hover)]'
-              }`}
-            >
-              <div
-                className={`absolute top-[3px] w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                  mode === 'chief_of_staff' ? 'translate-x-[22px]' : 'translate-x-[3px]'
-                }`}
-              />
-            </div>
-          </button>
-
           {/* Cockpit-only nav buttons — hidden in CoS mode */}
           {mode === 'cockpit' && (
             <>
@@ -324,22 +297,31 @@ export default function DashboardPage() {
               </button>
 
               {/* Catch Up — triage all signals + settings */}
-              <div className="flex items-center">
+              <div className="relative flex items-center">
                 <button
                   onClick={handleCatchUp}
-                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-l-md text-[11px] font-medium transition-all bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30 border-r-0"
+                  className="flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-l-md bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)] border-r-0"
                   title="Catch up on all signals — Divi triages everything"
                 >
                   <span className="text-sm">🔄</span>
-                  <span className="hidden sm:inline">Catch Up</span>
+                  <span className="hidden sm:inline text-[11px]">Catch Up</span>
                 </button>
                 <button
-                  onClick={() => setCatchUpSettingsOpen(true)}
-                  className="flex items-center px-1.5 py-1 rounded-r-md text-[11px] transition-all bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 border border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30"
-                  title="Catch Up settings — priority & exclusions"
+                  ref={catchUpGearRef}
+                  onClick={() => setCatchUpQuickOpen(!catchUpQuickOpen)}
+                  className="flex items-center px-1.5 py-1 rounded-r-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)]"
+                  title="Configure catch-up signals"
                 >
-                  <span className="text-xs">⚙</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="3" />
+                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                  </svg>
                 </button>
+                <CatchUpQuickMenu
+                  open={catchUpQuickOpen}
+                  onClose={() => setCatchUpQuickOpen(false)}
+                  anchorRef={catchUpGearRef}
+                />
               </div>
 
               {/* Notification Center */}
@@ -409,6 +391,41 @@ export default function DashboardPage() {
           </button>
         </div>
       </header>
+
+      {/* ── Mode Toggle Strip ── */}
+      <div className="flex-shrink-0 px-3 md:px-4 py-1.5 flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-primary)]">
+        <button
+          onClick={toggleMode}
+          disabled={modeLoading}
+          className="flex items-center gap-2 group"
+          data-walkthrough="mode-toggle"
+          title={
+            mode === 'cockpit'
+              ? 'Cockpit: You drive, AI assists'
+              : 'Chief of Staff: AI drives, you approve'
+          }
+        >
+          <div
+            className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
+              mode === 'chief_of_staff'
+                ? 'bg-[var(--brand-primary)]'
+                : 'bg-[var(--bg-surface-hover)]'
+            }`}
+          >
+            <div
+              className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                mode === 'chief_of_staff' ? 'translate-x-[19px]' : 'translate-x-[3px]'
+              }`}
+            />
+          </div>
+          <span className="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">
+            {mode === 'cockpit' ? '🎛️ Cockpit' : '🔭 Chief of Staff'}
+          </span>
+        </button>
+        <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
+          {mode === 'cockpit' ? 'You drive, AI assists' : 'AI drives, you approve'}
+        </span>
+      </div>
 
       {/* ── Chief of Staff mode: locked-down observer view ── */}
       {mode === 'chief_of_staff' ? (
