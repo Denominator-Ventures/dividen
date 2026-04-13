@@ -254,6 +254,9 @@ function SetupForm() {
               I have read and agree to the{' '}
               <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline underline-offset-2">
                 Terms of Service
+              </a>{' '}and{' '}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline underline-offset-2">
+                Privacy Policy
               </a>
               , including the agent liability disclaimers and marketplace terms. I understand that DiviDen is not responsible for actions taken by any AI agent on this platform.
             </label>

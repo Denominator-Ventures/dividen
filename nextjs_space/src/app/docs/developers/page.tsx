@@ -406,6 +406,7 @@ Content-Type: application/json`}</Code>
             <a href="/docs/release-notes" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Release Notes</a>
             <a href="/updates" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Updates</a>
             <a href="/terms" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Terms</a>
+            <a href="/privacy" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Privacy</a>
           </div>
         </div>
       </div>

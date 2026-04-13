@@ -131,6 +131,9 @@ function LoginForm() {
           By signing in, you agree to our{' '}
           <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-400/50 hover:text-brand-400 underline underline-offset-2">
             Terms of Service
+          </a>{' '}and{' '}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-400/50 hover:text-brand-400 underline underline-offset-2">
+            Privacy Policy
           </a>
         </p>
       </div>

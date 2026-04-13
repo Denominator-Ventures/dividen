@@ -20,7 +20,7 @@ export default function TermsOfServicePage() {
         {/* Header */}
         <div className="mb-10">
           <h1 className="text-3xl font-heading font-bold mb-2">Terms of Service</h1>
-          <p className="text-white/40 text-sm">Version 1.0 · Effective April 11, 2026 · Last updated April 11, 2026</p>
+          <p className="text-white/40 text-sm">Version 1.1 · Effective April 11, 2026 · Last updated April 13, 2026</p>
         </div>
 
         <div className="prose prose-invert max-w-none space-y-8">
@@ -156,16 +156,26 @@ export default function TermsOfServicePage() {
             <h2 className="text-xl font-heading font-semibold text-white/90 mb-3">7. Data, Privacy &amp; Intellectual Property</h2>
             <div className="space-y-3 text-sm text-white/60 leading-relaxed">
               <p>
-                <strong className="text-white/80">7.1 Your Data.</strong> You retain ownership of all data you input into the Platform. We do not claim ownership of your content, contacts, documents, or agent configurations.
+                <strong className="text-white/80">7.1 Privacy Policy.</strong> Your use of the Platform is also governed by our{' '}
+                <a href="/privacy" className="text-brand-400 hover:text-brand-300 underline">Privacy Policy</a>, which describes how we collect, use, store, share, and protect your data, including data obtained through Google APIs. The Privacy Policy is incorporated into these Terms by reference.
               </p>
               <p>
-                <strong className="text-white/80">7.2 Platform License.</strong> You grant DiviDen a limited, non-exclusive license to process your data as necessary to provide the Services, including transmitting data to configured AI providers and federated instances.
+                <strong className="text-white/80">7.2 Your Data.</strong> You retain ownership of all data you input into the Platform. We do not claim ownership of your content, contacts, documents, or agent configurations.
               </p>
               <p>
-                <strong className="text-white/80">7.3 Data Handling.</strong> We implement reasonable security measures to protect your data. However, no system is completely secure, and we cannot guarantee absolute security of your information. Self-hosted users are responsible for their own data security.
+                <strong className="text-white/80">7.3 Platform License.</strong> You grant DiviDen a limited, non-exclusive license to process your data as necessary to provide the Services, including transmitting data to configured AI providers and federated instances.
               </p>
               <p>
-                <strong className="text-white/80">7.4 AI Processing.</strong> Content sent to AI agents may be processed by third-party AI providers (such as language model APIs). You acknowledge that this processing is necessary for the Platform&apos;s functionality and consent to such processing.
+                <strong className="text-white/80">7.4 Data Handling.</strong> We implement reasonable security measures to protect your data. However, no system is completely secure, and we cannot guarantee absolute security of your information. Self-hosted users are responsible for their own data security.
+              </p>
+              <p>
+                <strong className="text-white/80">7.5 AI Processing.</strong> Content sent to AI agents may be processed by third-party AI providers (such as language model APIs). You acknowledge that this processing is necessary for the Platform&apos;s functionality and consent to such processing.
+              </p>
+              <p>
+                <strong className="text-white/80">7.6 Connected Services &amp; Google Data.</strong> When you connect external services (such as Google Gmail, Calendar, Drive, or Meet), you authorize DiviDen to access and process data from those services as described in our{' '}
+                <a href="/privacy" className="text-brand-400 hover:text-brand-300 underline">Privacy Policy</a>. DiviDen&apos;s use and transfer of information received from Google APIs adheres to the{' '}
+                <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline">Google API Services User Data Policy</a>, including the Limited Use requirements. You may revoke access at any time via Settings &rarr; Integrations or at{' '}
+                <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:text-brand-300 underline">Google Account Permissions</a>.
               </p>
             </div>
           </section>
@@ -289,8 +299,12 @@ export default function TermsOfServicePage() {
         </div>
 
         {/* Footer */}
-        <div className="mt-12 pt-6 border-t border-white/[0.06] text-center">
-          <p className="text-xs text-white/25">DiviDen Command Center · Terms of Service v1.0</p>
+        <div className="mt-12 pt-6 border-t border-white/[0.06] flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-xs text-white/25">DiviDen Command Center · Terms of Service v1.1</p>
+          <div className="flex items-center gap-4 text-xs text-white/25">
+            <a href="/privacy" className="hover:text-white/40 transition-colors">Privacy Policy</a>
+            <a href="/" className="hover:text-white/40 transition-colors">Home</a>
+          </div>
         </div>
       </div>
     </div>

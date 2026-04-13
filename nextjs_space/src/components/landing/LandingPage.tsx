@@ -547,6 +547,9 @@ export function LandingPage() {
               <Link href="/terms" className="hover:text-white/60 transition-colors">
                 Terms
               </Link>
+              <Link href="/privacy" className="hover:text-white/60 transition-colors">
+                Privacy
+              </Link>
               <a href="https://denominator.ventures" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">© 2026 Denominator Ventures</a>
             </div>
           </div>
