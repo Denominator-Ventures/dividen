@@ -17,6 +17,44 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'connections-redesign-peer-profiles',
+    date: '2026-04-12',
+    time: '11:55 PM',
+    title: 'Connections Redesign, Peer Profiles & The Catch-Up Menu',
+    subtitle: 'Connections got three tabs. Every name is now clickable. Catch-up has a quick-signal dropdown. Mode toggle moved where it belongs.',
+    tags: ['connections', 'profiles', 'catch-up', 'signals', 'dashboard', 'federation', 'ux'],
+    content: `Four changes that make navigating people and priorities faster.
+
+## Connections — Three Tabs
+
+The Connections view got a full redesign. Instead of a single list with a local/federated toggle, you now get three tabs:
+
+- **Find People** — search your network and federated instances. Results show source badges (local vs federated). Federated results deep-link to the originating instance for connection.
+- **My Connections** — active connections, incoming requests, and outbound pending. All in one place.
+- **Relays** — your relay history, filtered and sortable.
+
+The old local/federated toggle is gone. Federated discovery happens automatically in Find People — federated instances registered in your InstanceRegistry appear alongside local results.
+
+## Peer Profile Modal
+
+Every name and avatar in Connections is now clickable. Tap any person and you get a full profile modal with two tabs:
+
+- **Profile** — the same routing manifest others see: bio, skills, experience, values, availability, languages, everything.
+- **Us** — your shared context: mutual teams, shared projects, conversation stats, relay history, and relationship notes.
+
+There's a connect button right in the modal. No more hunting through menus.
+
+## Catch-Up Quick Signal Menu
+
+The Catch-Up button got restyled to match the rest of the nav bar. More importantly: the gear icon next to it now opens a **quick signal dropdown** where you can toggle which signals Catch Up covers.
+
+Drag to reorder priority. Check/uncheck to include or exclude. Your preferences persist across sessions. This is the fastest way to customize what "catch me up" actually means.
+
+## Mode Toggle Moved
+
+The CoS/Cockpit mode toggle moved out of the header bar and into the workspace strip — that thin bar above the center panel where your active view tabs live. It's still always visible, but it no longer competes with the header nav. Cleaner layout, same one-click switch.`,
+  },
+  {
     id: 'profile-view-photo-chat',
     date: '2026-04-12',
     time: '11:00 PM',
