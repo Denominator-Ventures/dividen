@@ -19,13 +19,19 @@ export async function GET(req: NextRequest) {
     }
     const userId = (session!.user as any).id;
 
+    // Self-hosted guard: Google OAuth must be configured
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      return NextResponse.redirect(new URL('/settings?tab=integrations&error=google_oauth_not_configured', baseUrl));
+    }
+
     // Identity defaults to operator
     const identity = req.nextUrl.searchParams.get('identity') || 'operator';
+    const accountIndex = parseInt(req.nextUrl.searchParams.get('accountIndex') || '0', 10);
 
     const redirectUri = `${baseUrl}/api/auth/callback/google-connect`;
 
-    // Encode state: userId + identity
-    const state = Buffer.from(JSON.stringify({ userId, identity })).toString('base64url');
+    // Encode state: userId + identity + accountIndex
+    const state = Buffer.from(JSON.stringify({ userId, identity, accountIndex })).toString('base64url');
 
     const consentUrl = buildConsentUrl(redirectUri, state);
     return NextResponse.redirect(consentUrl);

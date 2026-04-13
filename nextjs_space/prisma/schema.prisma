@@ -693,6 +693,10 @@ model IntegrationAccount {
   smtpUser      String?
   smtpPass      String?  // encrypted at rest
 
+  // Multi-account support: accountIndex allows multiple Google accounts per identity
+  // Operator can have up to 3 (index 0-2), agent limited to 1 (index 0)
+  accountIndex  Int      @default(0)
+
   // Shared config
   emailAddress  String?  // The actual email address for this identity
   isActive      Boolean  @default(true)
@@ -705,7 +709,7 @@ model IntegrationAccount {
 
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, identity, service])
+  @@unique([userId, identity, service, accountIndex])
   @@index([userId])
   @@map("integration_accounts")
 }

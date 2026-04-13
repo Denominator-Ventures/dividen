@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Decode state
-    let state: { userId: string; identity: string };
+    let state: { userId: string; identity: string; accountIndex?: number };
     try {
       state = JSON.parse(Buffer.from(stateStr, 'base64url').toString());
     } catch {
@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
     }
 
     const { userId, identity } = state;
+    const accountIndex = state.accountIndex ?? 0;
 
     // Build redirect URI (must match exactly what was sent to Google)
     const redirectUri = `${baseUrl}/api/auth/callback/google-connect`;
@@ -76,16 +77,17 @@ export async function GET(req: NextRequest) {
     for (const service of services) {
       await prisma.integrationAccount.upsert({
         where: {
-          userId_identity_service: { userId, identity, service },
+          userId_identity_service_accountIndex: { userId, identity, service, accountIndex },
         },
         create: {
           userId,
           identity,
           provider: 'google',
           service,
+          accountIndex,
           label: identity === 'agent'
             ? `Divi's Google ${service.charAt(0).toUpperCase() + service.slice(1)}`
-            : `Google ${service.charAt(0).toUpperCase() + service.slice(1)}`,
+            : `Google ${service.charAt(0).toUpperCase() + service.slice(1)}${accountIndex > 0 ? ` #${accountIndex + 1}` : ''}`,
           emailAddress: userInfo.email,
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token || null,

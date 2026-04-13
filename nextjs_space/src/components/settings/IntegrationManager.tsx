@@ -11,11 +11,15 @@ interface IntegrationAccount {
   service: string;
   label: string | null;
   emailAddress: string | null;
+  accountIndex: number;
   isActive: boolean;
   lastSyncAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
+
+const MAX_OPERATOR_GOOGLE = 3;
+const MAX_AGENT_GOOGLE = 1;
 
 type Identity = 'operator' | 'agent';
 
@@ -35,6 +39,7 @@ export function IntegrationManager() {
   const [testResult, setTestResult] = useState<{ id: string; ok: boolean; msg: string } | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+  const [googleOAuthAvailable, setGoogleOAuthAvailable] = useState(true);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -43,7 +48,12 @@ export function IntegrationManager() {
     try {
       const res = await fetch('/api/integrations');
       const data = await res.json();
-      if (data.success) setAccounts(data.data);
+      if (data.success) {
+        setAccounts(data.data);
+        if (typeof data.googleOAuthAvailable === 'boolean') {
+          setGoogleOAuthAvailable(data.googleOAuthAvailable);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -78,12 +88,13 @@ export function IntegrationManager() {
     }
   }, [toast]);
 
-  const handleConnectGoogle = (identity: Identity) => {
-    window.location.href = `/api/auth/google-connect?identity=${identity}`;
+  const handleConnectGoogle = (identity: Identity, accountIndex = 0) => {
+    window.location.href = `/api/auth/google-connect?identity=${identity}&accountIndex=${accountIndex}`;
   };
 
   const handleDisconnectGoogle = async (account: IntegrationAccount) => {
-    if (!confirm(`Disconnect Google for ${account.identity === 'operator' ? 'you' : 'Divi'}? This removes Gmail, Calendar, and Drive access.`)) return;
+    const acctLabel = account.emailAddress || (account.identity === 'operator' ? 'your account' : "Divi's account");
+    if (!confirm(`Disconnect ${acctLabel}? This removes Gmail, Calendar, and Drive access for this Google account.`)) return;
     await fetch(`/api/integrations?id=${account.id}&disconnectGoogle=true`, { method: 'DELETE' });
     setToast({ type: 'success', msg: 'Google disconnected.' });
     fetchAccounts();
@@ -193,10 +204,41 @@ export function IntegrationManager() {
   const serviceLabel = (s: string) => s === 'email' ? 'Gmail' : s === 'calendar' ? 'Calendar' : 'Drive';
 
   const renderGoogleGroup = (googleAccts: IntegrationAccount[], identity: Identity) => {
-    if (googleAccts.length === 0) {
+    // Group by accountIndex (each index = one Google account with 3 services)
+    const byIndex = new Map<number, IntegrationAccount[]>();
+    for (const acct of googleAccts) {
+      const idx = acct.accountIndex ?? 0;
+      if (!byIndex.has(idx)) byIndex.set(idx, []);
+      byIndex.get(idx)!.push(acct);
+    }
+    const connectedGroups = Array.from(byIndex.entries()).sort((a, b) => a[0] - b[0]);
+    const maxAccounts = identity === 'operator' ? MAX_OPERATOR_GOOGLE : MAX_AGENT_GOOGLE;
+    const canAddMore = connectedGroups.length < maxAccounts;
+    const nextIndex = connectedGroups.length > 0 ? Math.max(...connectedGroups.map(g => g[0])) + 1 : 0;
+
+    if (connectedGroups.length === 0) {
+      // If Google OAuth is not configured (self-hosted), show setup instructions
+      if (!googleOAuthAvailable) {
+        return (
+          <div className="flex items-center gap-3 p-3 rounded-lg border border-dashed border-[var(--border-color)] opacity-70">
+            <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center flex-shrink-0">
+              <GoogleLogo size={20} />
+            </div>
+            <div className="text-left">
+              <div className="text-sm text-[var(--text-muted)]">Google OAuth not configured</div>
+              <div className="text-xs text-[var(--text-muted)]">
+                Set <code className="code-inline">GOOGLE_CLIENT_ID</code> and <code className="code-inline">GOOGLE_CLIENT_SECRET</code> in your <code className="code-inline">.env</code> to enable.{' '}
+                <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener noreferrer" className="text-brand-400 hover:underline">
+                  Google Cloud Console →
+                </a>
+              </div>
+            </div>
+          </div>
+        );
+      }
       return (
         <button
-          onClick={() => handleConnectGoogle(identity)}
+          onClick={() => handleConnectGoogle(identity, 0)}
           className="w-full flex items-center gap-3 p-3 rounded-lg border border-dashed border-[var(--border-color)] hover:border-brand-500/50 hover:bg-brand-500/5 transition-all group"
         >
           <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
@@ -214,54 +256,71 @@ export function IntegrationManager() {
       );
     }
 
-    // Google is connected — show the 3 services
-    const primaryEmail = googleAccts.find(a => a.service === 'email')?.emailAddress || 'Connected';
-    const firstId = googleAccts[0]?.id;
-
     return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-white flex items-center justify-center"><GoogleLogo size={14} /></div>
-            <span className="text-xs text-[var(--text-secondary)]">{primaryEmail}</span>
-          </div>
-          <button
-            onClick={() => handleDisconnectGoogle(googleAccts[0])}
-            className="text-xs text-red-400 hover:text-red-300 transition-colors"
-          >
-            Disconnect
-          </button>
-        </div>
-        {googleAccts.map(acct => (
-          <div
-            key={acct.id}
-            className="flex items-center justify-between p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-color)]"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <span className="text-lg">{serviceIcon(acct.service)}</span>
-              <div className="min-w-0">
-                <div className="text-sm font-medium text-[var(--text-primary)]">
-                  {serviceLabel(acct.service)}
+      <div className="space-y-4">
+        {connectedGroups.map(([idx, accts]) => {
+          const primaryEmail = accts.find(a => a.service === 'email')?.emailAddress || 'Connected';
+          return (
+            <div key={idx} className="space-y-2">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 rounded bg-white flex items-center justify-center"><GoogleLogo size={14} /></div>
+                  <span className="text-xs text-[var(--text-secondary)]">{primaryEmail}</span>
                 </div>
-                <div className="text-xs text-[var(--text-muted)]">
-                  {acct.lastSyncAt ? `Last sync: ${new Date(acct.lastSyncAt).toLocaleDateString()}` : 'Not synced yet'}
-                </div>
-                {testResult?.id === acct.id && (
-                  <div className={cn('text-xs mt-1', testResult.ok ? 'text-green-400' : 'text-red-400')}>
-                    {testResult.ok ? '✓' : '✗'} {testResult.msg}
-                  </div>
-                )}
+                <button
+                  onClick={() => handleDisconnectGoogle(accts[0])}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Disconnect
+                </button>
               </div>
+              {accts.map(acct => (
+                <div
+                  key={acct.id}
+                  className="flex items-center justify-between p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-color)]"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg">{serviceIcon(acct.service)}</span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium text-[var(--text-primary)]">
+                        {serviceLabel(acct.service)}
+                      </div>
+                      <div className="text-xs text-[var(--text-muted)]">
+                        {acct.lastSyncAt ? `Last sync: ${new Date(acct.lastSyncAt).toLocaleDateString()}` : 'Not synced yet'}
+                      </div>
+                      {testResult?.id === acct.id && (
+                        <div className={cn('text-xs mt-1', testResult.ok ? 'text-green-400' : 'text-red-400')}>
+                          {testResult.ok ? '✓' : '✗'} {testResult.msg}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleSync(acct.id, acct.service)}
+                    disabled={syncing === acct.id}
+                    className="px-2 py-1 text-xs rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors disabled:opacity-50"
+                  >
+                    {syncing === acct.id ? 'Syncing...' : 'Sync'}
+                  </button>
+                </div>
+              ))}
             </div>
-            <button
-              onClick={() => handleSync(acct.id, acct.service)}
-              disabled={syncing === acct.id}
-              className="px-2 py-1 text-xs rounded bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-colors disabled:opacity-50"
-            >
-              {syncing === acct.id ? 'Syncing...' : 'Sync'}
-            </button>
-          </div>
-        ))}
+          );
+        })}
+        {/* Add another account */}
+        {canAddMore && (
+          <button
+            onClick={() => handleConnectGoogle(identity, nextIndex)}
+            className="w-full flex items-center gap-3 p-2.5 rounded-lg border border-dashed border-[var(--border-color)] hover:border-brand-500/50 hover:bg-brand-500/5 transition-all group"
+          >
+            <div className="w-6 h-6 rounded bg-white flex items-center justify-center flex-shrink-0">
+              <GoogleLogo size={14} />
+            </div>
+            <div className="text-xs text-[var(--text-muted)] group-hover:text-brand-400 transition-colors">
+              + Connect another Google account
+            </div>
+          </button>
+        )}
       </div>
     );
   };

@@ -16,7 +16,7 @@ export async function GET() {
 
     const accounts = await prisma.integrationAccount.findMany({
       where: { userId },
-      orderBy: [{ identity: 'asc' }, { service: 'asc' }],
+      orderBy: [{ identity: 'asc' }, { accountIndex: 'asc' }, { service: 'asc' }],
       select: {
         id: true,
         identity: true,
@@ -24,6 +24,7 @@ export async function GET() {
         service: true,
         label: true,
         emailAddress: true,
+        accountIndex: true,
         isActive: true,
         lastSyncAt: true,
         createdAt: true,
@@ -32,7 +33,10 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, data: accounts });
+    // Check if Google OAuth is configured (self-hosted instances need their own credentials)
+    const googleOAuthAvailable = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
+    return NextResponse.json({ success: true, data: accounts, googleOAuthAvailable });
   } catch (error) {
     console.error('Integrations GET error:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch integrations' }, { status: 500 });
@@ -61,10 +65,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'service must be email, calendar, or drive' }, { status: 400 });
     }
 
-    // Upsert: one integration per (user, identity, service)
+    // Upsert: one integration per (user, identity, service, accountIndex)
     const account = await prisma.integrationAccount.upsert({
       where: {
-        userId_identity_service: { userId, identity, service },
+        userId_identity_service_accountIndex: { userId, identity, service, accountIndex: 0 },
       },
       create: {
         userId,
@@ -125,11 +129,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
     }
 
-    // If disconnecting Google, revoke token and delete ALL Google integrations for this identity
+    // If disconnecting Google, revoke token and delete ALL Google integrations for this specific account (by accountIndex)
     if (disconnectGoogle) {
       const account = await prisma.integrationAccount.findFirst({
         where: { id, userId },
-        select: { accessToken: true, identity: true, provider: true },
+        select: { accessToken: true, identity: true, provider: true, accountIndex: true },
       });
       if (account?.accessToken && account.provider === 'google') {
         // Revoke at Google
@@ -141,9 +145,9 @@ export async function DELETE(req: NextRequest) {
         } catch (e) {
           console.warn('[integrations] Google token revoke failed (non-fatal):', e);
         }
-        // Delete all Google integrations for this identity
+        // Delete all services for this specific Google account (same identity + accountIndex)
         await prisma.integrationAccount.deleteMany({
-          where: { userId, provider: 'google', identity: account.identity },
+          where: { userId, provider: 'google', identity: account.identity, accountIndex: account.accountIndex },
         });
       }
     } else {

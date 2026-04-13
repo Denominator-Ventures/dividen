@@ -17,6 +17,60 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'google-write-multi-inbox-self-hosted',
+    date: '2026-04-13',
+    time: '12:15 AM',
+    title: 'Google Write Access, Multi-Inbox & Self-Hosted OAuth Isolation',
+    subtitle: 'Divi can send email and create calendar events. Connect up to 3 Google accounts. Self-hosters bring their own OAuth app.',
+    tags: ['integrations', 'google', 'email', 'calendar', 'multi-inbox', 'self-hosted', 'oauth', 'security'],
+    content: `Three changes that make Google integration actually useful — and one that makes the open-source version properly independent.
+
+## Google Write Scopes
+
+When we first shipped Google OAuth, we locked it to read-only. Good for trust, bad for utility. Divi could see your inbox but couldn't reply. Could see your calendar but couldn't schedule.
+
+Fixed. The OAuth consent now requests:
+- \`gmail.send\` + \`gmail.compose\` — Divi can draft and send emails on your behalf (you still control which identity sends)
+- \`calendar\` (full read+write) — Divi can create and manage calendar events
+- \`drive.readonly\` stays read-only for now
+
+If you already connected Google, you'll need to disconnect and reconnect to pick up the new scopes. The privacy policy already covered write access — we just weren't requesting the scopes.
+
+## Gmail API Send
+
+The send route (\`/api/integrations/send\`) now detects whether your email integration is Google or SMTP and routes accordingly:
+- **Google accounts** → Gmail API \`users.messages.send\` with proper RFC 2822 formatting
+- **SMTP accounts** → nodemailer, same as before
+
+This means you can send from your Gmail without configuring SMTP app passwords. Works for both operator and agent identities — if you've given Divi its own Google account, it can send from that address directly.
+
+## Multi-Inbox Support
+
+You can now connect **up to 3 Google accounts** per operator identity and 1 for the agent. Each account gets its own set of Gmail, Calendar, and Drive services.
+
+The \`IntegrationAccount\` schema gains an \`accountIndex\` field. The unique constraint is now \`[userId, identity, service, accountIndex]\` — so each slot can hold a different Google account. Disconnect works per-account, not per-identity.
+
+In Settings → Integrations, connected accounts appear grouped by email. Hit "Connect another Google account" to add a second or third inbox.
+
+## Self-Hosted OAuth Isolation
+
+If you're running DiviDen self-hosted, you need to set up your own Google Cloud OAuth app. The managed platform has its own credentials; the open-source version does not ship with any.
+
+When \`GOOGLE_CLIENT_ID\` and \`GOOGLE_CLIENT_SECRET\` are missing from \`.env\`, the integration panel shows a clear message: "Google OAuth not configured" with a link to Google Cloud Console. The connect button is hidden. The API route guards against empty credentials.
+
+This is intentional. Self-hosters should own their OAuth relationship with Google, control their own redirect URIs, and manage their own consent screen. No credential leakage.
+
+## OAuth Redirect Fix
+
+Found and fixed a bug where the OAuth callback was redirecting to the container's internal hostname (\`af23bb2fc621:3000\`) instead of the public domain. All redirect calls now use a \`getPublicBaseUrl(req)\` helper that reads \`x-forwarded-host\`. Clean URLs after connect.
+
+## Inbox UX
+
+- **Inline reply bar**: The email detail view now shows a clickable "↩ Click to reply..." bar at the bottom, styled like Gmail's reply field. Click it to open the full compose view.
+- **Drafts tab**: New filter tab in the inbox alongside All, Unread, Starred, and Sent.
+- **Google logos**: The gradient "G" square is replaced with the official 4-color Google logo SVG.`,
+  },
+  {
     id: 'connections-redesign-peer-profiles',
     date: '2026-04-12',
     time: '11:55 PM',
