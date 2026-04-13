@@ -73,7 +73,8 @@ export const SUPPORTED_TAGS = [
   'update_goal',       // update goal progress/status/details
   // ── Job Board Actions ──
   'post_job',          // post a task to the network job board
-  'find_jobs',         // find matching jobs for this user's profile
+  'propose_task',      // propose a paying task to the queue for operator approval before posting
+  'find_jobs',         // find matching tasks for this user's profile
   // ── Entity Resolution (FVP Brief #5) ──
   'entity_resolve',    // cross-surface entity resolution: find all info about a person/company
   // ── Marketplace Install/Uninstall ──
@@ -1775,8 +1776,16 @@ async function executeTag(
 
       // ── Job Board Actions ──
       case 'post_job': {
-        const { title: jobTitle, description: jobDesc, taskType, urgency, compensation, requiredSkills, estimatedHours } = params;
+        const { title: jobTitle, description: jobDesc, taskType, urgency, compensation, requiredSkills, estimatedHours, projectId: jobProjectId, taskBreakdown } = params;
         if (!jobTitle) return { tag: name, success: false, error: 'post_job requires title' };
+
+        // Validate project ownership if linking to existing
+        if (jobProjectId) {
+          const proj = await prisma.project.findFirst({
+            where: { id: jobProjectId, OR: [{ createdById: userId }, { members: { some: { userId } } }] },
+          });
+          if (!proj) return { tag: name, success: false, error: 'Project not found or not accessible' };
+        }
 
         const newJob = await prisma.networkJob.create({
           data: {
@@ -1789,16 +1798,63 @@ async function executeTag(
             estimatedHours: estimatedHours ? parseFloat(estimatedHours) : null,
             visibility: 'network',
             posterId: userId,
+            projectId: jobProjectId || null,
+            taskBreakdown: taskBreakdown ? JSON.stringify(Array.isArray(taskBreakdown) ? taskBreakdown : [taskBreakdown]) : null,
           },
         });
-        return { tag: name, success: true, data: { jobId: newJob.id, title: newJob.title, status: newJob.status, message: 'Job posted to the network job board' } };
+        return { tag: name, success: true, data: { jobId: newJob.id, title: newJob.title, status: newJob.status, message: 'Task posted to the network' } };
+      }
+
+      // ── Propose Task (queue for operator approval) ──────────────────────────
+      case 'propose_task': {
+        const { title: propTitle, description: propDesc, taskType: propTaskType, urgency: propUrgency, compensation: propComp, requiredSkills: propSkills, estimatedHours: propHours, projectId: propProjectId, taskBreakdown: propBreakdown, cardId: propCardId, routingSuggestion } = params;
+        if (!propTitle) return { tag: name, success: false, error: 'propose_task requires title' };
+
+        // Create a queue item for operator review
+        const taskProposal = {
+          type: 'propose_task',
+          title: propTitle,
+          description: propDesc || propTitle,
+          taskType: propTaskType || 'custom',
+          urgency: propUrgency || 'medium',
+          compensation: propComp,
+          requiredSkills: propSkills,
+          estimatedHours: propHours,
+          projectId: propProjectId,
+          taskBreakdown: propBreakdown,
+          sourceCardId: propCardId,
+          routingSuggestion, // e.g. "assign_to_contributor", "post_to_network", "relay_to_connection"
+        };
+
+        const queueItem = await prisma.queueItem.create({
+          data: {
+            type: 'agent_suggestion',
+            title: `📋 Post task: ${propTitle}`,
+            description: propDesc ? propDesc.substring(0, 200) : `Proposed ${propTaskType || 'custom'} task`,
+            priority: propUrgency === 'critical' || propUrgency === 'high' ? 'high' : 'medium',
+            status: 'ready',
+            source: 'agent',
+            metadata: JSON.stringify(taskProposal),
+            userId,
+          },
+        });
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            queueItemId: queueItem.id,
+            title: propTitle,
+            message: `Task proposal "${propTitle}" added to your queue for review. Approve to post it to the network or assign directly.`,
+          },
+        };
       }
 
       case 'find_jobs': {
         const { findMatchingJobsForUser } = await import('@/lib/job-matcher');
         const jobMatches = await findMatchingJobsForUser(userId, 5);
         if (jobMatches.length === 0) {
-          return { tag: name, success: true, data: { matches: [], message: 'No matching jobs found on the network right now. Check back later or update your profile skills.' } };
+          return { tag: name, success: true, data: { matches: [], message: 'No matching tasks found on the network right now. Check back later or update your profile skills.' } };
         }
         // Fetch job details for the matches
         const matchedJobs = await prisma.networkJob.findMany({
@@ -1809,7 +1865,7 @@ async function executeTag(
           const job = matchedJobs.find((j: any) => j.id === m.jobId);
           return { ...m, job };
         });
-        return { tag: name, success: true, data: { matches: results, message: `Found ${results.length} matching jobs on the network` } };
+        return { tag: name, success: true, data: { matches: results, message: `Found ${results.length} matching tasks on the network` } };
       }
 
       case 'entity_resolve': {
