@@ -1830,6 +1830,14 @@ model MarketplaceExecution {
   developerPayout Float     @default(0) // developer's share (gross - fee)
   feePercent      Float     @default(3) // fee % applied at time of execution
 
+  // Two-phase dynamic pricing — agent returns a price quote, user approves before charge
+  pricingPhase    String    @default("immediate") // "immediate" | "quoted" | "approved" | "declined"
+  quoteAmount     Float?    // agent-determined price for this specific result
+  quoteCurrency   String?   // currency code (default USD)
+  quoteMetadata   String?   @db.Text  // JSON — agent-provided context for the price (breakdown, options, etc.)
+  quotedAt        DateTime? // when the quote was returned
+  approvedAt      DateTime? // when the user approved the quote
+
   // Stripe payment
   stripePaymentIntentId String?  // Stripe PaymentIntent ID for this execution
   stripePaymentStatus   String?  // "succeeded" | "failed" | "pending" | "requires_action"

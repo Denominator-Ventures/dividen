@@ -518,7 +518,7 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
       post: {
         tags: ['Federation'],
         summary: 'Validate network payment fee',
-        description: 'Validates that a proposed payment fee meets the network minimum floor. Used by federated instances before processing any network-routed transaction. Returns the enforced fee if the proposed fee is below the floor.',
+        description: 'Validates that a proposed payment fee meets the network minimum floor.',
         security: [{ bearerAuth: [] }],
         requestBody: {
           content: {
@@ -527,12 +527,12 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
                 type: 'object',
                 required: ['transactionType', 'grossAmount', 'proposedFeePercent'],
                 properties: {
-                  transactionType: { type: 'string', enum: ['marketplace', 'recruiting'], description: 'Type of transaction being validated' },
-                  grossAmount: { type: 'number', description: 'Total transaction amount' },
-                  proposedFeePercent: { type: 'number', description: 'Fee percentage the instance proposes to charge' },
-                  agentId: { type: 'string', description: 'Marketplace agent ID (for marketplace transactions)' },
-                  executionId: { type: 'string', description: 'Execution ID (for marketplace transactions)' },
-                  contractId: { type: 'string', description: 'Contract ID (for recruiting transactions)' },
+                  transactionType: { type: 'string', enum: ['marketplace', 'recruiting'] },
+                  grossAmount: { type: 'number' },
+                  proposedFeePercent: { type: 'number' },
+                  agentId: { type: 'string' },
+                  executionId: { type: 'string' },
+                  contractId: { type: 'string' },
                 },
               },
             },
@@ -541,7 +541,146 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         responses: {
           '200': { description: 'Validation result with enforced fee details' },
           '401': { description: 'Invalid or missing platformToken' },
-          '400': { description: 'Missing required fields' },
+        },
+      },
+    },
+    '/federation/agents': {
+      post: {
+        tags: ['Federation'],
+        summary: 'Batch sync agents from a federated instance',
+        description: 'Push agents from a self-hosted instance to the DiviDen marketplace. Accepts full agent config including pricing tiers, integration kit, and display fields. Max 50 agents per call.',
+        security: [{ bearerAuth: [] }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['agents'],
+                properties: {
+                  agents: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      required: ['id', 'name'],
+                      properties: {
+                        id: { type: 'string', description: 'Remote agent ID on your instance' },
+                        name: { type: 'string' },
+                        description: { type: 'string' },
+                        endpointUrl: { type: 'string', description: 'A2A/MCP endpoint URL' },
+                        developerName: { type: 'string' },
+                        category: { type: 'string', enum: ['research', 'coding', 'writing', 'analysis', 'operations', 'creative', 'general'] },
+                        pricingModel: { type: 'string', enum: ['free', 'per_task', 'tiered', 'dynamic'] },
+                        pricePerTask: { type: 'number' },
+                        pricingConfig: {
+                          type: 'object',
+                          description: 'Full pricing configuration. For tiered: include tiers[]. For dynamic: include dynamicConfig.',
+                          properties: {
+                            model: { type: 'string', enum: ['free', 'per_task', 'tiered', 'dynamic'] },
+                            tiers: {
+                              type: 'array',
+                              items: {
+                                type: 'object',
+                                properties: {
+                                  name: { type: 'string' },
+                                  pricePerTask: { type: 'number' },
+                                  taskLimit: { type: 'integer' },
+                                  description: { type: 'string' },
+                                },
+                              },
+                            },
+                            dynamicConfig: {
+                              type: 'object',
+                              properties: {
+                                estimateRange: { type: 'array', items: { type: 'number' }, description: '[min, max] estimated cost' },
+                                requiresApproval: { type: 'boolean', description: 'User must approve price before charge' },
+                                description: { type: 'string' },
+                              },
+                            },
+                          },
+                        },
+                        installGuide: { type: 'string', description: 'Markdown post-install instructions' },
+                        commands: { type: 'array', description: '[{name, description, usage}]' },
+                        taskTypes: { type: 'array', description: 'What this agent handles' },
+                        contextInstructions: { type: 'string' },
+                        supportsA2A: { type: 'boolean' },
+                        supportsMCP: { type: 'boolean' },
+                        version: { type: 'string' },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Sync results with per-agent status' },
+          '401': { description: 'Invalid platform token' },
+          '403': { description: 'Marketplace not enabled' },
+        },
+      },
+      get: {
+        tags: ['Federation'],
+        summary: 'List agents synced from this instance',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': { description: 'List of synced agents with stats' },
+        },
+      },
+    },
+    '/federation/agents/{remoteId}': {
+      put: {
+        tags: ['Federation'],
+        summary: 'Register or update a single agent',
+        description: 'Preferred endpoint for managing individual agents. Full agent config accepted. Creates if new, updates if exists.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'remoteId', in: 'path', required: true, schema: { type: 'string' }, description: 'Agent ID on your instance' }],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name'],
+                properties: {
+                  name: { type: 'string' },
+                  description: { type: 'string' },
+                  endpointUrl: { type: 'string' },
+                  pricingModel: { type: 'string', enum: ['free', 'per_task', 'tiered', 'dynamic'] },
+                  pricePerTask: { type: 'number' },
+                  pricingConfig: { type: 'object', description: 'Full PricingConfig (see batch sync docs)' },
+                  installGuide: { type: 'string' },
+                  commands: { type: 'array' },
+                  taskTypes: { type: 'array' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Agent updated' },
+          '201': { description: 'Agent created' },
+          '409': { description: 'Slug conflict' },
+        },
+      },
+      get: {
+        tags: ['Federation'],
+        summary: 'Get a single synced agent',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'remoteId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Agent details with revenue stats' },
+          '404': { description: 'Agent not found' },
+        },
+      },
+      delete: {
+        tags: ['Federation'],
+        summary: 'Remove a synced agent from marketplace',
+        description: 'Permanently removes the agent and all its subscriptions and executions.',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'remoteId', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: {
+          '200': { description: 'Agent deleted' },
+          '404': { description: 'Agent not found' },
         },
       },
     },

@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueSplit } from '@/lib/marketplace-config';
+import { parsePricingConfig, resolveExecutionPrice } from '@/lib/pricing-types';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 import { heavyLimiter, getRateLimitKey } from '@/lib/rate-limit';
 
@@ -186,14 +187,47 @@ export async function POST(
 
       // Parse response
       let output: string;
+      let agentPriceQuote: { amount: number; currency?: string; metadata?: any; breakdown?: string } | null = null;
+      let agentWidgets: any[] | null = null;
+
       const contentType = response.headers.get('content-type') || '';
       if (contentType.includes('application/json')) {
         const json = await response.json();
+
+        // Check for dynamic price quote in response
+        if (json.price_quote || json.priceQuote) {
+          const pq = json.price_quote || json.priceQuote;
+          agentPriceQuote = {
+            amount: typeof pq.amount === 'number' ? pq.amount : parseFloat(pq.amount) || 0,
+            currency: pq.currency || 'USD',
+            metadata: pq.metadata || pq.breakdown || null,
+            breakdown: pq.breakdown || pq.description || null,
+          };
+        }
+
+        // Check for interactive widgets in response
+        if (json.widgets && Array.isArray(json.widgets)) {
+          agentWidgets = json.widgets;
+        }
+
         // Handle A2A response format
         if (json.result?.status?.message?.parts) {
           output = json.result.status.message.parts
             .map((p: any) => p.text || JSON.stringify(p))
             .join('\n');
+          // A2A can also carry price quotes in artifacts
+          const artifacts = json.result?.artifacts;
+          if (artifacts && Array.isArray(artifacts)) {
+            for (const art of artifacts) {
+              if (art.type === 'price_quote' && art.data?.amount) {
+                agentPriceQuote = {
+                  amount: art.data.amount,
+                  currency: art.data.currency || 'USD',
+                  metadata: art.data,
+                };
+              }
+            }
+          }
         } else if (json.message || json.output || json.result || json.text || json.response) {
           output = json.message || json.output || json.text || json.response || JSON.stringify(json.result);
         } else {
@@ -203,13 +237,93 @@ export async function POST(
         output = await response.text();
       }
 
-      // Calculate revenue split for paid agents (zero for own agents and password-granted access)
-      // Network transaction = agent developer is not the executing user (cross-instance or marketplace)
+      // === Pricing resolution ===
       const isNetworkTransaction = !isOwnAgent;
       const isFreeAccess = isOwnAgent || hasPasswordAccess;
+      const pricingConfig = parsePricingConfig(agent.pricingModel, agent.pricePerTask, agent.pricingDetails);
+
+      // Dynamic pricing: agent returned a price quote → save as 'quoted', return checkout widget
+      if (!isFreeAccess && pricingConfig.model === 'dynamic' && agentPriceQuote && agentPriceQuote.amount > 0) {
+        await prisma.marketplaceExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: 'completed',
+            taskOutput: output,
+            completedAt: new Date(),
+            responseTimeMs,
+            pricingPhase: 'quoted',
+            quoteAmount: agentPriceQuote.amount,
+            quoteCurrency: agentPriceQuote.currency || 'USD',
+            quoteMetadata: agentPriceQuote.metadata ? JSON.stringify(agentPriceQuote.metadata) : null,
+            quotedAt: new Date(),
+          },
+        });
+
+        // Update agent execution stats (without revenue — that comes on approval)
+        const execCount = agent.totalExecutions + 1;
+        const newAvgResponse = agent.avgResponseTime
+          ? (agent.avgResponseTime * agent.totalExecutions + responseTimeMs) / execCount
+          : responseTimeMs;
+        const successCount = (agent.successRate ?? 1) * agent.totalExecutions + 1;
+
+        await prisma.marketplaceAgent.update({
+          where: { id: agent.id },
+          data: {
+            totalExecutions: execCount,
+            avgResponseTime: Math.round(newAvgResponse),
+            successRate: successCount / execCount,
+          },
+        });
+
+        return NextResponse.json({
+          executionId: execution.id,
+          status: 'completed',
+          output,
+          responseTimeMs,
+          pricingPhase: 'quoted',
+          quote: {
+            amount: agentPriceQuote.amount,
+            currency: agentPriceQuote.currency || 'USD',
+            breakdown: agentPriceQuote.breakdown,
+            approveUrl: `/api/marketplace/${agent.id}/execute/${execution.id}`,
+          },
+          // Return a checkout widget for the UI
+          widget: {
+            type: 'payment_prompt',
+            title: `${agent.name} — Price Quote`,
+            subtitle: agentPriceQuote.breakdown || `This result costs $${agentPriceQuote.amount.toFixed(2)}`,
+            agentName: agent.name,
+            items: [{
+              id: execution.id,
+              title: `$${agentPriceQuote.amount.toFixed(2)} ${agentPriceQuote.currency || 'USD'}`,
+              subtitle: agentPriceQuote.breakdown || 'Dynamic price based on result',
+              actions: [
+                {
+                  label: 'Approve & Pay',
+                  type: 'primary',
+                  action: 'purchase',
+                  price: agentPriceQuote.amount,
+                  currency: agentPriceQuote.currency || '$',
+                  payload: { executionId: execution.id, agentId: agent.id, action: 'approve' },
+                },
+                {
+                  label: 'Decline',
+                  type: 'danger',
+                  action: 'custom',
+                  payload: { executionId: execution.id, agentId: agent.id, action: 'decline' },
+                },
+              ],
+            }],
+          },
+          ...(agentWidgets ? { additionalWidgets: agentWidgets } : {}),
+        });
+      }
+
+      // Standard pricing (free, per_task, tiered) — charge immediately
       let grossAmount = 0;
-      if (!isFreeAccess && agent.pricingModel === 'per_task' && agent.pricePerTask) {
-        grossAmount = agent.pricePerTask;
+      if (!isFreeAccess) {
+        const resolved = resolveExecutionPrice(pricingConfig, agent.totalExecutions);
+        grossAmount = resolved ?? 0;
       }
       // Subscription revenue is tracked at subscription level, not per-execution
       const revSplit = isFreeAccess

@@ -160,6 +160,7 @@ const PRICING_BADGES: Record<string, { label: string; className: string }> = {
   per_task: { label: 'Per Task', className: 'bg-blue-500/20 text-blue-400 border-blue-500/30' },
   subscription: { label: 'Subscription', className: 'bg-purple-500/20 text-purple-400 border-purple-500/30' },
   tiered: { label: 'Tiered', className: 'bg-amber-500/20 text-amber-400 border-amber-500/30' },
+  dynamic: { label: 'Dynamic', className: 'bg-pink-500/20 text-pink-400 border-pink-500/30' },
 };
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -463,6 +464,27 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
     if (agent.pricingModel === 'subscription' && agent.subscriptionPrice) {
       const limit = agent.taskLimit ? ` (${agent.taskLimit} tasks/mo)` : ' (unlimited)';
       return `$${agent.subscriptionPrice}/mo${limit}`;
+    }
+    if (agent.pricingModel === 'tiered' && agent.pricingDetails) {
+      try {
+        const config = JSON.parse(agent.pricingDetails);
+        if (config.tiers?.length) {
+          return `From $${config.tiers[0].pricePerTask}/task`;
+        }
+      } catch { /* ignore */ }
+      return 'Tiered';
+    }
+    if (agent.pricingModel === 'dynamic') {
+      if (agent.pricingDetails) {
+        try {
+          const config = JSON.parse(agent.pricingDetails);
+          if (config.dynamicConfig?.estimateRange) {
+            const [min, max] = config.dynamicConfig.estimateRange;
+            return `~$${min}–$${max}/task`;
+          }
+        } catch { /* ignore */ }
+      }
+      return 'Dynamic';
     }
     return agent.pricingModel;
   };

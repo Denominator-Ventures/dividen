@@ -442,7 +442,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} />
             ))}
 
             {/* Streaming response */}
@@ -666,7 +666,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
 // ─── Message Bubble Component ────────────────────────────────────────────────
 
-function MessageBubble({ message, userPhoto, userName, diviName }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string }) {
+function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void }) {
   const isUser = message.role === 'user';
   const initials = isUser
     ? (userName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
@@ -713,8 +713,44 @@ function MessageBubble({ message, userPhoto, userName, diviName }: { message: Ch
           return (
             <AgentWidgetContainer
               payload={widgetPayload}
-              onAction={(item: WidgetItem, action: WidgetItemAction, widget: AgentWidgetData) => {
+              onAction={async (item: WidgetItem, action: WidgetItemAction, widget: AgentWidgetData) => {
                 console.log('[AgentWidget] Action:', { item: item.id, action: action.action, widget: widget.title });
+
+                // Handle dynamic pricing checkout
+                if ((action.action === 'purchase' || action.action === 'custom') && action.payload?.executionId && action.payload?.agentId) {
+                  const { executionId, agentId } = action.payload;
+                  const approveAction = action.payload.action || (action.action === 'purchase' ? 'approve' : 'decline');
+
+                  try {
+                    const res = await fetch(`/api/marketplace/${agentId}/execute/${executionId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: approveAction }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      // Add a system message confirming the action
+                      const confirmMsg = approveAction === 'approve'
+                        ? `✅ Payment approved. ${data.message || ''}`
+                        : `❌ Quote declined. No charge applied.`;
+                      onAddMessage?.({
+                        id: `sys-${Date.now()}`,
+                        role: 'assistant',
+                        content: confirmMsg,
+                        createdAt: new Date().toISOString(),
+                      });
+                    } else {
+                      console.error('Quote action failed:', data.error);
+                    }
+                  } catch (err) {
+                    console.error('Failed to process quote action:', err);
+                  }
+                }
+
+                // Handle URL opening
+                if (action.action === 'open_url' && action.url) {
+                  window.open(action.url, '_blank');
+                }
               }}
             />
           );
