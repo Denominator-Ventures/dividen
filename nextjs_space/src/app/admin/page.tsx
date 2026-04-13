@@ -1,6 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import InstancesTab from '@/components/admin/InstancesTab';
+import MarketplaceTab from '@/components/admin/MarketplaceTab';
+import SystemPromptTab from '@/components/admin/SystemPromptTab';
+import UsageTab from '@/components/admin/UsageTab';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface UserRow {
@@ -192,7 +196,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage'>('overview');
 
   const fetchStats = useCallback(async (t: string) => {
     setLoading(true);
@@ -247,6 +251,10 @@ export default function AdminPage() {
     { id: 'users' as const, label: 'Users', icon: '👥' },
     { id: 'content' as const, label: 'Content', icon: '📦' },
     { id: 'activity' as const, label: 'Activity', icon: '⚡' },
+    { id: 'instances' as const, label: 'Instances', icon: '🏢' },
+    { id: 'marketplace' as const, label: 'Marketplace', icon: '🤖' },
+    { id: 'usage' as const, label: 'Usage', icon: '📈' },
+    { id: 'prompt' as const, label: 'System Prompt', icon: '📝' },
     { id: 'federation' as const, label: 'Federation', icon: '🌐' },
     { id: 'telemetry' as const, label: 'Telemetry', icon: '📡' },
   ];
@@ -284,20 +292,22 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="border-b border-white/[0.06] px-4 md:px-6">
-        <div className="flex gap-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-3 py-2.5 text-xs font-medium transition-colors border-b-2 ${
-                activeTab === tab.id
-                  ? 'border-brand-500 text-white'
-                  : 'border-transparent text-[var(--text-secondary)] hover:text-white'
-              }`}
-            >
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+        <div className="overflow-x-auto scrollbar-hide">
+          <div className="flex gap-1 min-w-max">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-3 py-2.5 text-xs font-medium transition-colors border-b-2 whitespace-nowrap shrink-0 ${
+                  activeTab === tab.id
+                    ? 'border-brand-500 text-white'
+                    : 'border-transparent text-[var(--text-secondary)] hover:text-white'
+                }`}
+              >
+                {tab.icon} {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -307,6 +317,10 @@ export default function AdminPage() {
         {activeTab === 'users' && <UsersTab stats={stats} />}
         {activeTab === 'content' && <ContentTab stats={stats} />}
         {activeTab === 'activity' && <ActivityTab stats={stats} />}
+        {activeTab === 'instances' && <InstancesTab token={token} />}
+        {activeTab === 'marketplace' && <MarketplaceTab token={token} />}
+        {activeTab === 'usage' && <UsageTab token={token} />}
+        {activeTab === 'prompt' && <SystemPromptTab token={token} />}
         {activeTab === 'federation' && <FederationTab token={token} />}
         {activeTab === 'telemetry' && <TelemetryTab token={token} />}
       </main>
