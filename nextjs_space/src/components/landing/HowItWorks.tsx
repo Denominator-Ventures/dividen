@@ -58,7 +58,7 @@ const FLOW_STEPS = [
     icon: '⚡',
     title: 'Agents Get It Done',
     subtitle: 'Execution Queue',
-    description: 'Approved tasks go to a queue where AI agents execute — drafting emails, scheduling meetings, updating CRMs, or routing work to teammates.',
+    description: 'Approved tasks go to a queue where AI agents execute — drafting emails, scheduling meetings, updating CRMs. Results flow back to Divi to process next.',
     examples: ['Draft replies', 'Schedule meetings', 'Update systems'],
     color: 'from-brand-500/20 to-brand-400/5',
     borderColor: 'border-brand-500/20',
@@ -69,26 +69,49 @@ const FLOW_STEPS = [
 
 // ─── Animated Connector Arrow ────────────────────────────────────────────────
 
-function FlowArrow({ direction = 'down', className = '' }: { direction?: 'down' | 'right'; className?: string }) {
+function FlowArrow({ direction = 'down', className = '' }: { direction?: 'down' | 'right' | 'left' | 'up'; className?: string }) {
   if (direction === 'right') {
     return (
-      <div className={`hidden lg:flex items-center justify-center ${className}`}>
+      <div className={`flex items-center justify-center ${className}`}>
         <div className="relative w-12 h-8 flex items-center">
           <div className="absolute inset-y-1/2 left-0 right-3 h-px bg-gradient-to-r from-white/[0.06] to-white/20" />
           <div className="absolute right-0 w-0 h-0 border-l-[6px] border-l-white/20 border-y-[4px] border-y-transparent" />
-          {/* Animated pulse dot */}
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-brand-400 animate-flow-right" />
         </div>
       </div>
     );
   }
 
+  if (direction === 'left') {
+    return (
+      <div className={`flex items-center justify-center ${className}`}>
+        <div className="relative w-12 h-8 flex items-center">
+          <div className="absolute inset-y-1/2 left-3 right-0 h-px bg-gradient-to-l from-white/[0.06] to-white/20" />
+          <div className="absolute left-0 w-0 h-0 border-r-[6px] border-r-white/20 border-y-[4px] border-y-transparent" />
+          <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-brand-400 animate-flow-left" />
+        </div>
+      </div>
+    );
+  }
+
+  if (direction === 'up') {
+    return (
+      <div className={`flex items-center justify-center ${className}`}>
+        <div className="relative w-8 h-10 flex flex-col items-center">
+          <div className="absolute inset-x-1/2 top-3 bottom-0 w-px bg-gradient-to-t from-white/[0.06] to-white/20" />
+          <div className="absolute top-0 w-0 h-0 border-b-[6px] border-b-white/20 border-x-[4px] border-x-transparent" />
+          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand-400 animate-flow-up" />
+        </div>
+      </div>
+    );
+  }
+
+  // down (default)
   return (
-    <div className={`flex lg:hidden items-center justify-center py-2 ${className}`}>
+    <div className={`flex items-center justify-center py-2 ${className}`}>
       <div className="relative w-8 h-10 flex flex-col items-center">
         <div className="absolute inset-x-1/2 top-0 bottom-3 w-px bg-gradient-to-b from-white/[0.06] to-white/20" />
         <div className="absolute bottom-0 w-0 h-0 border-t-[6px] border-t-white/20 border-x-[4px] border-x-transparent" />
-        {/* Animated pulse dot */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand-400 animate-flow-down" />
       </div>
     </div>
@@ -102,11 +125,13 @@ function StepCard({
   index,
   isActive,
   onHover,
+  compact = false,
 }: {
   step: typeof FLOW_STEPS[0];
   index: number;
   isActive: boolean;
   onHover: (id: string | null) => void;
+  compact?: boolean;
 }) {
   return (
     <div
@@ -130,26 +155,26 @@ function StepCard({
       {/* Card */}
       <div className={`relative overflow-hidden rounded-2xl border ${
         isActive ? step.borderColor + ' bg-white/[0.04]' : 'border-white/[0.06] bg-white/[0.02]'
-      } p-5 pt-6 transition-all duration-300 group-hover:border-white/[0.12]`}>
+      } ${compact ? 'p-4 pt-5' : 'p-5 pt-6'} transition-all duration-300 group-hover:border-white/[0.12]`}>
         {/* Background glow */}
         <div className={`absolute inset-0 bg-gradient-to-br ${step.color} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
 
         <div className="relative">
           {/* Icon + Title row */}
           <div className="flex items-start gap-3 mb-3">
-            <span className="text-2xl flex-shrink-0 mt-0.5">{step.icon}</span>
+            <span className={`${compact ? 'text-xl' : 'text-2xl'} flex-shrink-0 mt-0.5`}>{step.icon}</span>
             <div>
               <p className={`font-mono text-[9px] uppercase tracking-[0.2em] ${step.accentColor} mb-0.5`}>
                 {step.subtitle}
               </p>
-              <h3 className="font-heading text-base font-semibold leading-tight">
+              <h3 className={`font-heading ${compact ? 'text-sm' : 'text-base'} font-semibold leading-tight`}>
                 {step.title}
               </h3>
             </div>
           </div>
 
           {/* Description */}
-          <p className="text-[13px] text-white/45 leading-relaxed mb-3">
+          <p className={`${compact ? 'text-xs' : 'text-[13px]'} text-white/45 leading-relaxed mb-3`}>
             {step.description}
           </p>
 
@@ -166,6 +191,82 @@ function StepCard({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Loop-back Arrow (curved visual for desktop) ─────────────────────────────
+
+function LoopBackArrow() {
+  return (
+    <div className="hidden lg:flex items-center justify-center py-3">
+      <div className="relative flex items-center gap-2">
+        <svg width="320" height="48" viewBox="0 0 320 48" fill="none" className="opacity-60">
+          {/* Curved path from right (agents) back to left (divi) */}
+          <path
+            d="M310 8 C 310 40, 10 40, 10 8"
+            stroke="url(#loopGrad)"
+            strokeWidth="1"
+            strokeDasharray="4 3"
+            fill="none"
+          />
+          {/* Arrowhead at left end pointing up-left */}
+          <polygon points="6,12 10,2 14,12" fill="rgba(168,85,247,0.5)" />
+          {/* Animated dot along the path */}
+          <circle r="3" fill="#a855f7" opacity="0.8">
+            <animateMotion dur="3s" repeatCount="indefinite">
+              <mpath href="#loopPath" />
+            </animateMotion>
+          </circle>
+          <path id="loopPath" d="M310 8 C 310 40, 10 40, 10 8" fill="none" />
+          <defs>
+            <linearGradient id="loopGrad" x1="310" y1="8" x2="10" y2="8">
+              <stop offset="0%" stopColor="rgba(168,85,247,0.4)" />
+              <stop offset="50%" stopColor="rgba(168,85,247,0.15)" />
+              <stop offset="100%" stopColor="rgba(168,85,247,0.4)" />
+            </linearGradient>
+          </defs>
+        </svg>
+        <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[30%] text-[10px] font-mono text-purple-400/60 tracking-wider uppercase whitespace-nowrap">
+          results flow back
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mobile loop-back indicator ──────────────────────────────────────────────
+
+function MobileLoopBack() {
+  return (
+    <div className="lg:hidden flex flex-col items-center py-3 gap-1.5">
+      <div className="relative w-full flex items-center justify-center">
+        <svg width="200" height="44" viewBox="0 0 200 44" fill="none" className="opacity-60">
+          <path
+            d="M100 4 C 180 4, 180 40, 100 40 C 20 40, 20 4, 100 4"
+            stroke="url(#mobileLoopGrad)"
+            strokeWidth="1"
+            strokeDasharray="4 3"
+            fill="none"
+          />
+          <circle r="2.5" fill="#a855f7" opacity="0.8">
+            <animateMotion dur="3s" repeatCount="indefinite">
+              <mpath href="#mobileLoopPath" />
+            </animateMotion>
+          </circle>
+          <path id="mobileLoopPath" d="M100 4 C 180 4, 180 40, 100 40 C 20 40, 20 4, 100 4" fill="none" />
+          <defs>
+            <linearGradient id="mobileLoopGrad" x1="0" y1="22" x2="200" y2="22">
+              <stop offset="0%" stopColor="rgba(168,85,247,0.3)" />
+              <stop offset="50%" stopColor="rgba(168,85,247,0.15)" />
+              <stop offset="100%" stopColor="rgba(168,85,247,0.3)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <span className="text-[10px] font-mono text-purple-400/50 tracking-wider uppercase">
+        ↻ loops back to Divi
+      </span>
     </div>
   );
 }
@@ -193,16 +294,20 @@ export function HowItWorks() {
     return () => observer.disconnect();
   }, []);
 
-  // Auto-play through steps
+  // Auto-play — cycle through loop steps: 1,2,3,4,5,2,3,4,5,2,...
+  // After the first pass, it loops 2→3→4→5→2
   useEffect(() => {
     if (!isAutoPlaying || !isVisible) return;
     const timer = setInterval(() => {
-      setAutoPlayIndex((prev) => (prev + 1) % FLOW_STEPS.length);
+      setAutoPlayIndex((prev) => {
+        // After step 5 (index 4), loop back to step 2 (index 1)
+        if (prev >= 4) return 1;
+        return prev + 1;
+      });
     }, 3000);
     return () => clearInterval(timer);
   }, [isAutoPlaying, isVisible]);
 
-  // When user hovers, pause auto-play
   const handleHover = (id: string | null) => {
     if (id) {
       setIsAutoPlaying(false);
@@ -232,53 +337,98 @@ export function HowItWorks() {
             How It Works
           </p>
           <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-            Five steps. Zero effort.
+            One loop. Zero effort.
           </h2>
           <p className="text-white/40 text-base md:text-lg max-w-xl mx-auto">
-            Your world flows in, your AI agent sorts it, and things get done &mdash; while you focus on what actually matters.
+            Signals trigger the loop. Divi processes, you decide, agents execute &mdash; and results flow right back in. A self-driving cycle that never stops working.
           </p>
         </div>
 
-        {/* ── Desktop: Horizontal Flow ──────────────────────────────────── */}
+        {/* ── Desktop: Loop Layout ────────────────────────────────────────── */}
+        {/*
+            Layout:
+            [1 Signals] ──→ [2 Divi Brain] ──→ [3 Board]
+                                  ↑                  ↓
+                            [5 Agents]  ←── [4 You Decide]
+            
+            With a loop-back arrow from 5 → 2 shown as the left ↑ arrow
+        */}
         <div className={`hidden lg:block transition-all duration-1000 delay-300 ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
         }`}>
-          {/* Top row: Steps 1-3 */}
-          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-start gap-0 mb-6">
-            <StepCard step={FLOW_STEPS[0]} index={0} isActive={currentActive === FLOW_STEPS[0].id} onHover={handleHover} />
-            <FlowArrow direction="right" className="mt-12" />
-            <StepCard step={FLOW_STEPS[1]} index={1} isActive={currentActive === FLOW_STEPS[1].id} onHover={handleHover} />
-            <FlowArrow direction="right" className="mt-12" />
-            <StepCard step={FLOW_STEPS[2]} index={2} isActive={currentActive === FLOW_STEPS[2].id} onHover={handleHover} />
+          {/* Top row: Step 1 (entry) → Step 2 → Step 3 */}
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-start gap-0 mb-0">
+            <StepCard step={FLOW_STEPS[0]} index={0} isActive={currentActive === FLOW_STEPS[0].id} onHover={handleHover} compact />
+            <FlowArrow direction="right" className="mt-10" />
+            <StepCard step={FLOW_STEPS[1]} index={1} isActive={currentActive === FLOW_STEPS[1].id} onHover={handleHover} compact />
+            <FlowArrow direction="right" className="mt-10" />
+            <StepCard step={FLOW_STEPS[2]} index={2} isActive={currentActive === FLOW_STEPS[2].id} onHover={handleHover} compact />
           </div>
 
-          {/* Connecting arrow down-right from step 3 to step 4 */}
-          <div className="flex justify-end pr-[15%] py-2">
-            <div className="relative w-8 h-10 flex flex-col items-center">
-              <div className="absolute inset-x-1/2 top-0 bottom-3 w-px bg-gradient-to-b from-white/[0.06] to-white/20" />
-              <div className="absolute bottom-0 w-0 h-0 border-t-[6px] border-t-white/20 border-x-[4px] border-x-transparent" />
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-brand-400 animate-flow-down" />
+          {/* Middle connectors: ↑ on left (5→2) and ↓ on right (3→4) */}
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-0">
+            {/* Empty space under step 1 */}
+            <div />
+            <div />
+            {/* Up arrow under step 2 (loop-back from 5) */}
+            <div className="flex justify-center">
+              <FlowArrow direction="up" />
+            </div>
+            <div />
+            {/* Down arrow under step 3 (flow to 4) */}
+            <div className="flex justify-center">
+              <FlowArrow direction="down" />
             </div>
           </div>
 
-          {/* Bottom row: Steps 4-5 (centered) */}
-          <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-0 max-w-[70%] mx-auto">
-            <StepCard step={FLOW_STEPS[3]} index={3} isActive={currentActive === FLOW_STEPS[3].id} onHover={handleHover} />
-            <FlowArrow direction="right" className="mt-12" />
-            <StepCard step={FLOW_STEPS[4]} index={4} isActive={currentActive === FLOW_STEPS[4].id} onHover={handleHover} />
+          {/* Bottom row: Step 5 (under 2) ← Step 4 (under 3) */}
+          <div className="grid grid-cols-[1fr_auto_1fr_auto_1fr] items-start gap-0">
+            {/* Empty space under step 1 */}
+            <div />
+            <div />
+            <StepCard step={FLOW_STEPS[4]} index={4} isActive={currentActive === FLOW_STEPS[4].id} onHover={handleHover} compact />
+            <FlowArrow direction="left" className="mt-10" />
+            <StepCard step={FLOW_STEPS[3]} index={3} isActive={currentActive === FLOW_STEPS[3].id} onHover={handleHover} compact />
+          </div>
+
+          {/* Loop annotation */}
+          <div className="flex justify-center mt-4">
+            <span className="text-[10px] font-mono text-purple-400/40 tracking-wider uppercase">
+              ↻ agents complete → results flow back to divi → cycle continues
+            </span>
           </div>
         </div>
 
-        {/* ── Mobile: Vertical Flow ─────────────────────────────────────── */}
+        {/* ── Mobile: Vertical Flow with Loop ─────────────────────────────── */}
         <div className={`lg:hidden space-y-0 transition-all duration-1000 delay-300 ${
           isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
         }`}>
-          {FLOW_STEPS.map((step, i) => (
-            <div key={step.id}>
-              <StepCard step={step} index={i} isActive={currentActive === step.id} onHover={handleHover} />
-              {i < FLOW_STEPS.length - 1 && <FlowArrow direction="down" />}
+          {/* Step 1: Entry point */}
+          <StepCard step={FLOW_STEPS[0]} index={0} isActive={currentActive === FLOW_STEPS[0].id} onHover={handleHover} />
+          <FlowArrow direction="down" />
+
+          {/* Loop container with visual indicator */}
+          <div className="relative border border-purple-500/10 rounded-2xl p-3 pt-6">
+            {/* Loop badge */}
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
+              <span className="px-3 py-1 text-[9px] font-mono uppercase tracking-[0.15em] text-purple-400/70 bg-purple-500/10 border border-purple-500/15 rounded-full whitespace-nowrap">
+                ↻ continuous loop
+              </span>
             </div>
-          ))}
+
+            <div className="space-y-0">
+              <StepCard step={FLOW_STEPS[1]} index={1} isActive={currentActive === FLOW_STEPS[1].id} onHover={handleHover} />
+              <FlowArrow direction="down" />
+              <StepCard step={FLOW_STEPS[2]} index={2} isActive={currentActive === FLOW_STEPS[2].id} onHover={handleHover} />
+              <FlowArrow direction="down" />
+              <StepCard step={FLOW_STEPS[3]} index={3} isActive={currentActive === FLOW_STEPS[3].id} onHover={handleHover} />
+              <FlowArrow direction="down" />
+              <StepCard step={FLOW_STEPS[4]} index={4} isActive={currentActive === FLOW_STEPS[4].id} onHover={handleHover} />
+            </div>
+
+            {/* Mobile loop-back indicator */}
+            <MobileLoopBack />
+          </div>
         </div>
 
         {/* ── Progress indicator ────────────────────────────────────────── */}
@@ -306,7 +456,7 @@ export function HowItWorks() {
 
         {/* ── Summary line ──────────────────────────────────────────────── */}
         <p className="text-center text-white/25 text-sm mt-8 max-w-md mx-auto">
-          That&apos;s it. Signals in, tasks out, agents execute. You stay focused.
+          Signals in, the loop runs, things get done. You stay focused.
         </p>
       </div>
     </section>
