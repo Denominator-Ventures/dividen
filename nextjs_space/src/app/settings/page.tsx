@@ -422,6 +422,29 @@ export default function SettingsPage() {
       {/* Integrations Tab */}
       {activeTab === 'integrations' && (
         <>
+          {/* Capabilities Quick Link */}
+          <div className="panel">
+            <div className="panel-header flex items-center justify-between">
+              <div>
+                <h2 className="font-semibold">⚡ Capabilities</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Skill packs that extend what Divi can do — browse, install, or create your own
+                </p>
+              </div>
+              <a
+                href="/dashboard"
+                onClick={(e) => {
+                  e.preventDefault();
+                  // Navigate to dashboard capabilities tab
+                  window.location.href = '/dashboard?tab=capabilities';
+                }}
+                className="text-xs px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 border border-brand-500/30 transition-colors whitespace-nowrap"
+              >
+                ⚡ Open Marketplace
+              </a>
+            </div>
+          </div>
+
           {/* Identities & Integrations Section */}
           <div className="panel">
             <div className="panel-header">

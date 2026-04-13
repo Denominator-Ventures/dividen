@@ -332,6 +332,176 @@ When content work is requested:
 6. For review: Check clarity, grammar, tone consistency, and {{seoKeywords}} optimization.
 7. Surface drafts in chat; final versions as documents.`,
     },
+    {
+      slug: 'daily-briefing-generator',
+      name: 'Daily Briefing Generator',
+      icon: '📋',
+      description: 'Generate a personalized morning briefing covering calendar, priority tasks, pending relays, and key metrics.',
+      category: 'productivity',
+      tags: 'briefing,morning,summary,daily,productivity',
+      integrationType: null,
+      pricingModel: 'free',
+      featured: true,
+      editableFields: JSON.stringify([
+        { key: 'briefingTime', label: 'Briefing Time', type: 'text', placeholder: '8:00 AM' },
+        { key: 'focusAreas', label: 'Focus Areas', type: 'textarea', placeholder: 'Revenue targets, hiring pipeline, product launches' },
+        { key: 'tone', label: 'Tone', type: 'select', options: ['executive', 'casual', 'tactical'] },
+      ]),
+      prompt: `You are a daily briefing assistant.
+1. Each {{briefingTime}}, compile a morning briefing for the operator.
+2. Focus on: {{focusAreas}}.
+3. Pull from: calendar events (next 24h), high-priority queue items, unread relays, recent activity.
+4. Tone: {{tone}}. Keep it scannable — bullet points, bold highlights, action items at the top.
+5. Flag anything that needs immediate attention as 🔴 URGENT.`,
+    },
+    {
+      slug: 'expense-receipt-scanner',
+      name: 'Expense Receipt Scanner',
+      icon: '🧾',
+      description: 'Process expense receipts from email attachments or uploads. Extract vendor, amount, date, and category for bookkeeping.',
+      category: 'finance',
+      tags: 'expense,receipt,bookkeeping,accounting,extract',
+      integrationType: 'email',
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify([
+        { key: 'expenseCategories', label: 'Expense Categories', type: 'textarea', placeholder: 'Travel, Software, Meals, Office Supplies' },
+        { key: 'currency', label: 'Default Currency', type: 'text', placeholder: 'USD' },
+        { key: 'approvalThreshold', label: 'Auto-Approve Below ($)', type: 'text', placeholder: '100' },
+      ]),
+      prompt: `You are an expense receipt processor.
+1. When an email or document contains a receipt/invoice, extract: vendor name, amount, date, and categorize into {{expenseCategories}}.
+2. Default currency: {{currency}}.
+3. Auto-approve expenses below the amount set in approvalThreshold field. Flag larger ones for operator review.
+4. Maintain a running log. Surface weekly expense summaries when asked.`,
+    },
+    {
+      slug: 'competitor-intel-monitor',
+      name: 'Competitor Intelligence Monitor',
+      icon: '🔭',
+      description: 'Track competitor activity across web, social, and news. Surface relevant updates and strategic implications.',
+      category: 'sales',
+      tags: 'competitor,intelligence,monitoring,strategy,market',
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify([
+        { key: 'competitors', label: 'Competitors to Track', type: 'textarea', placeholder: 'Company A, Company B, Company C' },
+        { key: 'industry', label: 'Industry', type: 'text', placeholder: 'SaaS / AI' },
+        { key: 'alertFrequency', label: 'Alert Frequency', type: 'select', options: ['daily', 'weekly', 'real-time'] },
+      ]),
+      prompt: `You are a competitive intelligence analyst.
+1. Monitor and surface relevant updates about: {{competitors}}.
+2. Industry context: {{industry}}.
+3. Track: product launches, pricing changes, funding rounds, key hires, partnerships, press mentions.
+4. Alert frequency: {{alertFrequency}}.
+5. For each update, include: what happened, strategic implication for us, suggested response.`,
+    },
+    {
+      slug: 'onboarding-checklist-helper',
+      name: 'Employee Onboarding Helper',
+      icon: '🎓',
+      description: 'Guide new team members through onboarding with automated checklists, introductions, and resource sharing.',
+      category: 'hr',
+      tags: 'onboarding,new-hire,checklist,hr,training',
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify([
+        { key: 'companyName', label: 'Company Name', type: 'text', placeholder: 'Acme Corp' },
+        { key: 'onboardingSteps', label: 'Onboarding Steps', type: 'textarea', placeholder: 'Setup accounts, Meet team, Review handbook, First project brief' },
+        { key: 'keyContacts', label: 'Key Contacts', type: 'textarea', placeholder: 'HR: jane@co, IT: bob@co, Manager: alice@co' },
+      ]),
+      prompt: `You are an onboarding coordinator for {{companyName}}.
+1. When a new team member is introduced, create and track an onboarding checklist: {{onboardingSteps}}.
+2. Key contacts: {{keyContacts}}.
+3. Send introductions, share resources, and track progress through each step.
+4. Surface a completion summary when all steps are done.`,
+    },
+    {
+      slug: 'meeting-notes-distributor',
+      name: 'Meeting Notes Distributor',
+      icon: '📝',
+      description: 'After meetings, automatically format notes, extract action items, and distribute summaries to attendees.',
+      category: 'productivity',
+      tags: 'meeting,notes,action-items,summary,distribute',
+      integrationType: 'calendar',
+      pricingModel: 'free',
+      featured: true,
+      editableFields: JSON.stringify([
+        { key: 'noteFormat', label: 'Note Format', type: 'select', options: ['bullet-points', 'narrative', 'structured'] },
+        { key: 'distributeVia', label: 'Distribute Via', type: 'select', options: ['chat', 'email-draft', 'relay'] },
+        { key: 'includeActionItems', label: 'Include Action Items', type: 'select', options: ['yes', 'no'] },
+      ]),
+      prompt: `You are a meeting notes assistant.
+1. After each meeting, format notes in {{noteFormat}} style.
+2. Extract action items with owners and deadlines (if {{includeActionItems}} = yes).
+3. Distribute summary via {{distributeVia}}.
+4. For recurring meetings, track action item completion across sessions.`,
+    },
+    {
+      slug: 'customer-feedback-aggregator',
+      name: 'Customer Feedback Aggregator',
+      icon: '📊',
+      description: 'Collect and categorize customer feedback from multiple channels. Surface trends and sentiment shifts.',
+      category: 'sales',
+      tags: 'feedback,customer,sentiment,trends,product',
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify([
+        { key: 'feedbackChannels', label: 'Feedback Channels', type: 'textarea', placeholder: 'Support emails, Slack #feedback, NPS surveys' },
+        { key: 'productAreas', label: 'Product Areas', type: 'textarea', placeholder: 'Onboarding, Dashboard, API, Billing' },
+        { key: 'reportFrequency', label: 'Report Frequency', type: 'select', options: ['daily', 'weekly', 'monthly'] },
+      ]),
+      prompt: `You are a customer feedback analyst.
+1. Aggregate feedback from: {{feedbackChannels}}.
+2. Categorize by product area: {{productAreas}}.
+3. Track sentiment (positive/neutral/negative) and volume trends.
+4. Generate a {{reportFrequency}} report highlighting: top themes, sentiment shifts, urgent issues, feature requests.`,
+    },
+    {
+      slug: 'sop-documentation-helper',
+      name: 'SOP Documentation Helper',
+      icon: '📖',
+      description: 'Help create and maintain Standard Operating Procedures. Convert ad-hoc processes into documented, repeatable workflows.',
+      category: 'operations',
+      tags: 'sop,documentation,process,workflow,playbook',
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify([
+        { key: 'docStyle', label: 'Documentation Style', type: 'select', options: ['step-by-step', 'flowchart-text', 'checklist'] },
+        { key: 'audience', label: 'Target Audience', type: 'text', placeholder: 'New hires, All staff, Technical team' },
+      ]),
+      prompt: `You are an SOP documentation assistant.
+1. When the operator describes a process, convert it into a clean {{docStyle}} SOP.
+2. Target audience: {{audience}}.
+3. Include: purpose, prerequisites, step-by-step instructions, expected outcomes, troubleshooting tips.
+4. Store SOPs as documents. When asked, surface relevant SOPs for a given task.`,
+    },
+    {
+      slug: 'invoice-payment-reminder',
+      name: 'Invoice & Payment Reminder',
+      icon: '💰',
+      description: 'Track outstanding invoices and payment due dates. Send reminders before deadlines and flag overdue payments.',
+      category: 'finance',
+      tags: 'invoice,payment,reminder,accounts-receivable,billing',
+      integrationType: 'email',
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify([
+        { key: 'reminderDays', label: 'Remind Days Before Due', type: 'text', placeholder: '7,3,1' },
+        { key: 'escalationContact', label: 'Escalation Contact', type: 'text', placeholder: 'finance@company.com' },
+        { key: 'overdueAction', label: 'Overdue Action', type: 'select', options: ['notify-only', 'draft-follow-up', 'escalate'] },
+      ]),
+      prompt: `You are an invoice and payment tracking assistant.
+1. Track outstanding invoices and their due dates.
+2. Send reminders {{reminderDays}} days before due date.
+3. For overdue invoices: {{overdueAction}}.
+4. Escalation contact: {{escalationContact}}.
+5. Maintain a summary of accounts receivable status.`,
+    },
   ];
 
   for (const cap of capabilities) {

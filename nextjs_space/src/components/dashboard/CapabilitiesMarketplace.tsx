@@ -17,14 +17,15 @@ interface MarketplaceCapability {
   integrationType: string;
   pricingModel: string;
   price: number;
-  editableFields: string; // JSON string of EditableField[]
+  editableFields: string;
   status: string;
   featured: boolean;
   totalPurchases: number;
   avgRating: number;
   totalRatings: number;
   installed?: boolean;
-  // Only after purchase:
+  integrationConnected?: boolean;
+  isSystemSeed?: boolean;
   prompt?: string;
   customizations?: string | null;
   resolvedPrompt?: string | null;
@@ -51,10 +52,23 @@ const CATEGORIES = [
   { value: 'sales', label: 'Sales', icon: '💰' },
   { value: 'finance', label: 'Finance', icon: '📊' },
   { value: 'hr', label: 'HR', icon: '👥' },
-  { value: 'ops', label: 'Ops', icon: '🔧' },
+  { value: 'operations', label: 'Ops', icon: '🔧' },
   { value: 'engineering', label: 'Engineering', icon: '🛠' },
   { value: 'marketing', label: 'Marketing', icon: '📣' },
   { value: 'legal', label: 'Legal', icon: '⚖️' },
+  { value: 'communications', label: 'Comms', icon: '💬' },
+  { value: 'custom', label: 'Custom', icon: '🎯' },
+];
+
+const INTEGRATION_TYPES = [
+  { value: '', label: 'None (Broad)' },
+  { value: 'email', label: '📧 Email' },
+  { value: 'calendar', label: '📅 Calendar' },
+  { value: 'slack', label: '💬 Slack' },
+  { value: 'crm', label: '📊 CRM' },
+  { value: 'transcript', label: '🎤 Transcript' },
+  { value: 'payments', label: '💳 Payments' },
+  { value: 'generic', label: '🔗 Generic Webhook' },
 ];
 
 const INTEGRATION_BADGES: Record<string, { label: string; color: string }> = {
@@ -62,12 +76,18 @@ const INTEGRATION_BADGES: Record<string, { label: string; color: string }> = {
   api: { label: 'API', color: 'text-purple-400 bg-purple-500/15 border-purple-500/25' },
   native: { label: 'Native', color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/25' },
   email: { label: 'Email', color: 'text-amber-400 bg-amber-500/15 border-amber-500/25' },
+  calendar: { label: 'Calendar', color: 'text-cyan-400 bg-cyan-500/15 border-cyan-500/25' },
+  slack: { label: 'Slack', color: 'text-purple-400 bg-purple-500/15 border-purple-500/25' },
+  crm: { label: 'CRM', color: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/25' },
+  transcript: { label: 'Transcript', color: 'text-pink-400 bg-pink-500/15 border-pink-500/25' },
+  payments: { label: 'Payments', color: 'text-green-400 bg-green-500/15 border-green-500/25' },
+  generic: { label: 'Webhook', color: 'text-blue-400 bg-blue-500/15 border-blue-500/25' },
 };
 
 /* ── Component ─────────────────────────────────────────────── */
 
 export function CapabilitiesMarketplace() {
-  const [view, setView] = useState<'browse' | 'installed'>('browse');
+  const [view, setView] = useState<'browse' | 'installed' | 'create'>('browse');
   const [capabilities, setCapabilities] = useState<MarketplaceCapability[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -77,13 +97,22 @@ export function CapabilitiesMarketplace() {
   const [customValues, setCustomValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [installing, setInstalling] = useState<string | null>(null);
+  const [installError, setInstallError] = useState<string | null>(null);
+
+  // Create form state
+  const [createForm, setCreateForm] = useState({
+    name: '', description: '', icon: '⚡', category: 'custom',
+    integrationType: '', pricingModel: 'free', price: 0, prompt: '',
+    tags: '', editableFields: '[]',
+  });
+  const [creating, setCreating] = useState(false);
 
   const fetchCapabilities = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (view === 'installed') params.set('installed', 'true');
-      else {
+      else if (view === 'browse') {
         if (category !== 'all') params.set('category', category);
         if (search) params.set('search', search);
       }
@@ -99,10 +128,13 @@ export function CapabilitiesMarketplace() {
     }
   }, [view, category, search]);
 
-  useEffect(() => { fetchCapabilities(); }, [fetchCapabilities]);
+  useEffect(() => {
+    if (view !== 'create') fetchCapabilities();
+  }, [fetchCapabilities, view]);
 
   const handleInstall = async (capId: string) => {
     setInstalling(capId);
+    setInstallError(null);
     try {
       const res = await fetch('/api/marketplace-capabilities', {
         method: 'POST',
@@ -110,10 +142,19 @@ export function CapabilitiesMarketplace() {
         body: JSON.stringify({ capabilityId: capId }),
       });
       if (res.ok) {
+        setSelected(null);
         await fetchCapabilities();
+      } else {
+        const err = await res.json();
+        if (err.code === 'INTEGRATION_REQUIRED') {
+          setInstallError(err.error);
+        } else {
+          setInstallError(err.error || 'Install failed');
+        }
       }
     } catch (e) {
       console.error('Install failed:', e);
+      setInstallError('Network error');
     } finally {
       setInstalling(null);
     }
@@ -161,6 +202,29 @@ export function CapabilitiesMarketplace() {
     }
   };
 
+  const handleCreate = async () => {
+    if (!createForm.name || !createForm.description || !createForm.prompt) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/marketplace-capabilities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create', ...createForm }),
+      });
+      if (res.ok) {
+        setCreateForm({ name: '', description: '', icon: '⚡', category: 'custom', integrationType: '', pricingModel: 'free', price: 0, prompt: '', tags: '', editableFields: '[]' });
+        setView('installed');
+      } else {
+        const err = await res.json();
+        alert(err.error || 'Failed to create capability');
+      }
+    } catch (e) {
+      console.error('Create failed:', e);
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const parseEditableFields = (raw: string): EditableField[] => {
     try { return JSON.parse(raw); } catch { return []; }
   };
@@ -169,12 +233,17 @@ export function CapabilitiesMarketplace() {
   const BrowseCard = ({ cap }: { cap: MarketplaceCapability }) => {
     const fields = parseEditableFields(cap.editableFields);
     const tags = cap.tags ? cap.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    const intBadge = INTEGRATION_BADGES[cap.integrationType] || INTEGRATION_BADGES.webhook;
+    const intBadge = INTEGRATION_BADGES[cap.integrationType] || INTEGRATION_BADGES.generic;
+    const needsIntegration = cap.integrationType && cap.integrationType !== 'generic' && cap.integrationType !== '';
+    const locked = needsIntegration && !cap.integrationConnected && !cap.installed;
 
     return (
       <button
-        onClick={() => setSelected(cap)}
-        className="text-left bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.06] hover:border-white/[0.12] rounded-xl p-4 transition-all group"
+        onClick={() => { setInstallError(null); setSelected(cap); }}
+        className={cn(
+          'text-left bg-white/[0.03] hover:bg-white/[0.06] border rounded-xl p-4 transition-all group',
+          locked ? 'border-amber-500/20 hover:border-amber-500/30' : 'border-white/[0.06] hover:border-white/[0.12]'
+        )}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5 min-w-0">
@@ -183,10 +252,15 @@ export function CapabilitiesMarketplace() {
               <h3 className="font-medium text-white/90 truncate group-hover:text-brand-400 transition-colors">
                 {cap.name}
               </h3>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded border', intBadge.color)}>
-                  {intBadge.label}
-                </span>
+              <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                {needsIntegration && (
+                  <span className={cn('text-[9px] font-medium px-1.5 py-0.5 rounded border', intBadge?.color)}>
+                    {intBadge?.label}
+                  </span>
+                )}
+                {locked && (
+                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25">🔒 Requires Integration</span>
+                )}
                 {cap.featured && (
                   <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25">⭐ Featured</span>
                 )}
@@ -197,7 +271,7 @@ export function CapabilitiesMarketplace() {
             <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex-shrink-0">Installed</span>
           ) : (
             <span className="text-[10px] font-medium px-2 py-1 rounded-full bg-brand-500/20 text-brand-400 border border-brand-500/30 flex-shrink-0">
-              {cap.price === 0 ? 'Free' : `$${cap.price}`}
+              {cap.price === 0 || !cap.price ? 'Free' : `$${cap.price}`}
             </span>
           )}
         </div>
@@ -206,8 +280,8 @@ export function CapabilitiesMarketplace() {
 
         <div className="flex items-center gap-3 mt-3 text-[10px] text-white/30">
           <span>📦 {cap.totalPurchases} installs</span>
-          {fields.length > 0 && <span>🔧 {fields.length} customizable fields</span>}
-          {cap.avgRating > 0 && <span>⭐ {cap.avgRating.toFixed(1)}</span>}
+          {fields.length > 0 && <span>🔧 {fields.length} customizable</span>}
+          {!needsIntegration && <span>🌐 Broad</span>}
         </div>
 
         {tags.length > 0 && (
@@ -233,7 +307,7 @@ export function CapabilitiesMarketplace() {
             <span className="text-2xl">{cap.icon}</span>
             <div>
               <h3 className="font-medium text-white/90">{cap.name}</h3>
-              <p className="text-xs text-white/40 mt-0.5">{cap.category} · {cap.integrationType}</p>
+              <p className="text-xs text-white/40 mt-0.5">{cap.category}{cap.integrationType && cap.integrationType !== 'generic' ? ` · ${cap.integrationType}` : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -252,7 +326,6 @@ export function CapabilitiesMarketplace() {
 
         <p className="text-xs text-white/50 mt-2">{cap.description}</p>
 
-        {/* Customization Editor */}
         {isEditing && fields.length > 0 && (
           <div className="mt-4 space-y-3 p-3 bg-white/[0.02] rounded-lg border border-white/[0.06]">
             <div className="text-xs font-medium text-white/60 mb-2">⚙️ Customize Fields</div>
@@ -262,9 +335,7 @@ export function CapabilitiesMarketplace() {
                   {field.label}
                   {field.required && <span className="text-red-400 ml-0.5">*</span>}
                 </label>
-                {field.description && (
-                  <p className="text-[10px] text-white/25 mb-1">{field.description}</p>
-                )}
+                {field.description && <p className="text-[10px] text-white/25 mb-1">{field.description}</p>}
                 {field.type === 'select' && field.options ? (
                   <select
                     value={customValues[field.key] || ''}
@@ -307,7 +378,6 @@ export function CapabilitiesMarketplace() {
           </div>
         )}
 
-        {/* Show resolved prompt preview */}
         {!isEditing && cap.resolvedPrompt && (
           <details className="mt-3">
             <summary className="text-[10px] text-white/30 cursor-pointer hover:text-white/50 transition-colors">View active prompt</summary>
@@ -328,42 +398,56 @@ export function CapabilitiesMarketplace() {
   const DetailModal = ({ cap }: { cap: MarketplaceCapability }) => {
     const fields = parseEditableFields(cap.editableFields);
     const tags = cap.tags ? cap.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
-    const intBadge = INTEGRATION_BADGES[cap.integrationType] || INTEGRATION_BADGES.webhook;
+    const intBadge = INTEGRATION_BADGES[cap.integrationType] || null;
+    const needsIntegration = cap.integrationType && cap.integrationType !== 'generic' && cap.integrationType !== '';
+    const locked = needsIntegration && !cap.integrationConnected && !cap.installed;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelected(null)}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setSelected(null); setInstallError(null); }}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
         <div
           onClick={e => e.stopPropagation()}
           className="relative bg-[#0d0d12] border border-white/10 rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-6"
         >
-          {/* Header */}
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
               <span className="text-3xl">{cap.icon}</span>
               <div>
                 <h2 className="text-lg font-semibold text-white/90">{cap.name}</h2>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded border', intBadge.color)}>
-                    {intBadge.label}
-                  </span>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  {intBadge && (
+                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded border', intBadge.color)}>
+                      {intBadge.label}
+                    </span>
+                  )}
                   <span className="text-[10px] text-white/30">{cap.category}</span>
+                  {locked && <span className="text-[10px] text-amber-400">🔒 Integration required</span>}
                   {cap.featured && <span className="text-[10px]">⭐</span>}
                 </div>
               </div>
             </div>
-            <button onClick={() => setSelected(null)} className="text-white/30 hover:text-white/60 text-lg">✕</button>
+            <button onClick={() => { setSelected(null); setInstallError(null); }} className="text-white/30 hover:text-white/60 text-lg">✕</button>
           </div>
 
-          {/* Description */}
           <p className="text-sm text-white/60 mt-4">{cap.longDescription || cap.description}</p>
 
-          {/* Tags */}
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
               {tags.map(tag => (
                 <span key={tag} className="text-[10px] text-white/35 bg-white/[0.05] px-2 py-0.5 rounded-full">{tag}</span>
               ))}
+            </div>
+          )}
+
+          {/* Integration warning */}
+          {locked && (
+            <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+              <p className="text-xs text-amber-400">
+                🔒 This capability requires an active <strong>{cap.integrationType}</strong> integration.
+              </p>
+              <p className="text-[10px] text-amber-400/60 mt-1">
+                Go to Settings → Integrations to connect {cap.integrationType} first.
+              </p>
             </div>
           )}
 
@@ -383,7 +467,6 @@ export function CapabilitiesMarketplace() {
             </div>
           </div>
 
-          {/* Editable Fields Preview */}
           {fields.length > 0 && (
             <div className="mt-4">
               <h4 className="text-xs font-medium text-white/50 mb-2">Customizable after install:</h4>
@@ -399,7 +482,6 @@ export function CapabilitiesMarketplace() {
             </div>
           )}
 
-          {/* Prompt preview (only if installed) */}
           {cap.installed && cap.prompt && (
             <details className="mt-4">
               <summary className="text-xs text-white/40 cursor-pointer hover:text-white/60">View prompt template</summary>
@@ -412,7 +494,13 @@ export function CapabilitiesMarketplace() {
             <p className="text-[10px] text-white/25 mt-3 italic">🔒 Full prompt visible after install</p>
           )}
 
-          {/* Action */}
+          {/* Install error */}
+          {installError && (
+            <div className="mt-3 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-xs text-red-400">
+              {installError}
+            </div>
+          )}
+
           <div className="mt-6 flex gap-2">
             {cap.installed ? (
               <>
@@ -427,10 +515,21 @@ export function CapabilitiesMarketplace() {
               </>
             ) : (
               <button
-                onClick={() => { handleInstall(cap.id); setSelected(null); }}
-                disabled={installing === cap.id}
-                className="flex-1 py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
-              >{installing === cap.id ? 'Installing...' : cap.price === 0 ? '⚡ Install Free' : `Install · $${cap.price}`}</button>
+                onClick={() => handleInstall(cap.id)}
+                disabled={installing === cap.id || !!locked}
+                className={cn(
+                  'flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
+                  locked
+                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-not-allowed'
+                    : 'bg-brand-500 text-white hover:bg-brand-600'
+                )}
+              >
+                {locked
+                  ? `🔒 Connect ${cap.integrationType} first`
+                  : installing === cap.id
+                    ? 'Installing...'
+                    : cap.price === 0 || !cap.price ? '⚡ Install Free' : `Install · $${cap.price}`}
+              </button>
             )}
           </div>
         </div>
@@ -438,10 +537,154 @@ export function CapabilitiesMarketplace() {
     );
   };
 
+  /* ── Create View ─────────────────────────────────────────── */
+  const CreateView = () => (
+    <div className="space-y-4 max-w-2xl">
+      <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-5">
+        <h3 className="text-sm font-semibold text-white/80 mb-4">🎯 Create Custom Capability</h3>
+        <p className="text-xs text-white/40 mb-4">Build a skill pack that extends what Divi can do. It will be added to the marketplace and auto-installed for you.</p>
+
+        <div className="space-y-3">
+          <div className="grid grid-cols-[auto_1fr] gap-3">
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">Icon</label>
+              <input
+                type="text"
+                value={createForm.icon}
+                onChange={e => setCreateForm(p => ({ ...p, icon: e.target.value }))}
+                className="w-12 bg-white/5 border border-white/10 rounded px-2 py-1.5 text-center text-lg focus:outline-none focus:border-brand-500/50"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">Name *</label>
+              <input
+                type="text"
+                value={createForm.name}
+                onChange={e => setCreateForm(p => ({ ...p, name: e.target.value }))}
+                placeholder="e.g. Weekly Report Generator"
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-white/50 mb-1">Description *</label>
+            <textarea
+              value={createForm.description}
+              onChange={e => setCreateForm(p => ({ ...p, description: e.target.value }))}
+              placeholder="What does this capability do?"
+              rows={2}
+              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50 resize-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">Category</label>
+              <select
+                value={createForm.category}
+                onChange={e => setCreateForm(p => ({ ...p, category: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/70 focus:outline-none"
+              >
+                {CATEGORIES.filter(c => c.value !== 'all').map(c => (
+                  <option key={c.value} value={c.value}>{c.icon} {c.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">Integration Type</label>
+              <select
+                value={createForm.integrationType}
+                onChange={e => setCreateForm(p => ({ ...p, integrationType: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/70 focus:outline-none"
+              >
+                {INTEGRATION_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              {createForm.integrationType && createForm.integrationType !== 'generic' && (
+                <p className="text-[10px] text-amber-400/60 mt-1">🔒 Users will need {createForm.integrationType} connected to install</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] text-white/50 mb-1">Pricing</label>
+              <select
+                value={createForm.pricingModel}
+                onChange={e => setCreateForm(p => ({ ...p, pricingModel: e.target.value }))}
+                className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/70 focus:outline-none"
+              >
+                <option value="free">Free</option>
+                <option value="one_time">One-Time Purchase</option>
+              </select>
+            </div>
+            {createForm.pricingModel === 'one_time' && (
+              <div>
+                <label className="block text-[11px] text-white/50 mb-1">Price ($)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={createForm.price}
+                  onChange={e => setCreateForm(p => ({ ...p, price: parseFloat(e.target.value) || 0 }))}
+                  className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 focus:outline-none focus:border-brand-500/50"
+                />
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-white/50 mb-1">Tags <span className="text-white/25">(comma-separated)</span></label>
+            <input
+              type="text"
+              value={createForm.tags}
+              onChange={e => setCreateForm(p => ({ ...p, tags: e.target.value }))}
+              placeholder="e.g. reporting, analytics, weekly"
+              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-white/50 mb-1">
+              Prompt * <span className="text-white/25">(‘{'{'}{'{'}<span>fieldName</span>{'}'}{'}'}’ syntax for editable placeholders)</span>
+            </label>
+            <textarea
+              value={createForm.prompt}
+              onChange={e => setCreateForm(p => ({ ...p, prompt: e.target.value }))}
+              placeholder={`You are a reporting assistant for {{companyName}}.\nEvery {{frequency}}, compile a summary of...`}
+              rows={6}
+              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-white/50 mb-1">
+              Editable Fields <span className="text-white/25">(JSON array)</span>
+            </label>
+            <textarea
+              value={createForm.editableFields}
+              onChange={e => setCreateForm(p => ({ ...p, editableFields: e.target.value }))}
+              placeholder='[{"key":"companyName","label":"Company Name","type":"text","placeholder":"Acme Corp"}]'
+              rows={3}
+              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+            />
+          </div>
+
+          <button
+            onClick={handleCreate}
+            disabled={creating || !createForm.name || !createForm.description || !createForm.prompt}
+            className="w-full py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-600 transition-colors disabled:opacity-50"
+          >{creating ? 'Creating...' : '⚡ Create & Install'}</button>
+        </div>
+      </div>
+    </div>
+  );
+
   /* ── Main Render ─────────────────────────────────────────── */
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
       <div className="p-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -451,22 +694,19 @@ export function CapabilitiesMarketplace() {
           <div className="flex bg-white/[0.04] rounded-lg border border-white/[0.08] p-0.5">
             <button
               onClick={() => setView('browse')}
-              className={cn(
-                'text-xs px-3 py-1.5 rounded-md transition-colors',
-                view === 'browse' ? 'bg-brand-500/20 text-brand-400' : 'text-white/40 hover:text-white/60'
-              )}
+              className={cn('text-xs px-3 py-1.5 rounded-md transition-colors', view === 'browse' ? 'bg-brand-500/20 text-brand-400' : 'text-white/40 hover:text-white/60')}
             >Browse</button>
             <button
               onClick={() => setView('installed')}
-              className={cn(
-                'text-xs px-3 py-1.5 rounded-md transition-colors',
-                view === 'installed' ? 'bg-brand-500/20 text-brand-400' : 'text-white/40 hover:text-white/60'
-              )}
-            >My Capabilities</button>
+              className={cn('text-xs px-3 py-1.5 rounded-md transition-colors', view === 'installed' ? 'bg-brand-500/20 text-brand-400' : 'text-white/40 hover:text-white/60')}
+            >Installed</button>
+            <button
+              onClick={() => setView('create')}
+              className={cn('text-xs px-3 py-1.5 rounded-md transition-colors', view === 'create' ? 'bg-brand-500/20 text-brand-400' : 'text-white/40 hover:text-white/60')}
+            >+ Create</button>
           </div>
         </div>
 
-        {/* Filters (browse only) */}
         {view === 'browse' && (
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -491,9 +731,10 @@ export function CapabilitiesMarketplace() {
         )}
       </div>
 
-      {/* Content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {loading ? (
+        {view === 'create' ? (
+          <CreateView />
+        ) : loading ? (
           <div className="text-center py-12 text-white/30 text-sm">Loading capabilities...</div>
         ) : capabilities.length === 0 ? (
           <div className="text-center py-12">
@@ -503,14 +744,20 @@ export function CapabilitiesMarketplace() {
             </div>
             <div className="text-white/25 text-xs mt-1">
               {view === 'installed'
-                ? 'Browse the marketplace and install capabilities to extend Divi'
+                ? 'Browse the marketplace or create a custom capability'
                 : 'Try adjusting your search or category filter'}
             </div>
             {view === 'installed' && (
-              <button
-                onClick={() => setView('browse')}
-                className="mt-3 text-xs px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 border border-brand-500/30 transition-colors"
-              >Browse Capabilities</button>
+              <div className="flex gap-2 justify-center mt-3">
+                <button
+                  onClick={() => setView('browse')}
+                  className="text-xs px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 border border-brand-500/30 transition-colors"
+                >Browse Capabilities</button>
+                <button
+                  onClick={() => setView('create')}
+                  className="text-xs px-4 py-2 rounded-lg bg-white/5 text-white/50 hover:bg-white/10 border border-white/10 transition-colors"
+                >+ Create Custom</button>
+              </div>
             )}
           </div>
         ) : view === 'browse' ? (
@@ -524,7 +771,6 @@ export function CapabilitiesMarketplace() {
         )}
       </div>
 
-      {/* Detail Modal */}
       {selected && <DetailModal cap={selected} />}
     </div>
   );

@@ -40,6 +40,7 @@ export default function InstancesTab({ token }: { token: string }) {
   const [filter, setFilter] = useState<'all' | 'active' | 'trusted' | 'linked'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [resetKeyInput, setResetKeyInput] = useState<{ id: string; key: string } | null>(null);
 
   const fetchInstances = useCallback(async () => {
     try {
@@ -64,6 +65,23 @@ export default function InstancesTab({ token }: { token: string }) {
       await fetchInstances();
     } catch (err) {
       console.error('Toggle failed:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const resetApiKey = async (id: string, newKey: string) => {
+    if (!newKey.trim()) return;
+    setActionLoading(id);
+    try {
+      await adminFetch('/api/admin/instances', {
+        method: 'PATCH',
+        body: JSON.stringify({ id, apiKey: newKey.trim() }),
+      });
+      setResetKeyInput(null);
+      await fetchInstances();
+    } catch (err) {
+      console.error('Reset API key failed:', err);
     } finally {
       setActionLoading(null);
     }
@@ -199,6 +217,33 @@ export default function InstancesTab({ token }: { token: string }) {
                   >
                     {inst.isActive ? 'Deactivate' : 'Activate'}
                   </button>
+                  {/* Reset API Key */}
+                  {resetKeyInput?.id === inst.id ? (
+                    <div className="flex gap-1 items-center">
+                      <input
+                        type="text"
+                        value={resetKeyInput.key}
+                        onChange={e => setResetKeyInput({ id: inst.id, key: e.target.value })}
+                        placeholder="New API key..."
+                        className="px-2 py-1 text-[10px] bg-white/5 border border-white/10 rounded text-white/80 w-36"
+                      />
+                      <button
+                        onClick={() => resetApiKey(inst.id, resetKeyInput.key)}
+                        disabled={actionLoading === inst.id}
+                        className="px-2 py-1 text-[10px] font-medium bg-amber-500/20 text-amber-400 rounded hover:bg-amber-500/30"
+                      >Set</button>
+                      <button
+                        onClick={() => setResetKeyInput(null)}
+                        className="px-2 py-1 text-[10px] font-medium bg-white/[0.04] text-white/40 rounded"
+                      >✕</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setResetKeyInput({ id: inst.id, key: '' })}
+                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-white/[0.04] text-amber-400/60 hover:bg-amber-400/10 hover:text-amber-400 transition-colors"
+                      title="Reset API key for re-registration"
+                    >🔑</button>
+                  )}
                   {deleteConfirm === inst.id ? (
                     <div className="flex gap-1">
                       <button

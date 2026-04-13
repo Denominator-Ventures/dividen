@@ -17,8 +17,13 @@ import { prisma } from '@/lib/prisma';
  */
 export async function GET(req: NextRequest) {
   try {
-    // Get instance configuration
-    const fedConfig = await prisma.federationConfig.findFirst();
+    // Get instance configuration — graceful fallback if table is empty
+    let fedConfig: any = null;
+    try {
+      fedConfig = await prisma.federationConfig.findFirst();
+    } catch (e) {
+      console.warn('federationConfig table not found or empty, using defaults');
+    }
     const instanceName = fedConfig?.instanceName || 'DiviDen';
     
     // Derive the instance URL from request headers (works in all environments)

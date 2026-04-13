@@ -142,7 +142,7 @@ export async function PATCH(req: NextRequest) {
     // Only allow safe fields
     const allowed: Record<string, boolean> = {
       isActive: true, isTrusted: true, marketplaceEnabled: true,
-      discoveryEnabled: true, updatesEnabled: true,
+      discoveryEnabled: true, updatesEnabled: true, apiKey: true, name: true,
     };
     const safeUpdates: Record<string, any> = {};
     for (const [k, v] of Object.entries(updates)) {

@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
     ];
   }
 
-  const [capabilities, userInstalled] = await Promise.all([
+  const [capabilities, userInstalled, userWebhooks, userBuiltins, userServiceKeys] = await Promise.all([
     prisma.marketplaceCapability.findMany({
       where,
       orderBy: [{ featured: 'desc' }, { totalPurchases: 'desc' }],
@@ -80,6 +80,7 @@ export async function GET(req: NextRequest) {
         pricingModel: true, price: true, editableFields: true,
         status: true, featured: true, totalPurchases: true,
         avgRating: true, totalRatings: true,
+        isSystemSeed: true,
         // NOTE: prompt is NOT included — hidden until purchased
       },
     }),
@@ -87,15 +88,43 @@ export async function GET(req: NextRequest) {
       where: { userId, status: 'active' },
       select: { capabilityId: true },
     }),
+    prisma.webhook.findMany({
+      where: { userId, isActive: true },
+      select: { type: true },
+    }),
+    prisma.agentCapability.findMany({
+      where: { userId, status: 'enabled' },
+      select: { type: true },
+    }),
+    prisma.serviceApiKey.findMany({
+      where: { userId },
+      select: { service: true },
+    }),
   ]);
+
+  // Build set of connected integration types
+  const connectedIntegrations = new Set<string>();
+  for (const w of userWebhooks) connectedIntegrations.add(w.type);
+  for (const b of userBuiltins) {
+    connectedIntegrations.add(b.type);
+    if (b.type === 'meetings') connectedIntegrations.add('calendar');
+  }
+  for (const s of userServiceKeys) connectedIntegrations.add(s.service.toLowerCase());
 
   const installedIds = new Set(userInstalled.map(uc => uc.capabilityId));
 
   return NextResponse.json({
-    capabilities: capabilities.map(c => ({
-      ...c,
-      installed: installedIds.has(c.id),
-    })),
+    capabilities: capabilities.map(c => {
+      const needsIntegration = c.integrationType && c.integrationType !== 'generic';
+      const hasIntegration = needsIntegration
+        ? connectedIntegrations.has(c.integrationType!) || connectedIntegrations.has(c.integrationType === 'calendar' ? 'meetings' : c.integrationType!)
+        : true;
+      return {
+        ...c,
+        installed: installedIds.has(c.id),
+        integrationConnected: hasIntegration,
+      };
+    }),
   });
 }
 
@@ -105,14 +134,100 @@ export async function POST(req: NextRequest) {
 
   const userId = (session.user as any).id;
   const body = await req.json();
-  const { capabilityId } = body;
 
+  // ── Branch: Create a custom capability ───────────────────────────────────
+  if (body.action === 'create') {
+    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields } = body;
+    if (!name || !description || !prompt) {
+      return NextResponse.json({ error: 'name, description, and prompt are required' }, { status: 400 });
+    }
+    // Enforce pricing
+    if (pricingModel && !['free', 'one_time'].includes(pricingModel)) {
+      return NextResponse.json({ error: 'pricingModel must be "free" or "one_time"' }, { status: 400 });
+    }
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    // Check slug uniqueness
+    const existingSlug = await prisma.marketplaceCapability.findUnique({ where: { slug } });
+    const finalSlug = existingSlug ? `${slug}-${Date.now().toString(36)}` : slug;
+
+    const capability = await prisma.marketplaceCapability.create({
+      data: {
+        name,
+        slug: finalSlug,
+        description,
+        icon: icon || '⚡',
+        category: category || 'custom',
+        tags: tags || null,
+        integrationType: integrationType || null,
+        pricingModel: pricingModel || 'free',
+        price: pricingModel === 'one_time' ? (price || 0) : 0,
+        prompt,
+        editableFields: editableFields || '[]',
+        status: 'active',
+        isSystemSeed: false,
+      },
+    });
+
+    // Auto-install for the creator
+    const userCap = await prisma.userCapability.create({
+      data: {
+        userId,
+        capabilityId: capability.id,
+        status: 'active',
+        resolvedPrompt: prompt,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      capability: { id: capability.id, name: capability.name, slug: capability.slug },
+      userCapability: { id: userCap.id },
+    }, { status: 201 });
+  }
+
+  // ── Branch: Install an existing capability ──────────────────────────────
+  const { capabilityId } = body;
   if (!capabilityId) return NextResponse.json({ error: 'capabilityId is required' }, { status: 400 });
 
   // Check capability exists
   const capability = await prisma.marketplaceCapability.findUnique({ where: { id: capabilityId } });
   if (!capability || capability.status !== 'active') {
     return NextResponse.json({ error: 'Capability not found or unavailable' }, { status: 404 });
+  }
+
+  // Enforce pricing: only free or one_time
+  if (capability.pricingModel === 'subscription') {
+    return NextResponse.json({ error: 'Subscription pricing is not supported. Capabilities must be free or one-time purchase.' }, { status: 400 });
+  }
+
+  // Integration gating: if capability requires a specific integration, verify user has it connected
+  if (capability.integrationType && capability.integrationType !== 'generic') {
+    const intType = capability.integrationType; // "email" | "calendar" | "slack" | "crm" | "payments" | "transcript"
+    
+    // Check webhooks matching the integration type
+    const hasWebhook = await prisma.webhook.findFirst({
+      where: { userId, type: intType, isActive: true },
+    });
+    
+    // Check built-in agent capabilities (email, meetings map to calendar)
+    const capType = intType === 'calendar' ? 'meetings' : intType;
+    const hasBuiltin = await prisma.agentCapability.findFirst({
+      where: { userId, type: capType, status: 'enabled' },
+    });
+    
+    // Check service API keys for integration types like "slack", "crm"
+    const hasServiceKey = await prisma.serviceApiKey.findFirst({
+      where: { userId, service: { contains: intType, mode: 'insensitive' } },
+    });
+    
+    if (!hasWebhook && !hasBuiltin && !hasServiceKey) {
+      const integrationLabel = intType.charAt(0).toUpperCase() + intType.slice(1);
+      return NextResponse.json({
+        error: `This capability requires an active ${integrationLabel} integration. Connect ${integrationLabel} in Settings → Integrations first.`,
+        code: 'INTEGRATION_REQUIRED',
+        requiredIntegration: intType,
+      }, { status: 422 });
+    }
   }
 
   // Check if already installed
