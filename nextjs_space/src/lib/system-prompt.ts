@@ -127,7 +127,15 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
 
   // Force-include setup group during active onboarding (so Divi always has context)
-  if ((userSettings?.onboardingPhase ?? 0) < 6) {
+  // But only if user hasn't already been using the app (has queue items, cards, etc.)
+  const userPhase = userSettings?.onboardingPhase ?? 0;
+  if (userPhase > 0 && userPhase < 6) {
+    // Check if user has real data — if so, they've moved past onboarding even if phase is stuck
+    const hasRealActivity = await prisma.queueItem.count({ where: { userId } }).then(c => c > 0).catch(() => false);
+    if (!hasRealActivity) {
+      relevantGroups.add('setup');
+    }
+  } else if (userPhase === 0) {
     relevantGroups.add('setup');
   }
 
@@ -439,8 +447,9 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   const group9 = relevantGroups.has('extensions') ? await layer19_agentExtensions(userId) : '';
 
   // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
-  const onboardingPhase = userSettings?.onboardingPhase ?? 0;
-  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length, onboardingPhase) : '';
+  // Pass phase 6 (complete) if user has real data but stuck phase, to suppress onboarding block
+  const effectivePhase = (userPhase > 0 && userPhase < 6 && !relevantGroups.has('setup')) ? 6 : (userSettings?.onboardingPhase ?? 0);
+  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length, effectivePhase) : '';
 
   // ── Group 11: Business Operations (Tasks, Agreements, Marketplace, Recordings, Reputation) ──
   const group11 = relevantGroups.has('business') ? await buildBusinessOperationsLayer(userId) : '';

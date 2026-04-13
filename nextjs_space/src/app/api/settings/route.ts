@@ -150,10 +150,13 @@ export async function PUT(request: NextRequest) {
   }
 
   // Update onboarding status
-  if (typeof body.hasCompletedOnboarding === 'boolean') {
+  if (typeof body.hasCompletedOnboarding === 'boolean' || typeof body.onboardingPhase === 'number') {
+    const onboardingData: any = {};
+    if (typeof body.hasCompletedOnboarding === 'boolean') onboardingData.hasCompletedOnboarding = body.hasCompletedOnboarding;
+    if (typeof body.onboardingPhase === 'number') onboardingData.onboardingPhase = body.onboardingPhase;
     await prisma.user.update({
       where: { id: userId },
-      data: { hasCompletedOnboarding: body.hasCompletedOnboarding },
+      data: onboardingData,
     });
   }
 

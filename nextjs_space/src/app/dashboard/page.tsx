@@ -211,19 +211,52 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
-      .then((d) => {
+      .then(async (d) => {
         if (d.success) {
           setMode(d.data.user.mode);
           setUserName(d.data.user.name || undefined);
           const userPhase = d.data.user.onboardingPhase || 0;
-          setOnboardingPhase(userPhase);
+          const hasCompleted = d.data.user.hasCompletedOnboarding;
 
-          if (!d.data.user.hasSeenWalkthrough || (!d.data.user.hasCompletedOnboarding && userPhase === 0)) {
-            // New user — show the welcome popup
+          // ── Detect stuck onboarding: user already completed or has real data ──
+          // If hasCompletedOnboarding is true but phase < 6, fix the phase silently
+          if (hasCompleted && userPhase < 6) {
+            setOnboardingPhase(6);
+            // Fire-and-forget DB fix
+            fetch('/api/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ onboardingPhase: 6 }),
+            }).catch(() => {});
+          } else if (!hasCompleted && userPhase > 0 && userPhase < 6) {
+            // Check if user has real data — if so, auto-complete onboarding
+            try {
+              const qRes = await fetch('/api/queue');
+              const qData = await qRes.json();
+              const hasRealData = qData.success && qData.data && qData.data.length > 0;
+              if (hasRealData) {
+                // User has queue items — they've been using the app, skip onboarding
+                setOnboardingPhase(6);
+                fetch('/api/settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ hasCompletedOnboarding: true, onboardingPhase: 6 }),
+                }).catch(() => {});
+              } else {
+                setOnboardingPhase(userPhase);
+                // Phases 1-5 with no data: resume chat-based onboarding
+                setTimeout(() => resumeOnboarding(userPhase), 500);
+              }
+            } catch {
+              // On network error, don't block the app — assume complete
+              setOnboardingPhase(6);
+            }
+          } else if (!d.data.user.hasSeenWalkthrough || (!hasCompleted && userPhase === 0)) {
+            // Brand new user — show the welcome popup
+            setOnboardingPhase(userPhase);
             setTimeout(() => setShowWelcome(true), 400);
-          } else if (userPhase > 0 && userPhase < 6) {
-            // Phases 1-5: resume chat-based onboarding
-            setTimeout(() => resumeOnboarding(userPhase), 500);
+          } else {
+            setOnboardingPhase(userPhase);
           }
           setSettingsLoaded(true);
         }
@@ -467,13 +500,13 @@ export default function DashboardPage() {
           {/* ── Desktop: 3-column layout ── */}
           <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
             <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} onboardingPhase={onboardingPhase} />
+              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} />
             </div>
             <div className="flex-1 min-w-0" data-walkthrough="center-panel">
               <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
             </div>
             <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-              <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} onboardingPhase={onboardingPhase} />
+              <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
             </div>
           </div>
 
@@ -483,7 +516,7 @@ export default function DashboardPage() {
             <div className="flex-1 min-h-0 p-1 flex flex-col">
               {mobilePanel === 'now' && (
                 <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} onboardingPhase={onboardingPhase} />
+                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
                 </div>
               )}
               {mobilePanel === 'center' && (
@@ -493,7 +526,7 @@ export default function DashboardPage() {
               )}
               {mobilePanel === 'queue' && (
                 <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                  <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} onboardingPhase={onboardingPhase} />
+                  <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
                 </div>
               )}
             </div>
