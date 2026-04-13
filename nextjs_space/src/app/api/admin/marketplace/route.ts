@@ -100,18 +100,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'name, slug, and description are required' }, { status: 400 });
     }
 
-    // Determine developer attribution
+    // Determine developer attribution — developer relation is required
     let developerName = 'DiviDen';
     let developerUrl: string | null = 'https://dividen.ai';
-    let listedById: string | undefined;
+    let developerId: string;
 
     if (publishAsUserId) {
       const targetUser = await prisma.user.findUnique({ where: { id: publishAsUserId } });
       if (targetUser) {
         developerName = targetUser.name || targetUser.email;
         developerUrl = null;
-        listedById = targetUser.id;
+        developerId = targetUser.id;
+      } else {
+        return NextResponse.json({ error: 'Target user not found' }, { status: 400 });
       }
+    } else {
+      // Default to admin user
+      const adminUser = await prisma.user.findFirst({ where: { role: 'admin' } });
+      if (!adminUser) return NextResponse.json({ error: 'No admin user found for platform attribution' }, { status: 500 });
+      developerId = adminUser.id;
     }
 
     const agent = await prisma.marketplaceAgent.create({
@@ -122,13 +129,13 @@ export async function POST(req: NextRequest) {
         category: category || 'general',
         pricingModel: pricingModel || 'free',
         pricePerTask: pricePerTask || 0,
-        endpointUrl: endpointUrl || null,
+        endpointUrl: endpointUrl || '',
         supportsA2A: supportsA2A || false,
         supportsMCP: supportsMCP || false,
         developerName,
         developerUrl,
         status: 'active',
-        ...(listedById ? { listedBy: { connect: { id: listedById } } } : {}),
+        developer: { connect: { id: developerId } },
       },
     });
 

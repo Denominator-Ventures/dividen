@@ -1,21 +1,17 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
-async function requireAdmin() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) return null;
-  const user = await prisma.user.findUnique({ where: { id: (session.user as any).id } });
-  return user?.role === 'admin' ? user : null;
+function verifyAdmin(req: NextRequest): boolean {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return false;
+  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
 }
 
 // GET /api/admin/capabilities — list all capabilities with stats
-export async function GET() {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const capabilities = await prisma.marketplaceCapability.findMany({
     orderBy: { createdAt: 'desc' },
@@ -37,8 +33,7 @@ export async function GET() {
 
 // POST /api/admin/capabilities — create a new capability
 export async function POST(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { name, slug, description, longDescription, icon, category, prompt, pricingModel, price, editableFields, tags, integrationType, featured, publishAsUserId, skillFormat, skillBody, skillSource } = body;
@@ -50,7 +45,7 @@ export async function POST(req: NextRequest) {
   // Determine publisher
   let publisherName = 'DiviDen';
   let publisherType = 'platform';
-  let createdByUserId = admin.id;
+  let createdByUserId: string | undefined = undefined;
 
   if (publishAsUserId) {
     const targetUser = await prisma.user.findUnique({ where: { id: publishAsUserId } });
@@ -80,7 +75,7 @@ export async function POST(req: NextRequest) {
       approvalStatus: 'approved',
       publisherName,
       publisherType,
-      createdByUserId,
+      ...(createdByUserId ? { createdByUserId } : {}),
       skillFormat: skillFormat || false,
       skillBody: skillBody || null,
       skillSource: skillSource || null,
@@ -92,8 +87,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/admin/capabilities — update a capability
 export async function PATCH(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const body = await req.json();
   const { id, ...updates } = body;
@@ -111,8 +105,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/admin/capabilities — permanently remove a capability
 export async function DELETE(req: NextRequest) {
-  const admin = await requireAdmin();
-  if (!admin) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');

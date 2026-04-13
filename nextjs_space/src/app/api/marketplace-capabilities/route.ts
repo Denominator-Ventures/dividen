@@ -299,3 +299,53 @@ export async function POST(req: NextRequest) {
     },
   }, { status: 201 });
 }
+
+// PUT /api/marketplace-capabilities — Submit a user-created capability for review
+export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const userId = (session.user as any).id;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+  const body = await req.json();
+  const { name, slug, description, longDescription, icon, category, prompt, tags, integrationType, editableFields } = body;
+
+  if (!name || !slug || !description || !prompt) {
+    return NextResponse.json({ error: 'name, slug, description, and prompt are required' }, { status: 400 });
+  }
+
+  // Check slug uniqueness
+  const existing = await prisma.marketplaceCapability.findUnique({ where: { slug } });
+  if (existing) {
+    return NextResponse.json({ error: 'A capability with this slug already exists' }, { status: 409 });
+  }
+
+  const capability = await prisma.marketplaceCapability.create({
+    data: {
+      name,
+      slug,
+      description,
+      longDescription: longDescription || null,
+      icon: icon || '⚡',
+      category: category || 'custom',
+      prompt,
+      tags: tags || null,
+      integrationType: integrationType || null,
+      editableFields: editableFields || null,
+      pricingModel: 'free',
+      status: 'active',
+      approvalStatus: 'pending_review',
+      publisherName: user.name || user.email,
+      publisherType: 'user',
+      createdByUserId: userId,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    data: capability,
+    message: 'Capability submitted for review. It will be visible in the marketplace once approved.',
+  }, { status: 201 });
+}
