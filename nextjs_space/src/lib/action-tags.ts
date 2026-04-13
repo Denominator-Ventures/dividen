@@ -10,6 +10,7 @@ import { deduplicatedQueueCreate } from './queue-dedup';
 import { pushRelayStateChanged } from './webhook-push';
 import { getPlatformFeePercent } from './marketplace-config';
 import { checkQueueGate, searchMarketplaceSuggestions } from './queue-gate';
+import { optimizeTaskForAgent } from './smart-task-prompter';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,10 @@ export const SUPPORTED_TAGS = [
   'generate_meeting_notes', // generate AI meeting notes for a calendar event using Gemini
   // ── Settings Widget (Onboarding / Anytime) ──
   'show_settings_widget', // show an interactive settings widget in chat (group: working_style | triage | goals | identity | all)
+  // ── Queue Management (chat-based) ──
+  'confirm_queue_item',  // approve a pending_confirmation item → ready
+  'remove_queue_item',   // delete a queue item by id
+  'edit_queue_item',     // update title/description/priority of a queue item (triggers smart re-optimization)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -589,6 +594,45 @@ async function executeTag(
           success: true,
           data: { id: capItem.id, title: capItem.title, capabilityType: capType, action, pending_confirmation: capQueueStatus === 'pending_confirmation' },
         };
+      }
+
+      // ── Queue Management (chat-based) ───────────────────────────────
+      case 'confirm_queue_item': {
+        const qId = params.id;
+        if (!qId) return { tag: name, success: false, error: 'Missing queue item id' };
+        const qItem = await prisma.queueItem.findFirst({ where: { id: qId, userId } });
+        if (!qItem) return { tag: name, success: false, error: 'Queue item not found' };
+        if (qItem.status !== 'pending_confirmation') {
+          return { tag: name, success: false, error: `Item is already "${qItem.status}", not pending_confirmation` };
+        }
+        const confirmed = await prisma.queueItem.update({ where: { id: qId }, data: { status: 'ready' } });
+        return { tag: name, success: true, data: { id: confirmed.id, title: confirmed.title, status: 'ready' } };
+      }
+
+      case 'remove_queue_item': {
+        const rId = params.id;
+        if (!rId) return { tag: name, success: false, error: 'Missing queue item id' };
+        const rItem = await prisma.queueItem.findFirst({ where: { id: rId, userId } });
+        if (!rItem) return { tag: name, success: false, error: 'Queue item not found' };
+        await prisma.queueItem.delete({ where: { id: rId } });
+        return { tag: name, success: true, data: { id: rId, title: rItem.title, removed: true } };
+      }
+
+      case 'edit_queue_item': {
+        const eId = params.id;
+        if (!eId) return { tag: name, success: false, error: 'Missing queue item id' };
+        const eItem = await prisma.queueItem.findFirst({ where: { id: eId, userId } });
+        if (!eItem) return { tag: name, success: false, error: 'Queue item not found' };
+        const editData: any = {};
+        if (params.title !== undefined) editData.title = params.title;
+        if (params.description !== undefined) editData.description = params.description;
+        if (params.priority !== undefined) editData.priority = params.priority;
+        const updated = await prisma.queueItem.update({ where: { id: eId }, data: editData });
+
+        // Fire-and-forget: smart re-optimize the task description for the target agent type
+        optimizeTaskForAgent(updated.id, userId).catch((err: any) => console.error('[smart-prompter] optimization failed:', err));
+
+        return { tag: name, success: true, data: { id: updated.id, title: updated.title, description: updated.description, priority: updated.priority, optimizing: true } };
       }
 
       // ── Calendar & Reminders ─────────────────────────────────────────

@@ -56,17 +56,86 @@ function QueueItemCard({
   onDelete,
   onSendToComms,
   onDiscuss,
+  onEdit,
 }: {
   item: QueueItemData;
   onStatusChange: (id: string, status: QueueItemStatus) => void;
   onDelete: (id: string) => void;
   onSendToComms?: (id: string, title: string) => void;
   onDiscuss?: (context: string) => void;
+  onEdit?: (id: string, data: { title?: string; description?: string; priority?: string }) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editDesc, setEditDesc] = useState(item.description || '');
+  const [editPriority, setEditPriority] = useState(item.priority);
+  const [saving, setSaving] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
   const capMeta = parseCapabilityMeta(item.metadata);
   const isCapabilityAction = !!capMeta?.capabilityType;
   const capIcon = capMeta ? (capabilityIcons[capMeta.capabilityType || ''] || '⚡') : '';
+
+  async function handleSaveEdit() {
+    if (!onEdit) return;
+    setSaving(true);
+    const changes: any = {};
+    if (editTitle !== item.title) changes.title = editTitle;
+    if (editDesc !== (item.description || '')) changes.description = editDesc;
+    if (editPriority !== item.priority) changes.priority = editPriority;
+    if (Object.keys(changes).length === 0) { setEditing(false); setSaving(false); return; }
+    await onEdit(item.id, changes);
+    setSaving(false);
+    setEditing(false);
+    // Trigger smart optimization in background
+    setOptimizing(true);
+    fetch(`/api/queue/${item.id}/optimize`, { method: 'POST' })
+      .then(r => r.json())
+      .then(() => setOptimizing(false))
+      .catch(() => setOptimizing(false));
+  }
+
+  // If editing, show inline edit form
+  if (editing) {
+    return (
+      <div className="bg-[var(--bg-secondary)] border border-[var(--brand-primary)]/30 rounded-lg p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-[var(--brand-primary)] uppercase tracking-wider">Edit Task</span>
+          <button onClick={() => { setEditing(false); setEditTitle(item.title); setEditDesc(item.description || ''); setEditPriority(item.priority); }} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Cancel</button>
+        </div>
+        <input
+          value={editTitle}
+          onChange={e => setEditTitle(e.target.value)}
+          className="w-full text-sm bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2 py-1.5 text-[var(--text-primary)] focus:border-[var(--brand-primary)]/50 outline-none"
+          placeholder="Task title"
+        />
+        <textarea
+          value={editDesc}
+          onChange={e => setEditDesc(e.target.value)}
+          className="w-full text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2 py-1.5 text-[var(--text-secondary)] resize-none focus:border-[var(--brand-primary)]/50 outline-none"
+          rows={2}
+          placeholder="Description (optional)"
+        />
+        <div className="flex items-center gap-2">
+          <select value={editPriority} onChange={e => setEditPriority(e.target.value as CardPriority)} className="text-[11px] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2 py-1 text-[var(--text-secondary)]">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+          <div className="flex-1" />
+          <button
+            onClick={handleSaveEdit}
+            disabled={saving || !editTitle.trim()}
+            className="text-[11px] px-3 py-1 rounded-md bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] border border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/25 font-medium disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save & Optimize'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn(
@@ -83,6 +152,7 @@ function QueueItemCard({
             <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight">
               {item.title}
             </h4>
+            {optimizing && <span className="text-[9px] text-[var(--brand-primary)] animate-pulse">✨ optimizing...</span>}
           </div>
           {item.description && (
             <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-1">
@@ -185,6 +255,16 @@ function QueueItemCard({
               title="Unblock"
             >
               ↩
+            </button>
+          )}
+          {/* Edit button */}
+          {onEdit && (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-amber-600/15 text-amber-400 hover:bg-amber-600/25"
+              title="Edit task"
+            >
+              ✏️
             </button>
           )}
           {onDiscuss && (
@@ -563,6 +643,23 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
     }
   }
 
+  async function handleEdit(id: string, data: { title?: string; description?: string; priority?: string }) {
+    try {
+      const res = await fetch(`/api/queue/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...result.data } : i)));
+        emitSignal('queue_edit', { itemId: id, changes: data });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   async function handleSendToComms(id: string, title: string) {
     try {
       await fetch('/api/comms', {
@@ -762,7 +859,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                       </div>
                       <div className="space-y-2">
                         {sectionItems.map((item) => (
-                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} />
+                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} onEdit={handleEdit} />
                         ))}
                       </div>
                     </div>

@@ -905,6 +905,18 @@ People on cards have two roles:
   2. Present the marketplace suggestions that were returned
   3. Offer to help them find and install an appropriate agent or capability
   4. Use [[suggest_marketplace:{"query":"..."}]] if you need to search for more specific options
+
+  **QUEUE CONFIRMATION FLOW:** When dispatch_queue or queue_capability_action returns \`pending_confirmation: true\`, the item is waiting for operator approval. You MUST:
+  1. Tell the operator what you've proposed and why.
+  2. Say something like: "I've added this to your queue for approval — confirm it here in chat or hit the ✅ button in the queue panel when you're ready."
+  3. If the operator confirms in chat (e.g. "yes", "approve it", "go ahead", "confirm"), use [[confirm_queue_item:{"id":"<queue_item_id>"}]] to move it to ready.
+  4. If the operator wants to remove it (e.g. "remove that", "delete it", "nah forget it"), use [[remove_queue_item:{"id":"<queue_item_id>"}]] to delete it.
+  5. If the operator wants to change it (e.g. "change the title", "make it higher priority", "rephrase that"), discuss the changes, then use [[edit_queue_item:{"id":"<queue_item_id>","title":"...","description":"...","priority":"..."}]] — only include fields that changed. The system will auto-optimize the wording for the target agent.
+  6. ALWAYS include the queue item ID in your context so you can act on it later in the conversation.
+
+- [[confirm_queue_item:{"id":"<queue_item_id>"}]] — Approve a pending queue item → moves to ready.
+- [[remove_queue_item:{"id":"<queue_item_id>"}]] — Delete a queue item entirely.
+- [[edit_queue_item:{"id":"<queue_item_id>","title":"...","description":"...","priority":"..."}]] — Update a queue item. Only include changed fields. Triggers automatic smart re-optimization for the target agent type.
 - [[suggest_marketplace:{"query":"description of what the operator needs"}]] — Search marketplace for agents & capabilities matching a need. Returns inline suggestion cards.
 - [[create_calendar_event:{"title":"...","startTime":"ISO","endTime":"ISO","location":"...","attendees":["email"]}]]
 - [[set_reminder:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
@@ -1233,7 +1245,7 @@ If the action requires info you don't have or involves external services, provid
 2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
 3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
 4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
-5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]]. Note: The queue is GATED — tasks only enter the queue if the operator has an installed agent, capability, or built-in skill that can handle them. If no handler exists, the system returns marketplace suggestions. Help the operator find and install what they need.
+5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]]. The queue is GATED — tasks only enter if a handler exists. New items enter as **pending_confirmation** — the operator must approve them in chat or in the queue panel. You can also confirm ([[confirm_queue_item]]), remove ([[remove_queue_item]]), or edit ([[edit_queue_item]]) queue items directly from chat. Edits trigger automatic smart re-optimization.
 6. **Marketplace Search** — Use [[suggest_marketplace:{query}]] to find agents and capabilities for the operator.
 7. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
 
