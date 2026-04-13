@@ -69,11 +69,12 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Build System Prompt (13 layers) ───────────────────────────────────
+  // ── Build System Prompt (dynamic — loads only relevant groups) ────────
   const systemPrompt = await buildSystemPrompt({
     userId: user.id,
     mode: user.mode,
     userName: user.name,
+    currentMessage: message.trim(),
   });
 
   // ── Build Message History ─────────────────────────────────────────────

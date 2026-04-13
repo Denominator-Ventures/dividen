@@ -12,6 +12,84 @@ interface PromptContext {
   userId: string;
   mode: string;
   userName?: string | null;
+  /** Current user message — used for relevance scoring to reduce prompt size */
+  currentMessage?: string;
+}
+
+// ─── Context Relevance Engine ──────────────────────────────────────────────
+// Determines which prompt groups are needed based on message content + recent history.
+// Groups are tagged with relevance signals. Always-included groups skip this check.
+
+type PromptGroup = 'identity' | 'state' | 'conversation' | 'people' | 'memory' |
+  'schedule' | 'capabilities' | 'relay' | 'extensions' | 'setup' | 'business' | 'team' | 'active_caps';
+
+const SIGNAL_PATTERNS: Record<PromptGroup, RegExp[]> = {
+  identity:     [], // always included
+  state:        [], // always included
+  conversation: [], // always included
+  people:       [/contact|crm|person|people|who|team|profile|relationship|connection|colleague|client|partner/i],
+  memory:       [/remember|learned|pattern|preference|always|usually|last time|before/i],
+  schedule:     [/calendar|event|meeting|schedule|appointment|today|tomorrow|this week|upcoming|deadline|due/i],
+  capabilities: [/action|tag|card|create|update|task|checklist|queue|dispatch|triage|signal|merge|link|board|kanban|goal/i],
+  relay:        [/relay|ambient|broadcast|connection|send to|ask\s\w+|tell\s\w+|coordinate|delegate|route|federation/i],
+  extensions:   [/extension|skill|persona|plugin|custom/i],
+  setup:        [/setup|configure|settings|api key|webhook|integration|connect|install/i],
+  business:     [/earning|payment|agreement|contract|job|marketplace|agent|recording|integration|stripe|reputation|invoice/i],
+  team:         [/team|project\smember|collaborate|cross-member|team agent/i],
+  active_caps:  [/capability|email.*draft|meeting.*schedule|outbound|send.*email/i],
+};
+
+function scoreGroupRelevance(group: PromptGroup, message: string, recentContext: string): number {
+  // Always-on groups
+  if (group === 'identity' || group === 'state' || group === 'conversation') return 1.0;
+
+  const patterns = SIGNAL_PATTERNS[group];
+  if (!patterns || patterns.length === 0) return 1.0;
+
+  let score = 0;
+  // Check current message (high weight)
+  for (const p of patterns) {
+    if (p.test(message)) { score += 0.6; break; }
+  }
+  // Check recent context (lower weight — includes last 3 messages)
+  for (const p of patterns) {
+    if (p.test(recentContext)) { score += 0.3; break; }
+  }
+  // Baseline: every group gets a small score so it's included if nothing else matches
+  return Math.min(score + 0.05, 1.0);
+}
+
+/** Returns a set of groups that should be included in the prompt */
+function selectRelevantGroups(message: string, recentContext: string): Set<PromptGroup> {
+  const allGroups: PromptGroup[] = [
+    'identity', 'state', 'conversation', 'people', 'memory',
+    'schedule', 'capabilities', 'relay', 'extensions', 'setup',
+    'business', 'team', 'active_caps',
+  ];
+
+  const scores = allGroups.map(g => ({ group: g, score: scoreGroupRelevance(g, message, recentContext) }));
+  scores.sort((a, b) => b.score - a.score);
+
+  const selected = new Set<PromptGroup>();
+
+  // Always include core groups
+  selected.add('identity');
+  selected.add('state');
+  selected.add('conversation');
+  // Always include capabilities (action tag syntax) — needed for any response
+  selected.add('capabilities');
+
+  // Include groups with relevance score >= 0.3 (i.e., matched in message or context)
+  for (const { group, score } of scores) {
+    if (score >= 0.3) selected.add(group);
+  }
+
+  // For first-message-in-session or short/vague messages, include all groups
+  if (message.length < 15 || /^(hi|hello|hey|sup|yo|what'?s up|good morning|gm)\b/i.test(message)) {
+    allGroups.forEach(g => selected.add(g));
+  }
+
+  return selected;
 }
 
 
@@ -25,6 +103,18 @@ interface PromptContext {
  */
 export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const userId = ctx.userId;
+  const currentMessage = ctx.currentMessage || '';
+
+  // ── Determine which groups to include based on message context ──
+  // Fetch last 3 messages for context scoring
+  const recentForScoring = await prisma.chatMessage.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: 3,
+    select: { content: true },
+  });
+  const recentContext = recentForScoring.map((m: any) => m.content).join(' ');
+  const relevantGroups = selectRelevantGroups(currentMessage, recentContext);
 
   // ── Fetch user personalization settings ──
   const userSettings = await prisma.user.findUnique({
@@ -36,7 +126,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const triageSettings = (userSettings?.triageSettings as Record<string, any> | null) || {};
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
 
-  // ── Batch 1: Pre-fetch shared data ──
+  // ── Batch 1: Pre-fetch shared data (always needed) ──
   const [
     kanbanCards,
     recentMessages,
@@ -292,62 +382,74 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   }
 
   // ── Group 4: People (merged old 6 CRM + 18 profiles) ──
-  const group4 = await buildPeopleLayer(userId, contacts, connections);
+  const group4 = relevantGroups.has('people') ? await buildPeopleLayer(userId, contacts, connections) : '';
 
   // ── Group 5: Memory & Learning (merged old 7+10) ──
-  const [memorySection, learnings] = await Promise.all([
-    (async () => { const { buildMemoryContext } = await import('./memory'); return buildMemoryContext(userId); })(),
-    prisma.userLearning.findMany({ where: { userId }, orderBy: { confidence: 'desc' }, take: 20 }),
-  ]);
-  let group5 = memorySection;
-  if (learnings.length > 0) {
-    group5 += `\n\n### Learned Patterns\n`;
-    group5 += learnings.map((l: any) => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`).join('\n');
+  let group5 = '';
+  if (relevantGroups.has('memory')) {
+    const [memorySection, learnings] = await Promise.all([
+      (async () => { const { buildMemoryContext } = await import('./memory'); return buildMemoryContext(userId); })(),
+      prisma.userLearning.findMany({ where: { userId }, orderBy: { confidence: 'desc' }, take: 20 }),
+    ]);
+    group5 = memorySection;
+    if (learnings.length > 0) {
+      group5 += `\n\n### Learned Patterns\n`;
+      group5 += learnings.map((l: any) => `- [${l.category}] ${l.observation} (confidence: ${l.confidence})`).join('\n');
+    }
   }
 
   // ── Group 6: Calendar & Inbox (merged old 12+13) ──
-  const nextWeek = new Date(now); nextWeek.setDate(nextWeek.getDate() + 7);
-  const events = await prisma.calendarEvent.findMany({
-    where: { userId, startTime: { gte: now, lte: nextWeek } },
-    orderBy: { startTime: 'asc' },
-    take: 15,
-  });
-  let group6 = '## Schedule & Inbox\n';
-  if (events.length > 0) {
-    group6 += `### Calendar (next 7 days — ${events.length} events)\n`;
-    group6 += events.map((e: any) => {
-      const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-      const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      return `- ${day} ${time}: "${e.title}"${e.location ? ` @ ${e.location}` : ''}`;
-    }).join('\n') + '\n';
-  } else {
-    group6 += 'No upcoming events.\n';
-  }
-  if (unreadEmails.length > 0) {
-    group6 += `\n### Inbox (${unreadEmails.length} unread)\n`;
-    group6 += unreadEmails.map((e: any) => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n');
+  let group6 = '';
+  if (relevantGroups.has('schedule')) {
+    const nextWeek = new Date(now); nextWeek.setDate(nextWeek.getDate() + 7);
+    const events = await prisma.calendarEvent.findMany({
+      where: { userId, startTime: { gte: now, lte: nextWeek } },
+      orderBy: { startTime: 'asc' },
+      take: 15,
+    });
+    group6 = '## Schedule & Inbox\n';
+    if (events.length > 0) {
+      group6 += `### Calendar (next 7 days — ${events.length} events)\n`;
+      group6 += events.map((e: any) => {
+        const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+        const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        return `- ${day} ${time}: "${e.title}"${e.location ? ` @ ${e.location}` : ''}`;
+      }).join('\n') + '\n';
+    } else {
+      group6 += 'No upcoming events.\n';
+    }
+    if (unreadEmails.length > 0) {
+      group6 += `\n### Inbox (${unreadEmails.length} unread)\n`;
+      group6 += unreadEmails.map((e: any) => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n');
+    }
   }
 
-  // ── Group 7: Capabilities & Action Tags (merged old 14+15) ──
+  // ── Group 7: Capabilities & Action Tags (merged old 14+15) — always included ──
   const group7 = buildCapabilitiesAndSyntax(diviName, triageSettings);
 
   // ── Group 8: Connections & Relay (old 17, kept as-is — it's the core protocol) ──
-  const group8 = await layer17_connectionsRelay_optimized(userId, connections);
+  const group8 = relevantGroups.has('relay') ? await layer17_connectionsRelay_optimized(userId, connections) : '';
 
   // ── Group 9: Extensions (conditional — skip if none) ──
-  const group9 = await layer19_agentExtensions(userId);
+  const group9 = relevantGroups.has('extensions') ? await layer19_agentExtensions(userId) : '';
 
   // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
-  const group10 = await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length);
+  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length) : '';
 
   // ── Group 11: Business Operations (Tasks, Agreements, Marketplace, Recordings, Reputation) ──
-  const group11 = await buildBusinessOperationsLayer(userId);
+  const group11 = relevantGroups.has('business') ? await buildBusinessOperationsLayer(userId) : '';
 
   // ── Group 12: Team Agent Context (conditional — only if user is in teams with agents enabled) ──
-  const group12 = await buildTeamAgentContext(userId);
+  const group12 = relevantGroups.has('team') ? await buildTeamAgentContext(userId) : '';
 
   // ── Group 13: Active Capabilities (conditional — only if capabilities configured) ──
-  const group13 = await buildActiveCapabilitiesContext(userId);
+  const group13 = relevantGroups.has('active_caps') ? await buildActiveCapabilitiesContext(userId) : '';
+
+  // ── Dynamic context indicator — tell the LLM which layers are loaded ──
+  const loadedGroups = Array.from(relevantGroups).join(', ');
+  const contextNote = relevantGroups.size < 13
+    ? `\n\n> **Dynamic context**: Loaded ${relevantGroups.size}/13 groups based on message relevance (${loadedGroups}). If you need data from an unloaded group (people, schedule, business, etc.), ask the operator to clarify and I'll load it next turn.`
+    : '';
 
   // ── Assemble ──
   const layers = [
@@ -366,7 +468,7 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
     group13,  // Active Capabilities (conditional)
   ].filter(Boolean);
 
-  return layers.join('\n\n---\n\n');
+  return layers.join('\n\n---\n\n') + contextNote;
 }
 
 // ─── Business Operations Layer (Tasks, Agreements, Marketplace, Recordings, Reputation, Integrations) ──
@@ -531,6 +633,11 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
           text += `- ${i.service} (${i.identity})${i.label ? ` — "${i.label}"` : ''}${i.lastSyncAt ? ` | last sync: ${new Date(i.lastSyncAt as any).toISOString().split('T')[0]}` : ' | not synced yet'}\n`;
         }
         text += `\nYou can trigger syncs with [[sync_signal:{"service":"email|calendar|drive|all"}]]. Use this when the operator asks about recent emails, upcoming meetings, or shared files.\n`;
+        // Gemini meeting notes capability
+        const hasCalendar = googleIntegrations.some((i: any) => i.service === 'calendar');
+        if (hasCalendar && process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'REPLACE_WITH_YOUR_GEMINI_API_KEY') {
+          text += `\n**📝 Gemini Meeting Notes**: The operator has Gemini API configured. After calendar events with recordings, you can generate AI meeting notes using [[generate_meeting_notes:{"eventId":"...","recordingId":"optional"}]]. This creates structured notes with key decisions, action items, and follow-ups. Proactively suggest this after meetings end or when the operator mentions needing meeting notes.\n`;
+        }
       }
       if (smtpIntegrations.length > 0) {
         text += `**SMTP/IMAP:**\n`;

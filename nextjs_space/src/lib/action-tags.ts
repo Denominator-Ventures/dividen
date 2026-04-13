@@ -85,6 +85,8 @@ export const SUPPORTED_TAGS = [
   'merge_cards',       // merge two project cards into one (combines tasks, contacts, artifacts)
   // ── Integration Sync ──
   'sync_signal',       // trigger a sync for a connected service (email, calendar, drive, or all)
+  // ── Meeting Notes (Gemini) ──
+  'generate_meeting_notes', // generate AI meeting notes for a calendar event using Gemini
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -2360,6 +2362,29 @@ async function executeTag(
           data: { lastSyncAt: new Date() },
         });
         return { tag: name, success: true, data: { service: syncService, synced } };
+      }
+
+      case 'generate_meeting_notes': {
+        // params: { eventId, recordingId? }
+        if (!params.eventId) {
+          return { tag: name, success: false, error: 'eventId is required.' };
+        }
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'REPLACE_WITH_YOUR_GEMINI_API_KEY') {
+          return { tag: name, success: false, error: 'GEMINI_API_KEY is not configured. The operator needs to add their Gemini API key.' };
+        }
+        const { generateAndSaveMeetingNotes } = await import('@/lib/gemini-meeting-notes');
+        const result = await generateAndSaveMeetingNotes(userId, params.eventId, params.recordingId);
+        return {
+          tag: name,
+          success: true,
+          data: {
+            documentId: result.documentId,
+            summary: result.notes.summary,
+            actionItems: result.notes.actionItems,
+            topics: result.notes.topics,
+            sentiment: result.notes.sentiment,
+          },
+        };
       }
 
       default:

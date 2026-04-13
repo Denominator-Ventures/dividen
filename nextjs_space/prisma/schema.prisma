@@ -1142,6 +1142,7 @@ model UserProfile {
   allowAmbientInbound Boolean  @default(true)        // Can other agents send ambient relays to this user's Divi?
   allowAmbientOutbound Boolean @default(true)        // Can this user's Divi send ambient relays to others?
   allowBroadcasts     Boolean  @default(true)        // Can this user receive broadcast relays?
+  allowAmbientSurveys Boolean  @default(true)        // Participate in AmbientSurveys (requires allowBroadcasts=true to function)
   autoRespondAmbient  Boolean  @default(false)       // Should Divi auto-respond to ambient relays without surfacing to user?
   relayQuietHours     String?  // JSON: {start:"22:00",end:"08:00",timezone:"America/Chicago"} — suppress non-urgent relays
   relayTopicFilters   String?  // JSON array of topics to opt out of: ["sales","recruiting"]

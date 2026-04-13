@@ -52,6 +52,7 @@ function serializeProfile(p: any) {
     allowAmbientInbound: p.allowAmbientInbound ?? true,
     allowAmbientOutbound: p.allowAmbientOutbound ?? true,
     allowBroadcasts: p.allowBroadcasts ?? true,
+    allowAmbientSurveys: p.allowAmbientSurveys ?? true,
     autoRespondAmbient: p.autoRespondAmbient ?? false,
     relayQuietHours: parseJsonField(p.relayQuietHours, null),
     relayTopicFilters: parseJsonField(p.relayTopicFilters, []),
@@ -120,7 +121,7 @@ export async function PUT(request: NextRequest) {
   const numericFields = ['minCompensationAmount'];
   // Boolean fields
   const booleanFields = [
-    'allowAmbientInbound', 'allowAmbientOutbound', 'allowBroadcasts',
+    'allowAmbientInbound', 'allowAmbientOutbound', 'allowBroadcasts', 'allowAmbientSurveys',
     'autoRespondAmbient', 'showBriefOnRelay',
     'acceptVolunteerWork', 'acceptProjectInvites',
   ];

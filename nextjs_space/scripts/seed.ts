@@ -568,6 +568,178 @@ When content work is requested:
   }
   console.log(`Seeded ${agentSkills.length} Agent Skills capabilities.`);
 
+  // ── Seed AmbientSurveys Marketplace Agent ──────────────────────────────────
+  console.log('Seeding AmbientSurveys marketplace agent...');
+
+  const adminUser = await prisma.user.findUnique({ where: { email: 'admin@dividen.ai' } });
+  if (adminUser) {
+    await prisma.marketplaceAgent.upsert({
+      where: { slug: 'ambient-surveys' },
+      update: {
+        name: 'AmbientSurveys',
+        description: 'Survey random users on the platform about anything via ambient relays. Ambient questions are woven naturally into conversations — no interruptions, no survey fatigue. Get real signal from real operators.',
+        longDescription: `# AmbientSurveys — Ambient Intelligence for Market Research
+
+AmbientSurveys leverages DiviDen's ambient relay protocol to conduct lightweight, non-intrusive surveys across the platform. Instead of blasting people with survey links, your Divi agent sends ambient questions to other users' agents, who weave them naturally into conversation.
+
+## How It Works
+1. **You define the question(s)** — what you want to learn, from how many people
+2. **AmbientSurveys distributes** — sends ambient relays to eligible, opted-in users on the platform
+3. **Recipients' agents weave naturally** — the question surfaces during relevant conversation, not as an interruption
+4. **Responses aggregate** — you get anonymized, real responses from actual operators
+5. **Insights delivered** — summary analysis with sentiment, themes, and key quotes
+
+## Why Ambient > Traditional Surveys
+- **No survey fatigue** — questions feel like natural conversation, not homework
+- **Higher quality responses** — people answer thoughtfully when it fits the flow
+- **Real operators** — not random internet panelists, but actual DiviDen users running businesses
+- **Privacy-first** — responses are anonymized; participation is opt-in with a toggle
+
+## Pricing
+$5 per person surveyed. You define the sample size, we handle distribution and collection.
+
+## Participation
+Users can opt in/out of AmbientSurveys via Settings → Relay → "Participate in AmbientSurveys" toggle. This toggle is ON by default but requires ambient broadcast participation to be active.`,
+        pricingModel: 'per_task',
+        pricePerTask: 5.0,
+        accessPassword: 'freeme',
+      },
+      create: {
+        slug: 'ambient-surveys',
+        name: 'AmbientSurveys',
+        description: 'Survey random users on the platform about anything via ambient relays. Ambient questions are woven naturally into conversations — no interruptions, no survey fatigue. Get real signal from real operators.',
+        longDescription: `# AmbientSurveys — Ambient Intelligence for Market Research
+
+AmbientSurveys leverages DiviDen's ambient relay protocol to conduct lightweight, non-intrusive surveys across the platform. Instead of blasting people with survey links, your Divi agent sends ambient questions to other users' agents, who weave them naturally into conversation.
+
+## How It Works
+1. **You define the question(s)** — what you want to learn, from how many people
+2. **AmbientSurveys distributes** — sends ambient relays to eligible, opted-in users on the platform
+3. **Recipients' agents weave naturally** — the question surfaces during relevant conversation, not as an interruption
+4. **Responses aggregate** — you get anonymized, real responses from actual operators
+5. **Insights delivered** — summary analysis with sentiment, themes, and key quotes
+
+## Why Ambient > Traditional Surveys
+- **No survey fatigue** — questions feel like natural conversation, not homework
+- **Higher quality responses** — people answer thoughtfully when it fits the flow
+- **Real operators** — not random internet panelists, but actual DiviDen users running businesses
+- **Privacy-first** — responses are anonymized; participation is opt-in with a toggle
+
+## Pricing
+$5 per person surveyed. You define the sample size, we handle distribution and collection.
+
+## Participation
+Users can opt in/out of AmbientSurveys via Settings → Relay → "Participate in AmbientSurveys" toggle. This toggle is ON by default but requires ambient broadcast participation to be active.`,
+        endpointUrl: 'https://dividen.ai/api/v2/agents/ambient-surveys/execute',
+        authMethod: 'bearer',
+        developerId: adminUser.id,
+        developerName: 'DiviDen',
+        developerUrl: 'https://dividen.ai',
+        category: 'research',
+        tags: JSON.stringify(['surveys', 'market-research', 'ambient', 'polling', 'feedback', 'user-research']),
+        inputFormat: 'json',
+        outputFormat: 'json',
+        samplePrompts: JSON.stringify([
+          'Survey 10 people: "What is the single biggest bottleneck in your workflow right now?"',
+          'Ask 25 operators: "How many AI tools do you use daily, and which one would you keep if you could only have one?"',
+          'Poll 15 users: "Would you pay for a curated weekly digest of insights from other operators in your industry?"',
+          'Survey 20 people: "What does your morning planning routine look like? Walk me through the first 30 minutes."',
+        ]),
+        pricingModel: 'per_task',
+        pricePerTask: 5.0,
+        pricingDetails: JSON.stringify({
+          model: 'per_task',
+          unit: 'per person surveyed',
+          description: '$5 per respondent. Define your sample size and pay only for completed responses.',
+          minimumSampleSize: 5,
+          maximumSampleSize: 500,
+        }),
+        status: 'active',
+        featured: true,
+        accessPassword: 'freeme',
+        supportsA2A: true,
+        supportsMCP: false,
+        version: '1.0.0',
+        changelog: JSON.stringify([{ version: '1.0.0', date: new Date().toISOString().split('T')[0], changes: ['Initial release — ambient survey distribution via relay protocol'] }]),
+        taskTypes: JSON.stringify(['survey', 'market-research', 'polling', 'user-research', 'feedback-collection']),
+        contextInstructions: `Before executing AmbientSurveys, prepare the following context:
+1. **Survey question(s)**: The exact question(s) to ask. Keep them concise and conversational.
+2. **Sample size**: How many people to survey (minimum 5, maximum 500).
+3. **Target audience** (optional): Any filters — industry, role, capacity status, etc.
+4. **Deadline** (optional): When responses should be collected by.
+5. **Context**: Brief background on why the survey is being run (helps agents weave more naturally).`,
+        requiredInputSchema: JSON.stringify({
+          type: 'object',
+          required: ['questions', 'sampleSize'],
+          properties: {
+            questions: { type: 'array', items: { type: 'string' }, description: 'List of survey questions to ask' },
+            sampleSize: { type: 'integer', minimum: 5, maximum: 500, description: 'Number of people to survey' },
+            targetAudience: { type: 'object', properties: { industry: { type: 'string' }, roles: { type: 'array', items: { type: 'string' } }, capacityStatus: { type: 'array', items: { type: 'string' } } } },
+            deadline: { type: 'string', format: 'date', description: 'ISO date for response deadline' },
+            context: { type: 'string', description: 'Background context for the survey' },
+            anonymize: { type: 'boolean', default: true, description: 'Whether to anonymize responses' },
+          },
+        }),
+        outputSchema: JSON.stringify({
+          type: 'object',
+          properties: {
+            surveyId: { type: 'string' },
+            status: { type: 'string', enum: ['distributing', 'collecting', 'completed', 'partial'] },
+            totalDistributed: { type: 'integer' },
+            totalResponses: { type: 'integer' },
+            responseRate: { type: 'number' },
+            responses: { type: 'array', items: { type: 'object', properties: { questionIndex: { type: 'integer' }, answer: { type: 'string' }, sentiment: { type: 'string' }, timestamp: { type: 'string' } } } },
+            analysis: { type: 'object', properties: { themes: { type: 'array', items: { type: 'string' } }, sentiment: { type: 'object' }, keyQuotes: { type: 'array', items: { type: 'string' } }, summary: { type: 'string' } } },
+          },
+        }),
+        usageExamples: JSON.stringify([
+          {
+            input: { questions: ['What is the biggest bottleneck in your workflow?'], sampleSize: 10 },
+            output: { surveyId: 'srv_abc123', status: 'completed', totalDistributed: 12, totalResponses: 10, responseRate: 0.83, analysis: { themes: ['context switching', 'email overload', 'meeting fatigue'], summary: '7/10 respondents cited communication overhead as their primary bottleneck.' } },
+            description: 'Simple single-question survey to 10 operators',
+          },
+        ]),
+        contextPreparation: JSON.stringify([
+          'Confirm the survey question is clear and conversational',
+          'Validate sample size is between 5–500',
+          'Check if target audience filters are specified',
+          'Verify the operator understands pricing ($5/person)',
+          'Set expectations on timeline (ambient surveys take 24–72h for full collection)',
+        ]),
+        executionNotes: `**Timing**: Ambient surveys typically take 24–72 hours for full collection because questions are woven naturally into conversations rather than blasted out. Set expectations with the operator.
+
+**Response rates**: Expect 60–85% response rate. Ambient questions have much higher engagement than traditional surveys because they feel natural.
+
+**Privacy**: All responses are anonymized by default. The operator never sees WHO answered, only WHAT was said.
+
+**Eligibility**: Only users with allowAmbientSurveys=true AND allowBroadcasts=true are eligible as respondents. The system handles filtering automatically.
+
+**Best practices**:
+- Keep questions conversational and open-ended for best results
+- 1–3 questions per survey works best; more than 5 drops response quality
+- Provide context so agents can weave more naturally
+- Allow at least 48h for collection on sample sizes > 20`,
+        installGuide: `## Getting Started with AmbientSurveys
+
+1. **Install** this agent from the marketplace
+2. **Define your survey**: Tell your Divi what you want to learn. Example: "Survey 15 people about their biggest productivity blocker"
+3. **Divi handles the rest**: Your agent uses AmbientSurveys to distribute questions via ambient relays
+4. **Review results**: Responses come back anonymized with sentiment analysis and theme extraction
+
+### Tips
+- Start small (5–10 people) to calibrate your questions
+- Use the free access password "freeme" to try it out at no cost
+- Questions that relate to work, tools, and operations get the highest engagement`,
+        commands: JSON.stringify([
+          { name: 'survey', description: 'Launch a new ambient survey', usage: '!ambient-surveys.survey "Your question here" --size=10' },
+          { name: 'status', description: 'Check status of an active survey', usage: '!ambient-surveys.status <surveyId>' },
+          { name: 'results', description: 'Get results and analysis for a completed survey', usage: '!ambient-surveys.results <surveyId>' },
+        ]),
+      },
+    });
+    console.log('Seeded AmbientSurveys marketplace agent.');
+  }
+
   console.log('Database seeded successfully.');
 }
 
