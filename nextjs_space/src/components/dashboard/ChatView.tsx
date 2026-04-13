@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
 import type { WidgetItem, WidgetItemAction, AgentWidgetData } from './AgentWidget';
 import { emitSignal } from '@/lib/behavior-signals';
+import { OnboardingChatWidgets } from './OnboardingChatWidgets';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -353,6 +354,44 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     }
   };
 
+  // ── Onboarding phase action handler ─────────────────────────────────
+  const handleOnboardingAction = useCallback(async (
+    action: 'submit' | 'skip' | 'google_connect',
+    phase: number,
+    data?: any
+  ) => {
+    if (action === 'google_connect') {
+      // Redirect to Google OAuth with onboarding return context
+      const identity = data?.identity || 'operator';
+      const accountIndex = data?.accountIndex ?? 0;
+      window.location.href = `/api/auth/google-connect?identity=${identity}&accountIndex=${accountIndex}&returnTo=onboarding`;
+      return;
+    }
+
+    // Submit or skip — advance to next phase
+    try {
+      const res = await fetch('/api/onboarding/advance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: action === 'skip' ? 'skip' : 'advance',
+          settings: data,
+        }),
+      });
+      const result = await res.json();
+      if (result.success && result.data?.message) {
+        // Reload messages to show the new phase message
+        const msgRes = await fetch('/api/chat/messages?limit=50');
+        const msgData = await msgRes.json();
+        if (msgData.success && msgData.data?.messages) {
+          setMessages(msgData.data.messages);
+        }
+      }
+    } catch (err) {
+      console.error('Onboarding action failed:', err);
+    }
+  }, []);
+
   // ── Quick actions (no API key) ───────────────────────────────────────
   const quickActions = [
     { label: '📊 What\'s my status?', message: 'Give me a status update on all my tasks and projects.' },
@@ -442,7 +481,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} />
             ))}
 
             {/* Streaming response */}
@@ -666,11 +705,23 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
 // ─── Message Bubble Component ────────────────────────────────────────────────
 
-function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void }) {
+function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void }) {
   const isUser = message.role === 'user';
+  const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
   const initials = isUser
     ? (userName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : (diviName || 'D')[0].toUpperCase();
+
+  // Parse onboarding metadata
+  const onboardingMeta = (() => {
+    if (!message.metadata) return null;
+    const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
+    if (meta?.isOnboarding && meta?.widgets) return meta;
+    return null;
+  })();
+
+  // Hide system-triggered messages
+  if (isSystemHidden) return null;
 
   return (
     <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
@@ -703,9 +754,9 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage }:
             : 'bg-[var(--bg-surface)]'
         )}
       >
-        <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
-          {message.content}
-        </p>
+        <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
+          {renderMarkdownLite(message.content)}
+        </div>
         {/* Agent Widget rendering */}
         {(() => {
           const widgetPayload = parseWidgetPayload(message.metadata);
@@ -755,6 +806,16 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage }:
             />
           );
         })()}
+        {/* Onboarding interactive widgets */}
+        {onboardingMeta && onboardingMeta.widgets?.length > 0 && (
+          <OnboardingChatWidgets
+            widgets={onboardingMeta.widgets}
+            phase={onboardingMeta.onboardingPhase}
+            onSubmit={(phase, settings) => onOnboardingAction?.('submit', phase, settings)}
+            onSkip={(phase) => onOnboardingAction?.('skip', phase)}
+            onGoogleConnect={(identity, accountIndex) => onOnboardingAction?.('google_connect', onboardingMeta.onboardingPhase, { identity, accountIndex })}
+          />
+        )}
         <p className="text-[10px] text-[var(--text-muted)] mt-1">
           {formatTime(message.createdAt)}
         </p>
@@ -764,6 +825,19 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage }:
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Simple markdown-lite renderer for onboarding messages */
+function renderMarkdownLite(text: string): React.ReactNode {
+  if (!text) return null;
+  // Split by bold markers and bullet points
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
 
 /** Client-side tag stripping for streaming display */
 function stripTagsClient(text: string): string {

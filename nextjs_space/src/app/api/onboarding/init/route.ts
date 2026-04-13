@@ -205,10 +205,14 @@ export async function POST(req: NextRequest) {
       createdTasks.push(item);
     }
 
-    // ── Mark onboarding complete (wizard dismissed) ───────────────────────
+    // ── Mark API key phase done, advance to phase 1 (divi-settings) ─────
+    // hasCompletedOnboarding stays false until all phases complete
     await prisma.user.update({
       where: { id: userId },
-      data: { hasCompletedOnboarding: true },
+      data: {
+        onboardingPhase: apiKey ? 1 : 0, // Only advance if they provided an API key
+        hasCompletedOnboarding: !apiKey ? true : false, // If skipped, mark as "complete" (no phases)
+      },
     });
 
     // ── If agent name was customized, save it as a memory item ────────────

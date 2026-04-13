@@ -27,11 +27,12 @@ export async function GET(req: NextRequest) {
     // Identity defaults to operator
     const identity = req.nextUrl.searchParams.get('identity') || 'operator';
     const accountIndex = parseInt(req.nextUrl.searchParams.get('accountIndex') || '0', 10);
+    const returnTo = req.nextUrl.searchParams.get('returnTo') || '';
 
     const redirectUri = `${baseUrl}/api/auth/callback/google-connect`;
 
-    // Encode state: userId + identity + accountIndex
-    const state = Buffer.from(JSON.stringify({ userId, identity, accountIndex })).toString('base64url');
+    // Encode state: userId + identity + accountIndex + returnTo
+    const state = Buffer.from(JSON.stringify({ userId, identity, accountIndex, returnTo })).toString('base64url');
 
     const consentUrl = buildConsentUrl(redirectUri, state);
     return NextResponse.redirect(consentUrl);
