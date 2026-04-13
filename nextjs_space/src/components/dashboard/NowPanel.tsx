@@ -52,6 +52,7 @@ interface NowPanelProps {
   onOpenBoard?: () => void;
   onOpenEarnings?: () => void;
   onDiscuss?: (context: string) => void;
+  onboardingPhase?: number;
 }
 
 const URGENCY_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
@@ -70,7 +71,8 @@ const TYPE_ICONS: Record<string, string> = {
   goal_check: '⚡',
 };
 
-export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings, onDiscuss }: NowPanelProps) {
+export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings, onDiscuss, onboardingPhase = 6 }: NowPanelProps) {
+  const isOnboardingIncomplete = onboardingPhase > 0 && onboardingPhase < 6;
   const [data, setData] = useState<NowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTask, setShowNewTask] = useState(false);
@@ -187,14 +189,35 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
           <h2 className="label-mono-accent">⚡ NOW</h2>
           <span className="label-mono" style={{ fontSize: '10px' }}>Dynamic</span>
         </div>
-        <div className="text-xs text-[var(--text-muted)]">
-          {items.length} ranked items • {summary.total} goals • {inProgressCount} active
-        </div>
+        {!isOnboardingIncomplete && (
+          <div className="text-xs text-[var(--text-muted)]">
+            {items.length} ranked items • {summary.total} goals • {inProgressCount} active
+          </div>
+        )}
       </div>
 
       {/* NOW content — hidden when activity stream is expanded */}
       {!activityExpanded && (
         <div className="panel-body flex-1 flex flex-col overflow-y-auto">
+          {/* Empty state during onboarding — before signals are connected */}
+          {isOnboardingIncomplete ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-12">
+              <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4">
+                <span className="text-2xl">⚡</span>
+              </div>
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">Your priority stack</h3>
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed max-w-[200px]">
+                Tasks will appear here once you connect your signals through Divi in chat.
+              </p>
+              <button
+                onClick={() => onQuickChat?.()}
+                className="mt-4 btn-secondary text-xs px-4 py-1.5"
+              >
+                💬 Continue in Chat
+              </button>
+            </div>
+          ) : (
+          <>
           {/* Focus Suggestion */}
           {data?.focusSuggestion && (
             <div className="mb-3 px-3 py-2 rounded-lg bg-brand-500/10 border border-brand-500/20">
@@ -341,6 +364,8 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
               <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Done Today</h4>
               <div className="text-xs text-[var(--text-muted)]">{doneItems.length} tasks completed</div>
             </div>
+          )}
+          </>
           )}
         </div>
       )}

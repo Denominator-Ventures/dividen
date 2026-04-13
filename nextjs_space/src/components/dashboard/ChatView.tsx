@@ -747,23 +747,10 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
   if (isSystemHidden) return null;
 
   return (
-    <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
-      {/* Avatar */}
-      {isUser && userPhoto ? (
-        <img
-          src={userPhoto}
-          alt={userName || 'You'}
-          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-        />
-      ) : (
-        <div
-          className={cn(
-            'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
-            isUser
-              ? 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
-              : 'bg-[var(--brand-primary)] text-white'
-          )}
-        >
+    <div className={cn('flex gap-3 items-start', isUser ? 'justify-end' : 'justify-start')}>
+      {/* Avatar — Divi on left */}
+      {!isUser && (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-[var(--brand-primary)] text-white">
           {initials}
         </div>
       )}
@@ -771,13 +758,13 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
       {/* Content */}
       <div
         className={cn(
-          'flex-1 rounded-lg p-3 max-w-[80%]',
+          'rounded-xl px-4 py-3 max-w-[80%]',
           isUser
-            ? 'bg-[var(--brand-primary)]/10 ml-auto'
-            : 'bg-[var(--bg-surface)]'
+            ? 'bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20'
+            : 'bg-[var(--bg-surface)] border border-[var(--border-color)]'
         )}
       >
-        <div className="text-sm text-[var(--text-primary)]">
+        <div className="text-sm text-[var(--text-primary)] leading-relaxed">
           {renderMarkdownLite(message.content)}
         </div>
         {/* Agent Widget rendering */}
@@ -839,10 +826,25 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
             onGoogleConnect={(identity, accountIndex) => onOnboardingAction?.('google_connect', onboardingMeta.onboardingPhase, { identity, accountIndex })}
           />
         )}
-        <p className="text-[10px] text-[var(--text-muted)] mt-1">
+        <p className="text-[10px] text-[var(--text-muted)] mt-1.5 opacity-60">
           {formatTime(message.createdAt)}
         </p>
       </div>
+
+      {/* Avatar — User on right */}
+      {isUser && (
+        userPhoto ? (
+          <img
+            src={userPhoto}
+            alt={userName || 'You'}
+            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-[var(--bg-surface)] text-[var(--text-secondary)]">
+            {initials}
+          </div>
+        )
+      )}
     </div>
   );
 }

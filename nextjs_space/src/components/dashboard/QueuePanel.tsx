@@ -20,6 +20,7 @@ interface QueuePanelProps {
   mode?: 'cockpit' | 'chief_of_staff';
   onToggleMode?: () => void;
   modeLoading?: boolean;
+  onboardingPhase?: number;
 }
 
 // ─── Priority indicator ─────────────────────────────────────────────────────
@@ -455,7 +456,8 @@ function SmartTaskAssembly({
 
 // ─── Main Queue Panel ───────────────────────────────────────────────────────
 
-export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscuss, mode, onToggleMode, modeLoading }: QueuePanelProps = {}) {
+export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscuss, mode, onToggleMode, modeLoading, onboardingPhase = 6 }: QueuePanelProps = {}) {
+  const isOnboardingIncomplete = onboardingPhase > 0 && onboardingPhase < 6;
   const [items, setItems] = useState<QueueItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -624,6 +626,19 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
 
       {activeView === 'queue' ? (
         <>
+          {/* Empty state during onboarding */}
+          {isOnboardingIncomplete ? (
+            <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-12">
+              <div className="w-12 h-12 rounded-xl bg-brand-500/10 flex items-center justify-center mb-4">
+                <span className="text-2xl">📋</span>
+              </div>
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-1">Divi&apos;s execution queue</h3>
+              <p className="text-xs text-[var(--text-muted)] leading-relaxed max-w-[200px]">
+                Tasks assigned to Divi will appear here once you connect your signals and start reviewing.
+              </p>
+            </div>
+          ) : (
+          <>
           {/* Dispatch Button */}
           {readyCount > 0 && (
             <div className="px-4 pt-3">
@@ -698,6 +713,8 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
               </span>
             </div>
           </div>
+          </>
+          )}
         </>
       ) : (
         /* Comms — Agent Relay Channel */
