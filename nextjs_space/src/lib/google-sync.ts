@@ -202,9 +202,10 @@ export async function syncCalendar(account: IntAccount, daysAhead = 14): Promise
     };
 
     if (existing) {
+      const { userId: _uid, ...updateData } = data;
       await prisma.calendarEvent.update({
         where: { id: existing.id },
-        data: { ...data, userId: undefined } as any,
+        data: updateData,
       });
     } else {
       await prisma.calendarEvent.create({ data });
@@ -229,7 +230,7 @@ export async function syncDrive(account: IntAccount, limit = 50): Promise<number
   const listRes = await drive.files.list({
     pageSize: limit,
     orderBy: 'modifiedTime desc',
-    fields: 'files(id,name,mimeType,modifiedTime,size,webViewLink,iconLink,shared,owners,lastModifyingUser)',
+    fields: 'nextPageToken,files(id,name,mimeType,modifiedTime,size,webViewLink,iconLink,shared,owners,lastModifyingUser)',
     q: "trashed = false",
     ...(account.syncCursor ? { pageToken: account.syncCursor } : {}),
   });

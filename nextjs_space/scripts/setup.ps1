@@ -113,7 +113,7 @@ Write-Host ""
 Write-Host "  First time? Create your account at /setup" -ForegroundColor White
 Write-Host "  Or log in with the seeded account:" -ForegroundColor White
 Write-Host "    Email:    admin@dividen.ai" -ForegroundColor Gray
-Write-Host "    Password: DiviDen2024!" -ForegroundColor Gray
+Write-Host "    Password: (see scripts/seed.ts)" -ForegroundColor Gray
 Write-Host ""
 Write-Host "  Health check: http://localhost:3000/api/status" -ForegroundColor White
 Write-Host "  Admin panel:  http://localhost:3000/admin" -ForegroundColor White

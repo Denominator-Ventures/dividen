@@ -121,7 +121,7 @@ echo -e "${GREEN}║                                                       ║${
 echo -e "${GREEN}║   First time? Create your account at /setup           ║${NC}"
 echo -e "${GREEN}║   Or log in with the seeded account:                  ║${NC}"
 echo -e "${GREEN}║     Email:    admin@dividen.ai                        ║${NC}"
-echo -e "${GREEN}║     Password: DiviDen2024!                            ║${NC}"
+echo -e "${GREEN}║     Password: (see scripts/seed.ts)                   ║${NC}"
 echo -e "${GREEN}║                                                       ║${NC}"
 echo -e "${GREEN}║   Health check: http://localhost:3000/api/status      ║${NC}"
 echo -e "${GREEN}║   Admin panel:  http://localhost:3000/admin            ║${NC}"

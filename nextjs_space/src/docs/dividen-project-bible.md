@@ -235,9 +235,9 @@ Click any name/avatar in Connections → full profile modal with:
 - `NOTIF_ID_CONNECTION_INVITATION` — email notification type ID
 
 ### Test accounts
-- **Admin:** `admin@dividen.ai` / `DiviDenAdmin2026!`
-- **Test user:** `john@doe.com` / `johndoe123`
-- **Admin page:** `/admin` with password `DiviDenAdmin2026!`
+- **Admin:** `admin@dividen.ai` / (see `.env` or seed script)
+- **Test user:** `john@doe.com` / (see `.env` or seed script)
+- **Admin page:** `/admin` with `ADMIN_PASSWORD` env var
 
 ### Deployment
 - **Hostnames:** `dividen.ai` and `sdfgasgfdsgsdg.abacusai.app` (both untagged — one deploy updates both)
@@ -417,7 +417,7 @@ When starting a new Deep Agent conversation:
    - Git remote: `https://github.com/Denominator-Ventures/dividen.git` (branch `main`)
    - Constraints: yarn only, Prisma `db push` only (no `--accept-data-loss`), reset `.abacus.donotdelete` before commits
    - Deployed at: dividen.ai + sdfgasgfdsgsdg.abacusai.app (both untagged)
-   - Credentials: admin@dividen.ai / DiviDenAdmin2026!, test: john@doe.com / johndoe123
+   - Credentials: see `.env` file and `scripts/seed.ts`
 3. **Tell the agent to read `.project_instructions.md`** — it has the full accumulated context
 4. **The os.dividen.ai audit** is at `src/docs/os-dividen-ai-audit-v2.md` if corrections need applying
 5. **Updates wall** entries go in `src/lib/updates.ts` — newest at top, builder-log voice, with id/date/time/title/subtitle/tags/content
