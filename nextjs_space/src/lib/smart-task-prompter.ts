@@ -1,19 +1,27 @@
 /**
- * Smart Task Prompter
- * 
- * When a queue item is edited (via chat or UI), this module calls an LLM to
- * re-optimize the task title + description so it is maximally clear and
- * actionable for the target agent / capability type.
+ * Smart Task Prompter v2
  *
- * The optimization is "invisible" — it runs in the background and silently
- * updates the queue item in the database. The user sees the improved version
- * next time the queue refreshes.
+ * When a queue item is created or edited, this module:
+ * 1. Looks up the target agent's Integration Kit (requiredInputSchema,
+ *    contextInstructions, usageExamples, executionNotes) from the marketplace.
+ * 2. Calls an LLM to produce:
+ *    - `displaySummary`: A short (≤120 char) human-readable line for the queue UI.
+ *    - `optimizedPayload`: The full structured payload that the outbound agent
+ *      expects, formatted to match its `requiredInputSchema`. If no schema is
+ *      defined, falls back to a well-structured { task, context, deliverables }
+ *      generic format.
+ * 3. Stores both in the queue item's `metadata` JSON, preserving the original
+ *    user input in `_original` for audit.
+ *
+ * The title and description on the QueueItem row remain the operator's own
+ * words — never silently overwritten. The optimized version lives in metadata
+ * and is what gets sent to the agent at execution time.
  */
 
 import { prisma } from '@/lib/prisma';
 import { getAvailableProvider } from '@/lib/llm';
 
-// ─── Non-streaming LLM helper (lightweight, reusable) ─────────────────────
+// ─── Non-streaming LLM helper ──────────────────────────────────────────────
 async function callLLM(
   systemPrompt: string,
   userPrompt: string,
@@ -33,7 +41,7 @@ async function callLLM(
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-6',
-          max_tokens: 512,
+          max_tokens: 2048,
           system: systemPrompt,
           messages: [{ role: 'user', content: userPrompt }],
         }),
@@ -50,7 +58,7 @@ async function callLLM(
         },
         body: JSON.stringify({
           model: 'gpt-4o',
-          max_tokens: 512,
+          max_tokens: 2048,
           temperature: 0.2,
           messages: [
             { role: 'system', content: systemPrompt },
@@ -68,30 +76,106 @@ async function callLLM(
   }
 }
 
-// ─── System prompt for task optimization ──────────────────────────────────
-const OPTIMIZER_SYSTEM = `You are a task optimization engine for DiviDen, an AI agent operating system.
+// ─── Build optimizer system prompt dynamically ─────────────────────────────
+function buildOptimizerPrompt(agentKit: AgentIntegrationKit | null): string {
+  let prompt = `You are the Task Optimization Engine for DiviDen, an AI agent operating system.
 
-When given a queue task (title, description, type, handler metadata), you rewrite it to be:
-1. **Specific** — no vague language. Include concrete deliverables.
-2. **Actionable** — start with a verb. The agent receiving this should know exactly what to do.
-3. **Context-rich** — preserve all relevant context from the original.
-4. **Scoped** — match the handler/agent type so the receiving agent can parse it optimally.
+You receive a queue task (title, description, context, files, type) written by a human operator.
+Your job is to produce TWO things:
 
-Rules:
-- Keep the title SHORT (under 80 chars). It should read like a task heading.
-- The description should be 1-3 sentences max. Dense, not fluffy.
-- Do NOT invent details that weren't in the original.
-- Preserve the original intent exactly — just make it clearer.
-- If the task is already well-formed, return it unchanged.
+1. **displaySummary** — A short human-readable summary (≤120 characters) for the queue card UI.
+   - Starts with a verb. Captures the core intent.
+   - Truncate gracefully — the full details live elsewhere.
 
-Respond with ONLY valid JSON: {"title": "...", "description": "..."}
-No markdown, no explanation, no extra text.`;
+2. **optimizedPayload** — The FULL structured payload to send to the outbound agent.
+   - Preserve ALL information from the original (context, file references, names, dates, amounts, etc.).
+   - Do NOT drop, summarize, or truncate anything in the payload. More detail is always better.
+   - Do NOT invent information that wasn't in the original.
+   - Structure it so the receiving agent can parse and execute immediately.
+`;
 
-// ─── Main export ──────────────────────────────────────────────────────────
+  if (agentKit) {
+    prompt += `\n## Target Agent: ${agentKit.name}\n`;
+    if (agentKit.contextInstructions) {
+      prompt += `\n### Context Preparation Instructions (from the agent developer):\n${agentKit.contextInstructions}\n`;
+    }
+    if (agentKit.requiredInputSchema) {
+      prompt += `\n### Required Input Schema (the payload MUST conform to this):\n\`\`\`json\n${agentKit.requiredInputSchema}\n\`\`\`\n`;
+      prompt += `\nThe \`optimizedPayload\` object MUST match this schema exactly. Fill every required field.\n`;
+    }
+    if (agentKit.usageExamples) {
+      prompt += `\n### Usage Examples (from the agent developer):\n${agentKit.usageExamples}\n`;
+    }
+    if (agentKit.executionNotes) {
+      prompt += `\n### Execution Notes:\n${agentKit.executionNotes}\n`;
+    }
+    if (agentKit.taskTypes) {
+      prompt += `\n### Accepted Task Types: ${agentKit.taskTypes}\n`;
+    }
+  } else {
+    prompt += `\n## No specific agent schema available.\nUse this generic structure for optimizedPayload:\n\`\`\`json\n{\n  "task": "Clear action statement",\n  "context": "All relevant background",\n  "deliverables": ["Expected output 1", "..."],\n  "files": ["any file references from the original"],\n  "constraints": "Any constraints or deadlines mentioned"\n}\n\`\`\`\n`;
+  }
+
+  prompt += `\n## Response Format\nRespond with ONLY valid JSON — no markdown fences, no explanation:\n{\n  "displaySummary": "Short ≤120 char summary for queue UI",\n  "optimizedPayload": { ... }\n}\n`;
+
+  return prompt;
+}
+
+// ─── Types ─────────────────────────────────────────────────────────────────
+interface AgentIntegrationKit {
+  name: string;
+  taskTypes: string | null;
+  contextInstructions: string | null;
+  requiredInputSchema: string | null;
+  outputSchema: string | null;
+  usageExamples: string | null;
+  contextPreparation: string | null;
+  executionNotes: string | null;
+  inputFormat: string;
+}
+
+// ─── Resolve the target agent's Integration Kit ────────────────────────────
+async function resolveAgentKit(
+  metadata: any
+): Promise<AgentIntegrationKit | null> {
+  // metadata.handler = { type: 'agent', id: '...', name: '...' }
+  if (!metadata?.handler) return null;
+  const handler = metadata.handler;
+
+  if (handler.type === 'agent' && handler.id) {
+    const agent = await prisma.marketplaceAgent.findUnique({
+      where: { id: handler.id },
+      select: {
+        name: true,
+        taskTypes: true,
+        contextInstructions: true,
+        requiredInputSchema: true,
+        outputSchema: true,
+        usageExamples: true,
+        contextPreparation: true,
+        executionNotes: true,
+        inputFormat: true,
+      },
+    });
+    return agent || null;
+  }
+
+  // For capability or builtin handlers, no Integration Kit — return null
+  // The prompter will fall back to the generic structure
+  return null;
+}
+
+// ─── Main export ───────────────────────────────────────────────────────────
 
 /**
- * Optimizes a queue item's title and description for the target agent type.
- * Runs as fire-and-forget — caller doesn't wait for result.
+ * Optimizes a queue item for its target agent.
+ *
+ * Produces:
+ * - metadata.displaySummary  — short line for queue card UI
+ * - metadata.optimizedPayload — full structured payload for the agent
+ * - metadata._original — snapshot of the operator's original title + description
+ *
+ * The QueueItem's own title/description are NOT overwritten.
  */
 export async function optimizeTaskForAgent(
   queueItemId: string,
@@ -103,50 +187,55 @@ export async function optimizeTaskForAgent(
   });
   if (!item) return;
 
-  // Parse handler info from metadata
-  let handlerInfo = '';
+  // Parse existing metadata
+  let meta: any = {};
   if (item.metadata) {
-    try {
-      const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
-      if (meta.handler) handlerInfo = `Handler: ${JSON.stringify(meta.handler)}`;
-      if (meta.capabilityType) handlerInfo = `Capability: ${meta.capabilityType} / ${meta.action || 'execute'}`;
-      if (meta.taskType) handlerInfo = `Task type: ${meta.taskType}`;
-    } catch { /* ignore */ }
+    try { meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata; } catch { /* ignore */ }
   }
 
-  const userPrompt = [
+  // Resolve the target agent's Integration Kit
+  const agentKit = await resolveAgentKit(meta);
+
+  // Build prompts
+  const systemPrompt = buildOptimizerPrompt(agentKit);
+
+  const userLines: string[] = [
     `Task type: ${item.type}`,
     `Title: ${item.title}`,
-    `Description: ${item.description || '(none)'}`,
-    handlerInfo,
-  ].filter(Boolean).join('\n');
+    `Description: ${item.description || '(none provided)'}`,
+  ];
 
-  const result = await callLLM(OPTIMIZER_SYSTEM, userPrompt, userId);
+  // Include any attached file references from metadata
+  if (meta.files && Array.isArray(meta.files)) {
+    userLines.push(`Attached files: ${meta.files.map((f: any) => typeof f === 'string' ? f : f.name || f.url).join(', ')}`);
+  }
+  // Include any context fields already in metadata
+  if (meta.context) userLines.push(`Context: ${meta.context}`);
+  if (meta.expectedOutcome) userLines.push(`Expected outcome: ${meta.expectedOutcome}`);
+  if (meta.taskType) userLines.push(`Task category: ${meta.taskType}`);
+
+  const userPrompt = userLines.join('\n');
+
+  const result = await callLLM(systemPrompt, userPrompt, userId);
   if (!result) return;
 
   try {
     const parsed = JSON.parse(result);
-    const updateData: any = {};
-    if (parsed.title && parsed.title !== item.title) updateData.title = parsed.title;
-    if (parsed.description && parsed.description !== item.description) updateData.description = parsed.description;
+    if (!parsed.displaySummary && !parsed.optimizedPayload) return;
 
-    if (Object.keys(updateData).length > 0) {
-      // Store original in metadata so user can see what changed
-      let existingMeta: any = {};
-      if (item.metadata) {
-        try { existingMeta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata; } catch { /* ignore */ }
-      }
-      existingMeta._preOptimize = { title: item.title, description: item.description };
+    // Store optimization results in metadata (never touch title/description)
+    meta._original = meta._original || { title: item.title, description: item.description };
+    if (parsed.displaySummary) meta.displaySummary = parsed.displaySummary;
+    if (parsed.optimizedPayload) meta.optimizedPayload = parsed.optimizedPayload;
+    meta._optimizedAt = new Date().toISOString();
+    if (agentKit) meta._optimizedForAgent = agentKit.name;
 
-      await prisma.queueItem.update({
-        where: { id: item.id },
-        data: {
-          ...updateData,
-          metadata: JSON.stringify(existingMeta),
-        },
-      });
-      console.log(`[smart-prompter] Optimized task "${item.title}" → "${updateData.title || item.title}"`);
-    }
+    await prisma.queueItem.update({
+      where: { id: item.id },
+      data: { metadata: JSON.stringify(meta) },
+    });
+
+    console.log(`[smart-prompter] Optimized "${item.title}" → summary: "${parsed.displaySummary || '(unchanged)'}"`);
   } catch (err) {
     console.error('[smart-prompter] Failed to parse LLM response:', result, err);
   }

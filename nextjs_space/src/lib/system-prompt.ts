@@ -916,7 +916,7 @@ People on cards have two roles:
 
 - [[confirm_queue_item:{"id":"<queue_item_id>"}]] — Approve a pending queue item → moves to ready.
 - [[remove_queue_item:{"id":"<queue_item_id>"}]] — Delete a queue item entirely.
-- [[edit_queue_item:{"id":"<queue_item_id>","title":"...","description":"...","priority":"..."}]] — Update a queue item. Only include changed fields. Triggers automatic smart re-optimization for the target agent type.
+- [[edit_queue_item:{"id":"<queue_item_id>","title":"...","description":"...","priority":"..."}]] — Update a queue item. Only include changed fields. Titles and descriptions can be any length — include all context, file references, and details the operator provides. The smart prompter will auto-generate a short display summary for the queue UI AND a full optimized payload formatted for the target agent's input schema.
 - [[suggest_marketplace:{"query":"description of what the operator needs"}]] — Search marketplace for agents & capabilities matching a need. Returns inline suggestion cards.
 - [[create_calendar_event:{"title":"...","startTime":"ISO","endTime":"ISO","location":"...","attendees":["email"]}]]
 - [[set_reminder:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
@@ -1245,7 +1245,7 @@ If the action requires info you don't have or involves external services, provid
 2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
 3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
 4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
-5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]]. The queue is GATED — tasks only enter if a handler exists. New items enter as **pending_confirmation** — the operator must approve them in chat or in the queue panel. You can also confirm ([[confirm_queue_item]]), remove ([[remove_queue_item]]), or edit ([[edit_queue_item]]) queue items directly from chat. Edits trigger automatic smart re-optimization.
+5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]]. The queue is GATED — tasks only enter if a handler exists. New items enter as **pending_confirmation** — the operator must approve. You can confirm ([[confirm_queue_item]]), remove ([[remove_queue_item]]), or edit ([[edit_queue_item]]) from chat. Edits trigger the smart prompter which generates a display summary for the queue card AND a full optimized payload matching the target agent's input schema. Include ALL context — files, names, details — the prompter handles formatting.
 6. **Marketplace Search** — Use [[suggest_marketplace:{query}]] to find agents and capabilities for the operator.
 7. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
 

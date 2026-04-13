@@ -77,6 +77,15 @@ function QueueItemCard({
   const isCapabilityAction = !!capMeta?.capabilityType;
   const capIcon = capMeta ? (capabilityIcons[capMeta.capabilityType || ''] || '⚡') : '';
 
+  // Parse smart prompter metadata
+  const parsedMeta = (() => {
+    if (!item.metadata) return null;
+    try { return JSON.parse(item.metadata); } catch { return null; }
+  })();
+  const displaySummary: string | null = parsedMeta?.displaySummary || null;
+  const hasOptimizedPayload = !!parsedMeta?.optimizedPayload;
+  const optimizedForAgent: string | null = parsedMeta?._optimizedForAgent || null;
+
   async function handleSaveEdit() {
     if (!onEdit) return;
     setSaving(true);
@@ -149,13 +158,20 @@ function QueueItemCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             {isCapabilityAction && <span className="text-sm">{capIcon}</span>}
-            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight">
-              {item.title}
+            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight" title={item.title}>
+              {displaySummary || item.title}
             </h4>
             {optimizing && <span className="text-[9px] text-[var(--brand-primary)] animate-pulse">✨ optimizing...</span>}
+            {hasOptimizedPayload && !optimizing && <span className="text-[9px] text-green-400" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
           </div>
+          {/* Show full title if summary is truncated */}
+          {displaySummary && displaySummary !== item.title && (
+            <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 mt-0.5 leading-tight">
+              {item.title}
+            </p>
+          )}
           {item.description && (
-            <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-1">
+            <p className="text-xs text-[var(--text-muted)] line-clamp-2 mt-1">
               {item.description}
             </p>
           )}

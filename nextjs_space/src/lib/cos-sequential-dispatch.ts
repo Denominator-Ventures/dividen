@@ -86,17 +86,17 @@ async function executeTask(userId: string, item: any): Promise<{ executed: boole
         return { executed: false, method: 'relay', detail: 'Connection not found' };
       }
 
-      // Create a relay to the connected agent
+      // Create a relay to the connected agent — prefer optimizedPayload if smart prompter ran
+      const relayPayload = meta?.optimizedPayload
+        ? { source: 'cos_mode', priority: item.priority || 'medium', ...meta.optimizedPayload }
+        : { source: 'cos_mode', taskDescription: item.description || item.title, priority: item.priority || 'medium' };
+
       await prisma.agentRelay.create({
         data: {
           type: 'request',
           intent: 'assign_task',
-          subject: item.title,
-          payload: JSON.stringify({
-            source: 'cos_mode',
-            taskDescription: item.description || item.title,
-            priority: item.priority || 'medium',
-          }),
+          subject: meta?.displaySummary || item.title,
+          payload: JSON.stringify(relayPayload),
           status: 'pending',
           fromUserId: userId,
           toUserId: connection.peerUserId || connection.accepterId || connection.requesterId,
