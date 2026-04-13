@@ -72,8 +72,7 @@ export default function NotificationCenter() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const markSeen = async () => {
-    if (unseenCount === 0) return;
+  const markSeen = useCallback(async () => {
     try {
       await fetch('/api/notifications/feed', {
         method: 'POST',
@@ -85,16 +84,18 @@ export default function NotificationCenter() {
     } catch {
       // silent
     }
-  };
+  }, []);
 
   const handleToggle = () => {
     const willOpen = !open;
     setOpen(willOpen);
     if (willOpen) {
+      // Reset badge immediately on open
+      setUnseenCount(0);
       setLoading(true);
       fetchFeed().finally(() => setLoading(false));
-      // Mark seen after a short delay so user can see the dots
-      setTimeout(markSeen, 1500);
+      // Persist mark-seen to server after a short delay
+      setTimeout(() => markSeen(), 1500);
     }
   };
 
@@ -119,7 +120,7 @@ export default function NotificationCenter() {
 
       {/* Dropdown Panel */}
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-h-[70vh] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded-lg shadow-2xl z-50 flex flex-col overflow-hidden">
+        <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-h-[70vh] bg-[#141419] border border-[var(--border-color)] rounded-lg shadow-2xl z-50 flex flex-col overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
             <span className="text-sm font-semibold text-[var(--text-primary)]">Notifications</span>

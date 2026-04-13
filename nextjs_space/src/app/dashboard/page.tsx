@@ -329,7 +329,7 @@ export default function DashboardPage() {
 
               {/* Comms Channel */}
               <button
-                onClick={() => router.push('/dashboard/comms')}
+                onClick={() => { setCommsUnread(0); router.push('/dashboard/comms'); }}
                 className="relative text-[var(--text-muted)] hover:text-brand-400 transition-colors p-1"
                 title="Comms Channel"
                 data-walkthrough="comms"
@@ -507,7 +507,7 @@ export default function DashboardPage() {
               ))}
               {/* Comms — navigates to dedicated page */}
               <button
-                onClick={() => router.push('/dashboard/comms')}
+                onClick={() => { setCommsUnread(0); router.push('/dashboard/comms'); }}
                 className="relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg transition-colors text-[var(--text-muted)]"
               >
                 <span className="text-lg leading-none">📡</span>
