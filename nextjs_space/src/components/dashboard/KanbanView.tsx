@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -37,6 +37,46 @@ const priorityConfig: Record<CardPriority, { label: string; color: string }> = {
   urgent: { label: 'Urgent', color: 'bg-red-600/30 text-red-400' },
 };
 
+// ─── Smart Tag Helpers ───────────────────────────────────────────────────────
+
+function getSmartTags(card: KanbanCardData): { label: string; color: string; icon: string }[] {
+  const tags: { label: string; color: string; icon: string }[] = [];
+
+  // Connected user tags — members from connections (same instance or federated)
+  if (card.project?.members) {
+    for (const m of card.project.members) {
+      if (m.connection) {
+        const name = m.connection.peerUserName || m.connection.peerUserEmail || 'Peer';
+        // Federation tag if connection has peerInstanceUrl-like indicators
+        tags.push({
+          label: name,
+          color: 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/30',
+          icon: '🔗',
+        });
+      } else if (m.user && m.userId !== card.userId) {
+        // Same-instance connected user
+        tags.push({
+          label: m.user.name || m.user.email,
+          color: 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30',
+          icon: '👤',
+        });
+      }
+    }
+  }
+
+  // Due date urgency tag
+  if (card.dueDate) {
+    const hoursLeft = (new Date(card.dueDate).getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursLeft < 0) {
+      tags.push({ label: 'Overdue', color: 'bg-red-500/20 text-red-400', icon: '🔴' });
+    } else if (hoursLeft < 24) {
+      tags.push({ label: 'Due Today', color: 'bg-orange-500/20 text-orange-400', icon: '⏰' });
+    }
+  }
+
+  return tags;
+}
+
 // ─── Kanban Card Component ──────────────────────────────────────────────────
 
 function KanbanCard({
@@ -51,16 +91,29 @@ function KanbanCard({
   const completedCount = card.checklist?.filter((c) => c.completed).length ?? 0;
   const totalCount = card.checklist?.length ?? 0;
   const priority = priorityConfig[card.priority] || priorityConfig.medium;
+  const smartTags = getSmartTags(card);
 
   return (
     <div
+      data-kanban-card="true"
       onClick={onClick}
       className={cn(
-        'bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-3 cursor-pointer',
+        'bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded-lg p-3 cursor-grab active:cursor-grabbing',
         'hover:border-brand-500/50 transition-all duration-150 group',
-        isDragging && 'opacity-50 ring-2 ring-brand-500'
+        isDragging && 'opacity-50 ring-2 ring-brand-500 shadow-xl rotate-2'
       )}
     >
+      {/* Smart Tags Row */}
+      {smartTags.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {smartTags.map((tag, i) => (
+            <span key={i} className={cn('text-[9px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-0.5', tag.color)}>
+              {tag.icon} {tag.label}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Title & Priority */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight">
@@ -117,6 +170,7 @@ function KanbanCard({
             {card.project.members.slice(0, 5).map((m) => {
               const name = m.user?.name || m.connection?.peerUserName || '?';
               const initial = name.charAt(0).toUpperCase();
+              const isFederated = !!m.connection;
               const roleColors: Record<string, string> = {
                 lead: 'ring-amber-500/60',
                 contributor: 'ring-brand-500/40',
@@ -126,10 +180,10 @@ function KanbanCard({
               return (
                 <div
                   key={m.id}
-                  title={`${name} (${m.role})`}
+                  title={`${name} (${m.role})${isFederated ? ' — federated' : ''}`}
                   className={cn(
                     'w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[9px] font-medium text-[var(--text-secondary)] ring-1 cursor-pointer hover:ring-2 transition-all',
-                    roleColors[m.role] || 'ring-white/20'
+                    isFederated ? 'ring-purple-500/60' : (roleColors[m.role] || 'ring-white/20')
                   )}
                 >
                   {initial}
@@ -453,6 +507,41 @@ export function KanbanView() {
 
   const activeCard = activeId ? cards.find((c) => c.id === activeId) : null;
 
+  // ─── Board drag-scroll (Trello-like) ──────────────────────────────────
+  // Enables horizontal scrolling by dragging empty areas of the board.
+  // Only activates when mouse isn't over a card (cards use dnd-kit instead).
+  const boardRef = useRef<HTMLDivElement>(null);
+  const boardDrag = useRef({ active: false, startX: 0, scrollLeft: 0 });
+
+  const onBoardPointerDown = useCallback((e: React.PointerEvent) => {
+    // Only initiate board scroll if NOT clicking on a card
+    const target = e.target as HTMLElement;
+    if (target.closest('[data-kanban-card]')) return;
+    const el = boardRef.current;
+    if (!el) return;
+    boardDrag.current = { active: true, startX: e.clientX, scrollLeft: el.scrollLeft };
+    el.style.cursor = 'grabbing';
+    el.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onBoardPointerMove = useCallback((e: React.PointerEvent) => {
+    if (!boardDrag.current.active) return;
+    const el = boardRef.current;
+    if (!el) return;
+    const dx = e.clientX - boardDrag.current.startX;
+    el.scrollLeft = boardDrag.current.scrollLeft - dx;
+  }, []);
+
+  const onBoardPointerUp = useCallback((e: React.PointerEvent) => {
+    if (!boardDrag.current.active) return;
+    boardDrag.current.active = false;
+    const el = boardRef.current;
+    if (el) {
+      el.style.cursor = '';
+      try { el.releasePointerCapture(e.pointerId); } catch {}
+    }
+  }, []);
+
   // ─── Render ───────────────────────────────────────────────────────────
 
   if (loading) {
@@ -473,7 +562,15 @@ export function KanbanView() {
 
   return (
     <>
-      <div className="h-full p-4 overflow-x-auto">
+      <div
+        ref={boardRef}
+        className="h-full p-4 overflow-x-auto cursor-default select-none"
+        style={{ WebkitOverflowScrolling: 'touch' }}
+        onPointerDown={onBoardPointerDown}
+        onPointerMove={onBoardPointerMove}
+        onPointerUp={onBoardPointerUp}
+        onPointerCancel={onBoardPointerUp}
+      >
         <DndContext
           sensors={sensors}
           collisionDetection={closestCorners}
@@ -493,9 +590,9 @@ export function KanbanView() {
             ))}
           </div>
 
-          <DragOverlay>
+          <DragOverlay dropAnimation={null}>
             {activeCard ? (
-              <div className="rotate-2 scale-105">
+              <div className="rotate-2 scale-105 shadow-2xl">
                 <KanbanCard card={activeCard} onClick={() => {}} />
               </div>
             ) : null}

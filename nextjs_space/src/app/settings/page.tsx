@@ -16,6 +16,7 @@ import RelaySettings from '@/components/settings/RelaySettings';
 import PaymentSettings from '@/components/settings/PaymentSettings';
 import { DiviSettings } from '@/components/settings/DiviSettings';
 import { cn } from '@/lib/utils';
+import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
 
 interface SettingsData {
   user: {
@@ -229,25 +230,27 @@ function SettingsPageInner() {
         </p>
       </div>
 
-      {/* Tab Navigation — horizontal scroll on mobile */}
+      {/* Tab Navigation — horizontal scroll on mobile with drag-to-scroll */}
       <div className="relative -mx-4 px-4 md:mx-0 md:px-0">
-        <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg overflow-x-auto scrollbar-hide">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={cn(
-                'px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0',
-                activeTab === tab.id
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              )}
-            >
-              <span className="mr-1">{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        <DragScrollContainer>
+          <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg">
+            {TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  'px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+                  activeTab === tab.id
+                    ? 'bg-[var(--brand-primary)] text-white'
+                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                )}
+              >
+                <span className="mr-1">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </DragScrollContainer>
       </div>
 
       {/* General Tab */}

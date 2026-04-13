@@ -157,9 +157,9 @@ export async function POST(req: NextRequest) {
         data: {
           userId,
           action: 'learning_generated',
-          category: 'intelligence',
+          actor: 'divi',
           summary: `Divi learned ${newLearnings.length} new ${newLearnings.length === 1 ? 'pattern' : 'patterns'} from your recent activity`,
-          metadata: JSON.stringify({ count: newLearnings.length, categories: newLearnings.map(l => l.category) }),
+          metadata: JSON.stringify({ count: newLearnings.length, category: 'intelligence', categories: newLearnings.map(l => l.category) }),
         },
       });
     }

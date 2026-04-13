@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
 import InstancesTab from '@/components/admin/InstancesTab';
 import MarketplaceTab from '@/components/admin/MarketplaceTab';
 import SystemPromptTab from '@/components/admin/SystemPromptTab';
@@ -295,7 +296,7 @@ export default function AdminPage() {
 
       {/* Tabs */}
       <div className="border-b border-white/[0.06] px-4 md:px-6">
-        <div className="overflow-x-auto scrollbar-hide">
+        <DragScrollContainer showFadeEdges={false}>
           <div className="flex gap-1 min-w-max">
             {tabs.map((tab) => (
               <button
@@ -311,7 +312,7 @@ export default function AdminPage() {
               </button>
             ))}
           </div>
-        </div>
+        </DragScrollContainer>
       </div>
 
       {/* Content */}

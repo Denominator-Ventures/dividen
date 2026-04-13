@@ -3,6 +3,7 @@
 import { useRef, useCallback } from 'react';
 import type { CenterTab } from '@/types';
 import { cn } from '@/lib/utils';
+import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
 import { ChatView } from './ChatView';
 import { KanbanView } from './KanbanView';
 import { CrmView } from './CrmView';
@@ -159,22 +160,24 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
 
         {/* ── Sub-tabs (Network or Messages) ── */}
         {hasSubRow && (
-          <div className="flex gap-1 w-full border-t border-[var(--border-color)] pt-1.5 pb-1.5 px-1 overflow-x-auto scrollbar-hide">
-            {activeSubTabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => onTabChange(tab.id)}
-                className={cn(
-                  'px-2.5 py-1 text-[11px] font-medium rounded transition-all whitespace-nowrap flex-shrink-0',
-                  activeTab === tab.id
-                    ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
-                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
-                )}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </div>
+          <DragScrollContainer className="border-t border-[var(--border-color)] pt-1.5 pb-1.5 px-1">
+            <div className="flex gap-1 w-full">
+              {activeSubTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => onTabChange(tab.id)}
+                  className={cn(
+                    'px-2.5 py-1 text-[11px] font-medium rounded transition-all whitespace-nowrap flex-shrink-0',
+                    activeTab === tab.id
+                      ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
+                      : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                  )}
+                >
+                  {tab.icon} {tab.label}
+                </button>
+              ))}
+            </div>
+          </DragScrollContainer>
         )}
       </div>
 

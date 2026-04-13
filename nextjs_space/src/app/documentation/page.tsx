@@ -96,6 +96,8 @@ const NAV = [
   { id: 'agent-cards', label: 'Agent Card Spec (v0.5)' },
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'security', label: 'Security & Auth' },
+  { id: 'smart-tagging', label: 'Smart Tagging (Kanban)' },
+  { id: 'intelligence-system', label: 'Intelligence & Learning' },
 ];
 
 /* ── PAGE ─────────────────────────────────────────────────────────────────── */
@@ -812,6 +814,101 @@ onDiscuss={(context: string) => {
             <p className="text-[var(--text-secondary)] mb-4">
               The top NOW item now has a ✓ button. Clicking it sends a <InlineCode>PATCH</InlineCode> to <InlineCode>/api/queue/&#123;id&#125;</InlineCode> with <InlineCode>done_today: true</InlineCode>.
               No need to navigate to the queue view to clear the top-priority item.
+            </p>
+          </Section>
+
+          {/* ═══ SMART TAGGING ═══════════════════════════════════════════════ */}
+          <Section id="smart-tagging" title="Smart Tagging (Kanban)">
+            <p className="text-[var(--text-secondary)] mb-4">
+              Kanban cards automatically display <strong className="text-white">smart tags</strong> based on
+              who&apos;s involved in a task — whether they&apos;re on the same instance or connected via federation.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Connected User Tags</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              When a card belongs to a project with members, each connected user is shown as a smart tag
+              on the card. Tags are color-coded:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><span className="text-blue-400 font-medium">Blue tags (👤)</span> — Same-instance users. These are users on the same DiviDen instance who are project members.</li>
+              <li><span className="text-purple-400 font-medium">Purple tags (🔗)</span> — Federated users. These are users connected via the federation protocol from another DiviDen instance.</li>
+            </ul>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Tags appear at the top of each card, making it immediately visible who&apos;s involved without opening the card detail.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">How It Works</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Smart tags are derived from the <InlineCode>ProjectMember</InlineCode> records associated with a card&apos;s project.
+              Each member can be either a local user (linked via <InlineCode>userId</InlineCode>) or a federated peer
+              (linked via <InlineCode>connectionId</InlineCode> on a <InlineCode>Connection</InlineCode> with <InlineCode>isFederated: true</InlineCode>).
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Cross-Instance Task Tracking</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              When you&apos;re tracking a task that&apos;s assigned to a user on another instance via their Divi:
+            </p>
+            <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>The task card shows the federated user&apos;s name with a purple 🔗 tag</li>
+              <li>Project member avatars show a <span className="text-purple-400">purple ring</span> for federated members vs. role-based colors for local users</li>
+              <li>Hovering a member avatar shows &quot;(role) — federated&quot; for cross-instance members</li>
+              <li>Status updates propagate via the <InlineCode>AgentRelay</InlineCode> system — when the remote user&apos;s Divi completes a task, your board updates</li>
+            </ol>
+
+            <h3 className="text-lg font-bold text-white mb-3">Due Date Tags</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Smart tags also include urgency indicators:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><span className="text-red-400">🔴 Overdue</span> — Card is past its due date</li>
+              <li><span className="text-orange-400">⏰ Due Today</span> — Card is due within 24 hours</li>
+            </ul>
+
+            <h3 className="text-lg font-bold text-white mb-3">Board Interaction</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The kanban board uses a Trello-inspired interaction model:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">Drag a card</strong> — Click and drag any card to move it between columns</li>
+              <li><strong className="text-white">Scroll the board</strong> — Click and drag on any empty space (not on a card) to horizontally scroll the board</li>
+              <li><strong className="text-white">Touch devices</strong> — Native touch scrolling for the board, press-and-hold a card to drag</li>
+              <li><strong className="text-white">All tab rows</strong> — Drag-to-scroll horizontally on mobile and desktop</li>
+            </ul>
+          </Section>
+
+          {/* ═══ INTELLIGENCE & LEARNING ═════════════════════════════════════ */}
+          <Section id="intelligence-system" title="Intelligence & Learning System">
+            <p className="text-[var(--text-secondary)] mb-4">
+              DiviDen includes a pattern-recognition engine that learns from your behavior over time.
+              This is <strong className="text-white">not goal inference</strong> — it&apos;s observational learning from how you actually use the system.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Behavior Signals</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Actions like completing queue items, sending chat messages, and changing card statuses emit
+              lightweight signals via <InlineCode>POST /api/behavior-signals</InlineCode>. These are stored
+              with timing metadata (hour, day-of-week) for pattern analysis.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Pattern Analysis</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The analysis engine (<InlineCode>POST /api/learnings/analyze</InlineCode>) processes collected signals
+              and detects: peak activity hours, discussion frequency, quiet days, and unused capabilities.
+              Each detected pattern becomes a &quot;learning&quot; stored in your profile.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Managing Learnings</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Navigate to <InlineCode>Settings → Learnings</InlineCode> to see everything Divi has learned.
+              Each learning can be edited, dismissed, or deleted. Category filters and confidence scores
+              help you understand the quality of each insight.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">NOW Engine Integration</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The NOW engine cross-references upcoming calendar events with queue items. If a queue item
+              title mentions an upcoming meeting topic (within 60 minutes), it gets a score boost and
+              surfaces as a meeting prep item.
             </p>
           </Section>
 
