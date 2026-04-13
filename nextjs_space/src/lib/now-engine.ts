@@ -272,6 +272,31 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
     }
   }
 
+  // ─── Calendar-Queue Correlation ────────────────────────────────────────
+  // Boost queue items whose title/metadata mention an upcoming calendar event (within 60min)
+  const upcomingEvents = calendarEvents.filter(ev => {
+    const h = hoursUntil(new Date(ev.startTime), now);
+    return h > 0 && h <= 1;
+  });
+  if (upcomingEvents.length > 0) {
+    for (const item of items) {
+      if (item.type !== 'queue') continue;
+      const titleLower = item.title.toLowerCase();
+      for (const ev of upcomingEvents) {
+        // Extract keywords from event title (words > 3 chars)
+        const keywords = ev.title.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+        const match = keywords.some(kw => titleLower.includes(kw));
+        if (match) {
+          item.score += 25; // Significant boost for meeting-related queue items
+          item.urgency = urgencyFromScore(item.score);
+          item.subtitle = `Related to upcoming: ${ev.title}`;
+          item.meta = { ...item.meta, calendarCorrelation: ev.id };
+          break; // One match is enough
+        }
+      }
+    }
+  }
+
   // ─── Sort by score descending ─────────────────────────────────────────
   items.sort((a, b) => b.score - a.score);
 

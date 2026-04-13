@@ -17,6 +17,47 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'intelligence-learning-system',
+    date: '2026-04-13',
+    time: '11:45 PM',
+    title: 'Intelligence & Learning System — Divi Learns How You Work',
+    subtitle: 'Behavioral signal collection, pattern analysis, calendar-queue correlation in the NOW engine, and a new Learnings settings tab where you control what Divi knows.',
+    tags: ['intelligence', 'now-engine', 'learnings', 'behavior', 'calendar', 'admin', 'platform'],
+    content: `This is the foundation for Divi actually getting smarter over time. Not goal inference — pattern recognition from your real usage.
+
+## What's New
+
+### Behavior Signal Collection
+Every meaningful action you take now emits a lightweight signal — queue completions, chat messages, status changes, email discussions. These signals feed into Divi's pattern analysis engine. No PII stored, just action types and timing metadata.
+
+### Pattern Analysis → Learnings
+A new analysis endpoint processes your signals and detects patterns:
+- **Peak hours** — when you're most active (and when you're not)
+- **Discussion frequency** — how often you use the discuss feature on emails
+- **Quiet days** — days of the week where you're consistently less active
+- **Capability usage** — which capabilities you actually use vs. which are gathering dust
+
+Each detected pattern becomes a "learning" stored in your profile.
+
+### Settings → Learnings Tab
+New tab in Settings where you can see everything Divi has learned about you. Every learning is editable, dismissable, and deletable. Category filters, confidence scores, and source attribution so you know exactly where each insight came from. You control what stays.
+
+### NOW Engine: Calendar-Queue Correlation
+The NOW engine now cross-references your upcoming calendar events with your queue items. If you have a meeting about "Q3 planning" in 45 minutes and there's a queue item titled "Review Q3 budget draft" — it gets a 25-point score boost and surfaces as "Related to upcoming: Q3 planning call". Prep items auto-surface before meetings.
+
+### Notification Deep-Linking
+When Divi generates new learnings, you'll see them in your notification feed. Click any intelligence notification and it takes you straight to Settings → Learnings.
+
+### Admin: Workflow Discovery
+New Workflows tab in the admin panel showing cross-user workflow patterns. When multiple users follow similar action sequences, the system detects them and suggests them as potential new capabilities to develop. Admin can review and mark suggestions as processed.
+
+### Relay Templates & Agent Quality Scoring
+Two new subsystems: relay templates (proven patterns from network interactions) and agent quality signals (tracking marketplace agent effectiveness from user corrections and confirmations).
+
+## Philosophy
+This is individual-first intelligence. Divi learns *your* patterns, not some aggregate model. You see everything, you control everything, and the system gets smarter because of how you actually work — not how we think you should work.`,
+  },
+  {
     id: 'agent-widget-system',
     date: '2026-04-13',
     time: '6:30 PM',

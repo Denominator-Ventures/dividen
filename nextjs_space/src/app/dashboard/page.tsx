@@ -332,27 +332,6 @@ export default function DashboardPage() {
               {/* Notification Center */}
               <NotificationCenter />
 
-              {/* Comms Channel */}
-              <button
-                onClick={() => { setCommsUnread(0); router.push('/dashboard/comms'); }}
-                className="relative text-[var(--text-muted)] hover:text-brand-400 transition-colors p-1"
-                title="Comms Channel"
-                data-walkthrough="comms"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="2" />
-                  <path d="M16.24 7.76a6 6 0 0 1 0 8.49" />
-                  <path d="M7.76 16.24a6 6 0 0 1 0-8.49" />
-                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                  <path d="M4.93 19.07a10 10 0 0 1 0-14.14" />
-                </svg>
-                {commsUnread > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-[var(--brand-primary)] text-white text-[8px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                    {commsUnread > 9 ? '9+' : commsUnread}
-                  </span>
-                )}
-              </button>
-
               <div className="w-px h-5 bg-[var(--border-color)]" />
 
               {/* Profile */}
@@ -397,40 +376,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* ── Mode Toggle Strip ── */}
-      <div className="flex-shrink-0 px-3 md:px-4 py-1.5 flex items-center justify-between border-b border-[var(--border-color)] bg-[var(--bg-primary)]">
-        <button
-          onClick={toggleMode}
-          disabled={modeLoading}
-          className="flex items-center gap-2 group"
-          data-walkthrough="mode-toggle"
-          title={
-            mode === 'cockpit'
-              ? 'Cockpit: You drive, AI assists'
-              : 'Chief of Staff: AI drives, you approve'
-          }
-        >
-          <div
-            className={`relative w-9 h-5 rounded-full transition-colors duration-200 ${
-              mode === 'chief_of_staff'
-                ? 'bg-[var(--brand-primary)]'
-                : 'bg-[var(--bg-surface-hover)]'
-            }`}
-          >
-            <div
-              className={`absolute top-[3px] w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${
-                mode === 'chief_of_staff' ? 'translate-x-[19px]' : 'translate-x-[3px]'
-              }`}
-            />
-          </div>
-          <span className="text-[11px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">
-            {mode === 'cockpit' ? '🎛️ Cockpit' : '🔭 Chief of Staff'}
-          </span>
-        </button>
-        <span className="text-[10px] text-[var(--text-muted)] hidden sm:inline">
-          {mode === 'cockpit' ? 'You drive, AI assists' : 'AI drives, you approve'}
-        </span>
-      </div>
+      {/* Mode toggle has been moved into the Workspace panel */}
 
       {/* ── Chief of Staff mode: locked-down observer view ── */}
       {mode === 'chief_of_staff' ? (
@@ -456,7 +402,7 @@ export default function DashboardPage() {
                 <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
               </div>
               <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-                <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onDiscuss={handleDiscuss} />
+                <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
               </div>
             </div>
           )}
@@ -483,7 +429,7 @@ export default function DashboardPage() {
                   )}
                   {mobilePanel === 'queue' && (
                     <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                      <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
+                      <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
                     </div>
                   )}
                 </>

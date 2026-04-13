@@ -197,7 +197,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage' | 'tasks'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage' | 'tasks' | 'workflows'>('overview');
 
   const fetchStats = useCallback(async (t: string) => {
     setLoading(true);
@@ -259,6 +259,7 @@ export default function AdminPage() {
     { id: 'tasks' as const, label: 'Tasks', icon: '📋' },
     { id: 'federation' as const, label: 'Federation', icon: '🌐' },
     { id: 'telemetry' as const, label: 'Telemetry', icon: '📡' },
+    { id: 'workflows' as const, label: 'Workflows', icon: '🔄' },
   ];
 
   return (
@@ -326,6 +327,7 @@ export default function AdminPage() {
         {activeTab === 'tasks' && <TasksTab token={token} />}
         {activeTab === 'federation' && <FederationTab token={token} />}
         {activeTab === 'telemetry' && <TelemetryTab token={token} />}
+        {activeTab === 'workflows' && <WorkflowsTab token={token} />}
       </main>
     </div>
   );
@@ -1830,6 +1832,117 @@ function MetricCard({
       </div>
       <div className="text-2xl font-heading font-semibold">{value}</div>
       <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{label}</div>
+    </div>
+  );
+}
+
+// ─── Workflow Discovery Tab ───────────────────────────────────────────────────
+function WorkflowsTab({ token }: { token: string }) {
+  const [patterns, setPatterns] = useState<Array<{
+    id: string;
+    description: string;
+    userCount: number;
+    suggestedName: string | null;
+    suggestedAsCapability: boolean;
+    adminReviewed: boolean;
+    createdAt: string;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchPatterns() {
+      try {
+        const res = await fetch('/api/admin/workflows', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPatterns(data.patterns || []);
+        }
+      } catch { /* ignore */ } finally { setLoading(false); }
+    }
+    fetchPatterns();
+  }, [token]);
+
+  const handleReview = async (id: string) => {
+    try {
+      await fetch('/api/admin/workflows', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, adminReviewed: true }),
+      });
+      setPatterns(prev => prev.map(p => p.id === id ? { ...p, adminReviewed: true } : p));
+    } catch { /* ignore */ }
+  };
+
+  if (loading) return <div className="text-center py-8 text-[var(--text-muted)]">Loading workflow patterns...</div>;
+
+  const suggested = patterns.filter(p => p.suggestedAsCapability && !p.adminReviewed);
+  const reviewed = patterns.filter(p => p.adminReviewed);
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-1">🔄 Cross-User Workflow Discovery</h2>
+        <p className="text-xs text-[var(--text-muted)]">
+          Patterns detected across users that could become new capabilities
+        </p>
+      </div>
+
+      {/* Suggested Capabilities */}
+      {suggested.length > 0 && (
+        <div className="bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/20 rounded-lg p-4">
+          <h3 className="text-sm font-medium mb-3 text-[var(--brand-primary)]">
+            💡 Suggested New Capabilities ({suggested.length})
+          </h3>
+          <div className="space-y-3">
+            {suggested.map(p => (
+              <div key={p.id} className="bg-black/20 rounded-lg p-3 flex items-start justify-between gap-3">
+                <div>
+                  {p.suggestedName && (
+                    <div className="text-sm font-medium mb-1">{p.suggestedName}</div>
+                  )}
+                  <p className="text-xs text-[var(--text-secondary)]">{p.description}</p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[10px] text-[var(--text-muted)]">{p.userCount} users</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">·</span>
+                    <span className="text-[10px] text-[var(--text-muted)]">{new Date(p.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleReview(p.id)}
+                  className="px-2 py-1 text-xs rounded bg-[var(--brand-primary)] text-white shrink-0"
+                >
+                  Mark Reviewed
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {suggested.length === 0 && (
+        <div className="text-center py-8 bg-white/[0.02] rounded-lg">
+          <div className="text-2xl mb-2">🔍</div>
+          <p className="text-sm text-[var(--text-muted)]">No pending workflow suggestions</p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">Patterns will appear as users interact with the system</p>
+        </div>
+      )}
+
+      {/* Reviewed */}
+      {reviewed.length > 0 && (
+        <div>
+          <h3 className="text-sm font-medium mb-2 text-[var(--text-secondary)]">✅ Reviewed Patterns</h3>
+          <div className="space-y-2">
+            {reviewed.map(p => (
+              <div key={p.id} className="bg-white/[0.02] rounded-lg p-3 opacity-60">
+                <div className="text-xs">{p.suggestedName || p.description}</div>
+                <span className="text-[10px] text-[var(--text-muted)]">{p.userCount} users</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

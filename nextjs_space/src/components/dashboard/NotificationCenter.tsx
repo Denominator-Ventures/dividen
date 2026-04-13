@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useActivityStream } from '@/hooks/use-activity-stream';
 
 interface FeedItem {
@@ -26,11 +27,19 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationCenter() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [unseenCount, setUnseenCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  const handleNotificationClick = useCallback((item: FeedItem) => {
+    if (item.action === 'learning_generated' || item.category === 'intelligence') {
+      setOpen(false);
+      router.push('/settings?tab=learnings');
+    }
+  }, [router]);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -148,7 +157,10 @@ export default function NotificationCenter() {
               items.map((item) => (
                 <div
                   key={item.id}
+                  onClick={() => handleNotificationClick(item)}
                   className={`flex items-start gap-3 px-4 py-3 border-b border-[var(--border-color)] last:border-0 transition-colors ${
+                    (item.action === 'learning_generated' || item.category === 'intelligence') ? 'cursor-pointer ' : ''
+                  }${
                     item.isNew
                       ? 'bg-[var(--brand-primary)]/5'
                       : 'hover:bg-[var(--bg-surface-hover)]'

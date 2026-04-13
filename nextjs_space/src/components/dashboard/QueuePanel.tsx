@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/utils';
 import { CommsTab } from './CommsTab';
 import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
+import { emitSignal } from '@/lib/behavior-signals';
 import {
   QUEUE_SECTIONS,
   type QueueItemData,
@@ -14,7 +15,11 @@ import {
 
 interface QueuePanelProps {
   onNavigateToMarketplace?: () => void;
+  onNavigateToComms?: () => void;
   onDiscuss?: (context: string) => void;
+  mode?: 'cockpit' | 'chief_of_staff';
+  onToggleMode?: () => void;
+  modeLoading?: boolean;
 }
 
 // ─── Priority indicator ─────────────────────────────────────────────────────
@@ -268,7 +273,7 @@ function NewQueueItemForm({
 
 // ─── Main Queue Panel ───────────────────────────────────────────────────────
 
-export function QueuePanel({ onNavigateToMarketplace, onDiscuss }: QueuePanelProps = {}) {
+export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscuss, mode, onToggleMode, modeLoading }: QueuePanelProps = {}) {
   const [items, setItems] = useState<QueueItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -334,6 +339,7 @@ export function QueuePanel({ onNavigateToMarketplace, onDiscuss }: QueuePanelPro
       const data = await res.json();
       if (data.success) {
         setItems((prev) => prev.map((i) => (i.id === id ? data.data : i)));
+        emitSignal(`queue_${status}`, { itemId: id, status });
       }
     } catch {
       // ignore
@@ -344,6 +350,7 @@ export function QueuePanel({ onNavigateToMarketplace, onDiscuss }: QueuePanelPro
     try {
       await fetch(`/api/queue/${id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((i) => i.id !== id));
+      emitSignal('queue_delete', { itemId: id });
     } catch {
       // ignore
     }
@@ -516,8 +523,21 @@ export function QueuePanel({ onNavigateToMarketplace, onDiscuss }: QueuePanelPro
         </div>
       )}
 
-      {/* ── Marketplace CTA ── */}
-      {onNavigateToMarketplace && (
+      {/* ── Bottom CTA: Comms (when on comms tab) or Marketplace (when on queue tab) ── */}
+      {activeView === 'comms' && onNavigateToComms ? (
+        <div className="flex-shrink-0 p-3 border-t border-[var(--border-color)]">
+          <button
+            onClick={onNavigateToComms}
+            className="w-full py-3 px-4 bg-gradient-to-r from-purple-500/20 via-brand-500/15 to-purple-500/20 hover:from-purple-500/30 hover:via-brand-500/25 hover:to-purple-500/30 border border-purple-500/30 hover:border-purple-500/50 rounded-xl text-sm font-semibold text-purple-400 transition-all group"
+          >
+            <span className="flex items-center justify-center gap-2">
+              <span className="text-lg group-hover:scale-110 transition-transform">📡</span>
+              <span>Open Full Comms</span>
+              <span className="text-[10px] bg-purple-500/20 px-1.5 py-0.5 rounded-full text-purple-400/80">Expand</span>
+            </span>
+          </button>
+        </div>
+      ) : activeView === 'queue' && onNavigateToMarketplace ? (
         <div className="flex-shrink-0 p-3 border-t border-[var(--border-color)]">
           <button
             onClick={onNavigateToMarketplace}
@@ -529,6 +549,32 @@ export function QueuePanel({ onNavigateToMarketplace, onDiscuss }: QueuePanelPro
               <span className="text-[10px] bg-brand-500/20 px-1.5 py-0.5 rounded-full text-brand-400/80">Explore</span>
             </span>
           </button>
+        </div>
+      ) : null}
+
+      {/* ── Cockpit / Chief of Staff Toggle ── */}
+      {mode && onToggleMode && (
+        <div className="flex-shrink-0 px-3 py-2 border-t border-[var(--border-color)] flex items-center justify-between">
+          <button
+            onClick={onToggleMode}
+            disabled={modeLoading}
+            className="flex items-center gap-2 group"
+            title={mode === 'cockpit' ? 'Cockpit: You drive, AI assists' : 'Chief of Staff: AI drives, you approve'}
+          >
+            <div className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${
+              mode === 'chief_of_staff' ? 'bg-[var(--brand-primary)]' : 'bg-[var(--bg-surface-hover)]'
+            }`}>
+              <div className={`absolute top-[2px] w-[14px] h-[14px] rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                mode === 'chief_of_staff' ? 'translate-x-[16px]' : 'translate-x-[2px]'
+              }`} />
+            </div>
+            <span className="text-[10px] text-[var(--text-muted)] group-hover:text-[var(--text-secondary)] transition-colors">
+              {mode === 'cockpit' ? '🎛️ Cockpit' : '🔭 CoS'}
+            </span>
+          </button>
+          <span className="text-[9px] text-[var(--text-muted)]">
+            {mode === 'cockpit' ? 'You drive' : 'AI drives'}
+          </span>
         </div>
       )}
     </div>

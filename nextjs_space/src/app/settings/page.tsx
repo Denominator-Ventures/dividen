@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ModeToggle } from '@/components/settings/ModeToggle';
 import { ApiKeyManager } from '@/components/settings/ApiKeyManager';
 import { MemoryPanel } from '@/components/dashboard/MemoryPanel';
@@ -44,16 +45,99 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'divi' | 'general' | 'integrations' | 'network' | 'payments' | 'notifications';
+type SettingsTab = 'divi' | 'general' | 'integrations' | 'network' | 'payments' | 'notifications' | 'learnings';
 
-export default function SettingsPage() {
+interface Learning {
+  id: string;
+  category: string;
+  observation: string;
+  confidence: number;
+  isNew: boolean;
+  source: string | null;
+  evidence: string | null;
+  dismissed: boolean;
+  createdAt: string;
+}
+
+function SettingsPageInner() {
+  const searchParams = useSearchParams();
   const [data, setData] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [memoryStats, setMemoryStats] = useState<MemoryStats | null>(null);
   const [showMemoryManager, setShowMemoryManager] = useState(false);
   const [clearingMemory, setClearingMemory] = useState(false);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('divi');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => {
+    const tab = searchParams?.get('tab');
+    if (tab && ['divi','general','integrations','network','payments','notifications','learnings'].includes(tab)) {
+      return tab as SettingsTab;
+    }
+    return 'divi';
+  });
   const [resettingWalkthrough, setResettingWalkthrough] = useState(false);
+
+  // Learnings state
+  const [learnings, setLearnings] = useState<Learning[]>([]);
+  const [learningsLoading, setLearningsLoading] = useState(false);
+  const [newLearningsCount, setNewLearningsCount] = useState(0);
+  const [learningFilter, setLearningFilter] = useState<string>('all');
+  const [editingLearning, setEditingLearning] = useState<string | null>(null);
+  const [editText, setEditText] = useState('');
+
+  const fetchLearnings = useCallback(async () => {
+    setLearningsLoading(true);
+    try {
+      const res = await fetch('/api/learnings');
+      if (res.ok) {
+        const d = await res.json();
+        setLearnings(d.learnings || []);
+        setNewLearningsCount(d.newCount || 0);
+      }
+    } catch { /* ignore */ } finally { setLearningsLoading(false); }
+  }, []);
+
+  // Fetch learnings when tab is active
+  useEffect(() => {
+    if (activeTab === 'learnings') {
+      fetchLearnings();
+    }
+  }, [activeTab, fetchLearnings]);
+
+  // Mark as seen when viewing learnings tab
+  useEffect(() => {
+    if (activeTab === 'learnings' && newLearningsCount > 0) {
+      const newIds = learnings.filter(l => l.isNew).map(l => l.id);
+      if (newIds.length > 0) {
+        fetch('/api/learnings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: newIds }) }).catch(() => {});
+      }
+    }
+  }, [activeTab, learnings, newLearningsCount]);
+
+  const handleDeleteLearning = async (id: string) => {
+    const res = await fetch(`/api/learnings/${id}`, { method: 'DELETE' });
+    if (res.ok) setLearnings(prev => prev.filter(l => l.id !== id));
+  };
+
+  const handleEditLearning = async (id: string) => {
+    const res = await fetch(`/api/learnings/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ observation: editText }),
+    });
+    if (res.ok) {
+      const updated = await res.json();
+      setLearnings(prev => prev.map(l => l.id === id ? { ...l, ...updated } : l));
+      setEditingLearning(null);
+    }
+  };
+
+  const handleDismissLearning = async (id: string) => {
+    const res = await fetch(`/api/learnings/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dismissed: true }),
+    });
+    if (res.ok) setLearnings(prev => prev.filter(l => l.id !== id));
+  };
 
   useEffect(() => {
     fetch('/api/settings')
@@ -132,6 +216,7 @@ export default function SettingsPage() {
     { id: 'integrations', label: 'Integrations', icon: '🔗' },
     { id: 'network', label: 'Network', icon: '🌐' },
     { id: 'payments', label: 'Payments', icon: '💳' },
+    { id: 'learnings', label: 'Learnings', icon: '🧠' },
     { id: 'notifications', label: 'Alerts', icon: '🔔' },
   ];
 
@@ -584,6 +669,161 @@ export default function SettingsPage() {
         </>
       )}
 
+      {/* Learnings Tab */}
+      {activeTab === 'learnings' && (
+        <div className="space-y-4">
+          {/* Header */}
+          <div className="panel">
+            <div className="panel-header">
+              <div className="flex items-center justify-between w-full">
+                <div>
+                  <h2 className="font-semibold">🧠 Intelligence Learnings</h2>
+                  <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                    Patterns Divi has learned from your interactions. Edit or dismiss any that don&apos;t feel right.
+                  </p>
+                </div>
+                {newLearningsCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-xs font-medium">
+                    {newLearningsCount} new
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Category filter */}
+            <div className="px-4 py-2 border-b border-[var(--border-color)] flex gap-2 overflow-x-auto scrollbar-hide">
+              {['all', 'interaction_pattern', 'response_style', 'capability_usage', 'scheduling'].map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setLearningFilter(cat)}
+                  className={cn(
+                    'px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors',
+                    learningFilter === cat
+                      ? 'bg-[var(--brand-primary)] text-white'
+                      : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  )}
+                >
+                  {cat === 'all' ? 'All' : cat.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                </button>
+              ))}
+            </div>
+
+            <div className="panel-body">
+              {learningsLoading ? (
+                <div className="text-center py-8 text-[var(--text-muted)]">Loading learnings...</div>
+              ) : learnings.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-3xl mb-2">🧠</div>
+                  <p className="text-[var(--text-secondary)] text-sm">No learnings yet</p>
+                  <p className="text-[var(--text-muted)] text-xs mt-1">
+                    As you use DiviDen, Divi will learn your patterns and preferences
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--border-color)]">
+                  {learnings
+                    .filter(l => learningFilter === 'all' || l.category === learningFilter)
+                    .map(learning => (
+                      <div key={learning.id} className="py-3 px-1 group">
+                        <div className="flex items-start gap-2">
+                          {learning.isNew && (
+                            <span className="mt-1.5 w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            {editingLearning === learning.id ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  value={editText}
+                                  onChange={e => setEditText(e.target.value)}
+                                  className="w-full bg-[var(--bg-surface)] border border-[var(--border-color)] rounded p-2 text-sm resize-none"
+                                  rows={3}
+                                />
+                                <div className="flex gap-2">
+                                  <button onClick={() => handleEditLearning(learning.id)} className="px-2 py-1 rounded text-xs bg-[var(--brand-primary)] text-white">Save</button>
+                                  <button onClick={() => setEditingLearning(null)} className="px-2 py-1 rounded text-xs bg-[var(--bg-surface)] text-[var(--text-secondary)]">Cancel</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <p className="text-sm">{learning.observation}</p>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--bg-surface)] text-[var(--text-muted)]">
+                                    {learning.category.replace(/_/g, ' ')}
+                                  </span>
+                                  <span className="text-[10px] text-[var(--text-muted)]">
+                                    {Math.round(learning.confidence * 100)}% confidence
+                                  </span>
+                                  {learning.source && (
+                                    <span className="text-[10px] text-[var(--text-muted)]">
+                                      via {learning.source}
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-[var(--text-muted)]">
+                                    {new Date(learning.createdAt).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          {editingLearning !== learning.id && (
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              <button
+                                onClick={() => { setEditingLearning(learning.id); setEditText(learning.observation); }}
+                                className="p-1 rounded hover:bg-[var(--bg-surface)] text-[var(--text-muted)] text-xs"
+                                title="Edit"
+                              >✏️</button>
+                              <button
+                                onClick={() => handleDismissLearning(learning.id)}
+                                className="p-1 rounded hover:bg-[var(--bg-surface)] text-[var(--text-muted)] text-xs"
+                                title="Dismiss"
+                              >🚫</button>
+                              <button
+                                onClick={() => handleDeleteLearning(learning.id)}
+                                className="p-1 rounded hover:bg-[var(--bg-surface)] text-red-400 text-xs"
+                                title="Delete"
+                              >🗑️</button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Analytics summary */}
+          <div className="panel">
+            <div className="panel-header">
+              <h2 className="font-semibold text-sm">📊 Learning Summary</h2>
+            </div>
+            <div className="panel-body">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="text-center p-3 bg-[var(--bg-surface)] rounded-lg">
+                  <div className="text-xl font-bold">{learnings.length}</div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">Total Learnings</div>
+                </div>
+                <div className="text-center p-3 bg-[var(--bg-surface)] rounded-lg">
+                  <div className="text-xl font-bold">{learnings.filter(l => l.category === 'interaction_pattern').length}</div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">Interaction Patterns</div>
+                </div>
+                <div className="text-center p-3 bg-[var(--bg-surface)] rounded-lg">
+                  <div className="text-xl font-bold">{learnings.filter(l => l.category === 'response_style').length}</div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">Style Learnings</div>
+                </div>
+                <div className="text-center p-3 bg-[var(--bg-surface)] rounded-lg">
+                  <div className="text-xl font-bold">{learnings.filter(l => l.confidence >= 0.7).length}</div>
+                  <div className="text-[10px] text-[var(--text-muted)] mt-0.5">High Confidence</div>
+                </div>
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-3">
+                Learnings are generated from your usage patterns and feed into Divi&apos;s NOW engine scoring, draft suggestions, and queue prioritization.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Notifications Tab */}
       {activeTab === 'notifications' && (
         <div className="panel">
@@ -627,5 +867,13 @@ export default function SettingsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className="p-6 text-center text-[var(--text-muted)]">Loading settings...</div>}>
+      <SettingsPageInner />
+    </Suspense>
   );
 }

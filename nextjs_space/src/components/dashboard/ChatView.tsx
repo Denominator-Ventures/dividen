@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
 import type { WidgetItem, WidgetItemAction, AgentWidgetData } from './AgentWidget';
+import { emitSignal } from '@/lib/behavior-signals';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -251,6 +252,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       setMessages((prev) => [...prev, userMsg]);
       setIsStreaming(true);
       setStreamingContent('');
+      emitSignal('chat_send', { contentLength: content.length });
 
       try {
         const res = await fetch('/api/chat/send', {

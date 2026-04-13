@@ -410,16 +410,100 @@ model CustomSignal {
 
 model UserLearning {
   id          String   @id @default(cuid())
-  category    String   // "style" | "preference" | "workflow" | "communication"
+  category    String   // "style" | "preference" | "workflow" | "communication" | "schedule" | "capability_usage"
   observation String
   confidence  Float    @default(0.5)
   userId      String
+  isNew       Boolean  @default(true)   // Unread by user — drives notification badge
+  source      String?  // What triggered: "behavior_analysis" | "draft_style" | "capability_usage" | "calendar_pattern"
+  evidence    String?  @db.Text // JSON — raw signals that led to this learning
+  dismissed   Boolean  @default(false) // User explicitly dismissed this learning
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId, isNew])
+  @@index([userId, category])
   @@map("user_learnings")
+}
+
+// ─── Behavior Signal Tracking ───────────────────────────────────────────────────
+
+model BehaviorSignal {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // "queue_complete" | "queue_snooze" | "email_discuss" | "calendar_dismiss" | "chat_send" | "draft_edit" | "capability_use" | "relay_send"
+  context     String?  @db.Text // JSON — item details, timing, etc.
+  dayOfWeek   Int?     // 0=Sun..6=Sat
+  hourOfDay   Int?     // 0-23
+  duration    Int?     // ms — time spent before action
+  createdAt   DateTime @default(now())
+
+  @@index([userId, action])
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("behavior_signals")
+}
+
+model CapabilityUsageLog {
+  id              String   @id @default(cuid())
+  userId          String
+  capabilityId    String
+  capabilityName  String
+  triggered       Boolean  @default(false) // Did the capability actually produce useful output?
+  completedTask   Boolean  @default(false) // Did user complete a task after this?
+  createdAt       DateTime @default(now())
+
+  @@index([userId, capabilityId])
+  @@index([capabilityId])
+  @@map("capability_usage_logs")
+}
+
+// ─── Platform Intelligence ──────────────────────────────────────────────────────
+
+model RelayTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String   // "intro_request" | "availability_check" | "proposal_review" | "follow_up" | "custom"
+  template    String   @db.Text // The relay content template with {{placeholders}}
+  usageCount  Int      @default(0)
+  successRate Float    @default(0) // 0-1 — how often this template led to completed relays
+  isSystem    Boolean  @default(false) // Platform-provided vs user-created
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@map("relay_templates")
+}
+
+model AgentQualityScore {
+  id          String   @id @default(cuid())
+  agentId     String   // MarketplaceAgent ID
+  userId      String   // Who interacted
+  signal      String   // "no_correction" | "user_edited" | "widget_confirmed" | "payment_completed" | "follow_up_needed"
+  score       Float    // -1 to 1
+  metadata    String?  @db.Text // JSON — execution details
+  createdAt   DateTime @default(now())
+
+  @@index([agentId])
+  @@index([agentId, signal])
+  @@map("agent_quality_scores")
+}
+
+model WorkflowPattern {
+  id              String   @id @default(cuid())
+  pattern         String   @db.Text // JSON — ordered list of capabilities/actions
+  description     String?
+  userCount       Int      @default(1)  // How many users exhibit this pattern
+  suggestedName   String?  // AI-generated name for the workflow
+  suggestedAsCapability Boolean @default(false) // Flagged for admin review
+  adminReviewed   Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("workflow_patterns")
 }
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
