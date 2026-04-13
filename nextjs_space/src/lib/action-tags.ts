@@ -87,6 +87,8 @@ export const SUPPORTED_TAGS = [
   'sync_signal',       // trigger a sync for a connected service (email, calendar, drive, or all)
   // ── Meeting Notes (Gemini) ──
   'generate_meeting_notes', // generate AI meeting notes for a calendar event using Gemini
+  // ── Settings Widget (Onboarding / Anytime) ──
+  'show_settings_widget', // show an interactive settings widget in chat (group: working_style | triage | goals | identity | all)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -2383,6 +2385,32 @@ async function executeTag(
             actionItems: result.notes.actionItems,
             topics: result.notes.topics,
             sentiment: result.notes.sentiment,
+          },
+        };
+      }
+
+      case 'show_settings_widget': {
+        // params: { group: 'working_style' | 'triage' | 'goals' | 'identity' | 'all' }
+        const group = params.group || 'all';
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { workingStyle: true, triageSettings: true, goalsEnabled: true, diviName: true },
+        });
+        if (!user) return { tag: name, success: false, error: 'User not found' };
+
+        const { getSettingsWidgets } = await import('@/lib/onboarding-phases');
+        const ws = user.workingStyle ? JSON.parse(String(user.workingStyle)) : null;
+        const ts = user.triageSettings ? JSON.parse(String(user.triageSettings)) : null;
+        const widgets = getSettingsWidgets(group, ws, ts, user.goalsEnabled, user.diviName || 'Divi');
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            isSettingsWidget: true,
+            widgets,
+            settingsGroup: group,
+            onboardingPhase: -1,
           },
         };
       }

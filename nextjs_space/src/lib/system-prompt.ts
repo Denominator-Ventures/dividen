@@ -119,12 +119,17 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   // ── Fetch user personalization settings ──
   const userSettings = await prisma.user.findUnique({
     where: { id: userId },
-    select: { diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true },
+    select: { diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, onboardingPhase: true },
   });
   const diviName = userSettings?.diviName || 'Divi';
   const workingStyle = (userSettings?.workingStyle as Record<string, number> | null) || {};
   const triageSettings = (userSettings?.triageSettings as Record<string, any> | null) || {};
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
+
+  // Force-include setup group during active onboarding (so Divi always has context)
+  if ((userSettings?.onboardingPhase ?? 0) < 6) {
+    relevantGroups.add('setup');
+  }
 
   // ── Batch 1: Pre-fetch shared data (always needed) ──
   const [
@@ -434,7 +439,8 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   const group9 = relevantGroups.has('extensions') ? await layer19_agentExtensions(userId) : '';
 
   // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
-  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length) : '';
+  const onboardingPhase = userSettings?.onboardingPhase ?? 0;
+  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length, onboardingPhase) : '';
 
   // ── Group 11: Business Operations (Tasks, Agreements, Marketplace, Recordings, Reputation) ──
   const group11 = relevantGroups.has('business') ? await buildBusinessOperationsLayer(userId) : '';
@@ -1100,6 +1106,7 @@ async function buildSetupLayer_conditional(
   cardCount: number,
   contactCount: number,
   connectionCount: number,
+  onboardingPhase: number = 6,
 ): Promise<string> {
   const [apiKeys, webhooks, docCount, profile] = await Promise.all([
     prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
@@ -1114,12 +1121,39 @@ async function buildSetupLayer_conditional(
   const hasContacts = contactCount > 0;
   const hasConnections = connectionCount > 0;
 
+  // ── Onboarding awareness (lean — only when in progress) ─────────────
+  let onboardingBlock = '';
+  if (onboardingPhase < 6) {
+    const phaseDescriptions: Record<number, string> = {
+      0: 'Not started — waiting for user to begin',
+      1: 'Personalizing — configuring working style, triage, goals, agent name',
+      2: 'Google connection — connecting email/calendar/drive accounts',
+      3: 'Platform tour — learning navigation and features',
+      4: 'Webhooks — setting up external integrations',
+      5: 'Launch — reviewing setup and starting first catch-up',
+    };
+    onboardingBlock = `### Onboarding Status
+Phase ${onboardingPhase}/5: ${phaseDescriptions[onboardingPhase] || 'Unknown'}
+The interactive onboarding widgets are shown in chat — guide the user through them conversationally.
+Do NOT repeat onboarding steps the user has already completed.
+
+`;
+  }
+
+  // ── Settings widget action (always available) ──────────────────────
+  const settingsHint = `### Adjustable Settings (anytime)
+If the user asks to change working style, triage mode, goals, agent name, or identity preference:
+Use [[show_settings_widget:{"group":"<GROUP>"}]] where GROUP is: working_style, triage, goals, identity, or all.
+This shows an interactive settings widget inline in chat. The user adjusts and saves directly.
+
+`;
+
   // If everything important is configured, return compact status only
   if (hasApiKey && hasProfile && hasCards && hasContacts) {
     return `## Platform Status
 API: ${apiKeys.map((k: any) => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
 
-### Navigation Reference (for guiding users)
+${onboardingBlock}${settingsHint}### Navigation Reference (for guiding users)
 - **Primary**: Chat, Board (Kanban), CRM, Calendar
 - **Network**: Discover, Connections, Teams, Tasks, Marketplace (includes Earnings)
 - **Messages**: Inbox, Recordings
@@ -1136,6 +1170,9 @@ If user asks "where is X?" → reference the navigation above.`;
   let text = '## Platform Setup Guide\n';
   text += 'Help the user complete their setup. Use action tags to do things directly when possible.\n\n';
   text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
+
+  text += onboardingBlock;
+  text += settingsHint;
 
   if (!hasApiKey) text += '- **API Key needed** — Ask user for their OpenAI/Anthropic key, save with [[save_api_key:...]]\n';
   if (!hasProfile) text += '- **Profile not set** — Suggest filling out profile in Settings → 👤 Profile for better relay routing\n';

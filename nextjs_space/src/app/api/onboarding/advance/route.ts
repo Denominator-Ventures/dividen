@@ -11,15 +11,18 @@ import {
   getPhase4Message, getPhase4Widgets,
   getPhase5Message, getPhase5Widgets,
   getCompletionMessage,
+  getSettingsWidgets,
+  type SettingsWidgetGroup,
 } from '@/lib/onboarding-phases';
 
 /**
  * POST /api/onboarding/advance
  * 
  * Generates the next onboarding phase message from Divi and saves it to chat.
- * Called when transitioning between phases.
+ * Also handles showing settings widgets outside of onboarding.
  * 
- * Body: { settings?: any } — any settings from the completed phase
+ * Body:
+ *   { action: 'advance' | 'skip' | 'init' | 'show_settings', settings?: any, settingsGroup?: string }
  */
 export async function POST(req: NextRequest) {
   try {
@@ -28,11 +31,16 @@ export async function POST(req: NextRequest) {
     const userId = (session.user as any).id;
 
     const body = await req.json().catch(() => ({}));
-    const { settings, action = 'advance' } = body;
+    const { settings, action = 'advance', settingsGroup } = body;
+
+    // ── Show Settings Widget (non-onboarding, can be called anytime) ─────
+    if (action === 'show_settings') {
+      return await handleShowSettings(userId, settingsGroup || 'all', settings);
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { onboardingPhase: true, diviName: true, workingStyle: true },
+      select: { onboardingPhase: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true },
     });
     if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
@@ -43,7 +51,10 @@ export async function POST(req: NextRequest) {
       await applySettings(userId, currentPhase, settings);
     }
 
-    // Advance phase unless this is an init call (just getting current phase content)
+    // Check if this is Phase 5 "Start Propagation" submit (triggers catch-up after advancing)
+    const isPropagationSubmit = currentPhase === 5 && action === 'advance';
+
+    // Advance phase unless this is an init call (re-generating current phase)
     if (action !== 'init') {
       currentPhase = Math.min(currentPhase + 1, 6);
       await prisma.user.update({
@@ -55,11 +66,36 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Generate content for the new current phase
-    const phaseContent = await generatePhaseContent(userId, currentPhase, user.diviName || 'Divi');
+    // For init, check if a message for this phase already exists to avoid duplicates
+    if (action === 'init') {
+      const existing = await prisma.chatMessage.findFirst({
+        where: {
+          userId,
+          role: 'assistant',
+          metadata: { contains: `"onboardingPhase":${currentPhase}` },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (existing) {
+        // Already have this phase's message, just return it
+        const meta = existing.metadata ? JSON.parse(String(existing.metadata)) : {};
+        return NextResponse.json({
+          success: true,
+          data: {
+            phase: currentPhase,
+            message: existing.content,
+            widgets: meta.widgets || [],
+            isComplete: currentPhase >= 6,
+            existing: true,
+          },
+        });
+      }
+    }
+
+    // Generate content for the current phase
+    const phaseContent = await generatePhaseContent(userId, currentPhase, user);
 
     if (phaseContent) {
-      // Save as assistant message with onboarding metadata
       await prisma.chatMessage.create({
         data: {
           role: 'assistant',
@@ -74,6 +110,25 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // If this was Phase 5 propagation, inject a catch-up user message to trigger expanded catch-up
+    if (isPropagationSubmit) {
+      await prisma.chatMessage.create({
+        data: {
+          role: 'user',
+          content: '[SYSTEM: Onboarding propagation — run expanded catch-up]',
+          userId,
+          metadata: JSON.stringify({ isOnboarding: true, propagation: true }),
+        },
+      });
+      await prisma.chatMessage.create({
+        data: {
+          role: 'assistant',
+          content: `🚀 **Propagation Started!**\n\nI'm now scanning and processing all your connected data sources. This is your first catch-up — I'll analyze everything and populate your Board, NOW panel, and CRM with what I find.\n\nOpen **"☀️ Catch me up"** from the chat to trigger a full catch-up anytime you want a fresh sweep.\n\nIn the meantime, feel free to explore the platform — your data will start appearing as I process it.`,
+          userId,
+        },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
@@ -81,6 +136,7 @@ export async function POST(req: NextRequest) {
         message: phaseContent?.message || '',
         widgets: phaseContent?.widgets || [],
         isComplete: currentPhase >= 6,
+        propagationTriggered: isPropagationSubmit,
       },
     });
   } catch (error: any) {
@@ -89,22 +145,25 @@ export async function POST(req: NextRequest) {
   }
 }
 
-async function generatePhaseContent(userId: string, phase: number, diviName: string) {
+// ── Phase content generation ──────────────────────────────────────────────────
+
+async function generatePhaseContent(
+  userId: string,
+  phase: number,
+  user: { diviName: string | null; workingStyle: any; triageSettings: any; goalsEnabled: boolean },
+) {
+  const diviName = user.diviName || 'Divi';
+
   switch (phase) {
     case 1: {
-      // Phase 1: Divi settings walkthrough
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { workingStyle: true },
-      });
-      const ws = user?.workingStyle ? JSON.parse(String(user.workingStyle)) : null;
+      const ws = user.workingStyle ? JSON.parse(String(user.workingStyle)) : null;
+      const ts = user.triageSettings ? JSON.parse(String(user.triageSettings)) : null;
       return {
         message: getPhase1Message(diviName),
-        widgets: getPhase1Widgets(ws),
+        widgets: getPhase1Widgets(ws, ts, user.goalsEnabled, diviName),
       };
     }
     case 2: {
-      // Phase 2: Email setup
       const integrations = await prisma.integrationAccount.findMany({
         where: { userId, isActive: true, provider: 'google', service: 'email' },
         select: { identity: true, emailAddress: true, accountIndex: true },
@@ -115,7 +174,6 @@ async function generatePhaseContent(userId: string, phase: number, diviName: str
         .filter((i: any) => i.identity === 'operator' && i.emailAddress)
         .map((i: any) => i.emailAddress);
 
-      // Get identity preference from memory
       const prefMem = await prisma.memoryItem.findUnique({
         where: { userId_key: { userId, key: 'divi_identity_preference' } },
       }).catch(() => null);
@@ -128,27 +186,18 @@ async function generatePhaseContent(userId: string, phase: number, diviName: str
       };
     }
     case 3: {
-      // Phase 3: Connected overview
       const services = await prisma.integrationAccount.findMany({
         where: { userId, isActive: true, provider: 'google' },
         select: { service: true },
       });
       return {
         message: getPhase3Message(services.map((s: any) => s.service)),
-        widgets: [
-          { type: 'submit' as const, id: 'phase3_submit', submitLabel: 'Continue \u2192' },
-        ],
+        widgets: [{ type: 'submit' as const, id: 'phase3_submit', submitLabel: 'Continue \u2192' }],
       };
     }
-    case 4: {
-      // Phase 4: Webhooks
-      return {
-        message: getPhase4Message(),
-        widgets: getPhase4Widgets(),
-      };
-    }
+    case 4:
+      return { message: getPhase4Message(), widgets: getPhase4Widgets() };
     case 5: {
-      // Phase 5: Propagation
       const integ = await prisma.integrationAccount.findMany({
         where: { userId, isActive: true, provider: 'google' },
         select: { service: true },
@@ -159,36 +208,84 @@ async function generatePhaseContent(userId: string, phase: number, diviName: str
         widgets: getPhase5Widgets(svcSet.size > 0),
       };
     }
-    case 6: {
-      // Complete
-      return {
-        message: getCompletionMessage(diviName),
-        widgets: [],
-      };
-    }
+    case 6:
+      return { message: getCompletionMessage(diviName), widgets: [] };
     default:
       return null;
   }
 }
 
+// ── Apply settings from a completed phase ─────────────────────────────────────
+
 async function applySettings(userId: string, phase: number, settings: any) {
-  if (phase === 1 && settings) {
-    const updates: any = {};
-    if (settings.workingStyle) updates.workingStyle = JSON.stringify(settings.workingStyle);
-    if (settings.diviName) updates.diviName = settings.diviName;
-    if (Object.keys(updates).length > 0) {
-      await prisma.user.update({ where: { id: userId }, data: updates });
-    }
-    if (settings.identityPreference) {
-      await prisma.memoryItem.upsert({
-        where: { userId_key: { userId, key: 'divi_identity_preference' } },
-        update: { value: typeof settings.identityPreference === 'string' ? settings.identityPreference : JSON.stringify(settings.identityPreference) },
-        create: {
-          tier: 1, category: 'general', key: 'divi_identity_preference',
-          value: typeof settings.identityPreference === 'string' ? settings.identityPreference : JSON.stringify(settings.identityPreference),
-          approved: true, source: 'onboarding', userId,
-        },
-      }).catch(() => {});
-    }
+  // Phase 1 and show_settings both write the same fields
+  if (!settings) return;
+
+  const updates: any = {};
+  if (settings.workingStyle) updates.workingStyle = JSON.stringify(settings.workingStyle);
+  if (settings.diviName !== undefined && settings.diviName !== '') updates.diviName = settings.diviName;
+  if (settings.triageSettings) updates.triageSettings = JSON.stringify(settings.triageSettings);
+  if (typeof settings.goalsEnabled === 'boolean') updates.goalsEnabled = settings.goalsEnabled;
+
+  if (Object.keys(updates).length > 0) {
+    await prisma.user.update({ where: { id: userId }, data: updates });
   }
+
+  // Save identity preference as memory item
+  if (settings.identityPreference) {
+    await prisma.memoryItem.upsert({
+      where: { userId_key: { userId, key: 'divi_identity_preference' } },
+      update: { value: typeof settings.identityPreference === 'string' ? settings.identityPreference : JSON.stringify(settings.identityPreference) },
+      create: {
+        tier: 1, category: 'general', key: 'divi_identity_preference',
+        value: typeof settings.identityPreference === 'string' ? settings.identityPreference : JSON.stringify(settings.identityPreference),
+        approved: true, source: 'onboarding', userId,
+      },
+    }).catch(() => {});
+  }
+}
+
+// ── Show Settings Widget (callable anytime via action tag) ────────────────────
+
+async function handleShowSettings(userId: string, group: string, settings?: any) {
+  // If settings are being submitted (not just showing the widget)
+  if (settings) {
+    await applySettings(userId, -1, settings);
+    return NextResponse.json({ success: true, data: { saved: true } });
+  }
+
+  // Load current values and generate widget config
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { workingStyle: true, triageSettings: true, goalsEnabled: true, diviName: true },
+  });
+  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+
+  const ws = user.workingStyle ? JSON.parse(String(user.workingStyle)) : null;
+  const ts = user.triageSettings ? JSON.parse(String(user.triageSettings)) : null;
+  const widgets = getSettingsWidgets(
+    (group as SettingsWidgetGroup) || 'all',
+    ws, ts, user.goalsEnabled, user.diviName || 'Divi',
+  );
+
+  // Save as a chat message with the widget
+  const message = group === 'all'
+    ? `Here are your current settings. Adjust anything and hit save:`
+    : `Here are your ${group.replace('_', ' ')} settings. Adjust and save:`;
+
+  await prisma.chatMessage.create({
+    data: {
+      role: 'assistant',
+      content: message,
+      userId,
+      metadata: JSON.stringify({
+        isOnboarding: true, // Reuse the widget renderer
+        onboardingPhase: -1, // -1 = settings adjustment, not onboarding
+        widgets,
+        settingsGroup: group,
+      }),
+    },
+  });
+
+  return NextResponse.json({ success: true, data: { message, widgets, settingsGroup: group } });
 }

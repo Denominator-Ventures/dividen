@@ -27,6 +27,7 @@ export function OnboardingChatWidgets({
       if (w.type === 'slider') init[w.id] = w.value ?? w.min ?? 1;
       if (w.type === 'toggle') init[w.id] = w.checked ?? false;
       if (w.type === 'select' || w.type === 'radio') init[w.id] = w.selectedValue ?? w.options?.[0]?.value ?? '';
+      if (w.type === 'text_input') init[w.id] = w.defaultValue ?? '';
     }
     return init;
   });
@@ -39,20 +40,38 @@ export function OnboardingChatWidgets({
 
   const handleSubmit = useCallback(() => {
     setSubmitted(true);
-    // Build settings object from widget values
+    // Build settings object from widget values — universal for onboarding + settings adjustment
     const settings: Record<string, any> = {};
 
-    if (phase === 1) {
-      // Phase 1: workingStyle + identityPreference
+    // Working style sliders
+    const hasSliders = ['verbosity', 'proactivity', 'autonomy', 'formality'].some(k => values[k] !== undefined);
+    if (hasSliders) {
       settings.workingStyle = {
         verbosity: values.verbosity ?? 3,
         proactivity: values.proactivity ?? 4,
         autonomy: values.autonomy ?? 3,
         formality: values.formality ?? 2,
       };
-      if (values.identityPreference) {
-        settings.identityPreference = values.identityPreference;
-      }
+    }
+
+    // Triage style
+    if (values.triageStyle) {
+      settings.triageSettings = { triageStyle: values.triageStyle };
+    }
+
+    // Identity preference
+    if (values.identityPreference) {
+      settings.identityPreference = values.identityPreference;
+    }
+
+    // Goals
+    if (values.goalsEnabled !== undefined) {
+      settings.goalsEnabled = values.goalsEnabled;
+    }
+
+    // Divi name
+    if (values.diviName !== undefined && values.diviName !== '') {
+      settings.diviName = values.diviName;
     }
 
     onSubmit(phase, settings);
@@ -124,6 +143,16 @@ export function OnboardingChatWidgets({
           case 'info':
             return (
               <InfoWidget key={widget.id} widget={widget} />
+            );
+          case 'text_input':
+            return (
+              <TextInputWidget
+                key={widget.id}
+                widget={widget}
+                value={values[widget.id] ?? ''}
+                onChange={(v) => setValue(widget.id, v)}
+                disabled={isDisabled}
+              />
             );
           case 'webhook_setup':
             return (
@@ -406,6 +435,37 @@ function InfoWidget({ widget }: { widget: OnboardingWidget }) {
     <div className="bg-white/[0.03] border border-white/[0.06] rounded-lg px-3 py-2 flex items-center gap-2">
       {widget.icon && <span className="text-sm">{widget.icon}</span>}
       <span className="text-xs text-[var(--text-secondary)]">{widget.text}</span>
+    </div>
+  );
+}
+
+function TextInputWidget({
+  widget,
+  value,
+  onChange,
+  disabled,
+}: {
+  widget: OnboardingWidget;
+  value: string;
+  onChange: (v: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-[var(--text-secondary)]">
+        {widget.label}
+      </label>
+      {widget.description && (
+        <p className="text-[10px] text-[var(--text-muted)]">{widget.description}</p>
+      )}
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+        placeholder={widget.placeholder || ''}
+        className="w-full px-3 py-2 text-sm bg-white/[0.04] border border-white/[0.08] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]/40 disabled:opacity-50 transition-colors"
+      />
     </div>
   );
 }

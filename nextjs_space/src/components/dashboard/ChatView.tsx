@@ -308,6 +308,10 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
                 case 'done':
                   fullCleanContent = event.content;
+                  // Capture widget metadata if present (e.g., show_settings_widget)
+                  if (event.metadata) {
+                    (window as any).__lastMsgMeta = event.metadata;
+                  }
                   break;
 
                 case 'error':
@@ -322,13 +326,15 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           }
         }
 
-        // Add assistant message to history
+        // Add assistant message to history (include widget metadata if any)
         const assistantMsg: ChatMessage = {
           id: `msg-${Date.now()}`,
           role: 'assistant',
           content: fullCleanContent || stripTagsClient(streamingContent),
           createdAt: new Date().toISOString(),
+          metadata: (window as any).__lastMsgMeta || undefined,
         };
+        delete (window as any).__lastMsgMeta;
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err: any) {
         console.error('Chat error:', err);
@@ -368,8 +374,25 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       return;
     }
 
-    // Submit or skip — advance to next phase
     try {
+      // Phase -1 = settings adjustment (not onboarding) — save settings via show_settings endpoint
+      if (phase === -1) {
+        await fetch('/api/onboarding/advance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'show_settings', settings: data }),
+        });
+        // Add confirmation message
+        setMessages(prev => [...prev, {
+          id: `msg-confirm-${Date.now()}`,
+          role: 'assistant',
+          content: '✅ Settings updated! Your changes are active now.',
+          createdAt: new Date().toISOString(),
+        }]);
+        return;
+      }
+
+      // Regular onboarding — advance to next phase
       const res = await fetch('/api/onboarding/advance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
