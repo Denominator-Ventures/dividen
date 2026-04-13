@@ -17,19 +17,27 @@ export default function ProfileView({ onClose }: { onClose?: () => void } = {}) 
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const fetchProfile = useCallback(async () => {
-    try {
-      const res = await fetch('/api/profile');
-      const data = await res.json();
-      if (data.success) {
-        setProfile(data.profile);
-        if (data.user) setUser(data.user);
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchProfile = useCallback(async (retries = 2) => {
+    setFetchError(false);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const res = await fetch('/api/profile');
+        const data = await res.json();
+        if (data.success) {
+          setProfile(data.profile);
+          if (data.user) setUser(data.user);
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        if (i < retries) await new Promise(r => setTimeout(r, 1000));
+        else console.error('Failed to load profile:', e);
       }
-    } catch (e) {
-      console.error('Failed to load profile:', e);
-    } finally {
-      setLoading(false);
     }
+    setFetchError(true);
+    setLoading(false);
   }, []);
 
   useEffect(() => { fetchProfile(); }, [fetchProfile]);
@@ -98,8 +106,14 @@ export default function ProfileView({ onClose }: { onClose?: () => void } = {}) 
     return <div className="flex items-center justify-center h-full text-[var(--text-muted)] animate-pulse">Loading profile...</div>;
   }
 
-  if (!profile || !user) {
-    return <div className="text-red-400 py-8 text-center">Failed to load profile</div>;
+  if (fetchError || (!profile || !user)) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+        <div className="text-3xl opacity-40">⚠️</div>
+        <p className="text-sm text-[var(--text-secondary)]">Failed to load profile. This may be a temporary connection issue.</p>
+        <button onClick={() => fetchProfile()} className="btn-primary text-xs px-3 py-1.5">Retry</button>
+      </div>
+    );
   }
 
   const capacity = CAPACITY_STATUSES.find(s => s.id === profile.capacityStatus);

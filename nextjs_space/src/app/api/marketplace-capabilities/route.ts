@@ -59,8 +59,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Browse marketplace capabilities
-  const where: any = { status: 'active' };
+  // Browse marketplace capabilities — only show approved items
+  const where: any = { status: 'active', approvalStatus: 'approved' };
   if (category && category !== 'all') where.category = category;
   if (search) {
     where.OR = [
@@ -83,6 +83,11 @@ export async function GET(req: NextRequest) {
         isSystemSeed: true,
         accessPassword: true,   // needed to compute hasAccessPassword
         createdByUserId: true,  // needed to compute isOwner
+        publisherName: true,
+        publisherType: true,
+        publisherUrl: true,
+        skillFormat: true,
+        skillSource: true,
         // NOTE: prompt is NOT included — hidden until purchased
       },
     }),

@@ -519,15 +519,54 @@ When content work is requested:
         featured: cap.featured || false,
         editableFields: cap.editableFields,
         prompt: cap.prompt,
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        approvalStatus: 'approved',
       },
       create: {
         ...cap,
         status: 'active',
         isSystemSeed: true,
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        approvalStatus: 'approved',
       },
     });
   }
   console.log(`Seeded ${capabilities.length} marketplace capabilities.`);
+
+  // ── Agent Skills Capabilities (agentskills.io ecosystem) ──────────────────
+  const agentSkills = [
+    { slug: 'skill-document-processing', name: 'Document Processing', icon: '📄', category: 'operations', description: 'Extract, classify, and summarize documents using structured analysis.', prompt: 'Process documents by extracting key information, classifying content type, and generating structured summaries. Handle PDFs, emails, contracts, and reports.', skillBody: 'name: document-processing\nversion: 1.0\ninstructions: Extract structured data from documents.\nresources:\n  - type: file\n    accept: pdf,docx,txt' },
+    { slug: 'skill-web-research', name: 'Web Research & Synthesis', icon: '🌐', category: 'research', description: 'Research topics across the web and synthesize findings into actionable summaries.', prompt: 'Conduct comprehensive web research on given topics. Cross-reference multiple sources, identify key findings, and produce structured research reports with citations.', skillBody: 'name: web-research\nversion: 1.0\ninstructions: Research and synthesize from multiple web sources.\noutput: structured-report' },
+    { slug: 'skill-code-review', name: 'Code Review & Analysis', icon: '🔍', category: 'engineering', description: 'Analyze code for bugs, security issues, and improvement opportunities.', prompt: 'Review code submissions for bugs, security vulnerabilities, performance issues, and style consistency. Provide actionable feedback with specific line references and suggested fixes.', skillBody: 'name: code-review\nversion: 1.0\ninstructions: Analyze code quality and provide structured feedback.\nresources:\n  - type: code\n    languages: any' },
+    { slug: 'skill-data-analysis', name: 'Data Analysis & Visualization', icon: '📊', category: 'finance', description: 'Analyze datasets and generate insights with visualization recommendations.', prompt: 'Analyze provided datasets. Identify trends, anomalies, and correlations. Generate summary statistics and recommend appropriate visualizations for key findings.', skillBody: 'name: data-analysis\nversion: 1.0\ninstructions: Analyze data and produce insights with visualization specs.\nresources:\n  - type: data\n    accept: csv,json,xlsx' },
+    { slug: 'skill-api-integration', name: 'API Integration Builder', icon: '🔌', category: 'engineering', description: 'Design and document API integrations between services.', prompt: 'Design API integration workflows between specified services. Generate OpenAPI specs, authentication flows, error handling strategies, and implementation guides.', skillBody: 'name: api-integration\nversion: 1.0\ninstructions: Design and document API integration patterns.\noutput: openapi-spec' },
+    { slug: 'skill-presentation', name: 'Presentation Builder', icon: '🎤', category: 'creative', description: 'Generate structured presentation outlines with speaker notes.', prompt: 'Create presentation outlines based on provided topics. Structure slides with clear narratives, data points, and speaker notes. Adapt tone for the target audience.', skillBody: 'name: presentation-builder\nversion: 1.0\ninstructions: Generate structured slide decks with narratives.\noutput: markdown-slides' },
+    { slug: 'skill-test-generation', name: 'Test Generation & Automation', icon: '🧪', category: 'engineering', description: 'Generate test suites and automation scripts for codebases.', prompt: 'Analyze code and generate comprehensive test suites including unit tests, integration tests, and edge cases. Support multiple testing frameworks and languages.', skillBody: 'name: test-generation\nversion: 1.0\ninstructions: Generate test suites from code analysis.\nresources:\n  - type: code\n    languages: any' },
+    { slug: 'skill-workflow-automation', name: 'Workflow Automation Designer', icon: '⚡', category: 'operations', description: 'Design automated workflows connecting tools and processes.', prompt: 'Design automated workflows that connect existing tools and processes. Generate step-by-step automation plans with trigger conditions, actions, and error handling.', skillBody: 'name: workflow-automation\nversion: 1.0\ninstructions: Design multi-step automation workflows.\noutput: workflow-spec' },
+  ];
+
+  for (const skill of agentSkills) {
+    await prisma.marketplaceCapability.upsert({
+      where: { slug: skill.slug },
+      update: { name: skill.name, description: skill.description, prompt: skill.prompt, skillBody: skill.skillBody, publisherName: 'DiviDen', approvalStatus: 'approved' },
+      create: {
+        ...skill,
+        pricingModel: 'free',
+        status: 'active',
+        isSystemSeed: true,
+        skillFormat: true,
+        skillSource: 'agentskills.io',
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        approvalStatus: 'approved',
+        longDescription: `Agent Skills-compatible capability from the agentskills.io ecosystem. ${skill.description}`,
+        tags: JSON.stringify(['agent-skills', skill.category]),
+      },
+    });
+  }
+  console.log(`Seeded ${agentSkills.length} Agent Skills capabilities.`);
 
   console.log('Database seeded successfully.');
 }

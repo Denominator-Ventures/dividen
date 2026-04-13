@@ -30,6 +30,17 @@ interface KnownInstance {
   lastSyncAt?: string | null;
 }
 
+interface NetworkStatus {
+  connected: boolean;
+  isPrimaryInstance: boolean;
+  networkRole: string;
+  instanceName?: string;
+  instanceUrl?: string;
+  connectedInstances?: number;
+  features: { marketplace: boolean; discovery: boolean; relay: boolean; updates: boolean };
+  message: string;
+}
+
 type WizardStep = 'idle' | 'configure' | 'registering' | 'success' | 'error';
 
 interface PlatformLinkResult {
@@ -43,13 +54,14 @@ interface PlatformLinkResult {
 export function FederationManager() {
   const [config, setConfig] = useState<FedConfig | null>(null);
   const [instances, setInstances] = useState<KnownInstance[]>([]);
+  const [networkStatus, setNetworkStatus] = useState<NetworkStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newInstanceName, setNewInstanceName] = useState('');
   const [newInstanceUrl, setNewInstanceUrl] = useState('');
   const [showAddInstance, setShowAddInstance] = useState(false);
 
-  // Connect to Network wizard state
+  // Connect to Network wizard state (only for self-hosted instances)
   const [wizardStep, setWizardStep] = useState<WizardStep>('idle');
   const [wizardError, setWizardError] = useState('');
   const [linkResult, setLinkResult] = useState<PlatformLinkResult | null>(null);
@@ -59,6 +71,13 @@ export function FederationManager() {
     enableDiscovery: true,
     enableUpdates: true,
   });
+
+  const fetchNetworkStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/network/status');
+      if (res.ok) setNetworkStatus(await res.json());
+    } catch (e) { console.error(e); }
+  }, []);
 
   const fetchConfig = useCallback(async () => {
     try {
@@ -75,8 +94,8 @@ export function FederationManager() {
   }, []);
 
   useEffect(() => {
-    Promise.all([fetchConfig(), fetchInstances()]).finally(() => setLoading(false));
-  }, [fetchConfig, fetchInstances]);
+    Promise.all([fetchNetworkStatus(), fetchConfig(), fetchInstances()]).finally(() => setLoading(false));
+  }, [fetchNetworkStatus, fetchConfig, fetchInstances]);
 
   const updateConfig = async (updates: Partial<FedConfig> & { regenerateApiKey?: boolean }) => {
     setSaving(true);
@@ -176,6 +195,8 @@ export function FederationManager() {
 
   if (!config) return null;
 
+  const isPrimary = networkStatus?.isPrimaryInstance === true;
+
   const MODE_OPTIONS = [
     { id: 'closed', label: 'Closed', desc: 'No external connections allowed. Single-org only.', icon: '🔒' },
     { id: 'allowlist', label: 'Allowlist', desc: 'Only pre-approved instances can connect.', icon: '📋' },
@@ -184,6 +205,42 @@ export function FederationManager() {
 
   return (
     <div className="space-y-6">
+      {/* ── Network Status Banner ── */}
+      {networkStatus && (
+        <div className={cn(
+          'p-4 rounded-lg border',
+          networkStatus.connected
+            ? 'bg-green-500/5 border-green-500/20'
+            : 'bg-yellow-500/5 border-yellow-500/20'
+        )}>
+          <div className="flex items-center gap-3 mb-2">
+            <div className={cn('w-2.5 h-2.5 rounded-full', networkStatus.connected ? 'bg-green-400 animate-pulse' : 'bg-yellow-400')} />
+            <span className="text-sm font-medium text-[var(--text-primary)]">
+              {networkStatus.connected ? '🌐 Connected to DiviDen Network' : '⚠ Not Connected'}
+            </span>
+            {isPrimary && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] font-medium">
+                Primary Instance
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">{networkStatus.message}</p>
+          {networkStatus.connected && (
+            <div className="flex gap-3 mt-3">
+              {networkStatus.features.marketplace && <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/10 text-green-400">🏪 Marketplace</span>}
+              {networkStatus.features.discovery && <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">🔍 Discovery</span>}
+              {networkStatus.features.relay && <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400">📡 Relay</span>}
+              {networkStatus.features.updates && <span className="text-[10px] px-2 py-0.5 rounded bg-orange-500/10 text-orange-400">📢 Updates</span>}
+            </div>
+          )}
+          {isPrimary && (
+            <p className="text-[10px] text-[var(--text-muted)] mt-2 italic">
+              As the primary instance, you are the hub of the DiviDen network. All authenticated users are automatically connected. Federation settings below apply to external open-source instances connecting to this hub.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Instance Identity */}
       <div>
         <span className="label-mono text-[var(--text-muted)] text-[10px]">Instance Identity</span>
@@ -301,7 +358,8 @@ export function FederationManager() {
         </p>
       </div>
 
-      {/* Connect to Network Wizard */}
+      {/* Connect to Network Wizard — only show for self-hosted (non-primary) instances */}
+      {!isPrimary && (
       <div>
         <span className="label-mono text-[var(--text-muted)] text-[10px]">Connect to Network</span>
         <div className="mt-2 p-4 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)]">
@@ -312,9 +370,9 @@ export function FederationManager() {
                 <div>
                   <h4 className="text-sm font-medium text-[var(--text-primary)]">Join the DiviDen Network</h4>
                   <p className="text-[11px] text-[var(--text-muted)] mt-1 leading-relaxed">
-                    Connect this instance to the managed DiviDen platform to access the agent marketplace,
-                    network discovery feed, and unified updates. Your instance stays self-hosted — this just
-                    links it to the broader network.
+                    Connect this self-hosted instance to the DiviDen platform to access the agent marketplace,
+                    network discovery feed, and unified updates. Your instance stays self-hosted — DiviDen acts
+                    as a middle node for discovery and inter-instance communication.
                   </p>
                 </div>
               </div>
@@ -484,6 +542,7 @@ export function FederationManager() {
           )}
         </div>
       </div>
+      )}
 
       {/* Known Instances */}
       {config.federationMode !== 'closed' && (

@@ -46,7 +46,7 @@ const primaryTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
   { id: 'crm', label: 'CRM', icon: '👥' },
   { id: 'calendar', label: 'Calendar', icon: '📅' },
-  { id: 'inbox', label: 'Inbox', icon: '📧' },
+  { id: 'inbox', label: 'Email', icon: '📧' },
   { id: 'recordings', label: 'Recordings', icon: '🎙️' },
 ];
 
@@ -207,7 +207,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
         {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
         {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
-        {activeTab === 'inbox' && <TabErrorBoundary tabName="Inbox"><InboxView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
+        {activeTab === 'inbox' && <TabErrorBoundary tabName="Email"><InboxView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'recordings' && <TabErrorBoundary tabName="Recordings"><RecordingsView /></TabErrorBoundary>}
         {activeTab === 'drive' && <TabErrorBoundary tabName="Drive"><DriveView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'discover' && <TabErrorBoundary tabName="Discover"><DiscoverView /></TabErrorBoundary>}

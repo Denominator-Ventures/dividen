@@ -82,29 +82,37 @@ export default function RelaySettings() {
   const [saveMessage, setSaveMessage] = useState('');
   const [newTopicFilter, setNewTopicFilter] = useState('');
 
-  const fetchPrefs = useCallback(async () => {
-    try {
-      const res = await fetch('/api/profile');
-      const data = await res.json();
-      if (data.success) {
-        const p = data.profile;
-        setPrefs({
-          relayMode: p.relayMode || 'full',
-          allowAmbientInbound: p.allowAmbientInbound ?? true,
-          allowAmbientOutbound: p.allowAmbientOutbound ?? true,
-          allowBroadcasts: p.allowBroadcasts ?? true,
-          autoRespondAmbient: p.autoRespondAmbient ?? false,
-          relayQuietHours: p.relayQuietHours || null,
-          relayTopicFilters: p.relayTopicFilters || [],
-          briefVisibility: p.briefVisibility || 'self',
-          showBriefOnRelay: p.showBriefOnRelay ?? true,
-        });
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchPrefs = useCallback(async (retries = 2) => {
+    setFetchError(false);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const res = await fetch('/api/profile');
+        const data = await res.json();
+        if (data.success) {
+          const p = data.profile;
+          setPrefs({
+            relayMode: p.relayMode || 'full',
+            allowAmbientInbound: p.allowAmbientInbound ?? true,
+            allowAmbientOutbound: p.allowAmbientOutbound ?? true,
+            allowBroadcasts: p.allowBroadcasts ?? true,
+            autoRespondAmbient: p.autoRespondAmbient ?? false,
+            relayQuietHours: p.relayQuietHours || null,
+            relayTopicFilters: p.relayTopicFilters || [],
+            briefVisibility: p.briefVisibility || 'self',
+            showBriefOnRelay: p.showBriefOnRelay ?? true,
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        if (i < retries) await new Promise(r => setTimeout(r, 1000));
+        else console.error('Failed to load relay preferences:', e);
       }
-    } catch (e) {
-      console.error('Failed to load relay preferences:', e);
-    } finally {
-      setLoading(false);
     }
+    setFetchError(true);
+    setLoading(false);
   }, []);
 
   useEffect(() => { fetchPrefs(); }, [fetchPrefs]);
@@ -151,6 +159,15 @@ export default function RelaySettings() {
     if (!prefs) return;
     update('relayTopicFilters', prefs.relayTopicFilters.filter(t => t !== topic));
   };
+
+  if (fetchError && !prefs) {
+    return (
+      <div className="text-center py-8 space-y-2">
+        <p className="text-sm text-[var(--text-secondary)]">Failed to load relay preferences.</p>
+        <button onClick={() => fetchPrefs()} className="btn-primary text-xs px-3 py-1.5">Retry</button>
+      </div>
+    );
+  }
 
   if (loading || !prefs) {
     return <div className="animate-pulse text-[var(--text-secondary)] py-8">Loading relay preferences...</div>;

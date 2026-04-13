@@ -14,7 +14,7 @@ const SHORTCUTS: { key: string; label: string; description: string; section: str
   { key: '2', label: '2', description: 'Kanban Board', section: 'Tabs' },
   { key: '3', label: '3', description: 'CRM Contacts', section: 'Tabs' },
   { key: '4', label: '4', description: 'Calendar', section: 'Tabs' },
-  { key: '5', label: '5', description: 'Inbox', section: 'Tabs' },
+  { key: '5', label: '5', description: 'Email', section: 'Tabs' },
   { key: '6', label: '6', description: 'Recordings', section: 'Tabs' },
   { key: '7', label: '7', description: 'Drive', section: 'Tabs' },
   { key: '8', label: '8', description: 'Connections', section: 'Tabs' },
