@@ -101,6 +101,8 @@ export async function POST(req: NextRequest) {
       // Agent Integration Kit
       taskTypes, contextInstructions, requiredInputSchema, outputSchema,
       usageExamples, contextPreparation, executionNotes,
+      // Install guide & commands
+      installGuide, commands,
       // Access password
       accessPassword,
       // Versioning
@@ -156,6 +158,8 @@ export async function POST(req: NextRequest) {
         usageExamples: usageExamples ? JSON.stringify(usageExamples) : null,
         contextPreparation: contextPreparation ? JSON.stringify(contextPreparation) : null,
         executionNotes: executionNotes || null,
+        installGuide: installGuide || null,
+        commands: commands ? JSON.stringify(commands) : null,
         version: version || '1.0.0',
         changelog: JSON.stringify([{ version: version || '1.0.0', date: new Date().toISOString(), changes: 'Initial release' }]),
         status: 'active', // auto-approve for Phase 1

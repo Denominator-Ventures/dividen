@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   // ── Branch: Create a custom capability ───────────────────────────────────
   if (body.action === 'create') {
-    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields, accessPassword } = body;
+    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields, accessPassword, commands } = body;
     if (!name || !description || !prompt) {
       return NextResponse.json({ error: 'name, description, and prompt are required' }, { status: 400 });
     }
@@ -172,6 +172,7 @@ export async function POST(req: NextRequest) {
         prompt,
         editableFields: editableFields || '[]',
         accessPassword: accessPassword || null,
+        commands: commands ? (typeof commands === 'string' ? commands : JSON.stringify(commands)) : null,
         createdByUserId: userId,
         status: 'active',
         isSystemSeed: false,

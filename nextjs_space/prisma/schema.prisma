@@ -86,6 +86,7 @@ model User {
   customSignals        CustomSignal[]
 
   // Profile
+  username          String?   @unique // Unique handle for @mentions (e.g. "jon")
   profilePhotoUrl   String?   // Public S3 URL for profile photo
 
   // Divi personalization
@@ -1659,6 +1660,12 @@ model MarketplaceAgent {
   contextPreparation  String?   @db.Text  // JSON array of preparation steps Divi should follow
   executionNotes      String?   @db.Text  // Free-form notes about quirks, rate limits, best practices
 
+  // Install guide — developer-provided setup instructions shown after install
+  installGuide        String?   @db.Text  // Markdown instructions for post-install configuration
+
+  // Commands — actions users can invoke via !command syntax in chat
+  commands            String?   @db.Text  // JSON array: [{"name":"research","description":"Deep research on a topic","usage":"!agentslug.research <query>"}]
+
   // Federation — agents synced from self-hosted instances
   sourceInstanceId  String?  // InstanceRegistry.id if agent was synced from a federated instance
   remoteAgentId     String?  // The agent's original ID on the remote instance
@@ -1897,6 +1904,9 @@ model MarketplaceCapability {
 
   // Access password — developer can share to bypass paywall
   accessPassword  String?   // plain-text password for free access (sharing mechanism, not security)
+
+  // Commands — actions users can invoke via !command syntax in chat
+  commands        String?   @db.Text  // JSON array: [{"name":"summarize","description":"Summarize weekly metrics","usage":"!capslug.summarize"}]
 
   // System-managed
   isSystemSeed    Boolean   @default(false)  // true = seeded by platform, not user-created

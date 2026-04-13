@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -18,6 +18,29 @@ interface TagResult {
   success: boolean;
   data?: any;
   error?: string;
+}
+
+interface MentionResult {
+  id: string;
+  type: 'person' | 'agent';
+  name: string;
+  username?: string | null;
+  avatar?: string | null;
+  subtitle?: string;
+  description?: string;
+  diviName?: string;
+}
+
+interface CommandResult {
+  id: string;
+  type: 'command';
+  name: string;
+  fullCommand: string;
+  source: string;
+  sourceSlug: string;
+  sourceType: 'agent' | 'capability';
+  description: string;
+  usage: string;
 }
 
 interface ChatViewProps {
@@ -41,6 +64,15 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
   const [diviName, setDiviName] = useState('Divi');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── Inline @mention and !command search ───────────────────────────────
+  const [mentionResults, setMentionResults] = useState<MentionResult[]>([]);
+  const [commandResults, setCommandResults] = useState<CommandResult[]>([]);
+  const [inlineMode, setInlineMode] = useState<'@' | '!' | null>(null);
+  const [inlineQuery, setInlineQuery] = useState('');
+  const [inlineTriggerIdx, setInlineTriggerIdx] = useState(-1); // cursor position of trigger char
+  const [selectedIdx, setSelectedIdx] = useState(0);
+  const mentionFetchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Fetch user info (photo, API key status, divi name) ──────────────
   useEffect(() => {
@@ -77,6 +109,107 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [prefill, onPrefillConsumed]);
+
+  // ── Inline search: detect @ and ! triggers on input change ──────────
+  const handleInputChange = useCallback((val: string) => {
+    setInput(val);
+
+    // Get cursor position from input ref
+    const cursor = inputRef.current?.selectionStart ?? val.length;
+    const textBeforeCursor = val.slice(0, cursor);
+
+    // Look for " @" or "^@" (start of input)
+    const atMatch = textBeforeCursor.match(/(?:^|\s)@(\S*)$/);
+    // Look for " !" or "^!"
+    const bangMatch = textBeforeCursor.match(/(?:^|\s)!(\S*)$/);
+
+    if (atMatch) {
+      const query = atMatch[1];
+      const triggerPos = textBeforeCursor.lastIndexOf('@');
+      setInlineMode('@');
+      setInlineQuery(query);
+      setInlineTriggerIdx(triggerPos);
+      setSelectedIdx(0);
+      // Debounced fetch
+      if (mentionFetchRef.current) clearTimeout(mentionFetchRef.current);
+      mentionFetchRef.current = setTimeout(async () => {
+        try {
+          // Fetch people and agents in parallel
+          const [pRes, aRes] = await Promise.all([
+            fetch(`/api/chat/mentions?type=people&q=${encodeURIComponent(query)}`),
+            fetch(`/api/chat/mentions?type=agents&q=${encodeURIComponent(query)}`),
+          ]);
+          const [pData, aData] = await Promise.all([pRes.json(), aRes.json()]);
+          const combined: MentionResult[] = [
+            ...(pData.success ? pData.data : []),
+            ...(aData.success ? aData.data : []),
+          ];
+          setMentionResults(combined.slice(0, 8));
+        } catch { setMentionResults([]); }
+      }, 150);
+    } else if (bangMatch) {
+      const query = bangMatch[1];
+      const triggerPos = textBeforeCursor.lastIndexOf('!');
+      setInlineMode('!');
+      setInlineQuery(query);
+      setInlineTriggerIdx(triggerPos);
+      setSelectedIdx(0);
+      if (mentionFetchRef.current) clearTimeout(mentionFetchRef.current);
+      mentionFetchRef.current = setTimeout(async () => {
+        try {
+          const res = await fetch(`/api/chat/mentions?type=commands&q=${encodeURIComponent(query)}`);
+          const data = await res.json();
+          setCommandResults(data.success ? data.data.slice(0, 8) : []);
+        } catch { setCommandResults([]); }
+      }, 150);
+    } else {
+      // Clear inline search
+      if (inlineMode) {
+        setInlineMode(null);
+        setMentionResults([]);
+        setCommandResults([]);
+      }
+    }
+  }, [inlineMode]);
+
+  const inlineItems = useMemo(() => {
+    if (inlineMode === '@') return mentionResults;
+    if (inlineMode === '!') return commandResults;
+    return [];
+  }, [inlineMode, mentionResults, commandResults]);
+
+  const selectInlineItem = useCallback((item: MentionResult | CommandResult) => {
+    const val = input;
+    const triggerIdx = inlineTriggerIdx;
+    const cursor = inputRef.current?.selectionStart ?? val.length;
+    let replacement: string;
+
+    if (item.type === 'command') {
+      replacement = (item as CommandResult).fullCommand + ' ';
+    } else {
+      // Person or agent — use @username or @slug
+      const handle = (item as MentionResult).username || (item as MentionResult).name;
+      replacement = `@${handle} `;
+    }
+
+    // Replace from trigger char to current cursor position
+    const before = val.slice(0, triggerIdx);
+    const after = val.slice(cursor);
+    const newVal = before + replacement + after;
+    setInput(newVal);
+    setInlineMode(null);
+    setMentionResults([]);
+    setCommandResults([]);
+
+    // Restore cursor position
+    const newCursorPos = before.length + replacement.length;
+    setTimeout(() => {
+      if (inputRef.current) {
+        inputRef.current.focus();
+        inputRef.current.setSelectionRange(newCursorPos, newCursorPos);
+      }
+    }, 0);
+  }, [input, inlineTriggerIdx]);
 
   // ── Fetch chat history ────────────────────────────────────────────────
   useEffect(() => {
@@ -412,16 +545,99 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
       {/* Input Area */}
       <div className="flex-shrink-0 border-t border-[var(--border-color)] p-3 md:p-4">
+        {/* Inline search popup — renders above the input */}
+        {inlineMode && inlineItems.length > 0 && (
+          <div className="mb-2 bg-[#141419] border border-[var(--border-color)] rounded-lg shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+            <div className="px-3 py-1.5 border-b border-white/[0.06]">
+              <span className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
+                {inlineMode === '@' ? '👥 People & Agents' : '⚡ Commands'}
+              </span>
+            </div>
+            {inlineItems.map((item, idx) => (
+              <button
+                key={item.id}
+                className={cn(
+                  'w-full flex items-center gap-3 px-3 py-2 text-left transition-colors',
+                  idx === selectedIdx
+                    ? 'bg-brand-500/15 text-white'
+                    : 'text-white/70 hover:bg-white/5'
+                )}
+                onMouseDown={(e) => {
+                  e.preventDefault(); // prevent blur
+                  selectInlineItem(item);
+                }}
+                onMouseEnter={() => setSelectedIdx(idx)}
+              >
+                {inlineMode === '@' ? (
+                  <>
+                    <span className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0">
+                      {(item as MentionResult).avatar ? (
+                        <img src={(item as MentionResult).avatar!} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      ) : (item as MentionResult).type === 'agent' ? '🤖' : (
+                        ((item as MentionResult).name || '?')[0]?.toUpperCase()
+                      )}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium truncate">{(item as MentionResult).name}</div>
+                      <div className="text-[10px] text-white/40 truncate">{(item as MentionResult).subtitle}</div>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-white/30 flex-shrink-0">
+                      {(item as MentionResult).type === 'agent' ? 'Agent' : 'Person'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-base flex-shrink-0">⚡</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium font-mono truncate text-brand-400">{(item as CommandResult).fullCommand}</div>
+                      <div className="text-[10px] text-white/40 truncate">{(item as CommandResult).description}</div>
+                    </div>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-white/30 flex-shrink-0">
+                      {(item as CommandResult).source}
+                    </span>
+                  </>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex gap-2">
           <input
             ref={inputRef}
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={isStreaming ? `${diviName} is thinking...` : `Message ${diviName}...`}
+            onChange={(e) => handleInputChange(e.target.value)}
+            placeholder={isStreaming ? `${diviName} is thinking...` : `Message ${diviName}... (@ to mention, ! for commands)`}
             className="input-field flex-1 text-sm md:text-base"
             disabled={isStreaming}
             onKeyDown={(e) => {
+              // Inline search keyboard navigation
+              if (inlineMode && inlineItems.length > 0) {
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setSelectedIdx((p) => (p > 0 ? p - 1 : inlineItems.length - 1));
+                  return;
+                }
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setSelectedIdx((p) => (p < inlineItems.length - 1 ? p + 1 : 0));
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  selectInlineItem(inlineItems[selectedIdx]);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setInlineMode(null);
+                  setMentionResults([]);
+                  setCommandResults([]);
+                  return;
+                }
+              }
+              // Normal send
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();

@@ -31,7 +31,7 @@ export async function GET() {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true },
+    select: { id: true, name: true, email: true, username: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true },
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({
@@ -155,6 +155,21 @@ export async function PUT(request: NextRequest) {
       where: { id: userId },
       data: { hasCompletedOnboarding: body.hasCompletedOnboarding },
     });
+  }
+
+  // Update username
+  if (typeof body.username === 'string') {
+    const clean = body.username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+    if (clean.length > 0 && clean.length <= 30) {
+      // Check uniqueness
+      const existing = await prisma.user.findFirst({ where: { username: clean, NOT: { id: userId } } });
+      if (existing) {
+        return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 409 });
+      }
+      await prisma.user.update({ where: { id: userId }, data: { username: clean } });
+    } else if (clean.length === 0) {
+      await prisma.user.update({ where: { id: userId }, data: { username: null } });
+    }
   }
 
   // Update Divi personalization settings

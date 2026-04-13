@@ -71,7 +71,7 @@ export async function GET() {
   }
   const userId = (session.user as any).id;
 
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, profilePhotoUrl: true } });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, username: true, profilePhotoUrl: true } });
   let profile = await prisma.userProfile.findUnique({ where: { userId } });
   if (!profile) {
     // Auto-create empty profile
@@ -85,7 +85,7 @@ export async function GET() {
     });
   }
 
-  return NextResponse.json({ success: true, profile: serializeProfile(profile), user: user ? { name: user.name, email: user.email, profilePhotoUrl: user.profilePhotoUrl } : null });
+  return NextResponse.json({ success: true, profile: serializeProfile(profile), user: user ? { name: user.name, email: user.email, username: user.username, profilePhotoUrl: user.profilePhotoUrl } : null });
 }
 
 // PUT: Update current user's profile
@@ -167,6 +167,6 @@ export async function PUT(request: NextRequest) {
     },
   });
 
-  const updatedUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, profilePhotoUrl: true } });
-  return NextResponse.json({ success: true, profile: serializeProfile(profile), user: updatedUser ? { name: updatedUser.name, email: updatedUser.email, profilePhotoUrl: updatedUser.profilePhotoUrl } : null });
+  const updatedUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, username: true, profilePhotoUrl: true } });
+  return NextResponse.json({ success: true, profile: serializeProfile(profile), user: updatedUser ? { name: updatedUser.name, email: updatedUser.email, username: updatedUser.username, profilePhotoUrl: updatedUser.profilePhotoUrl } : null });
 }

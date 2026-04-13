@@ -115,7 +115,7 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
   const [createForm, setCreateForm] = useState({
     name: '', description: '', icon: '⚡', category: 'custom',
     integrationType: '', pricingModel: 'free', price: 0, prompt: '',
-    tags: '', editableFields: '[]', accessPassword: '',
+    tags: '', editableFields: '[]', accessPassword: '', commands: '',
   });
   const [creating, setCreating] = useState(false);
 
@@ -253,7 +253,7 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
         body: JSON.stringify({ action: 'create', ...createForm }),
       });
       if (res.ok) {
-        setCreateForm({ name: '', description: '', icon: '⚡', category: 'custom', integrationType: '', pricingModel: 'free', price: 0, prompt: '', tags: '', editableFields: '[]', accessPassword: '' });
+        setCreateForm({ name: '', description: '', icon: '⚡', category: 'custom', integrationType: '', pricingModel: 'free', price: 0, prompt: '', tags: '', editableFields: '[]', accessPassword: '', commands: '' });
         setView('installed');
       } else {
         const err = await res.json();
@@ -771,6 +771,17 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
             {createForm.accessPassword && (
               <p className="text-[10px] text-amber-400/60 mt-1">🔑 Users with this password can install without paying</p>
             )}
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-white/50 mb-1">⚡ Commands <span className="text-white/25">(JSON array — invokable via !slug.command)</span></label>
+            <textarea
+              value={createForm.commands}
+              onChange={e => setCreateForm(p => ({ ...p, commands: e.target.value }))}
+              placeholder={'[\n  {"name": "run", "description": "Execute this capability", "usage": "!slug.run"}\n]'}
+              rows={3}
+              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+            />
           </div>
 
           <div>

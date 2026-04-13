@@ -48,6 +48,8 @@ interface MarketplaceAgent {
   usageExamples?: string | null;
   contextPreparation?: string | null;
   executionNotes?: string | null;
+  installGuide?: string | null;
+  commands?: string | null;
   developerId?: string;
   version?: string;
   changelog?: string | null;
@@ -217,6 +219,8 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
     usageExamples: '',
     contextPreparation: '',
     executionNotes: '',
+    installGuide: '',
+    commands: '',
   });
   const [registering, setRegistering] = useState(false);
   const [regError, setRegError] = useState('');
@@ -413,6 +417,10 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
         })() : [],
         contextPreparation: regForm.contextPreparation ? regForm.contextPreparation.split('\n').filter(Boolean) : [],
         executionNotes: regForm.executionNotes || null,
+        installGuide: regForm.installGuide || null,
+        commands: regForm.commands ? (() => {
+          try { return JSON.parse(regForm.commands); } catch { return []; }
+        })() : [],
       };
       const res = await fetch('/api/marketplace', {
         method: 'POST',
@@ -437,6 +445,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
         supportsA2A: false, supportsMCP: false, agentCardUrl: '',
         taskTypes: '', contextInstructions: '', requiredInputSchema: '',
         outputSchema: '', usageExamples: '', contextPreparation: '', executionNotes: '',
+        installGuide: '', commands: '',
       });
       openDetail(agent.id);
     } catch (e: any) {
@@ -1377,6 +1386,30 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                   className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
                 />
                 <p className="text-[10px] text-white/25 mt-0.5">Rate limits, quirks, best practices — anything Divi should know at execution time.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">📋 Install Guide (Markdown)</label>
+                <textarea
+                  value={regForm.installGuide}
+                  onChange={e => setRegForm(p => ({ ...p, installGuide: e.target.value }))}
+                  placeholder={"## Setup\n1. Connect your API key in Settings → Integrations\n2. Configure the response format preference\n3. Test with: \"Summarize the latest quarterly report\""}
+                  rows={4}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">Shown to users after install. Guide them through configuration and first use.</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] text-white/40 uppercase tracking-wider">⚡ Commands (JSON array)</label>
+                <textarea
+                  value={regForm.commands}
+                  onChange={e => setRegForm(p => ({ ...p, commands: e.target.value }))}
+                  placeholder={'[\n  {"name": "research", "description": "Deep research on a topic", "usage": "!your-slug.research <query>"},\n  {"name": "summarize", "description": "Summarize a document", "usage": "!your-slug.summarize <url>"}\n]'}
+                  rows={4}
+                  className="w-full mt-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 resize-none font-mono"
+                />
+                <p className="text-[10px] text-white/25 mt-0.5">Users invoke these via <code className="text-brand-400/60">!slug.command</code> in chat. Divi routes the task to your agent.</p>
               </div>
             </div>
           </div>

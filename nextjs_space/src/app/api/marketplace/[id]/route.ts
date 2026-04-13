@@ -98,6 +98,7 @@ export async function PUT(
       'accessPassword',
       // Agent Integration Kit (string fields)
       'contextInstructions', 'requiredInputSchema', 'outputSchema', 'executionNotes',
+      'installGuide',
     ];
 
     for (const field of allowedFields) {
@@ -124,6 +125,9 @@ export async function PUT(
     }
     if (body.contextPreparation !== undefined) {
       updateData.contextPreparation = Array.isArray(body.contextPreparation) ? JSON.stringify(body.contextPreparation) : body.contextPreparation;
+    }
+    if (body.commands !== undefined) {
+      updateData.commands = Array.isArray(body.commands) ? JSON.stringify(body.commands) : body.commands;
     }
 
     // Versioning — if new version provided, append to changelog

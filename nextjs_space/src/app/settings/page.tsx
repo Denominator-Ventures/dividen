@@ -21,6 +21,7 @@ interface SettingsData {
     id: string;
     name: string;
     email: string;
+    username?: string | null;
     mode: string;
     role: string;
   };
@@ -186,6 +187,43 @@ export default function SettingsPage() {
                   );
                 }}
               />
+            </div>
+          </div>
+
+          {/* Username */}
+          <div className="panel">
+            <div className="panel-header">
+              <h2 className="font-semibold">Username</h2>
+            </div>
+            <div className="panel-body">
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Your unique @handle for mentions in chat. Others can tag you with <code className="text-brand-400 text-xs font-mono">@{data?.user?.username || 'yourname'}</code>.
+              </p>
+              <div className="flex gap-2 items-center">
+                <span className="text-white/40 text-sm">@</span>
+                <input
+                  type="text"
+                  defaultValue={data?.user?.username || ''}
+                  placeholder="e.g. jon"
+                  className="input-field flex-1 text-sm"
+                  maxLength={30}
+                  onBlur={async (e) => {
+                    const val = e.target.value.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+                    e.target.value = val;
+                    const res = await fetch('/api/settings', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ username: val }),
+                    });
+                    if (res.ok) {
+                      setData((prev: any) => prev ? { ...prev, user: { ...prev.user, username: val || null } } : prev);
+                    } else {
+                      const err = await res.json();
+                      alert(err.error || 'Failed to update username');
+                    }
+                  }}
+                />
+              </div>
             </div>
           </div>
 
