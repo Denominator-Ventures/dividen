@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'FVP Integration Brief + Agent Marketplace Build. MCP v1.4.0, Agent Install/Uninstall, Integration Kit, federation intelligence.',
+  description: 'DiviDen release notes — Federation v2, multi-account Google sync, instance approval, admin expansion, and more.',
   openGraph: {
-    title: 'DiviDen Release Notes — FVP + Marketplace Build',
-    description: 'MCP v1.4.0 (20+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=FVP+%2B+Marketplace+Build&tag=release', width: 1200, height: 630 }],
+    title: 'DiviDen Release Notes',
+    description: 'Federation v2, multi-account Google sync, instance approval, admin expansion, and more.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=Federation+v2+%2B+Multi-Account+Sync&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'DiviDen Release Notes — FVP + Marketplace Build',
-    description: 'MCP v1.4.0 (20+ dynamic tools), Agent Install/Uninstall system, Integration Kit, federation intelligence layer.',
-    images: ['/api/og?title=Release+Notes&subtitle=FVP+%2B+Marketplace+Build&tag=release'],
+    title: 'DiviDen Release Notes',
+    description: 'Federation v2, multi-account Google sync, instance approval, admin expansion, and more.',
+    images: ['/api/og?title=Release+Notes&subtitle=Federation+v2+%2B+Multi-Account+Sync&tag=release'],
   },
 };
 
@@ -24,24 +24,165 @@ export default function ReleaseNotesPage() {
       <div className="max-w-4xl mx-auto p-6 sm:p-8">
         {/* Back links */}
         <div className="mb-6 flex items-center gap-4">
-          <a href="/dashboard" className="text-brand-400 hover:text-brand-300 text-sm">← Dashboard</a>
+          <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">← Documentation</a>
+          <a href="/docs/developers" className="text-brand-400 hover:text-brand-300 text-sm">API Reference</a>
           <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 text-sm">Federation Docs</a>
-          <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300 text-sm">Integration Docs</a>
         </div>
 
         {/* Hero */}
         <div className="mb-10">
-          <h1 className="text-3xl font-bold mb-2 font-heading">📋 os.dividen.ai — Release Update</h1>
-          <div className="flex flex-wrap gap-2 mt-4 text-xs font-mono">
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Date: April 11, 2026</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.4.0 (20+ dynamic)</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.3.0</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Protocol: DAWP/0.1</span>
-            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">NEW: Agent Install/Uninstall</span>
+          <h1 className="text-3xl font-bold mb-2 font-heading">📋 DiviDen — Release Notes</h1>
+          <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
+            Chronological release updates for the DiviDen Command Center. Latest releases first.
+          </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 12-13, 2026 RELEASE */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 12–13, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.5</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.4</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">A2A: v0.4</span>
+            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
           </div>
-          <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-4">
-            FVP Integration Brief + Agent Marketplace Build. Everything on <strong>os.dividen.ai</strong> — 14 FVP proposals,
-            Agent Integration Kit, Install/Uninstall lifecycle, dynamic MCP tools, and marketplace coherence fixes.
+          <h2 className="text-2xl font-bold mb-4 font-heading">Federation v2, Multi-Account Sync, Admin Expansion</h2>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+            {/* Instance Approval */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔐 Instance Approval Process</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>New federated instances now register as <strong className="text-amber-400">pending_approval</strong> instead of auto-active</li>
+                <li>Admin must explicitly approve each instance before it appears on the network</li>
+                <li>Deactivating an instance <strong>cascade-suspends</strong> all its marketplace agents</li>
+                <li>Re-activating restores suspended agents to active status</li>
+                <li>Re-registration preserves existing approval status</li>
+                <li>Registration response now includes <code className="code-inline">status</code> field and <code className="code-inline">endpoints.agentSync</code></li>
+              </ul>
+            </div>
+
+            {/* Payment Validation */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">💰 Two-Tier Fee Model & Payment Validation</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>New <code className="code-inline">POST /api/v2/federation/validate-payment</code> endpoint</li>
+                <li>Internal transactions: configurable via env vars, can be 0% for closed teams</li>
+                <li>Network transactions: enforced minimum floor — 3% marketplace, 7% recruiting</li>
+                <li>Fee calculators: <code className="code-inline">marketplace-config.ts</code> and <code className="code-inline">recruiting-config.ts</code></li>
+              </ul>
+            </div>
+
+            {/* Multi-Account */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📊 Multi-Account Google Sync</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><strong>Calendar:</strong> Per-account filter checkboxes when &gt;1 Google accounts connected, color-coded dividers</li>
+                <li><strong>Drive:</strong> Account tabs (All / Local / per-account), table + grid view toggle</li>
+                <li><strong>File Viewer:</strong> Inline preview for Google Docs/Sheets/Slides, PDFs, and images within DiviDen</li>
+                <li>New schema fields: <code className="code-inline">CalendarEvent.accountEmail</code>, <code className="code-inline">Document.accountEmail</code>, <code className="code-inline">Document.mimeType</code>, <code className="code-inline">Document.fileSize</code>, <code className="code-inline">Document.thumbnailUrl</code></li>
+              </ul>
+            </div>
+
+            {/* MCP v1.5 */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔧 MCP v1.5 — 2 New Tools</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">marketplace_browse</code> — Search and filter marketplace agents by category, pricing, skills</li>
+                <li><code className="code-inline">marketplace_unlock</code> — Unlock paid agents with developer-shared access passwords</li>
+                <li>Agent card capabilities now include <code className="code-inline">marketplacePasswordAccess</code> and <code className="code-inline">persistentConversation</code></li>
+              </ul>
+            </div>
+
+            {/* A2A v0.4 */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🤝 A2A v0.4 — Agent Card Updates</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>New capabilities: <code className="code-inline">marketplacePasswordAccess: true</code>, <code className="code-inline">persistentConversation: true</code></li>
+                <li>Agent card now advertises MCP tool names array for capability negotiation</li>
+                <li>Webhook events list exposed: <code className="code-inline">task_dispatched</code>, <code className="code-inline">new_message</code>, <code className="code-inline">wake</code>, <code className="code-inline">queue_changed</code>, <code className="code-inline">relay_state_changed</code></li>
+              </ul>
+            </div>
+
+            {/* Connections */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔗 Connections Redesign</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>3 sub-tabs: &quot;🔍 Find People&quot; (default), &quot;🔗 My Connections&quot;, &quot;📡 Relays&quot;</li>
+                <li>Federation hidden behind collapsible in Connect by Email — less confusing for new users</li>
+                <li>Connection acceptance ceremony: modal with nickname, relationship type, trust level, notes</li>
+                <li>Directory now includes federated discoverable instances with &quot;self-hosted&quot; badge</li>
+              </ul>
+            </div>
+
+            {/* Jobs → Tasks */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📋 Jobs → Paying Tasks Reframe</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Renamed throughout: Job→Task, Hire→Assign, Worker→Contributor, Client→Poster</li>
+                <li>Dual projects on acceptance: poster gets oversight board, contributor gets execution board</li>
+                <li>Task breakdown field: becomes kanban cards on contributor&apos;s board</li>
+                <li><code className="code-inline">propose_task</code> action tag: creates agent suggestions for human review before network posting</li>
+                <li>Inner-circle-first routing: card contributors → team → connections → network (last resort)</li>
+                <li>5-star default: everyone starts at 5.0⭐, real ratings don&apos;t factor until 5+ completions</li>
+              </ul>
+            </div>
+
+            {/* Admin Expansion */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🛡️ Admin Dashboard Expansion</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>11 tabs (up from 6): Overview, Users, Content, Activity, Instances, Marketplace, Usage, System Prompt, Tasks, Federation, Telemetry</li>
+                <li>New <code className="code-inline">TasksTab</code>: shows ALL tasks across users with filters/search</li>
+                <li>New <code className="code-inline">UsageTab</code>: feature adoption heatmap, per-user engagement, daily trends</li>
+                <li>New <code className="code-inline">SystemPromptTab</code>: read-only inspector with token estimates per group</li>
+                <li>Pending instances show &quot;⏳ Pending Approval&quot; badge with pulsing amber dot</li>
+              </ul>
+            </div>
+
+            {/* Settings */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚙️ Settings Reorganization</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>6 tabs (down from 8): Your Divi, General, Integrations, Network, Payments, Alerts</li>
+                <li>Relay + Federation merged into &quot;Network&quot; tab</li>
+                <li>Mobile-friendly: horizontally scrollable tab bar</li>
+                <li>Default tab changed to &quot;Your Divi&quot;</li>
+              </ul>
+            </div>
+
+            {/* Other */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📄 Other Changes</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Comprehensive <a href="/documentation" className="text-brand-400 hover:text-brand-300">developer documentation</a> at <code className="code-inline">/documentation</code></li>
+                <li>Chat conversation continuity: 50-message context window, soft-clear with timestamps</li>
+                <li>Profile view + photo upload to S3 with presigned URLs</li>
+                <li>Marketplace agent access passwords for developer-shared free access</li>
+                <li>Comms redesign: relay-based agent-to-agent communication log</li>
+                <li>Google OAuth integration for Gmail, Calendar, Drive data sync</li>
+                <li>Smart triage: task-first architecture with Levenshtein card matching</li>
+                <li>Due date discipline: Divi infers deadlines from context with configurable defaults</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 11, 2026 RELEASE (original) */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-10 opacity-80">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 11, 2026</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">MCP Server: v1.4.0</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.3.0</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Install/Uninstall</span>
+          </div>
+          <h2 className="text-xl font-bold mb-3 font-heading text-[var(--text-secondary)]">FVP Integration Brief + Agent Marketplace Build</h2>
+          <p className="text-[var(--text-secondary)] text-sm leading-relaxed max-w-2xl mb-6">
+            14 FVP proposals, Agent Integration Kit, Install/Uninstall lifecycle, dynamic MCP tools, and marketplace coherence.
           </p>
         </div>
 
@@ -673,8 +814,13 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
         {/* Footer */}
         <div className="mt-16 pt-6 border-t border-[var(--border-color)] text-center">
           <p className="text-xs text-[var(--text-muted)]">
-            Generated from DiviDen Command Center build <code className="code-inline">FVP + Marketplace + Install/Uninstall</code> — April 11, 2026
+            DiviDen Command Center — Last updated April 13, 2026
           </p>
+          <div className="flex justify-center gap-4 mt-3 text-xs">
+            <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>
+            <a href="/docs/developers" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">API Reference</a>
+            <a href="/docs/federation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Federation</a>
+          </div>
         </div>
       </div>
     </div>

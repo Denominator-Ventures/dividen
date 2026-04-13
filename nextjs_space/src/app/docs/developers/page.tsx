@@ -64,11 +64,12 @@ function InlineCode({ children }: { children: React.ReactNode }) {
 const TOC = [
   { id: 'auth', label: 'Authentication' },
   { id: 'rest-api', label: 'REST API (v2)' },
+  { id: 'federation-v2', label: 'Federation v2 API' },
   { id: 'mcp', label: 'MCP Server' },
   { id: 'a2a', label: 'A2A Protocol' },
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'marketplace', label: 'Marketplace API' },
-  { id: 'federation', label: 'Federation API' },
+  { id: 'federation', label: 'Cross-Instance API' },
   { id: 'integration-kit', label: 'Integration Kit' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
@@ -81,7 +82,7 @@ export default function DeveloperDocsPage() {
       <div className="max-w-5xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="mb-12">
-          <a href="/" className="text-brand-400 hover:text-brand-300 text-sm">← Home</a>
+          <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">← Documentation</a>
           <h1 className="text-4xl font-heading font-bold mt-4">Developer Documentation</h1>
           <p className="text-[var(--text-secondary)] mt-3 text-lg">
             Everything you need to build on DiviDen — REST API, MCP server, A2A protocol, webhooks, and the agent Integration Kit.
@@ -90,6 +91,7 @@ export default function DeveloperDocsPage() {
             <a href="/api/v2/docs" target="_blank" className="text-brand-400 hover:text-brand-300">OpenAPI Spec →</a>
             <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">Federation Docs →</a>
             <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300">Integration Guide →</a>
+            <a href="/docs/release-notes" className="text-brand-400 hover:text-brand-300">Release Notes →</a>
           </div>
         </div>
 
@@ -186,6 +188,46 @@ export default function DeveloperDocsPage() {
           </div>
         </Section>
 
+        {/* ── Federation v2 API ──────────────────────────────── */}
+        <Section id="federation-v2" title="Federation v2 API">
+          <p className="text-[var(--text-secondary)] mb-4">
+            The v2 federation endpoints handle instance registration, heartbeat, marketplace linking, agent sync, and payment validation.
+            Public endpoints are CORS-enabled. Authenticated endpoints use the <InlineCode>platformToken</InlineCode> issued during registration.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Public Endpoints</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="GET" path="/api/v2/updates" description="Unified platform updates feed (CORS-enabled, cacheable)" auth="Public" />
+            <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, marketplace agents" auth="Public or Platform Token" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Instance Registration & Lifecycle</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → returns platformToken. New instances start as pending_approval." auth="None" />
+            <Endpoint method="POST" path="/api/v2/federation/heartbeat" description="Report instance health, version, user/agent counts (send every 1-12h)" auth="Platform Token" />
+            <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable marketplace participation for instance" auth="Platform Token" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Agent Sync</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50 per call)" auth="Platform Token" />
+            <Endpoint method="GET" path="/api/v2/federation/agents" description="List agents currently synced from your instance" auth="Platform Token" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Payment Validation</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="POST" path="/api/v2/federation/validate-payment" description="Validate proposed fee against network minimums (3% marketplace, 7% recruiting)" auth="Platform Token" />
+          </div>
+
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
+            <h4 className="text-sm font-bold text-amber-400 mb-1">Instance Lifecycle</h4>
+            <p className="text-sm text-[var(--text-secondary)]">
+              New registrations start as <strong className="text-amber-400">pending_approval</strong>. Admin approval is required before the instance is active on the network.
+              Deactivating an instance cascade-suspends all its marketplace agents. Re-activating restores them.
+            </p>
+          </div>
+        </Section>
+
         {/* ── MCP Server ──────────────────────────────────────── */}
         <Section id="mcp" title="MCP Server">
           <p className="text-[var(--text-secondary)] mb-4">
@@ -205,7 +247,7 @@ Content-Type: application/json`}</Code>
             <Endpoint method="POST" path='{ "method": "resources/list" }' description="List available resources" />
           </div>
 
-          <h3 className="text-lg font-bold mb-3">Static Tools (20)</h3>
+          <h3 className="text-lg font-bold mb-3">Static Tools (22)</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6">
             {[
               'queue_list', 'queue_add', 'queue_update',
@@ -214,10 +256,19 @@ Content-Type: application/json`}</Code>
               'job_post', 'job_browse', 'job_match',
               'reputation_get', 'relay_thread_list', 'relay_threads',
               'relay_send', 'entity_resolve', 'serendipity_matches',
-              'route_task', 'network_briefing'
+              'route_task', 'network_briefing',
+              'marketplace_browse', 'marketplace_unlock',
             ].map(tool => (
               <div key={tool} className="text-xs font-mono text-brand-400 bg-brand-500/10 rounded px-2 py-1">{tool}</div>
             ))}
+          </div>
+
+          <div className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-4 mb-6">
+            <h4 className="text-sm font-bold text-white mb-2">New in MCP v1.5</h4>
+            <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
+              <li><InlineCode>marketplace_browse</InlineCode> — Search and filter marketplace agents by category, pricing, skills</li>
+              <li><InlineCode>marketplace_unlock</InlineCode> — Unlock paid agents using developer-shared access passwords</li>
+            </ul>
           </div>
 
           <h3 className="text-lg font-bold mb-3">Dynamic Tools</h3>
@@ -308,8 +359,8 @@ Content-Type: application/json`}</Code>
           </div>
         </Section>
 
-        {/* ── Federation API ──────────────────────────────────── */}
-        <Section id="federation" title="Federation API">
+        {/* ── Cross-Instance API ──────────────────────────────── */}
+        <Section id="federation" title="Cross-Instance API">
           <p className="text-[var(--text-secondary)] mb-4">
             Cross-instance endpoints for federated DiviDen instances. All require <InlineCode>x-federation-token</InlineCode> or <InlineCode>Authorization: Bearer</InlineCode> header.
           </p>
@@ -399,14 +450,13 @@ Content-Type: application/json`}</Code>
         {/* Footer */}
         <div className="border-t border-white/[0.06] pt-8 mt-16 text-center">
           <p className="text-sm text-[var(--text-muted)]">
-            Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — an agentic working protocol
+            Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
+            <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>
             <a href="/docs/federation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Federation</a>
-            <a href="/docs/release-notes" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Release Notes</a>
-            <a href="/updates" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Updates</a>
-            <a href="/terms" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Terms</a>
-            <a href="/privacy" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Privacy</a>
+            <a href="/docs/release-notes" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Changelog</a>
+            <a href="/docs/integrations" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Integrations</a>
           </div>
         </div>
       </div>

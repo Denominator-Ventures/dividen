@@ -24,8 +24,9 @@ export default function FederationDocsPage() {
       <div className="max-w-4xl mx-auto p-6 sm:p-8">
         {/* Back link */}
         <div className="mb-6 flex items-center gap-4">
-          <a href="/settings" className="text-brand-400 hover:text-brand-300 text-sm">← Settings</a>
-          <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300 text-sm">← Integration Docs</a>
+          <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">← Documentation</a>
+          <a href="/docs/developers" className="text-brand-400 hover:text-brand-300 text-sm">API Reference</a>
+          <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300 text-sm">Integrations</a>
         </div>
 
         {/* Hero */}
@@ -791,8 +792,10 @@ X-Federation-Token: <token-from-connection-handshake>
             OS docs &amp; self-hosting: <a href="https://os.dividen.ai" className="text-brand-400 hover:text-brand-300" target="_blank" rel="noopener noreferrer">os.dividen.ai</a>
           </p>
           <div className="flex items-center justify-center gap-4 mt-2">
-            <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300 text-sm">Integration Docs →</a>
-            <a href="/settings" className="text-brand-400 hover:text-brand-300 text-sm">← Settings</a>
+            <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">Documentation</a>
+            <a href="/docs/developers" className="text-brand-400 hover:text-brand-300 text-sm">API Reference</a>
+            <a href="/docs/integrations" className="text-brand-400 hover:text-brand-300 text-sm">Integrations</a>
+            <a href="/docs/release-notes" className="text-brand-400 hover:text-brand-300 text-sm">Changelog</a>
           </div>
         </div>
       </div>

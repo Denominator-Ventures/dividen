@@ -22,24 +22,69 @@ export default function IntegrationDocsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
       <div className="max-w-4xl mx-auto p-8">
-        <div className="mb-8">
-          <a href="/settings" className="text-brand-400 hover:text-brand-300 text-sm">
-            ← Back to Settings
+        <div className="mb-8 flex items-center gap-4">
+          <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">
+            ← Documentation
           </a>
+          <a href="/docs/developers" className="text-brand-400 hover:text-brand-300 text-sm">API Reference</a>
+          <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 text-sm">Federation</a>
         </div>
 
         <h1 className="text-3xl font-bold mb-2">🔗 DiviDen Integration Guide</h1>
         <p className="text-[var(--text-secondary)] mb-8">
-          Connect any external service to DiviDen using webhooks and API keys.
+          Connect Google services, external tools, and custom webhooks to DiviDen.
         </p>
 
-        {/* Overview */}
+        {/* Google OAuth — Primary Integration */}
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-3 text-brand-400">Overview</h2>
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">🟢 Google Integration (Recommended)</h2>
           <p className="text-[var(--text-secondary)] mb-3">
-            DiviDen uses a <strong>webhook-first</strong> integration approach. Instead of complex OAuth flows,
-            connect external services by creating webhook endpoints that receive data from platforms like
-            Zapier, Make (Integromat), n8n, or direct API calls.
+            The fastest way to connect email, calendar, and file storage. DiviDen uses Google OAuth to sync your Gmail, Google Calendar, and Google Drive directly — no webhooks or third-party tools needed.
+          </p>
+          <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] mb-4">
+            <h3 className="font-medium mb-2">Quick Start</h3>
+            <ol className="list-decimal list-inside space-y-1 text-sm text-[var(--text-secondary)]">
+              <li>Go to <strong>Settings → Integrations</strong></li>
+              <li>Click <strong>Connect Google</strong></li>
+              <li>Authorize Gmail, Calendar, and Drive access</li>
+              <li>DiviDen syncs your data automatically — emails, events, and files appear in the dashboard</li>
+            </ol>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] text-center">
+              <div className="text-2xl mb-1">📧</div>
+              <h4 className="font-medium text-sm">Gmail</h4>
+              <p className="text-[10px] text-[var(--text-muted)]">Read, send, compose</p>
+            </div>
+            <div className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] text-center">
+              <div className="text-2xl mb-1">📅</div>
+              <h4 className="font-medium text-sm">Calendar</h4>
+              <p className="text-[10px] text-[var(--text-muted)]">Full read + write</p>
+            </div>
+            <div className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)] text-center">
+              <div className="text-2xl mb-1">📁</div>
+              <h4 className="font-medium text-sm">Drive</h4>
+              <p className="text-[10px] text-[var(--text-muted)]">Read-only file sync</p>
+            </div>
+          </div>
+          <div className="p-3 bg-brand-500/5 border border-brand-500/20 rounded-lg text-sm text-[var(--text-secondary)]">
+            <strong className="text-brand-400">Multi-account support:</strong> Connect up to 3 Google accounts per identity. Calendar and Drive views show per-account tabs and color-coded filters.
+          </div>
+        </section>
+
+        {/* SMTP Alternative */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">📮 SMTP / IMAP (Alternative)</h2>
+          <p className="text-[var(--text-secondary)] mb-3">
+            If you don&apos;t use Google, connect any email provider via SMTP/IMAP. Go to <strong>Settings → Integrations → + SMTP</strong> and provide your server credentials.
+          </p>
+        </section>
+
+        {/* Overview — Webhooks */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">🔗 Webhooks</h2>
+          <p className="text-[var(--text-secondary)] mb-3">
+            For services beyond Google (Slack, GitHub, Notion, CRMs, etc.), DiviDen uses a <strong>webhook-first</strong> approach. Create webhook endpoints that receive data from platforms like Zapier, Make, n8n, or direct API calls.
           </p>
           <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
             <h3 className="font-medium mb-2">Quick Start</h3>
@@ -256,10 +301,12 @@ export default function IntegrationDocsPage() {
         </section>
 
         <div className="border-t border-[var(--border-primary)] pt-6 text-center text-sm text-[var(--text-muted)]">
-          <p>Open source: <a href="https://github.com/Denominator-Ventures/dividen" className="text-brand-400 hover:text-brand-300">github.com/Denominator-Ventures/dividen</a></p>
+          <p>Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system</p>
           <div className="flex items-center justify-center gap-4 mt-2">
-            <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">Federation Guide →</a>
-            <a href="/settings" className="text-brand-400 hover:text-brand-300">← Back to Settings</a>
+            <a href="/documentation" className="text-brand-400 hover:text-brand-300">Documentation</a>
+            <a href="/docs/developers" className="text-brand-400 hover:text-brand-300">API Reference</a>
+            <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">Federation</a>
+            <a href="/docs/release-notes" className="text-brand-400 hover:text-brand-300">Changelog</a>
           </div>
         </div>
       </div>

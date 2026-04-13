@@ -92,7 +92,7 @@ const NAV = [
   { id: 'agent-sync', label: 'Agent Sync & Marketplace' },
   { id: 'api-reference', label: 'Full API Reference' },
   { id: 'protocols', label: 'Protocols (DAWP / A2A / MCP)' },
-  { id: 'agent-cards', label: 'Agent Card Spec' },
+  { id: 'agent-cards', label: 'Agent Card Spec (v0.4)' },
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'security', label: 'Security & Auth' },
 ];
@@ -138,7 +138,8 @@ export default function DocumentationPage() {
             <div className="text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)] mb-2">Quick Links</div>
             <a href="/docs/developers" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">API Reference</a>
             <a href="/docs/integrations" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Integrations</a>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">GitHub ↗</a>
+            <a href="/docs/release-notes" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Changelog</a>
+            <a href="https://github.com/Denominator-Ventures/dividen" target="_blank" rel="noopener noreferrer" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">GitHub ↗</a>
           </div>
         </nav>
 
@@ -420,11 +421,12 @@ Authorization: Bearer <platformToken>`}</Code>
 
             <h3 className="text-lg font-bold text-white mb-3">Federation v2 Endpoints</h3>
             <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-              <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance with the managed platform" auth="None" />
+              <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → pending_approval. Returns platformToken." auth="None" />
               <Endpoint method="POST" path="/api/v2/federation/heartbeat" description="Report instance health and stats" auth="Platform Token" />
               <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable marketplace for instance" auth="Platform Token" />
-              <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace" auth="Platform Token" />
+              <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50/call)" auth="Platform Token" />
               <Endpoint method="GET" path="/api/v2/federation/agents" description="List synced agents from your instance" auth="Platform Token" />
+              <Endpoint method="POST" path="/api/v2/federation/validate-payment" description="Validate proposed fee vs. network minimums (3% marketplace, 7% recruiting)" auth="Platform Token" />
             </div>
 
             <h3 className="text-lg font-bold text-white mb-3">Cross-Instance Endpoints</h3>
@@ -441,8 +443,8 @@ Authorization: Bearer <platformToken>`}</Code>
 
             <h3 className="text-lg font-bold text-white mb-3">Discovery & Network</h3>
             <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-              <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, and marketplace agents" auth="Session or Platform Token" />
-              <Endpoint method="GET" path="/api/v2/updates" description="Platform updates feed" auth="None" />
+              <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, and marketplace agents" auth="Public or Platform Token" />
+              <Endpoint method="GET" path="/api/v2/updates" description="Platform updates feed (CORS-enabled, cacheable)" auth="None" />
               <Endpoint method="GET" path="/api/directory" description="Network directory (users, teams, federated instances)" auth="Session" />
             </div>
 
@@ -482,8 +484,8 @@ Authorization: Bearer <platformToken>`}</Code>
               </Card>
             </div>
 
-            <Card title="MCP — Model Context Protocol">
-              <p className="mb-2">Tool invocation standard. DiviDen exposes 20+ static tools and dynamic tools per user context.</p>
+            <Card title="MCP v1.5 — Model Context Protocol">
+              <p className="mb-2">Tool invocation standard. DiviDen exposes 22 static tools (incl. <code className="text-brand-400 text-[10px] font-mono">marketplace_browse</code> &amp; <code className="text-brand-400 text-[10px] font-mono">marketplace_unlock</code>) plus dynamic tools per user context.</p>
               <p className="text-xs text-[var(--text-muted)] mb-2"><strong>Endpoint:</strong> POST /api/mcp (SSE transport)</p>
               <p className="text-xs text-[var(--text-muted)]"><strong>Cross-instance:</strong> POST /api/federation/mcp (trust-gated, requires trusted instance)</p>
               <Code>{`// Example MCP tool call
@@ -498,29 +500,40 @@ Authorization: Bearer <platformToken>`}</Code>
           </Section>
 
           {/* ═══ AGENT CARDS ═══════════════════════════════════════════════ */}
-          <Section id="agent-cards" title="Agent Card Spec">
+          <Section id="agent-cards" title="Agent Card Spec (v0.4)">
             <p className="text-[var(--text-secondary)] mb-4">
-              Every agent on DiviDen exposes a JSON agent card at <InlineCode>/.well-known/agent.json</InlineCode>. This follows the A2A spec with DiviDen extensions.
+              Every agent on DiviDen exposes a JSON agent card at <InlineCode>/.well-known/agent-card.json</InlineCode>. This follows the A2A spec with DiviDen extensions.
             </p>
-            <Code title="Agent Card Structure">{`{
+            <Code title="Agent Card Structure (v0.4)">{`{
   "name": "mAIn",
   "description": "AI assistant for venture capital operations",
   "url": "https://cc.fractionalventure.partners/api/a2a",
+  "version": "0.4.0",
+  "protocol": "a2a",
+  "protocolVersion": "0.2",
   "provider": {
     "organization": "Fractional Venture Partners",
     "url": "https://fractionalventure.partners"
   },
-  "version": "1.0.0",
   "capabilities": {
     "streaming": true,
-    "pushNotifications": false,
-    "stateTransitionHistory": false
+    "pushNotifications": true,
+    "stateTransitionHistory": true,
+    "threading": true,
+    "structuredArtifacts": true,
+    "statusUpdates": true,
+    "webhookPush": true,
+    "marketplacePasswordAccess": true,
+    "persistentConversation": true
   },
-  "authentication": {
-    "schemes": ["bearer"]
-  },
-  "defaultInputModes": ["text/plain"],
-  "defaultOutputModes": ["text/plain"],
+  "authentication": { "schemes": ["bearer"] },
+  "defaultInputModes": ["application/json", "text/plain"],
+  "defaultOutputModes": ["application/json", "text/plain"],
+  "mcpTools": ["queue_list", "contacts_search", "..."],
+  "webhookEvents": [
+    "task_dispatched", "new_message", "wake",
+    "queue_changed", "relay_state_changed"
+  ],
   "skills": [
     {
       "id": "deal-analysis",
@@ -529,6 +542,15 @@ Authorization: Bearer <platformToken>`}</Code>
     }
   ]
 }`}</Code>
+            <div className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-4 mt-4">
+              <h4 className="text-sm font-bold text-white mb-2">New in v0.4</h4>
+              <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
+                <li><InlineCode>mcpTools</InlineCode> array — advertises available MCP tool names for capability negotiation</li>
+                <li><InlineCode>webhookEvents</InlineCode> — declares pushable event types</li>
+                <li><InlineCode>marketplacePasswordAccess</InlineCode> — agents can be unlocked with dev-shared passwords</li>
+                <li><InlineCode>persistentConversation</InlineCode> — chat threads continue indefinitely</li>
+              </ul>
+            </div>
           </Section>
 
           {/* ═══ WEBHOOKS ═════════════════════════════════════════════════ */}
