@@ -198,7 +198,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage' | 'tasks' | 'workflows'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage' | 'tasks' | 'workflows' | 'feedback'>('overview');
 
   const fetchStats = useCallback(async (t: string) => {
     setLoading(true);
@@ -261,6 +261,7 @@ export default function AdminPage() {
     { id: 'federation' as const, label: 'Federation', icon: '🌐' },
     { id: 'telemetry' as const, label: 'Telemetry', icon: '📡' },
     { id: 'workflows' as const, label: 'Workflows', icon: '🔄' },
+    { id: 'feedback' as const, label: 'Feedback', icon: '💬' },
   ];
 
   return (
@@ -329,6 +330,7 @@ export default function AdminPage() {
         {activeTab === 'federation' && <FederationTab token={token} />}
         {activeTab === 'telemetry' && <TelemetryTab token={token} />}
         {activeTab === 'workflows' && <WorkflowsTab token={token} />}
+        {activeTab === 'feedback' && <FeedbackAdminTab token={token} />}
       </main>
     </div>
   );
@@ -1944,6 +1946,213 @@ function WorkflowsTab({ token }: { token: string }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Feedback Admin Tab ──────────────────────────────────────────────────────
+
+function FeedbackAdminTab({ token }: { token: string }) {
+  const [feedback, setFeedback] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const fetchFeedback = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/feedback?status=${filter}&limit=100`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setFeedback(data.data.feedback);
+        setTotal(data.data.total);
+      }
+    } catch (err) {
+      console.error('Failed to fetch feedback:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filter]);
+
+  useEffect(() => { fetchFeedback(); }, [fetchFeedback]);
+
+  const updateFeedback = async (id: string, status: string, adminNote?: string) => {
+    try {
+      await fetch('/api/feedback', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, status, ...(adminNote !== undefined ? { adminNote } : {}) }),
+      });
+      fetchFeedback();
+    } catch (err) {
+      console.error('Failed to update feedback:', err);
+    }
+  };
+
+  const statusColors: Record<string, string> = {
+    new: 'bg-blue-500/20 text-blue-400',
+    reviewed: 'bg-yellow-500/20 text-yellow-400',
+    resolved: 'bg-green-500/20 text-green-400',
+    archived: 'bg-white/[0.06] text-[var(--text-muted)]',
+  };
+
+  const categoryIcons: Record<string, string> = {
+    general: '\ud83d\udcac',
+    bug: '\ud83d\udc1b',
+    feature: '\ud83d\udca1',
+    ux: '\ud83c\udfa8',
+    onboarding: '\ud83d\ude80',
+  };
+
+  const ratingEmojis = ['', '\ud83d\ude1f', '\ud83d\ude10', '\ud83d\ude42', '\ud83d\ude0a', '\ud83e\udd29'];
+
+  const statusFilters = ['all', 'new', 'reviewed', 'resolved', 'archived'];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-semibold">User Feedback</h2>
+          <p className="text-xs text-[var(--text-muted)]">{total} submissions total</p>
+        </div>
+        <div className="flex gap-1">
+          {statusFilters.map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s)}
+              className={`px-2.5 py-1 rounded text-[11px] font-medium transition-colors ${
+                filter === s
+                  ? 'bg-[var(--brand-primary)] text-white'
+                  : 'bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08]'
+              }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-8 text-[var(--text-muted)] text-sm">Loading feedback...</div>
+      ) : feedback.length === 0 ? (
+        <div className="text-center py-12 text-[var(--text-muted)]">
+          <div className="text-3xl mb-2">{filter === 'all' ? '\ud83d\udcec' : '\u2705'}</div>
+          <p className="text-sm">{filter === 'all' ? 'No feedback yet' : `No ${filter} feedback`}</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {feedback.map((item: any) => (
+            <div
+              key={item.id}
+              className="bg-white/[0.02] border border-white/[0.06] rounded-lg overflow-hidden"
+            >
+              {/* Summary row */}
+              <button
+                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                className="w-full px-4 py-3 flex items-center gap-3 text-left hover:bg-white/[0.02] transition-colors"
+              >
+                <span className="text-sm">{categoryIcons[item.category] || '\ud83d\udcac'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-[var(--text-primary)] truncate">{item.message}</p>
+                  <p className="text-[10px] text-[var(--text-muted)]">
+                    {item.user?.name || item.user?.email || 'Unknown'} &middot; {new Date(item.createdAt).toLocaleDateString()} &middot; {item.page || 'unknown page'}
+                  </p>
+                </div>
+                {item.rating && <span className="text-sm">{ratingEmojis[item.rating]}</span>}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColors[item.status] || ''}`}>
+                  {item.status}
+                </span>
+                <span className="text-[var(--text-muted)] text-xs">{expandedId === item.id ? '\u25b2' : '\u25bc'}</span>
+              </button>
+
+              {/* Expanded detail */}
+              {expandedId === item.id && (
+                <div className="px-4 pb-3 pt-1 border-t border-white/[0.04] space-y-3">
+                  <div className="bg-white/[0.02] rounded-lg p-3">
+                    <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{item.message}</p>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] text-[var(--text-muted)]">Set status:</span>
+                    {['new', 'reviewed', 'resolved', 'archived'].map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => updateFeedback(item.id, s)}
+                        className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors ${
+                          item.status === s
+                            ? 'bg-[var(--brand-primary)] text-white'
+                            : 'bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Admin note */}
+                  <AdminNoteEditor
+                    initialNote={item.adminNote || ''}
+                    onSave={(note: string) => updateFeedback(item.id, item.status, note)}
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminNoteEditor({ initialNote, onSave }: { initialNote: string; onSave: (note: string) => void }) {
+  const [note, setNote] = useState(initialNote);
+  const [editing, setEditing] = useState(false);
+
+  if (!editing) {
+    return (
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] text-[var(--text-muted)]">Admin note:</span>
+        {initialNote ? (
+          <span className="text-xs text-[var(--text-secondary)] flex-1">{initialNote}</span>
+        ) : (
+          <span className="text-xs text-[var(--text-muted)] italic">None</span>
+        )}
+        <button
+          onClick={() => setEditing(true)}
+          className="text-[10px] text-[var(--brand-primary)] hover:underline"
+        >
+          {initialNote ? 'Edit' : 'Add note'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <textarea
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
+        rows={2}
+        className="w-full px-3 py-2 text-xs bg-white/[0.04] border border-white/[0.08] rounded-lg text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:outline-none focus:border-[var(--brand-primary)]/40 resize-none"
+        placeholder="Add admin note..."
+      />
+      <div className="flex gap-2">
+        <button
+          onClick={() => { onSave(note); setEditing(false); }}
+          className="px-3 py-1 bg-[var(--brand-primary)] text-white text-[10px] rounded font-medium"
+        >
+          Save
+        </button>
+        <button
+          onClick={() => { setNote(initialNote); setEditing(false); }}
+          className="px-3 py-1 bg-white/[0.04] text-[var(--text-secondary)] text-[10px] rounded"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }

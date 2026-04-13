@@ -777,7 +777,7 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
             : 'bg-[var(--bg-surface)]'
         )}
       >
-        <div className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
+        <div className="text-sm text-[var(--text-primary)]">
           {renderMarkdownLite(message.content)}
         </div>
         {/* Agent Widget rendering */}
@@ -849,16 +849,73 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Simple markdown-lite renderer for onboarding messages */
+/** Markdown-lite renderer — handles bold, inline code, bullets, headers. Safe with special chars. */
 function renderMarkdownLite(text: string): React.ReactNode {
   if (!text) return null;
-  // Split by bold markers and bullet points
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+
+  // Process line by line for structure (headers, bullets), then inline for bold/code
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+
+    // Empty line → spacer
+    if (!line.trim()) {
+      elements.push(<br key={`br-${li}`} />);
+      continue;
+    }
+
+    // Heading lines (### heading)
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const content = renderInline(headingMatch[2], `h-${li}`);
+      const cls = level <= 2 ? 'font-bold text-base mt-2 mb-1' : 'font-semibold text-sm mt-1.5 mb-0.5';
+      elements.push(<div key={`h-${li}`} className={cls}>{content}</div>);
+      continue;
+    }
+
+    // Bullet lines (• or - or * at start)
+    const bulletMatch = line.match(/^(\s*)[•\-\*]\s+(.+)$/);
+    if (bulletMatch) {
+      const indent = bulletMatch[1].length > 0;
+      const content = renderInline(bulletMatch[2], `b-${li}`);
+      elements.push(
+        <div key={`b-${li}`} className={`flex gap-1.5 ${indent ? 'ml-4' : ''}`}>
+          <span className="text-[var(--text-muted)] flex-shrink-0 select-none">{'\u2022'}</span>
+          <span>{content}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // Regular line
+    elements.push(<span key={`l-${li}`}>{renderInline(line, `l-${li}`)}</span>);
+    if (li < lines.length - 1 && lines[li + 1]?.trim()) {
+      elements.push(<br key={`lbr-${li}`} />);
+    }
+  }
+
+  return <>{elements}</>;
+}
+
+/** Render inline formatting: **bold**, `code`, and preserve special characters */
+function renderInline(text: string, keyPrefix: string): React.ReactNode {
+  // Split on **bold** and `code` patterns
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-semibold">{part.slice(2, -2)}</strong>;
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold">{part.slice(2, -2)}</strong>;
     }
-    return <span key={i}>{part}</span>;
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={`${keyPrefix}-${i}`} className="px-1 py-0.5 rounded text-[11px] font-mono bg-white/[0.06]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return <span key={`${keyPrefix}-${i}`}>{part}</span>;
   });
 }
 

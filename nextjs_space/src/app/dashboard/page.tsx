@@ -13,6 +13,7 @@ import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
+import { FeedbackTab } from '@/components/dashboard/FeedbackTab';
 import { OnboardingWizard } from '@/components/dashboard/OnboardingWizard';
 import { KeyboardNav } from '@/components/dashboard/KeyboardNav';
 import { CatchUpSettings } from '@/components/dashboard/CatchUpSettings';
@@ -525,6 +526,9 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+
+      {/* Floating feedback tab */}
+      <FeedbackTab />
     </div>
   );
 }

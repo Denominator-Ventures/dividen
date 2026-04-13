@@ -77,6 +77,7 @@ model User {
   goals                Goal[]
   agentExtensions      AgentExtension[]
   userCapabilities     UserCapability[]
+  feedback             Feedback[]
   createdCapabilities  MarketplaceCapability[] @relation("CreatedCapabilities")
   marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
   marketplaceSubs      MarketplaceSubscription[] @relation("MarketplaceSubscriptions")
@@ -2068,4 +2069,24 @@ model UserCapability {
   @@index([capabilityId])
   @@index([status])
   @@map("user_capabilities")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String   @default("general") // general, bug, feature, onboarding, ux
+  message   String   @db.Text
+  rating    Int?     // 1-5 optional satisfaction rating
+  page      String?  // which page/tab the feedback was submitted from
+  status    String   @default("new") // new, reviewed, resolved, archived
+  adminNote String?  @db.Text
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("feedback")
 }
