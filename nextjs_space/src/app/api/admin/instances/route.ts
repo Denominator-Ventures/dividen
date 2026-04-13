@@ -49,6 +49,59 @@ export async function GET(req: NextRequest) {
   }
 }
 
+export async function POST(req: NextRequest) {
+  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const body = await req.json();
+    const { name, baseUrl, apiKey } = body;
+    if (!name || !baseUrl) return NextResponse.json({ error: 'name and baseUrl are required' }, { status: 400 });
+
+    const normalizedUrl = baseUrl.replace(/\/$/, '');
+
+    // Check if already exists
+    const existing = await prisma.instanceRegistry.findUnique({ where: { baseUrl: normalizedUrl } });
+    if (existing) {
+      // Update existing
+      const updated = await prisma.instanceRegistry.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          isActive: true,
+          platformLinked: true,
+          marketplaceEnabled: true,
+          discoveryEnabled: true,
+          updatesEnabled: true,
+          lastSeenAt: new Date(),
+          lastSyncAt: new Date(),
+        },
+      });
+      return NextResponse.json({ success: true, instance: updated, action: 'updated' });
+    }
+
+    const instance = await prisma.instanceRegistry.create({
+      data: {
+        name,
+        baseUrl: normalizedUrl,
+        apiKey: apiKey || `admin-${Date.now()}`,
+        isActive: true,
+        isTrusted: true,
+        platformLinked: true,
+        marketplaceEnabled: true,
+        discoveryEnabled: true,
+        updatesEnabled: true,
+        lastSeenAt: new Date(),
+        lastSyncAt: new Date(),
+      },
+    });
+
+    return NextResponse.json({ success: true, instance, action: 'created' }, { status: 201 });
+  } catch (error) {
+    console.error('Admin create instance error:', error);
+    return NextResponse.json({ error: 'Failed to create instance' }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

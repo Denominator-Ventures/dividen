@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
           inputFormat: true, outputFormat: true,
           taskTypes: true, contextInstructions: true,
           accessPassword: true,
+          sourceInstanceId: true, sourceInstanceUrl: true,
           createdAt: true,
           _count: { select: { subscriptions: true } },
         },
@@ -70,6 +71,7 @@ export async function GET(req: NextRequest) {
       ...a,
       hasAccessPassword: !!a.accessPassword,
       accessPassword: undefined,
+      isFederated: !!a.sourceInstanceId,
     }));
 
     return NextResponse.json({ agents: safeAgents, total, limit, offset });

@@ -627,12 +627,39 @@ interface FedActivity {
 
 // ─── Sub-tab type ──────────────────────────────────────────────────────────
 
-type FedSubTab = 'activity' | 'health';
+type FedSubTab = 'instances' | 'activity' | 'health';
+
+interface FedInstance {
+  id: string;
+  name: string;
+  baseUrl: string;
+  isActive: boolean;
+  isTrusted: boolean;
+  lastSeenAt: string | null;
+  platformLinked: boolean;
+  marketplaceEnabled: boolean;
+  discoveryEnabled: boolean;
+  updatesEnabled: boolean;
+  version: string | null;
+  userCount: number | null;
+  agentCount: number | null;
+  lastSyncAt: string | null;
+  createdAt: string;
+}
 
 function FederationTab({ token }: { token: string | null }) {
-  const [subTab, setSubTab] = useState<FedSubTab>('activity');
+  const [subTab, setSubTab] = useState<FedSubTab>('instances');
   const [activity, setActivity] = useState<FedActivity | null>(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
+
+  // Instances state
+  const [instances, setInstances] = useState<FedInstance[]>([]);
+  const [instanceTotals, setInstanceTotals] = useState<any>(null);
+  const [loadingInstances, setLoadingInstances] = useState(false);
+  const [showAddInstance, setShowAddInstance] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', baseUrl: '', apiKey: '' });
+  const [addingInstance, setAddingInstance] = useState(false);
+  const [instanceActionLoading, setInstanceActionLoading] = useState<string | null>(null);
 
   // Health checker state
   const [remoteUrl, setRemoteUrl] = useState('');
@@ -652,9 +679,63 @@ function FederationTab({ token }: { token: string | null }) {
     finally { setLoadingActivity(false); }
   }, [token]);
 
+  const fetchInstances = useCallback(async () => {
+    setLoadingInstances(true);
+    try {
+      const res = await fetch('/api/admin/instances', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setInstances(data.instances || []);
+        setInstanceTotals(data.totals || null);
+      }
+    } catch { /* ignore */ }
+    finally { setLoadingInstances(false); }
+  }, [token]);
+
   useEffect(() => {
-    if (token && !activity) fetchActivity();
-  }, [token, activity, fetchActivity]);
+    if (token) {
+      if (!activity) fetchActivity();
+      if (instances.length === 0 && !loadingInstances) fetchInstances();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, activity, fetchActivity, fetchInstances]);
+
+  const handleAddInstance = async () => {
+    if (!addForm.name.trim() || !addForm.baseUrl.trim()) return;
+    setAddingInstance(true);
+    try {
+      const res = await fetch('/api/admin/instances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: addForm.name.trim(),
+          baseUrl: addForm.baseUrl.trim().replace(/\/$/, ''),
+          apiKey: addForm.apiKey.trim() || `admin-registered-${Date.now()}`,
+        }),
+      });
+      if (res.ok) {
+        setAddForm({ name: '', baseUrl: '', apiKey: '' });
+        setShowAddInstance(false);
+        fetchInstances();
+      }
+    } catch { /* ignore */ }
+    finally { setAddingInstance(false); }
+  };
+
+  const toggleInstanceField = async (id: string, field: string, value: boolean) => {
+    setInstanceActionLoading(id);
+    try {
+      await fetch('/api/admin/instances', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ id, [field]: value }),
+      });
+      await fetchInstances();
+    } catch { /* ignore */ }
+    finally { setInstanceActionLoading(null); }
+  };
 
   const runCheck = async (url?: string) => {
     const isRemote = !!url;
@@ -765,12 +846,20 @@ function FederationTab({ token }: { token: string | null }) {
       {/* Sub-tab navigation */}
       <div className="flex gap-1 bg-white/[0.02] border border-white/[0.06] rounded-xl p-1">
         <button
+          onClick={() => { setSubTab('instances'); if (instances.length === 0) fetchInstances(); }}
+          className={`flex-1 px-4 py-2.5 text-xs font-medium rounded-lg transition-colors ${
+            subTab === 'instances' ? 'bg-brand-500/20 text-brand-400' : 'text-[var(--text-secondary)] hover:text-white'
+          }`}
+        >
+          🏢 Connected Instances ({instances.length})
+        </button>
+        <button
           onClick={() => setSubTab('activity')}
           className={`flex-1 px-4 py-2.5 text-xs font-medium rounded-lg transition-colors ${
             subTab === 'activity' ? 'bg-brand-500/20 text-brand-400' : 'text-[var(--text-secondary)] hover:text-white'
           }`}
         >
-          📡 Live Activity
+          📡 Activity
         </button>
         <button
           onClick={() => setSubTab('health')}
@@ -778,9 +867,171 @@ function FederationTab({ token }: { token: string | null }) {
             subTab === 'health' ? 'bg-brand-500/20 text-brand-400' : 'text-[var(--text-secondary)] hover:text-white'
           }`}
         >
-          🔍 Health Checker
+          🔍 Health
         </button>
       </div>
+
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {/*  INSTANCES SUB-TAB                                                 */}
+      {/* ════════════════════════════════════════════════════════════════════ */}
+      {subTab === 'instances' && (
+        <>
+          {loadingInstances && instances.length === 0 && (
+            <div className="text-center py-12 text-sm text-[var(--text-secondary)]">Loading instances…</div>
+          )}
+
+          {/* Add Instance Button + Form */}
+          <div className="flex items-center justify-between">
+            <div className="text-xs text-[var(--text-secondary)]">
+              {instanceTotals && (
+                <span>{instanceTotals.total} total · {instanceTotals.active} active · {instanceTotals.platformLinked} linked</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={fetchInstances}
+                className="px-2.5 py-1.5 rounded-lg text-[10px] text-[var(--text-secondary)] hover:bg-white/[0.04] transition-colors"
+              >
+                ↻ Refresh
+              </button>
+              <button
+                onClick={() => setShowAddInstance(!showAddInstance)}
+                className="px-3 py-1.5 rounded-lg text-[10px] font-medium bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 transition-colors"
+              >
+                + Register Instance
+              </button>
+            </div>
+          </div>
+
+          {showAddInstance && (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 space-y-3">
+              <h4 className="text-sm font-medium text-white">Manually Register a Federated Instance</h4>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Use this to manually add an instance that has connected to the network. This creates a record in the instance registry with platform-linked status.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  value={addForm.name}
+                  onChange={e => setAddForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Instance name (e.g. Fractional Venture Partners)"
+                  className="px-3 py-2 text-xs bg-[var(--bg-primary)] border border-white/[0.06] rounded-md text-white placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                />
+                <input
+                  value={addForm.baseUrl}
+                  onChange={e => setAddForm(f => ({ ...f, baseUrl: e.target.value }))}
+                  placeholder="Base URL (e.g. https://cc.fractionalventure.partners)"
+                  className="px-3 py-2 text-xs bg-[var(--bg-primary)] border border-white/[0.06] rounded-md text-white placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 font-mono"
+                />
+                <input
+                  value={addForm.apiKey}
+                  onChange={e => setAddForm(f => ({ ...f, apiKey: e.target.value }))}
+                  placeholder="API key (optional, auto-generated if empty)"
+                  className="px-3 py-2 text-xs bg-[var(--bg-primary)] border border-white/[0.06] rounded-md text-white placeholder:text-white/30 focus:outline-none focus:border-brand-500/50 font-mono"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowAddInstance(false)}
+                  className="px-4 py-2 text-xs rounded-md bg-white/[0.04] text-[var(--text-secondary)] hover:text-white transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddInstance}
+                  disabled={addingInstance || !addForm.name.trim() || !addForm.baseUrl.trim()}
+                  className="px-4 py-2 text-xs font-medium rounded-md bg-brand-500 text-white hover:bg-brand-500/80 transition-colors disabled:opacity-50"
+                >
+                  {addingInstance ? 'Registering…' : 'Register Instance'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {instances.length === 0 && !loadingInstances ? (
+            <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-8 text-center">
+              <div className="text-3xl mb-3">🏢</div>
+              <h4 className="text-sm font-medium text-white mb-1">No Connected Instances</h4>
+              <p className="text-[11px] text-[var(--text-secondary)] max-w-md mx-auto mb-4">
+                Self-hosted DiviDen instances appear here after they register via <code className="code-inline">/api/v2/federation/register</code> or when you manually add them.
+              </p>
+              <button
+                onClick={() => setShowAddInstance(true)}
+                className="px-4 py-2 text-xs font-medium rounded-md bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 transition-colors"
+              >
+                + Register First Instance
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {instances.map(inst => (
+                <div key={inst.id} className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-4 hover:bg-white/[0.03] transition-colors">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`w-2.5 h-2.5 rounded-full ${inst.isActive ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                        <span className="text-sm font-medium text-white">{inst.name}</span>
+                        {inst.isTrusted && <span className="px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 text-[9px] font-medium">🛡️ Trusted</span>}
+                        {inst.platformLinked && <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-medium">🔗 Linked</span>}
+                      </div>
+                      <div className="text-[11px] text-[var(--text-secondary)] font-mono truncate mb-2">{inst.baseUrl}</div>
+
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {inst.marketplaceEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-400/10 text-emerald-400">🛒 Marketplace</span>}
+                        {inst.discoveryEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-400/10 text-blue-400">🔍 Discovery</span>}
+                        {inst.updatesEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-400/10 text-purple-400">📦 Updates</span>}
+                        {inst.version && <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/[0.04] text-[var(--text-secondary)] font-mono">v{inst.version}</span>}
+                      </div>
+
+                      <div className="flex gap-4 text-[10px] text-[var(--text-secondary)]">
+                        <span>👥 {inst.userCount ?? '—'} users</span>
+                        <span>🤖 {inst.agentCount ?? '—'} agents</span>
+                        <span>Seen: {inst.lastSeenAt ? timeAgo(inst.lastSeenAt) : 'never'}</span>
+                        <span>Synced: {inst.lastSyncAt ? timeAgo(inst.lastSyncAt) : 'never'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => toggleInstanceField(inst.id, 'isTrusted', !inst.isTrusted)}
+                        disabled={instanceActionLoading === inst.id}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                          inst.isTrusted ? 'bg-brand-500/20 text-brand-400 hover:bg-brand-500/30' : 'bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        {inst.isTrusted ? '🛡️ Trusted' : 'Trust'}
+                      </button>
+                      <button
+                        onClick={() => toggleInstanceField(inst.id, 'marketplaceEnabled', !inst.marketplaceEnabled)}
+                        disabled={instanceActionLoading === inst.id}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                          inst.marketplaceEnabled ? 'bg-emerald-400/10 text-emerald-400 hover:bg-red-400/10 hover:text-red-400' : 'bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08]'
+                        }`}
+                      >
+                        {inst.marketplaceEnabled ? '🛒 On' : '🛒 Off'}
+                      </button>
+                      <button
+                        onClick={() => toggleInstanceField(inst.id, 'isActive', !inst.isActive)}
+                        disabled={instanceActionLoading === inst.id}
+                        className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
+                          inst.isActive ? 'bg-emerald-400/10 text-emerald-400 hover:bg-red-400/10 hover:text-red-400' : 'bg-red-400/10 text-red-400 hover:bg-emerald-400/10 hover:text-emerald-400'
+                        }`}
+                      >
+                        {inst.isActive ? 'Active' : 'Inactive'}
+                      </button>
+                      <button
+                        onClick={() => { setRemoteUrl(inst.baseUrl); setSubTab('health'); }}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08] transition-colors"
+                      >
+                        🔍 Check
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
 
       {/* ════════════════════════════════════════════════════════════════════ */}
       {/*  ACTIVITY SUB-TAB                                                  */}

@@ -54,6 +54,7 @@ export async function GET(
       // Owner sees the actual password; others just see if one exists
       accessPassword: isOwner ? accessPassword : undefined,
       hasAccessPassword: !!accessPassword,
+      isFederated: !!agent.sourceInstanceId,
       subscription: subscription || null,
       recentExecutions,
     });

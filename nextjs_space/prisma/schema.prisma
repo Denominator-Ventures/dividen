@@ -1653,6 +1653,11 @@ model MarketplaceAgent {
   contextPreparation  String?   @db.Text  // JSON array of preparation steps Divi should follow
   executionNotes      String?   @db.Text  // Free-form notes about quirks, rate limits, best practices
 
+  // Federation — agents synced from self-hosted instances
+  sourceInstanceId  String?  // InstanceRegistry.id if agent was synced from a federated instance
+  remoteAgentId     String?  // The agent's original ID on the remote instance
+  sourceInstanceUrl String?  // Cached URL for display (denormalized from InstanceRegistry)
+
   subscriptions   MarketplaceSubscription[]
   executions      MarketplaceExecution[]
   teamAccess      TeamAgentAccess[]
@@ -1666,6 +1671,7 @@ model MarketplaceAgent {
   @@index([featured])
   @@index([pricingModel])
   @@index([createdAt])
+  @@index([sourceInstanceId])
   @@map("marketplace_agents")
 }
 
