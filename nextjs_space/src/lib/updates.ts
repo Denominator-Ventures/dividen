@@ -17,6 +17,66 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'smart-tagging-kanban-ux-drag-scroll',
+    date: '2026-04-13',
+    time: '11:59 PM',
+    title: 'Smart Tagging, Kanban Board UX, and Drag-Scroll Everywhere',
+    subtitle: 'Kanban cards now show who\'s involved and what\'s urgent at a glance. The board scrolls like Trello. Every tab row drags horizontally on any screen.',
+    tags: ['kanban', 'smart-tags', 'federation', 'ux', 'mobile', 'drag-scroll', 'documentation', 'opencore'],
+    content: `Three layers of UX improvements that compound — each one makes the others more useful.
+
+## Smart Tagging on Kanban Cards
+
+Every kanban card now automatically surfaces **smart tags** derived from the task's context:
+
+### Connected User Tags
+- **Blue tags (👤)** — Same-instance users who are project members. You see exactly who's working on what without opening the card.
+- **Purple tags (🔗)** — Federated connections from other DiviDen instances. Cross-instance collaboration becomes visible at the board level.
+
+The tag source is the \`ProjectMember\` model — each member links to either a local \`User\` (userId) or a federated \`Connection\` (connectionId + isFederated: true). The \`getSmartTags()\` helper in \`KanbanView.tsx\` reads these relationships and produces the tag array.
+
+### Due Date Urgency
+- **🔴 Overdue** — Red tag when a card's due date has passed
+- **⏰ Due Today** — Orange tag when the card is due within 24 hours
+
+### Federated Member Indicators
+Project member avatars now show a **purple ring** for federated members vs. role-based accent colors for local users. Tooltip shows "(role) — federated" for cross-instance members.
+
+## Kanban Board: Trello-Style Interaction
+
+The board now distinguishes between two drag intents:
+1. **Drag a card** → Pick it up, move it between columns (via dnd-kit). Overlay gets \`shadow-2xl rotate-2\` for satisfying visual feedback. \`dropAnimation: null\` for snappy placement.
+2. **Drag empty space** → Horizontally scroll the entire board. Pointer events check \`target.closest('[data-kanban-card]')\` — if you're not on a card, it's a board scroll.
+
+This is the same mental model as Trello. No mode switching required.
+
+## Drag-to-Scroll Tab Rows
+
+New reusable \`DragScrollContainer\` component wraps any overflow-x content:
+- **Settings tab bar** — all tabs scrollable on narrow screens
+- **Admin tab bar** — including the new Workflows tab
+- **CenterPanel sub-tabs** — inbox filters, job board filters, etc.
+- **Fade edges** — optional gradient fade indicators showing there's more content
+
+The component uses a \`ResizeObserver\` to detect overflow and suppress click events during drag so you don't accidentally activate a tab while scrolling.
+
+## Documentation & Developer Docs
+
+Updated for opencore contributors:
+- **Smart Tagging** section in \`/documentation\` now covers the tag extraction pattern, model relationships, and how to add custom tag types
+- **Intelligence & Learning** section expanded with implementation details for behavior signals, learnings CRUD, and NOW engine correlation
+- **Developer Docs** (\`/docs/developers\`) now includes **Behavior Signals API**, **Learnings API**, and **Smart Tagging Implementation** sections with endpoint references and code patterns
+- All new API routes documented with auth requirements and payload shapes
+
+## For Opencore Contributors
+
+If you're self-hosting or extending DiviDen:
+- Smart tag rendering lives in \`getSmartTags()\` in \`KanbanView.tsx\` — extend it to add custom tag types (labels, priority levels, custom metadata)
+- \`DragScrollContainer\` is a generic component — use it anywhere you have horizontal overflow
+- Behavior signals follow a fire-and-forget pattern via \`emitSignal()\` — add new signal types by calling it from any user interaction handler
+- The learnings system is CRUD-first: every learning is user-editable, dismissable, and deletable. The analysis endpoint detects patterns but the user always has final say.`,
+  },
+  {
     id: 'intelligence-learning-system',
     date: '2026-04-13',
     time: '11:45 PM',

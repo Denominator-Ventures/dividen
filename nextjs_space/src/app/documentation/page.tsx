@@ -821,7 +821,8 @@ onDiscuss={(context: string) => {
           <Section id="smart-tagging" title="Smart Tagging (Kanban)">
             <p className="text-[var(--text-secondary)] mb-4">
               Kanban cards automatically display <strong className="text-white">smart tags</strong> based on
-              who&apos;s involved in a task — whether they&apos;re on the same instance or connected via federation.
+              who&apos;s involved in a task — whether they&apos;re on the same instance or connected via federation —
+              plus urgency indicators derived from due dates.
             </p>
 
             <h3 className="text-lg font-bold text-white mb-3">Connected User Tags</h3>
@@ -837,12 +838,38 @@ onDiscuss={(context: string) => {
               Tags appear at the top of each card, making it immediately visible who&apos;s involved without opening the card detail.
             </p>
 
-            <h3 className="text-lg font-bold text-white mb-3">How It Works</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Data Model &amp; Tag Extraction</h3>
             <p className="text-[var(--text-secondary)] mb-4">
               Smart tags are derived from the <InlineCode>ProjectMember</InlineCode> records associated with a card&apos;s project.
-              Each member can be either a local user (linked via <InlineCode>userId</InlineCode>) or a federated peer
-              (linked via <InlineCode>connectionId</InlineCode> on a <InlineCode>Connection</InlineCode> with <InlineCode>isFederated: true</InlineCode>).
+              Each member links to either a local <InlineCode>User</InlineCode> (via <InlineCode>userId</InlineCode>) or a federated
+              peer (via <InlineCode>connectionId</InlineCode> on a <InlineCode>Connection</InlineCode> with <InlineCode>isFederated: true</InlineCode>).
             </p>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The <InlineCode>getSmartTags(card)</InlineCode> helper in <InlineCode>KanbanView.tsx</InlineCode> handles extraction:
+            </p>
+            <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>Reads <InlineCode>card.project.members[]</InlineCode> from the kanban card data</li>
+              <li>For each member with a <InlineCode>user</InlineCode> object → blue tag with <InlineCode>user.name</InlineCode></li>
+              <li>For each member with a <InlineCode>connection</InlineCode> object → purple tag with <InlineCode>connection.name</InlineCode></li>
+              <li>Checks <InlineCode>card.dueDate</InlineCode> against current time → overdue (red) or due-today (orange) tag</li>
+            </ol>
+
+            <h3 className="text-lg font-bold text-white mb-3">Extending Smart Tags (Opencore)</h3>
+            <div className="bg-brand-500/10 border border-brand-500/20 rounded-lg p-4 mb-4">
+              <p className="text-[var(--text-secondary)] text-sm mb-3">
+                To add custom tag types, modify <InlineCode>getSmartTags()</InlineCode> in{' '}
+                <InlineCode>src/components/dashboard/KanbanView.tsx</InlineCode>:
+              </p>
+              <ul className="list-disc list-inside text-[var(--text-secondary)] text-sm space-y-2">
+                <li><strong className="text-white">Label tags</strong> — Read from <InlineCode>card.metadata</InlineCode> or a new <InlineCode>labels</InlineCode> field on the KanbanCard model</li>
+                <li><strong className="text-white">Priority tags</strong> — Map card priority values to colored tags (e.g., P0 = red, P1 = amber)</li>
+                <li><strong className="text-white">Custom status tags</strong> — Use <InlineCode>card.column</InlineCode> or custom metadata to derive contextual status tags</li>
+                <li><strong className="text-white">External integration tags</strong> — Query external data sources to tag cards with Jira ticket IDs, GitHub PRs, etc.</li>
+              </ul>
+              <p className="text-[var(--text-secondary)] text-sm mt-3">
+                Each tag is a <InlineCode>{'{'}label, color, icon{'}'}</InlineCode> object. The card renderer maps colors to Tailwind classes.
+              </p>
+            </div>
 
             <h3 className="text-lg font-bold text-white mb-3">Cross-Instance Task Tracking</h3>
             <p className="text-[var(--text-secondary)] mb-4">
@@ -856,23 +883,31 @@ onDiscuss={(context: string) => {
             </ol>
 
             <h3 className="text-lg font-bold text-white mb-3">Due Date Tags</h3>
-            <p className="text-[var(--text-secondary)] mb-4">
-              Smart tags also include urgency indicators:
-            </p>
             <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
               <li><span className="text-red-400">🔴 Overdue</span> — Card is past its due date</li>
               <li><span className="text-orange-400">⏰ Due Today</span> — Card is due within 24 hours</li>
             </ul>
 
-            <h3 className="text-lg font-bold text-white mb-3">Board Interaction</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Board Interaction (Trello Model)</h3>
             <p className="text-[var(--text-secondary)] mb-4">
-              The kanban board uses a Trello-inspired interaction model:
+              The kanban board uses a Trello-inspired interaction model with two distinct drag modes:
             </p>
             <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
-              <li><strong className="text-white">Drag a card</strong> — Click and drag any card to move it between columns</li>
-              <li><strong className="text-white">Scroll the board</strong> — Click and drag on any empty space (not on a card) to horizontally scroll the board</li>
+              <li><strong className="text-white">Drag a card</strong> — Click and drag any card to move it between columns. Cards are identified by <InlineCode>data-kanban-card=&quot;true&quot;</InlineCode> attribute.</li>
+              <li><strong className="text-white">Scroll the board</strong> — Click and drag on any empty space (pointer events check <InlineCode>target.closest(&apos;[data-kanban-card]&apos;)</InlineCode>). If not on a card, drag scrolls the board.</li>
               <li><strong className="text-white">Touch devices</strong> — Native touch scrolling for the board, press-and-hold a card to drag</li>
-              <li><strong className="text-white">All tab rows</strong> — Drag-to-scroll horizontally on mobile and desktop</li>
+              <li><strong className="text-white">All tab rows</strong> — The <InlineCode>DragScrollContainer</InlineCode> component enables drag-to-scroll on any overflow-x element</li>
+            </ul>
+
+            <h3 className="text-lg font-bold text-white mb-3">DragScrollContainer (Reusable)</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Located at <InlineCode>src/components/ui/DragScrollContainer.tsx</InlineCode>. Wrap any horizontally-overflowing content:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>Detects overflow with <InlineCode>ResizeObserver</InlineCode></li>
+              <li>Suppresses click events during drag (prevents accidental tab activation)</li>
+              <li>Optional fade edges (<InlineCode>showFadeEdges</InlineCode> prop) showing gradient indicators at overflow boundaries</li>
+              <li>Used on: Settings tabs, Admin tabs, CenterPanel sub-tabs</li>
             </ul>
           </Section>
 
@@ -883,33 +918,117 @@ onDiscuss={(context: string) => {
               This is <strong className="text-white">not goal inference</strong> — it&apos;s observational learning from how you actually use the system.
             </p>
 
+            <h3 className="text-lg font-bold text-white mb-3">Architecture Overview</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The intelligence system has four layers:
+            </p>
+            <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">Signal Collection</strong> — Lightweight fire-and-forget events from UI interactions</li>
+              <li><strong className="text-white">Pattern Analysis</strong> — Batch processing of signals into learnings</li>
+              <li><strong className="text-white">User Control</strong> — CRUD interface for reviewing and managing what Divi knows</li>
+              <li><strong className="text-white">Integration</strong> — Learnings feed into the NOW engine, system prompt, and notification pipeline</li>
+            </ol>
+
             <h3 className="text-lg font-bold text-white mb-3">Behavior Signals</h3>
             <p className="text-[var(--text-secondary)] mb-4">
               Actions like completing queue items, sending chat messages, and changing card statuses emit
-              lightweight signals via <InlineCode>POST /api/behavior-signals</InlineCode>. These are stored
-              with timing metadata (hour, day-of-week) for pattern analysis.
+              lightweight signals via <InlineCode>POST /api/behavior-signals</InlineCode>. Signals are stored
+              in the <InlineCode>BehaviorSignal</InlineCode> model with timing metadata (hour, day-of-week).
             </p>
+            <div className="bg-brand-500/10 border border-brand-500/20 rounded-lg p-4 mb-4">
+              <p className="text-[var(--text-secondary)] text-sm mb-2 font-bold text-white">Adding New Signals (Opencore)</p>
+              <p className="text-[var(--text-secondary)] text-sm mb-2">
+                Import <InlineCode>emitSignal</InlineCode> from <InlineCode>src/lib/behavior-signals.ts</InlineCode> and call it from any interaction handler:
+              </p>
+              <ul className="list-disc list-inside text-[var(--text-secondary)] text-sm space-y-1">
+                <li><InlineCode>emitSignal(&apos;action_name&apos;, {'{'} contextKey: value {'}'})</InlineCode></li>
+                <li>Fire-and-forget pattern — failures don&apos;t affect the UI</li>
+                <li>Currently instrumented: <InlineCode>queue_done_today</InlineCode>, <InlineCode>queue_in_progress</InlineCode>, <InlineCode>queue_delete</InlineCode>, <InlineCode>chat_send</InlineCode></li>
+                <li>To add: email opens, calendar interactions, capability usage, settings changes</li>
+              </ul>
+            </div>
 
             <h3 className="text-lg font-bold text-white mb-3">Pattern Analysis</h3>
             <p className="text-[var(--text-secondary)] mb-4">
               The analysis engine (<InlineCode>POST /api/learnings/analyze</InlineCode>) processes collected signals
-              and detects: peak activity hours, discussion frequency, quiet days, and unused capabilities.
-              Each detected pattern becomes a &quot;learning&quot; stored in your profile.
+              and detects patterns. Currently detected:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">Peak hours</strong> — Times when the user is most active</li>
+              <li><strong className="text-white">Discussion frequency</strong> — How often the discuss feature is used on emails</li>
+              <li><strong className="text-white">Quiet days</strong> — Days of the week with consistently low activity</li>
+              <li><strong className="text-white">Capability usage</strong> — Which capabilities are active vs. gathering dust</li>
+            </ul>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Each detected pattern becomes a <InlineCode>UserLearning</InlineCode> record. Learnings have a
+              category, confidence score (0–1), source attribution, and a user-editable content field.
             </p>
 
             <h3 className="text-lg font-bold text-white mb-3">Managing Learnings</h3>
             <p className="text-[var(--text-secondary)] mb-4">
-              Navigate to <InlineCode>Settings → Learnings</InlineCode> to see everything Divi has learned.
-              Each learning can be edited, dismissed, or deleted. Category filters and confidence scores
-              help you understand the quality of each insight.
+              Navigate to <InlineCode>Settings → Learnings</InlineCode> (or click any intelligence notification) to see everything Divi has learned.
+              The tab provides:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">Category filters</strong> — Filter by behavior, schedule, capability, workflow</li>
+              <li><strong className="text-white">New-dot indicators</strong> — Blue dot on unseen learnings</li>
+              <li><strong className="text-white">Inline editing</strong> — Click to modify any learning&apos;s content</li>
+              <li><strong className="text-white">Dismiss / Delete</strong> — Dismiss hides a learning; delete permanently removes it</li>
+              <li><strong className="text-white">Analytics summary</strong> — Total count, new this week, average confidence</li>
+            </ul>
+
+            <h3 className="text-lg font-bold text-white mb-3">Learnings API (Opencore)</h3>
+            <div className="bg-brand-500/10 border border-brand-500/20 rounded-lg p-4 mb-4">
+              <p className="text-[var(--text-secondary)] text-sm mb-2">
+                Full CRUD at <InlineCode>/api/learnings</InlineCode> (GET list, POST create) and{' '}
+                <InlineCode>/api/learnings/[id]</InlineCode> (PATCH update, DELETE remove). All require session auth.
+              </p>
+              <p className="text-[var(--text-secondary)] text-sm mb-2">
+                Analysis trigger: <InlineCode>POST /api/learnings/analyze</InlineCode> — processes signals, generates
+                learnings, and creates an <InlineCode>ActivityLog</InlineCode> entry with a notification for the user.
+              </p>
+              <p className="text-[var(--text-secondary)] text-sm">
+                Deep-linking: notifications with <InlineCode>action: &apos;learning_generated&apos;</InlineCode> navigate to{' '}
+                <InlineCode>/settings?tab=learnings</InlineCode> when clicked.
+              </p>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">NOW Engine: Calendar-Queue Correlation</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The NOW engine (<InlineCode>src/lib/now-engine.ts</InlineCode>) cross-references upcoming calendar
+              events with queue items. The correlation logic:
+            </p>
+            <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>Finds events starting within 60 minutes</li>
+              <li>Tokenizes event titles into keywords (3+ characters)</li>
+              <li>Fuzzy-matches keywords against queue item titles (case-insensitive)</li>
+              <li>Matching items get a <strong className="text-white">+25 score boost</strong> and a subtitle like{' '}
+                <InlineCode>&quot;Related to upcoming: Q3 Planning Call&quot;</InlineCode></li>
+            </ol>
+            <p className="text-[var(--text-secondary)] mb-4">
+              This means prep items automatically surface before meetings without any manual tagging.
             </p>
 
-            <h3 className="text-lg font-bold text-white mb-3">NOW Engine Integration</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Admin: Workflow Discovery</h3>
             <p className="text-[var(--text-secondary)] mb-4">
-              The NOW engine cross-references upcoming calendar events with queue items. If a queue item
-              title mentions an upcoming meeting topic (within 60 minutes), it gets a score boost and
-              surfaces as a meeting prep item.
+              The admin panel (<InlineCode>/admin</InlineCode> → Workflows tab) surfaces cross-user workflow patterns.
+              The <InlineCode>WorkflowPattern</InlineCode> model stores action sequences that multiple users follow.
+              Admin can review patterns, mark them as reviewed, and use them to inform new capability development.
+              API: <InlineCode>GET /api/admin/workflows</InlineCode> (list) and <InlineCode>PATCH /api/admin/workflows</InlineCode> (mark reviewed).
             </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Supporting Models</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The intelligence system adds five Prisma models:
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><InlineCode>BehaviorSignal</InlineCode> — Raw action events with timing metadata</li>
+              <li><InlineCode>UserLearning</InlineCode> — Detected patterns (extended with category, confidence, source, dismissed fields)</li>
+              <li><InlineCode>CapabilityUsageLog</InlineCode> — Tracks capability activation/deactivation</li>
+              <li><InlineCode>RelayTemplate</InlineCode> — Proven interaction patterns from network relays</li>
+              <li><InlineCode>AgentQualityScore</InlineCode> — Marketplace agent effectiveness scores</li>
+              <li><InlineCode>WorkflowPattern</InlineCode> — Cross-user workflow sequences for admin review</li>
+            </ul>
           </Section>
 
           {/* Footer */}

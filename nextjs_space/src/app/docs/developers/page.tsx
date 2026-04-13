@@ -73,6 +73,11 @@ const TOC = [
   { id: 'federation', label: 'Cross-Instance API' },
   { id: 'integration-kit', label: 'Integration Kit' },
   { id: 'queue-gating', label: 'Queue Gating' },
+  { id: 'behavior-signals', label: 'Behavior Signals API' },
+  { id: 'learnings-api', label: 'Learnings API' },
+  { id: 'smart-tagging', label: 'Smart Tagging' },
+  { id: 'drag-scroll', label: 'DragScrollContainer' },
+  { id: 'now-engine', label: 'NOW Engine Correlation' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
 
@@ -549,6 +554,242 @@ Content-Type: application/json`}</Code>
             <Endpoint method="TAG" path='[[dispatch_queue:{"task":"..."}]]' description="Now queue-gated — fails if no handler, triggers marketplace suggestions" />
             <Endpoint method="TAG" path='[[suggest_marketplace:{"search":"...","category":"..."}]]' description="Surfaces matching capabilities as inline chat cards" />
           </div>
+        </Section>
+
+        {/* ── Behavior Signals API ────────────────────────────── */}
+        <Section id="behavior-signals" title="Behavior Signals API">
+          <p className="text-[var(--text-secondary)] mb-4">
+            The behavior signal system collects lightweight, fire-and-forget events from user interactions.
+            These signals feed the pattern analysis engine that generates learnings.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Endpoint</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+            <Endpoint method="POST" path="/api/behavior-signals" description="Emit a behavior signal. Payload: { action, context, hour?, dayOfWeek? }. Returns 201." auth="Session" />
+            <Endpoint method="GET" path="/api/behavior-signals" description="List signals for current user (paginated). Query: ?limit=50&offset=0" auth="Session" />
+          </div>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Client Helper</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Use <InlineCode>emitSignal(action, context)</InlineCode> from <InlineCode>src/lib/behavior-signals.ts</InlineCode>.
+            It automatically attaches the current hour and day-of-week, and swallows errors so it never breaks the UI.
+          </p>
+          <Code>{`import { emitSignal } from '@/lib/behavior-signals';
+
+// In any event handler:
+emitSignal('queue_done_today', { itemId: item.id, status: 'done_today' });
+emitSignal('chat_send', { contentLength: message.length });
+emitSignal('email_opened', { threadId: thread.id });`}</Code>
+
+          <h4 className="text-base font-bold text-white mb-2">Currently Instrumented Actions</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 text-sm">
+            <div className="grid grid-cols-2 gap-2 text-[var(--text-secondary)]">
+              <div><InlineCode>queue_done_today</InlineCode> — Queue item marked done</div>
+              <div><InlineCode>queue_in_progress</InlineCode> — Queue item started</div>
+              <div><InlineCode>queue_delete</InlineCode> — Queue item deleted</div>
+              <div><InlineCode>chat_send</InlineCode> — Chat message sent</div>
+            </div>
+          </div>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Adding New Signal Types</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Call <InlineCode>emitSignal</InlineCode> from any component&apos;s event handler. No schema changes needed — the
+            <InlineCode>action</InlineCode> field is a free-form string and <InlineCode>context</InlineCode> is a JSON object.
+            The analysis endpoint (<InlineCode>POST /api/learnings/analyze</InlineCode>) groups signals by action type for pattern detection.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Prisma Model</h4>
+          <Code>{`model BehaviorSignal {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String   // e.g. "queue_done_today"
+  context   Json?    // e.g. { itemId, status }
+  hour      Int?     // 0-23
+  dayOfWeek Int?     // 0=Sun, 6=Sat
+  createdAt DateTime @default(now())
+  user      User     @relation(...)
+}`}</Code>
+        </Section>
+
+        {/* ── Learnings API ──────────────────────────────────── */}
+        <Section id="learnings-api" title="Learnings API">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Learnings are patterns detected from behavior signals. Every learning is user-controlled — editable, dismissable, deletable.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Endpoints</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+            <Endpoint method="GET" path="/api/learnings" description="List all learnings for current user. Returns array with category, confidence, source, content, dismissed, seenAt." auth="Session" />
+            <Endpoint method="POST" path="/api/learnings" description="Create a learning. Body: { category, content, confidence?, source? }" auth="Session" />
+            <Endpoint method="PATCH" path="/api/learnings/[id]" description="Update a learning. Body: { content?, dismissed?, seenAt? }" auth="Session" />
+            <Endpoint method="DELETE" path="/api/learnings/[id]" description="Permanently delete a learning." auth="Session" />
+            <Endpoint method="POST" path="/api/learnings/analyze" description="Trigger pattern analysis. Processes signals, generates new learnings, creates notification." auth="Session" />
+          </div>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Learning Categories</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 text-sm">
+            <div className="grid grid-cols-2 gap-2 text-[var(--text-secondary)]">
+              <div><InlineCode>behavior</InlineCode> — Usage patterns (peak hours, quiet days)</div>
+              <div><InlineCode>schedule</InlineCode> — Time-based patterns</div>
+              <div><InlineCode>capability</InlineCode> — Feature usage insights</div>
+              <div><InlineCode>workflow</InlineCode> — Action sequence patterns</div>
+            </div>
+          </div>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Notification Deep-Linking</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            When the analysis endpoint creates new learnings, it logs an <InlineCode>ActivityLog</InlineCode> with
+            action <InlineCode>learning_generated</InlineCode>. The notification feed maps this to the intelligence category.
+            Clicking the notification navigates to <InlineCode>/settings?tab=learnings</InlineCode>.
+          </p>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Implementation: <InlineCode>NotificationCenter.tsx</InlineCode> checks notification action and uses
+            <InlineCode>router.push(&apos;/settings?tab=learnings&apos;)</InlineCode> for learning/intelligence notifications.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Admin: Workflow Discovery</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] divide-y divide-white/[0.04]">
+            <Endpoint method="GET" path="/api/admin/workflows" description="List WorkflowPattern records. Returns action sequences detected across users." auth="Bearer" />
+            <Endpoint method="PATCH" path="/api/admin/workflows" description="Mark a pattern as reviewed. Body: { id }" auth="Bearer" />
+          </div>
+        </Section>
+
+        {/* ── Smart Tagging ──────────────────────────────────── */}
+        <Section id="smart-tagging" title="Smart Tagging Implementation">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Smart tags are auto-generated labels on kanban cards that surface who&apos;s involved (local + federated) and due date urgency.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Tag Extraction — <InlineCode>getSmartTags(card)</InlineCode></h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Located in <InlineCode>src/components/dashboard/KanbanView.tsx</InlineCode>. Returns an array of
+            <InlineCode>{'{'}label, color, icon{'}'}</InlineCode> objects:
+          </p>
+          <Code>{`function getSmartTags(card: KanbanCardData) {
+  const tags: { label: string; color: string; icon: string }[] = [];
+
+  // 1. Project member tags
+  card.project?.members?.forEach(m => {
+    if (m.user) {
+      tags.push({ label: m.user.name, color: 'blue', icon: '👤' });
+    } else if (m.connection) {
+      tags.push({ label: m.connection.name, color: 'purple', icon: '🔗' });
+    }
+  });
+
+  // 2. Due date urgency
+  if (card.dueDate) {
+    const due = new Date(card.dueDate);
+    const now = new Date();
+    if (due < now) tags.push({ label: 'Overdue', color: 'red', icon: '🔴' });
+    else if (due.toDateString() === now.toDateString())
+      tags.push({ label: 'Due Today', color: 'orange', icon: '⏰' });
+  }
+
+  return tags;
+}`}</Code>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Extending Tags</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Add new tag types by pushing to the <InlineCode>tags</InlineCode> array:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li><strong className="text-white">Labels</strong> — Read <InlineCode>card.metadata?.labels</InlineCode> or add a <InlineCode>labels</InlineCode> field to the KanbanCard model</li>
+            <li><strong className="text-white">Priority</strong> — Map <InlineCode>card.priority</InlineCode> to color-coded tags</li>
+            <li><strong className="text-white">External IDs</strong> — Parse Jira/GitHub references from card title or metadata</li>
+            <li><strong className="text-white">Custom status</strong> — Derive from <InlineCode>card.column</InlineCode> or <InlineCode>card.status</InlineCode></li>
+          </ul>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Colors are mapped to Tailwind classes in the card renderer: <InlineCode>blue</InlineCode> → <InlineCode>bg-blue-500/20 text-blue-300</InlineCode>,{' '}
+            <InlineCode>purple</InlineCode> → <InlineCode>bg-purple-500/20 text-purple-300</InlineCode>, etc.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Board Drag Detection</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The kanban board distinguishes card drags from board scrolls using <InlineCode>data-kanban-card=&quot;true&quot;</InlineCode> attributes:
+          </p>
+          <Code>{`// In board pointer handlers:
+const isOnCard = (e.target as HTMLElement).closest('[data-kanban-card]');
+if (isOnCard) return; // Let dnd-kit handle card drag
+// Otherwise, initiate board scroll via boardRef.current.scrollLeft`}</Code>
+        </Section>
+
+        {/* ── DragScrollContainer ────────────────────────────── */}
+        <Section id="drag-scroll" title="DragScrollContainer">
+          <p className="text-[var(--text-secondary)] mb-4">
+            A reusable component for enabling horizontal drag-to-scroll on any overflow content.
+            Located at <InlineCode>src/components/ui/DragScrollContainer.tsx</InlineCode>.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Usage</h4>
+          <Code>{`import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
+
+<DragScrollContainer className="gap-2" showFadeEdges>
+  {tabs.map(tab => (
+    <button key={tab.id} className="flex-shrink-0 px-3 py-1.5">
+      {tab.label}
+    </button>
+  ))}
+</DragScrollContainer>`}</Code>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Props</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 text-sm text-[var(--text-secondary)]">
+            <div className="space-y-2">
+              <div><InlineCode>children</InlineCode> — Content to render inside the scrollable container</div>
+              <div><InlineCode>className?</InlineCode> — Additional classes for the inner flex container</div>
+              <div><InlineCode>showFadeEdges?</InlineCode> — Show gradient fade indicators at overflow boundaries (default: true)</div>
+            </div>
+          </div>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">How It Works</h4>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>Uses <InlineCode>ResizeObserver</InlineCode> to detect when content overflows horizontally</li>
+            <li>Pointer events track drag state — when dragging, <InlineCode>scrollLeft</InlineCode> updates with delta</li>
+            <li>Click events are captured and suppressed during drag to prevent accidental tab/button activation</li>
+            <li>Fade edges render as absolute-positioned gradient overlays when <InlineCode>showFadeEdges</InlineCode> is true</li>
+          </ul>
+
+          <h4 className="text-base font-bold text-white mb-2">Currently Applied To</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 text-sm text-[var(--text-secondary)]">
+            <div className="space-y-1">
+              <div>• <InlineCode>Settings</InlineCode> tab bar — <InlineCode>src/app/settings/page.tsx</InlineCode></div>
+              <div>• <InlineCode>Admin</InlineCode> tab bar — <InlineCode>src/app/admin/page.tsx</InlineCode></div>
+              <div>• <InlineCode>CenterPanel</InlineCode> sub-tabs — <InlineCode>src/components/dashboard/CenterPanel.tsx</InlineCode></div>
+            </div>
+          </div>
+        </Section>
+
+        {/* ── NOW Engine Correlation ─────────────────────────── */}
+        <Section id="now-engine" title="NOW Engine: Calendar-Queue Correlation">
+          <p className="text-[var(--text-secondary)] mb-4">
+            The NOW engine (<InlineCode>src/lib/now-engine.ts</InlineCode>) dynamically prioritizes queue items
+            by cross-referencing them with upcoming calendar events.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Correlation Algorithm</h4>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>Scans calendar events starting within the next <strong className="text-white">60 minutes</strong></li>
+            <li>Tokenizes each event title into keywords (only words with 3+ characters)</li>
+            <li>For each queue item, checks if its title contains any event keyword (case-insensitive substring match)</li>
+            <li>Matching items receive a <strong className="text-white">+25 score boost</strong></li>
+            <li>Subtitle is updated to: <InlineCode>&quot;Related to upcoming: [Event Title]&quot;</InlineCode></li>
+          </ol>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Implementation Location</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The correlation block runs inside <InlineCode>computeNow()</InlineCode> after the calendar prep items section.
+            It iterates the <InlineCode>scored</InlineCode> array of NowItems and modifies scores in-place before final sorting.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Extending Correlation</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            To add new correlation sources:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>Add data fetching alongside the existing calendar fetch in <InlineCode>computeNow()</InlineCode></li>
+            <li>Create a new correlation block following the same pattern: extract keywords → match against queue items → boost score</li>
+            <li>Adjust boost values relative to the existing +25 for calendar (e.g., email mentions might warrant +15)</li>
+          </ul>
         </Section>
 
         {/* ── Rate Limits ─────────────────────────────────────── */}
