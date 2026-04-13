@@ -75,6 +75,7 @@ model User {
   projectMemberships   ProjectMember[]
   goals                Goal[]
   agentExtensions      AgentExtension[]
+  userCapabilities     UserCapability[]
   marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
   marketplaceSubs      MarketplaceSubscription[] @relation("MarketplaceSubscriptions")
   marketplaceExecs     MarketplaceExecution[]   @relation("MarketplaceExecutions")
@@ -1856,4 +1857,87 @@ model TeamFollow {
   @@index([userId])
   @@index([teamId])
   @@map("team_follows")
+}
+
+// ─── Marketplace Capabilities ────────────────────────────────────────────────
+// Capabilities are purchasable skill packs that extend what Divi can do.
+// Each capability has a hidden prompt that only becomes visible after purchase.
+// Tied to specific integration types (webhooks, APIs) for real-world actions.
+
+model MarketplaceCapability {
+  id              String    @id @default(cuid())
+  name            String
+  slug            String    @unique
+  description     String    @db.Text  // public-facing summary
+  longDescription String?   @db.Text  // rich markdown detail
+  icon            String    @default("⚡") // emoji icon
+
+  // The hidden prompt — only revealed after purchase
+  prompt          String    @db.Text  // system prompt instructions for this capability
+  promptVersion   String    @default("1.0")
+
+  // Classification
+  category        String    @default("operations") // "operations" | "communications" | "research" | "finance" | "hr" | "sales" | "engineering" | "creative" | "legal" | "custom"
+  tags            String?   @db.Text  // JSON array of tags
+  integrationType String?   // webhook type this pairs with: "calendar" | "email" | "transcript" | "generic" | "crm" | "payments" | "slack" | null
+
+  // Pricing
+  pricingModel    String    @default("free") // "free" | "one_time" | "subscription"
+  price           Float?    // one-time price or monthly subscription
+  
+  // Editable fields metadata — JSON array of field names the user can customize after purchase
+  editableFields  String?   @db.Text  // e.g. ["companyName","industry","tone","escalationRules"]
+
+  // Status
+  status          String    @default("active") // "active" | "draft" | "disabled"
+  featured        Boolean   @default(false)
+  totalPurchases  Int       @default(0)
+  avgRating       Float     @default(0)
+  totalRatings    Int       @default(0)
+
+  // System-managed
+  isSystemSeed    Boolean   @default(false)  // true = seeded by platform, not user-created
+
+  userCapabilities UserCapability[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([category])
+  @@index([status])
+  @@index([integrationType])
+  @@index([featured])
+  @@map("marketplace_capabilities")
+}
+
+// ─── User Capabilities (purchased/installed) ──────────────────────────────────
+// Links a user to a marketplace capability with their customizations.
+
+model UserCapability {
+  id              String    @id @default(cuid())
+  userId          String
+  capabilityId    String
+  
+  // User customizations — JSON object with editable field values
+  customizations  String?   @db.Text  // e.g. {"companyName":"Acme","tone":"professional"}
+  
+  // The full resolved prompt (base prompt + customizations merged)
+  resolvedPrompt  String?   @db.Text
+
+  // Status
+  status          String    @default("active") // "active" | "disabled" | "expired"
+  installedAt     DateTime  @default(now())
+  lastUsedAt      DateTime?
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  capability      MarketplaceCapability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, capabilityId])
+  @@index([userId])
+  @@index([capabilityId])
+  @@index([status])
+  @@map("user_capabilities")
 }

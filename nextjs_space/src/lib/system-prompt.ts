@@ -597,6 +597,43 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
       }
     } catch { /* installed agents lookup failed — non-critical */ }
 
+    // Installed marketplace capabilities
+    try {
+      const userCaps = await prisma.userCapability.findMany({
+        where: { userId, status: 'active' },
+        include: {
+          capability: {
+            select: { id: true, name: true, category: true, icon: true, integrationType: true, tags: true },
+          },
+        },
+        take: 20,
+      });
+
+      if (userCaps.length > 0) {
+        text += `\n### Active Capabilities (${userCaps.length})\nThese capability packs extend what you can do. Each adds specialized behavior triggered by matching tasks, webhooks, or operator requests.\n`;
+        for (const uc of userCaps) {
+          const cap = uc.capability;
+          text += `- ${cap.icon} **${cap.name}** (${cap.category})${cap.integrationType ? ` — pairs with ${cap.integrationType} webhooks` : ''}\n`;
+        }
+        text += `\nWhen you have a matching capability, tasks in that domain CAN enter the queue. The capability's prompt guides your behavior for those tasks.\n`;
+
+        // Inject resolved prompts into context
+        const resolvedCaps = await prisma.userCapability.findMany({
+          where: { userId, status: 'active', resolvedPrompt: { not: null } },
+          select: { resolvedPrompt: true, capability: { select: { name: true } } },
+          take: 10,
+        });
+        if (resolvedCaps.length > 0) {
+          text += `\n### Capability Instructions\n`;
+          for (const rc of resolvedCaps) {
+            text += `\n**${rc.capability.name}:**\n${rc.resolvedPrompt!.slice(0, 800)}\n`;
+          }
+        }
+      } else {
+        text += `\n### Capabilities\nNo capability packs installed yet. When the operator needs to handle tasks outside your built-in skills (email, meetings) and has no installed agents, suggest browsing the capability marketplace using [[suggest_marketplace:{"query":"..."}]].\n`;
+      }
+    } catch { /* capabilities lookup failed — non-critical */ }
+
     // Business-specific behavioral rules
     text += `\n### Business Operations Rules
 - When the operator asks about earnings, show totals from agreements + marketplace.
@@ -749,7 +786,13 @@ People on cards have two roles:
 - [[update_contact:{"name":"...","company":"...","role":"...","tags":"..."}]]
 
 ### Queue & Calendar
-- [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","priority":"low|medium|high|urgent"}]]
+- [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","description":"...","priority":"low|medium|high|urgent"}]]
+  **IMPORTANT: Queue Gating** — dispatch_queue will CHECK if the operator has an installed agent, active capability, or built-in capability (email/meetings) that can handle the task. If no handler is found, the dispatch is BLOCKED and marketplace suggestions are returned instead. When this happens:
+  1. Tell the operator no handler was found for that task type
+  2. Present the marketplace suggestions that were returned
+  3. Offer to help them find and install an appropriate agent or capability
+  4. Use [[suggest_marketplace:{"query":"..."}]] if you need to search for more specific options
+- [[suggest_marketplace:{"query":"description of what the operator needs"}]] — Search marketplace for agents & capabilities matching a need. Returns inline suggestion cards.
 - [[create_calendar_event:{"title":"...","startTime":"ISO","endTime":"ISO","location":"...","attendees":["email"]}]]
 - [[set_reminder:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
 
@@ -1046,8 +1089,9 @@ If the action requires info you don't have or involves external services, provid
 2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
 3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
 4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
-5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]].
-6. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
+5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]]. Note: The queue is GATED — tasks only enter the queue if the operator has an installed agent, capability, or built-in skill that can handle them. If no handler exists, the system returns marketplace suggestions. Help the operator find and install what they need.
+6. **Marketplace Search** — Use [[suggest_marketplace:{query}]] to find agents and capabilities for the operator.
+7. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
 
 **Setup Operations:**
 7. **Webhooks** — Create endpoints with [[setup_webhook:{name, type}]]. Types: calendar, email, transcript, generic.

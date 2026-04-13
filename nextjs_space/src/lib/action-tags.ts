@@ -9,6 +9,7 @@ import { prisma } from './prisma';
 import { deduplicatedQueueCreate } from './queue-dedup';
 import { pushRelayStateChanged } from './webhook-push';
 import { getPlatformFeePercent } from './marketplace-config';
+import { checkQueueGate, searchMarketplaceSuggestions } from './queue-gate';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ export const SUPPORTED_TAGS = [
   // ── Marketplace Install/Uninstall ──
   'install_agent',     // install a marketplace agent into Divi's active toolkit
   'uninstall_agent',   // uninstall a marketplace agent from Divi's toolkit
+  'suggest_marketplace', // search marketplace for agents/capabilities matching a task need
   'merge_cards',       // merge two project cards into one (combines tasks, contacts, artifacts)
   // ── Integration Sync ──
   'sync_signal',       // trigger a sync for a connected service (email, calendar, drive, or all)
@@ -485,15 +487,40 @@ async function executeTag(
         }
       }
 
-      // ── Queue ────────────────────────────────────────────────────────
+      // ── Queue (with gating) ────────────────────────────────────────
       case 'dispatch_queue': {
+        const taskTitle = params.title || 'Untitled Item';
+        const taskDesc = params.description || null;
+        const taskType = params.type || 'task';
+
+        // Queue gating: check if user has a handler for this task
+        const gateResult = await checkQueueGate(userId, taskTitle, taskDesc, taskType);
+
+        if (!gateResult.allowed) {
+          // No handler available — return suggestions instead of creating queue item
+          return {
+            tag: name,
+            success: false,
+            data: {
+              gated: true,
+              reason: gateResult.reason,
+              suggestions: gateResult.suggestions || [],
+              taskTitle,
+              taskDescription: taskDesc,
+              message: `No installed agent or capability can handle "${taskTitle}". Would you like to browse the marketplace for a matching agent or capability?`,
+            },
+          };
+        }
+
+        // Handler found — proceed with queue creation
         const dedupResult = await deduplicatedQueueCreate({
-          type: params.type || 'task',
-          title: params.title || 'Untitled Item',
-          description: params.description || null,
+          type: taskType,
+          title: taskTitle,
+          description: taskDesc,
           priority: params.priority || 'medium',
           source: 'agent',
           userId,
+          metadata: gateResult.handler ? JSON.stringify({ handler: gateResult.handler }) : null,
         });
         return {
           tag: name,
@@ -501,6 +528,7 @@ async function executeTag(
           data: {
             id: dedupResult.item.id,
             title: dedupResult.item.title,
+            handler: gateResult.handler,
             deduplicated: !dedupResult.created,
             ...(dedupResult.reason ? { reason: dedupResult.reason } : {}),
           },
@@ -2205,6 +2233,25 @@ async function executeTag(
           where: { userId, key: { startsWith: `agent:${uAgentId}` } },
         });
         return { tag: name, success: true, data: { message: `Agent uninstalled. ${deleted.count} knowledge entries removed from Divi's memory.`, agentId: uAgentId, memoryEntriesRemoved: deleted.count } };
+      }
+
+      // ── Marketplace Suggestions (smart search) ──────────────────────
+      case 'suggest_marketplace': {
+        const query = params.query || params.taskDescription || params.title || '';
+        if (!query) return { tag: name, success: false, error: 'query is required' };
+
+        const suggestions = await searchMarketplaceSuggestions(userId, query, 6);
+        return {
+          tag: name,
+          success: true,
+          data: {
+            query,
+            suggestions,
+            message: suggestions.length > 0
+              ? `Found ${suggestions.length} marketplace items that might help:`
+              : 'No matching agents or capabilities found in the marketplace.',
+          },
+        };
       }
 
       case 'merge_cards': {

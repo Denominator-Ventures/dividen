@@ -18,6 +18,7 @@ import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
 import DiscoverView from './DiscoverView';
 import ProfileView from './ProfileView';
+import { CapabilitiesMarketplace } from './CapabilitiesMarketplace';
 import { TriageButton } from './TriageButton';
 import { TAB_TO_SIGNAL, getSignalById } from '@/lib/signals';
 import { TabErrorBoundary } from './TabErrorBoundary';
@@ -53,6 +54,7 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'teams', label: 'Teams', icon: '🏢' },
   { id: 'jobs', label: 'Tasks', icon: '📋' },
   { id: 'marketplace', label: 'Marketplace', icon: '🏪' },
+  { id: 'capabilities', label: 'Capabilities', icon: '⚡' },
   { id: 'federation', label: 'Federation Intel', icon: '🧠' },
 ];
 
@@ -211,6 +213,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'jobs' && <TabErrorBoundary tabName="Jobs"><JobBoardView /></TabErrorBoundary>}
         {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
+        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesMarketplace /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
         {activeTab === 'profile' && <TabErrorBoundary tabName="Profile"><ProfileView onClose={() => onTabChange('chat')} /></TabErrorBoundary>}
       </div>
