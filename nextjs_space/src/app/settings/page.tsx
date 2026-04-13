@@ -11,7 +11,6 @@ import { IntegrationManager } from '@/components/settings/IntegrationManager';
 import { InstallDesktopButton } from '@/components/InstallDesktopButton';
 import { NotificationManager } from '@/components/settings/NotificationManager';
 import { FederationManager } from '@/components/settings/FederationManager';
-import ProfileEditor from '@/components/settings/ProfileEditor';
 import RelaySettings from '@/components/settings/RelaySettings';
 import PaymentSettings from '@/components/settings/PaymentSettings';
 import { DiviSettings } from '@/components/settings/DiviSettings';
@@ -44,7 +43,7 @@ interface MemoryStats {
   pending: number;
 }
 
-type SettingsTab = 'general' | 'divi' | 'profile' | 'payments' | 'relay' | 'integrations' | 'notifications' | 'federation';
+type SettingsTab = 'divi' | 'general' | 'integrations' | 'network' | 'payments' | 'notifications';
 
 export default function SettingsPage() {
   const [data, setData] = useState<SettingsData | null>(null);
@@ -52,7 +51,7 @@ export default function SettingsPage() {
   const [memoryStats, setMemoryStats] = useState<MemoryStats | null>(null);
   const [showMemoryManager, setShowMemoryManager] = useState(false);
   const [clearingMemory, setClearingMemory] = useState(false);
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('divi');
   const [resettingWalkthrough, setResettingWalkthrough] = useState(false);
 
   useEffect(() => {
@@ -126,6 +125,15 @@ export default function SettingsPage() {
     );
   }
 
+  const TABS: { id: SettingsTab; label: string; icon: string }[] = [
+    { id: 'divi', label: 'Your Divi', icon: '🤖' },
+    { id: 'general', label: 'General', icon: '⚙️' },
+    { id: 'integrations', label: 'Integrations', icon: '🔗' },
+    { id: 'network', label: 'Network', icon: '🌐' },
+    { id: 'payments', label: 'Payments', icon: '💳' },
+    { id: 'notifications', label: 'Alerts', icon: '🔔' },
+  ];
+
   return (
     <div className="p-4 md:p-6 max-w-3xl mx-auto space-y-6">
       <div>
@@ -135,96 +143,25 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      {/* Tab Navigation */}
-      <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg w-fit">
-        <button
-          onClick={() => setActiveTab('general')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'general'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          ⚙️ General
-        </button>
-        <button
-          onClick={() => setActiveTab('divi')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'divi'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          🤖 Your Divi
-        </button>
-        <button
-          onClick={() => setActiveTab('profile')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'profile'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          👤 Profile
-        </button>
-        <button
-          onClick={() => setActiveTab('payments')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'payments'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          💳 Payments
-        </button>
-        <button
-          onClick={() => setActiveTab('relay')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'relay'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          🌊 Relay
-        </button>
-        <button
-          onClick={() => setActiveTab('integrations')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'integrations'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          🔗 Integrations
-        </button>
-        <button
-          onClick={() => setActiveTab('notifications')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'notifications'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          🔔 Notifications
-        </button>
-        <button
-          onClick={() => setActiveTab('federation')}
-          className={cn(
-            'px-4 py-2 rounded-md text-sm font-medium transition-colors',
-            activeTab === 'federation'
-              ? 'bg-[var(--brand-primary)] text-white'
-              : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-          )}
-        >
-          🌐 Federation
-        </button>
+      {/* Tab Navigation — horizontal scroll on mobile */}
+      <div className="relative -mx-4 px-4 md:mx-0 md:px-0">
+        <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg overflow-x-auto scrollbar-hide">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0',
+                activeTab === tab.id
+                  ? 'bg-[var(--brand-primary)] text-white'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              )}
+            >
+              <span className="mr-1">{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* General Tab */}
@@ -436,36 +373,7 @@ export default function SettingsPage() {
         />
       )}
 
-      {/* Profile Tab — now redirects to dedicated profile view */}
-      {activeTab === 'profile' && (
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="font-semibold">👤 Personal Profile</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Your profile has moved to its own dedicated view — with photo upload, a public preview of how others see you, and all the same editing tools.
-              </p>
-            </div>
-          </div>
-          <div className="panel-body py-8 text-center">
-            <a
-              href="/dashboard"
-              onClick={(e) => {
-                e.preventDefault();
-                window.location.href = '/dashboard?tab=profile';
-              }}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--brand-primary)] text-white rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
-            >
-              👤 Open Profile View
-            </a>
-            <p className="text-xs text-[var(--text-muted)] mt-3">
-              Go to your dashboard and click the profile icon in the header, or use the button above.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Relay Tab */}
+      {/* Payments Tab */}
       {activeTab === 'payments' && (
         <div className="space-y-6 animate-fade-in">
           <div className="mb-4">
@@ -476,19 +384,37 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {activeTab === 'relay' && (
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="font-semibold">🌊 Relay Protocol Settings</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Control how your Divi participates in agent-to-agent communication, ambient information
-                gathering, and reasoning transparency.
-              </p>
+      {/* Network Tab (Relay + Federation) */}
+      {activeTab === 'network' && (
+        <div className="space-y-6">
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="font-semibold">🌊 Relay Protocol</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Control how your Divi participates in agent-to-agent communication, ambient information
+                  gathering, and reasoning transparency.
+                </p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <RelaySettings />
             </div>
           </div>
-          <div className="panel-body">
-            <RelaySettings />
+
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="font-semibold">🌐 Federation</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Configure cross-instance connections. Allow users from other DiviDen deployments to connect with yours.
+                  <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 ml-1">Read the Federation Guide →</a>
+                </p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <FederationManager />
+            </div>
           </div>
         </div>
       )}
@@ -614,23 +540,7 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Federation Tab */}
-      {activeTab === 'federation' && (
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="font-semibold">🌐 Federation</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Configure cross-instance connections. Allow users from other DiviDen deployments to connect with yours.
-                <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 ml-1">Read the Federation Guide →</a>
-              </p>
-            </div>
-          </div>
-          <div className="panel-body">
-            <FederationManager />
-          </div>
-        </div>
-      )}
+
 
       {/* System Info Footer */}
       <div className="mt-8 pt-4 border-t border-[var(--border-color)]">

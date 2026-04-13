@@ -15,6 +15,7 @@ import {
   RelayIntent,
 } from '@/types';
 import PeerProfileModal from './PeerProfileModal';
+import AcceptConnectionModal from './AcceptConnectionModal';
 
 type SubTab = 'find' | 'connections' | 'relays';
 
@@ -77,7 +78,8 @@ export function ConnectionsView() {
   const [showAdvancedConnect, setShowAdvancedConnect] = useState(false);
   const [federatedUrl, setFederatedUrl] = useState('');
 
-  // (peerProfile state is declared above, used for modal)
+  // Accept modal state
+  const [acceptingConnection, setAcceptingConnection] = useState<ConnectionData | null>(null);
 
   // ─── Fetchers ──────────────────────────────────────────────────
 
@@ -224,12 +226,25 @@ export function ConnectionsView() {
     setInviteLoading(false);
   };
 
-  const handleAccept = async (id: string) => {
-    await fetch(`/api/connections/${id}`, {
+  const handleAcceptWithDetails = async (data: {
+    connectionId: string;
+    peerNickname: string;
+    trustLevel: TrustLevel;
+    context: string;
+    relationshipType: string;
+  }) => {
+    await fetch(`/api/connections/${data.connectionId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'active' }),
+      body: JSON.stringify({
+        status: 'active',
+        peerNickname: data.peerNickname,
+        permissions: { trustLevel: data.trustLevel, scopes: [] },
+        context: data.context || undefined,
+        relationshipType: data.relationshipType || undefined,
+      }),
     });
+    setAcceptingConnection(null);
     fetchConnections();
   };
 
@@ -239,6 +254,7 @@ export function ConnectionsView() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'declined' }),
     });
+    if (acceptingConnection?.id === id) setAcceptingConnection(null);
     fetchConnections();
   };
 
@@ -717,7 +733,7 @@ export function ConnectionsView() {
                             <p className="text-[11px] text-[var(--text-muted)]">{peer.email}</p>
                           </div>
                           <div className="flex gap-2">
-                            <button onClick={() => handleAccept(c.id)} className="px-3 py-1 text-[11px] rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors">Accept</button>
+                            <button onClick={() => setAcceptingConnection(c)} className="px-3 py-1 text-[11px] rounded bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-colors">Accept</button>
                             <button onClick={() => handleDecline(c.id)} className="px-3 py-1 text-[11px] rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors">Decline</button>
                           </div>
                         </div>
@@ -1075,6 +1091,23 @@ export function ConnectionsView() {
           </div>
         )}
       </div>
+
+      {/* Accept Connection Modal */}
+      {acceptingConnection && (() => {
+        const peer = getConnectionPeer(acceptingConnection);
+        return (
+          <AcceptConnectionModal
+            connectionId={acceptingConnection.id}
+            peerName={peer.name}
+            peerEmail={peer.email}
+            isFederated={acceptingConnection.isFederated}
+            peerInstance={peer.instance}
+            onAccept={handleAcceptWithDetails}
+            onDecline={(id) => { handleDecline(id); setAcceptingConnection(null); }}
+            onClose={() => setAcceptingConnection(null)}
+          />
+        );
+      })()}
 
       {/* Peer Profile Modal */}
       {peerProfile && (
