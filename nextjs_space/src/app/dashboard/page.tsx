@@ -297,19 +297,19 @@ export default function DashboardPage() {
               </button>
 
               {/* Catch Up — triage all signals + settings */}
-              <div className="relative flex items-center">
+              <div className="relative flex items-stretch">
                 <button
                   onClick={handleCatchUp}
-                  className="flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1 rounded-l-md bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)] border-r-0"
+                  className="flex items-center gap-1.5 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors px-2 py-1.5 rounded-l-md bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)] border-r-0"
                   title="Catch up on all signals — Divi triages everything"
                 >
-                  <span className="text-sm">🔄</span>
-                  <span className="hidden sm:inline text-[11px]">Catch Up</span>
+                  <span className="text-sm leading-none">🔄</span>
+                  <span className="hidden sm:inline text-[11px] leading-none">Catch Up</span>
                 </button>
                 <button
                   ref={catchUpGearRef}
                   onClick={() => setCatchUpQuickOpen(!catchUpQuickOpen)}
-                  className="flex items-center px-1.5 py-1 rounded-r-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)]"
+                  className="flex items-center justify-center px-1.5 rounded-r-md text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[rgba(255,255,255,0.1)]"
                   title="Configure catch-up signals"
                 >
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
