@@ -6,7 +6,7 @@ import { ImapFlow } from 'imapflow';
 
 export const dynamic = 'force-dynamic';
 
-// POST /api/integrations/sync — fetch emails from IMAP and store in DB
+// POST /api/integrations/sync — sync emails/calendar/drive from IMAP or Google OAuth
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -14,18 +14,64 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
     const userId = (session!.user as any).id;
-    const { integrationId, limit = 25 } = await req.json();
+    const { integrationId, service, limit = 25 } = await req.json();
+
+    // If service=all, sync all Google services for this user
+    if (service === 'all') {
+      const { syncAllGoogleServices } = await import('@/lib/google-sync');
+      const result = await syncAllGoogleServices(userId);
+      return NextResponse.json({ success: true, ...result });
+    }
 
     if (!integrationId) {
       return NextResponse.json({ success: false, error: 'integrationId required' }, { status: 400 });
     }
 
     const account = await prisma.integrationAccount.findFirst({
-      where: { id: integrationId, userId, service: 'email' },
+      where: { id: integrationId, userId },
     });
 
     if (!account) {
-      return NextResponse.json({ success: false, error: 'Email integration not found' }, { status: 404 });
+      return NextResponse.json({ success: false, error: 'Integration not found' }, { status: 404 });
+    }
+
+    // ── Google OAuth sync ──
+    if (account.provider === 'google' && account.refreshToken) {
+      const { syncGmail, syncCalendar, syncDrive } = await import('@/lib/google-sync');
+      const acct = account as any;
+      let synced = 0;
+      let syncType = account.service;
+
+      try {
+        if (account.service === 'email') {
+          synced = await syncGmail(acct, limit);
+          syncType = 'Gmail emails';
+        } else if (account.service === 'calendar') {
+          synced = await syncCalendar(acct);
+          syncType = 'Calendar events';
+        } else if (account.service === 'drive') {
+          synced = await syncDrive(acct, limit);
+          syncType = 'Drive files';
+        }
+      } catch (err: any) {
+        console.error(`[google-sync] ${account.service} sync error:`, err.message);
+        return NextResponse.json({
+          success: false,
+          error: `Google ${account.service} sync failed: ${err.message}`,
+        }, { status: 500 });
+      }
+
+      await prisma.integrationAccount.update({
+        where: { id: integrationId },
+        data: { lastSyncAt: new Date() },
+      });
+
+      return NextResponse.json({ success: true, synced, message: `Synced ${synced} ${syncType}` });
+    }
+
+    // ── IMAP fallback for SMTP email accounts ──
+    if (account.service !== 'email') {
+      return NextResponse.json({ success: false, error: 'Non-email IMAP sync not supported. Use Google OAuth for calendar/drive.' }, { status: 400 });
     }
 
     if (!account.smtpHost || !account.smtpUser || !account.smtpPass) {
@@ -71,14 +117,13 @@ export async function POST(req: NextRequest) {
       for await (const message of client.fetch(range, {
         envelope: true,
         bodyStructure: true,
-        source: { maxLength: 4096 }, // Get first 4KB of source for snippet
+        source: { maxLength: 4096 },
       })) {
         const env = message.envelope;
         if (!env) continue;
 
         const messageId = env.messageId || `imap-${message.uid}`;
 
-        // Skip if already synced
         const existing = await prisma.emailMessage.findFirst({
           where: { externalId: messageId, userId },
         });
@@ -87,11 +132,9 @@ export async function POST(req: NextRequest) {
         const fromAddr = env.from?.[0];
         const toAddr = env.to?.[0];
 
-        // Extract a text snippet from source
         let snippet = '';
         if (message.source) {
           const sourceText = message.source.toString('utf-8');
-          // Try to extract text after headers
           const bodyStart = sourceText.indexOf('\r\n\r\n');
           if (bodyStart > -1) {
             snippet = sourceText.slice(bodyStart + 4, bodyStart + 204)
@@ -101,7 +144,6 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Auto-link to contact if sender email matches
         let linkedContactId: string | null = null;
         if (fromAddr?.address) {
           const contact = await prisma.contact.findFirst({
@@ -133,7 +175,6 @@ export async function POST(req: NextRequest) {
 
     await client.logout();
 
-    // Update lastSyncAt
     await prisma.integrationAccount.update({
       where: { id: integrationId },
       data: { lastSyncAt: new Date() },
@@ -144,7 +185,7 @@ export async function POST(req: NextRequest) {
     console.error('Email sync error:', error);
     return NextResponse.json({
       success: false,
-      error: error?.message || 'Email sync failed',
+      error: error?.message || 'Sync failed',
     }, { status: 500 });
   }
 }

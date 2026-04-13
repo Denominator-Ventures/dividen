@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/integrations — delete an integration account
+// DELETE /api/integrations — delete an integration account (revokes Google tokens if applicable)
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -120,13 +120,37 @@ export async function DELETE(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    const disconnectGoogle = searchParams.get('disconnectGoogle') === 'true';
     if (!id) {
       return NextResponse.json({ success: false, error: 'id is required' }, { status: 400 });
     }
 
-    await prisma.integrationAccount.deleteMany({
-      where: { id, userId },
-    });
+    // If disconnecting Google, revoke token and delete ALL Google integrations for this identity
+    if (disconnectGoogle) {
+      const account = await prisma.integrationAccount.findFirst({
+        where: { id, userId },
+        select: { accessToken: true, identity: true, provider: true },
+      });
+      if (account?.accessToken && account.provider === 'google') {
+        // Revoke at Google
+        try {
+          await fetch(`https://oauth2.googleapis.com/revoke?token=${account.accessToken}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          });
+        } catch (e) {
+          console.warn('[integrations] Google token revoke failed (non-fatal):', e);
+        }
+        // Delete all Google integrations for this identity
+        await prisma.integrationAccount.deleteMany({
+          where: { userId, provider: 'google', identity: account.identity },
+        });
+      }
+    } else {
+      await prisma.integrationAccount.deleteMany({
+        where: { id, userId },
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

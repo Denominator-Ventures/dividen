@@ -433,7 +433,7 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
       // Integration accounts
       prisma.integrationAccount.findMany({
         where: { userId, isActive: true },
-        select: { provider: true, service: true, identity: true, label: true },
+        select: { provider: true, service: true, identity: true, label: true, lastSyncAt: true },
       }),
       // User's marketplace agents (if they're a developer)
       prisma.marketplaceAgent.findMany({
@@ -523,9 +523,23 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
     // Integration accounts
     if (integrations.length > 0) {
       text += `\n### Active Integrations\n`;
-      for (const i of integrations) {
-        text += `- ${i.provider}/${i.service} (${i.identity})${i.label ? ` — "${i.label}"` : ''}\n`;
+      const googleIntegrations = integrations.filter((i: any) => i.provider === 'google');
+      const smtpIntegrations = integrations.filter((i: any) => i.provider !== 'google');
+      if (googleIntegrations.length > 0) {
+        text += `**Google OAuth Connected:**\n`;
+        for (const i of googleIntegrations) {
+          text += `- ${i.service} (${i.identity})${i.label ? ` — "${i.label}"` : ''}${i.lastSyncAt ? ` | last sync: ${new Date(i.lastSyncAt as any).toISOString().split('T')[0]}` : ' | not synced yet'}\n`;
+        }
+        text += `\nYou can trigger syncs with [[sync_signal:{"service":"email|calendar|drive|all"}]]. Use this when the operator asks about recent emails, upcoming meetings, or shared files.\n`;
       }
+      if (smtpIntegrations.length > 0) {
+        text += `**SMTP/IMAP:**\n`;
+        for (const i of smtpIntegrations) {
+          text += `- ${i.provider}/${i.service} (${i.identity})${i.label ? ` — "${i.label}"` : ''}\n`;
+        }
+      }
+    } else {
+      text += `\n### Integrations\nNo services connected. The operator can connect Google (Gmail, Calendar, Drive) from Settings → Integrations. Guide them there if they mention emails, calendar, or files.\n`;
     }
 
     // Marketplace agents (developer's own)
@@ -919,6 +933,9 @@ These actions appear in the Queue with Approve / Review / Skip buttons. **Always
 - [[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]] — Network-level intelligent task routing. Scores candidates on skill match, completion rate, capacity, trust, reputation, latency, and domain proximity.
 - [[network_briefing:{}]] — Composite cross-instance network pulse. Aggregates activity from federation peers.
 
+### Integration Sync
+- [[sync_signal:{"service":"email|calendar|drive|all"}]] — Trigger a sync for connected Google services. Use "all" to refresh everything, or target a specific service. Always sync before answering questions about recent emails, meetings, or files.
+
 ### Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]]
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-..."}]]
@@ -1035,6 +1052,9 @@ If the action requires info you don't have or involves external services, provid
 **Setup Operations:**
 7. **Webhooks** — Create endpoints with [[setup_webhook:{name, type}]]. Types: calendar, email, transcript, generic.
 8. **API Keys** — Save with [[save_api_key:{provider, apiKey}]]. Providers: openai, anthropic.
+
+**Integration Sync:**
+9. **Sync Google Services** — Trigger with [[sync_signal:{"service":"email|calendar|drive|all"}]]. Proactively sync when the operator asks about recent emails, upcoming calendar events, or shared files. The operator connects their Google account from Settings → Integrations.
 
 **Profile Operations:**
 9. **Update Profile** — Use [[update_profile:{...}]] to update ANY profile field. You can update:

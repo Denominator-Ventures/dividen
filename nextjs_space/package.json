@@ -90,6 +90,7 @@
     "embla-carousel-react": "8.3.0",
     "formik": "2.4.5",
     "framer-motion": "10.18.0",
+    "googleapis": "^171.4.0",
     "gray-matter": "4.0.3",
     "imapflow": "^1.2.18",
     "input-otp": "1.2.4",

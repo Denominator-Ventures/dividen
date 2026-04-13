@@ -81,6 +81,8 @@ export const SUPPORTED_TAGS = [
   'install_agent',     // install a marketplace agent into Divi's active toolkit
   'uninstall_agent',   // uninstall a marketplace agent from Divi's toolkit
   'merge_cards',       // merge two project cards into one (combines tasks, contacts, artifacts)
+  // ── Integration Sync ──
+  'sync_signal',       // trigger a sync for a connected service (email, calendar, drive, or all)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -2282,6 +2284,35 @@ async function executeTag(
             artifactsMoved: sourceArtifacts.length,
           },
         };
+      }
+
+      // ── Integration Sync ─────────────────────────────────────────────────
+      case 'sync_signal': {
+        const syncService = params.service || 'all'; // email | calendar | drive | all
+        const syncIdentity = params.identity || 'operator';
+        if (syncService === 'all') {
+          const { syncAllGoogleServices } = await import('@/lib/google-sync');
+          const result = await syncAllGoogleServices(userId);
+          return { tag: name, success: true, data: result };
+        }
+        // Find the integration for this service + identity
+        const syncAccount = await prisma.integrationAccount.findFirst({
+          where: { userId, service: syncService, identity: syncIdentity, provider: 'google' },
+        });
+        if (!syncAccount) {
+          return { tag: name, success: false, error: `No Google ${syncService} integration found for ${syncIdentity}` };
+        }
+        const { syncGmail, syncCalendar, syncDrive } = await import('@/lib/google-sync');
+        let synced = 0;
+        if (syncService === 'email') synced = await syncGmail(syncAccount as any);
+        else if (syncService === 'calendar') synced = await syncCalendar(syncAccount as any);
+        else if (syncService === 'drive') synced = await syncDrive(syncAccount as any);
+
+        await prisma.integrationAccount.update({
+          where: { id: syncAccount.id },
+          data: { lastSyncAt: new Date() },
+        });
+        return { tag: name, success: true, data: { service: syncService, synced } };
       }
 
       default:
