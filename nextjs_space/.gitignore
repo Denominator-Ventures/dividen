@@ -39,3 +39,4 @@ coverage/
 .abacus.donotdelete
 yarn.lock
 package.json
+core
