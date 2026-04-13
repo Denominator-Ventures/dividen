@@ -59,8 +59,8 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Browse marketplace capabilities
-  const where: any = { status: 'active' };
+  // Browse marketplace capabilities — only approved ones
+  const where: any = { status: 'active', approvalStatus: 'approved' };
   if (category && category !== 'all') where.category = category;
   if (search) {
     where.OR = [
@@ -81,6 +81,11 @@ export async function GET(req: NextRequest) {
         status: true, featured: true, totalPurchases: true,
         avgRating: true, totalRatings: true,
         isSystemSeed: true,
+        publisherName: true,
+        publisherType: true,
+        publisherUrl: true,
+        skillFormat: true,
+        skillSource: true,
         accessPassword: true,   // needed to compute hasAccessPassword
         createdByUserId: true,  // needed to compute isOwner
         // NOTE: prompt is NOT included — hidden until purchased
@@ -293,4 +298,58 @@ export async function POST(req: NextRequest) {
       editableFields: capability.editableFields,
     },
   }, { status: 201 });
+}
+
+// PUT — Submit a new capability for marketplace (user-created, requires approval)
+export async function PUT(req: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const userId = (session.user as any).id;
+  const userName = (session.user as any).name || 'Unknown';
+
+  try {
+    const body = await req.json();
+    const { name, slug, description, longDescription, icon, category, prompt, pricingModel,
+      price, editableFields, tags, integrationType, commands } = body;
+
+    if (!name || !slug || !description || !prompt) {
+      return NextResponse.json({ error: 'name, slug, description, and prompt are required' }, { status: 400 });
+    }
+
+    const existing = await prisma.marketplaceCapability.findUnique({ where: { slug } });
+    if (existing) return NextResponse.json({ error: 'Slug already exists' }, { status: 409 });
+
+    const capability = await prisma.marketplaceCapability.create({
+      data: {
+        name,
+        slug,
+        description,
+        longDescription: longDescription || null,
+        icon: icon || '⚡',
+        category: category || 'operations',
+        prompt,
+        pricingModel: pricingModel || 'free',
+        price: price || null,
+        editableFields: editableFields || null,
+        tags: tags || null,
+        integrationType: integrationType || null,
+        commands: commands || null,
+        publisherName: userName,
+        publisherType: 'user',
+        status: 'active',
+        approvalStatus: 'pending_review',
+        isSystemSeed: false,
+        createdByUserId: userId,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: 'Capability submitted for review. An admin will approve it before it appears in the marketplace.',
+      capability: { id: capability.id, slug: capability.slug, approvalStatus: 'pending_review' },
+    }, { status: 201 });
+  } catch (error) {
+    console.error('Submit capability error:', error);
+    return NextResponse.json({ error: 'Failed to submit capability' }, { status: 500 });
+  }
 }

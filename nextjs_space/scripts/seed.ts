@@ -519,15 +519,282 @@ When content work is requested:
         featured: cap.featured || false,
         editableFields: cap.editableFields,
         prompt: cap.prompt,
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        approvalStatus: 'approved',
       },
       create: {
         ...cap,
         status: 'active',
         isSystemSeed: true,
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        approvalStatus: 'approved',
       },
     });
   }
   console.log(`Seeded ${capabilities.length} marketplace capabilities.`);
+
+  // ── Agent Skills (agentskills.io format) ──────────────────────────────
+  const agentSkills = [
+    {
+      slug: 'document-processing-skill',
+      name: 'Document Processing',
+      description: 'Process and extract data from PDFs, Word docs, spreadsheets, and presentations. Converts unstructured documents into structured, actionable data.',
+      longDescription: 'Based on the Agent Skills open format (agentskills.io). Handles PDF extraction, DOCX parsing, XLSX data reads, and PPTX slide analysis. Extracts text, tables, metadata, and embedded content. Returns structured JSON output for downstream processing.',
+      icon: '📄',
+      category: 'operations',
+      tags: JSON.stringify(['agent-skills', 'documents', 'pdf', 'extraction', 'agentskills.io']),
+      integrationType: 'generic',
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify(['outputFormat', 'extractionDepth']),
+      prompt: `You have the Document Processing skill enabled (Agent Skills format).
+
+When the user shares a document or asks you to process one:
+1. Identify the document type (PDF, DOCX, XLSX, PPTX).
+2. Extract all text content, tables, and metadata.
+3. Structure the output as clean JSON with sections, headings, and data.
+4. Highlight key findings, dates, amounts, and action items.
+5. If the document contains tables, preserve their structure.
+Format: {{outputFormat}} (default: structured summary).
+Depth: {{extractionDepth}} (default: full).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Document Processing\n\nProcess PDFs, Word documents, spreadsheets, and presentations into structured data.\n\n## Instructions\n1. Accept document input (file path, URL, or pasted content)\n2. Detect document type from extension or content headers\n3. Extract text, tables, images (as descriptions), and metadata\n4. Return structured JSON output',
+    },
+    {
+      slug: 'web-research-skill',
+      name: 'Web Research & Synthesis',
+      description: 'Conduct deep web research on any topic, synthesize findings from multiple sources, and deliver structured research reports with citations.',
+      longDescription: 'Performs multi-source web research, fact-checking, and synthesis. Searches across web, news, academic sources. Returns structured reports with citations, confidence levels, and recommended next steps.',
+      icon: '🔍',
+      category: 'research',
+      tags: JSON.stringify(['agent-skills', 'research', 'web', 'synthesis', 'agentskills.io']),
+      integrationType: null,
+      pricingModel: 'free',
+      featured: true,
+      editableFields: JSON.stringify(['researchDepth', 'sourceCount', 'focusAreas']),
+      prompt: `You have the Web Research & Synthesis skill enabled (Agent Skills format).
+
+When the user asks you to research something:
+1. Break the query into sub-questions.
+2. Search across web, news, and available knowledge sources.
+3. Cross-reference and fact-check across {{sourceCount}} sources minimum.
+4. Synthesize findings into a structured report with:
+   - Executive summary
+   - Key findings with confidence levels
+   - Supporting evidence and citations
+   - Gaps in available information
+   - Recommended next steps
+Research depth: {{researchDepth}} (quick / standard / deep).
+Focus areas: {{focusAreas}} (default: all relevant).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Web Research & Synthesis\n\nConduct structured web research with multi-source synthesis.\n\n## Instructions\n1. Decompose research question into sub-queries\n2. Search multiple source types\n3. Cross-reference and validate findings\n4. Synthesize into structured report with citations',
+    },
+    {
+      slug: 'code-review-skill',
+      name: 'Code Review & Analysis',
+      description: 'Automated code review: security vulnerabilities, performance issues, best practices, and maintainability analysis across common languages.',
+      longDescription: 'Reviews code for security vulnerabilities, performance bottlenecks, code smell, and adherence to best practices. Supports JavaScript/TypeScript, Python, Go, Rust, and more. Returns actionable feedback with severity levels.',
+      icon: '🔬',
+      category: 'engineering',
+      tags: JSON.stringify(['agent-skills', 'code-review', 'security', 'engineering', 'agentskills.io']),
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify(['languages', 'severityThreshold', 'focusAreas']),
+      prompt: `You have the Code Review & Analysis skill enabled (Agent Skills format).
+
+When the user shares code or asks for a review:
+1. Identify the language and framework.
+2. Scan for security vulnerabilities (injection, XSS, auth issues).
+3. Check for performance issues (N+1 queries, memory leaks, blocking ops).
+4. Evaluate code quality (naming, structure, DRY, SOLID).
+5. Provide actionable feedback with severity: critical / warning / suggestion.
+Languages: {{languages}} (default: auto-detect).
+Minimum severity: {{severityThreshold}} (default: suggestion).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Code Review & Analysis\n\nAutomated code review for security, performance, and best practices.\n\n## Instructions\n1. Detect language and framework\n2. Run security analysis\n3. Check performance patterns\n4. Evaluate maintainability\n5. Return findings with severity levels',
+    },
+    {
+      slug: 'data-analysis-skill',
+      name: 'Data Analysis & Visualization',
+      description: 'Analyze datasets, generate insights, and create chart specifications. Works with CSV, JSON, and tabular data from any source.',
+      longDescription: 'Processes structured data to find patterns, outliers, and trends. Generates statistical summaries, correlation analysis, and chart specifications (compatible with Chart.js, Recharts, D3). Handles time-series, categorical, and numerical data.',
+      icon: '📊',
+      category: 'operations',
+      tags: JSON.stringify(['agent-skills', 'data', 'analytics', 'visualization', 'agentskills.io']),
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify(['chartLibrary', 'outputFormat']),
+      prompt: `You have the Data Analysis & Visualization skill enabled (Agent Skills format).
+
+When the user provides data or asks for analysis:
+1. Ingest the data (CSV, JSON, or table format).
+2. Clean and validate — report any data quality issues.
+3. Generate statistical summary (mean, median, distribution, outliers).
+4. Identify patterns, trends, and correlations.
+5. Produce chart specifications in {{chartLibrary}} format.
+6. Deliver narrative insights alongside the data.
+Chart library: {{chartLibrary}} (default: Recharts).
+Output: {{outputFormat}} (default: insights + chart specs).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Data Analysis & Visualization\n\nAnalyze datasets and generate visual chart specifications.\n\n## Instructions\n1. Parse input data format\n2. Clean and validate data\n3. Statistical analysis\n4. Pattern detection\n5. Chart specification generation',
+    },
+    {
+      slug: 'api-integration-skill',
+      name: 'API Integration Builder',
+      description: 'Design and generate API integration code. Reads API docs, generates typed clients, handles auth flows, and creates webhook handlers.',
+      longDescription: 'Automates API integration development. Reads OpenAPI/Swagger specs or API documentation, generates typed client code, handles OAuth/API key authentication, and creates webhook receiver endpoints. Supports REST, GraphQL, and gRPC.',
+      icon: '🔌',
+      category: 'engineering',
+      tags: JSON.stringify(['agent-skills', 'api', 'integration', 'webhooks', 'agentskills.io']),
+      integrationType: 'generic',
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify(['language', 'framework', 'authType']),
+      prompt: `You have the API Integration Builder skill enabled (Agent Skills format).
+
+When the user wants to integrate with an API:
+1. Read the API documentation or OpenAPI spec.
+2. Generate a typed client in {{language}} / {{framework}}.
+3. Handle authentication: {{authType}} (auto-detect if not specified).
+4. Create request/response types.
+5. Add error handling and retry logic.
+6. Generate webhook handler if the API supports callbacks.
+Language: {{language}} (default: TypeScript).
+Framework: {{framework}} (default: Next.js API routes).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# API Integration Builder\n\nGenerate typed API clients from documentation or specs.\n\n## Instructions\n1. Parse API documentation or OpenAPI spec\n2. Generate typed client code\n3. Handle authentication\n4. Create webhook handlers\n5. Add error handling and retries',
+    },
+    {
+      slug: 'presentation-builder-skill',
+      name: 'Presentation Builder',
+      description: 'Create structured presentation outlines and slide content from any topic. Generates speaker notes, key points, and visual layout suggestions.',
+      longDescription: 'Generates presentation content from topics, research, or data. Creates slide structures with titles, bullet points, speaker notes, and visual suggestions. Outputs in formats compatible with PowerPoint, Google Slides, or Markdown.',
+      icon: '🎨',
+      category: 'creative',
+      tags: JSON.stringify(['agent-skills', 'presentations', 'slides', 'creative', 'agentskills.io']),
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify(['slideCount', 'style', 'audience']),
+      prompt: `You have the Presentation Builder skill enabled (Agent Skills format).
+
+When the user wants a presentation:
+1. Understand the topic, audience, and context.
+2. Create a {{slideCount}}-slide structure.
+3. For each slide: title, 3-5 bullet points, speaker notes.
+4. Suggest visual elements (charts, images, diagrams).
+5. Include an executive summary slide and a next-steps slide.
+Style: {{style}} (default: professional).
+Audience: {{audience}} (default: general business).
+Slides: {{slideCount}} (default: 10).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Presentation Builder\n\nCreate structured presentations with slides, notes, and visuals.\n\n## Instructions\n1. Gather topic and audience context\n2. Structure slide deck\n3. Generate content per slide\n4. Add speaker notes\n5. Suggest visual elements',
+    },
+    {
+      slug: 'testing-automation-skill',
+      name: 'Test Generation & Automation',
+      description: 'Generate unit tests, integration tests, and E2E test scripts from existing code. Supports Jest, Playwright, pytest, and more.',
+      longDescription: 'Analyzes existing code and generates comprehensive test suites. Creates unit tests for functions/components, integration tests for API routes, and E2E tests for user flows. Handles mock generation, fixture setup, and assertion patterns.',
+      icon: '🧪',
+      category: 'engineering',
+      tags: JSON.stringify(['agent-skills', 'testing', 'automation', 'qa', 'agentskills.io']),
+      integrationType: null,
+      pricingModel: 'free',
+      featured: false,
+      editableFields: JSON.stringify(['testFramework', 'coverageTarget', 'testTypes']),
+      prompt: `You have the Test Generation & Automation skill enabled (Agent Skills format).
+
+When the user wants tests generated:
+1. Analyze the code structure and dependencies.
+2. Generate {{testTypes}} tests using {{testFramework}}.
+3. Create appropriate mocks and fixtures.
+4. Target {{coverageTarget}}% code coverage.
+5. Include edge cases and error paths.
+6. Add descriptive test names and comments.
+Framework: {{testFramework}} (default: Jest + Testing Library).
+Coverage: {{coverageTarget}} (default: 80).
+Types: {{testTypes}} (default: unit + integration).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Test Generation & Automation\n\nGenerate comprehensive test suites from existing code.\n\n## Instructions\n1. Analyze code structure\n2. Identify testable units\n3. Generate tests with mocks\n4. Cover edge cases\n5. Output with proper assertions',
+    },
+    {
+      slug: 'workflow-automation-skill',
+      name: 'Workflow Automation Designer',
+      description: 'Design and document automated workflows. Maps triggers, conditions, actions, and error handling into executable workflow specs.',
+      longDescription: 'Helps design automation workflows by mapping out triggers (webhooks, schedules, events), conditions (filters, routing logic), actions (API calls, notifications, data transforms), and error handling. Outputs structured workflow definitions.',
+      icon: '⚙️',
+      category: 'operations',
+      tags: JSON.stringify(['agent-skills', 'automation', 'workflows', 'agentskills.io']),
+      integrationType: 'generic',
+      pricingModel: 'free',
+      featured: true,
+      editableFields: JSON.stringify(['triggerTypes', 'outputFormat']),
+      prompt: `You have the Workflow Automation Designer skill enabled (Agent Skills format).
+
+When the user describes a workflow:
+1. Identify the trigger (webhook, schedule, event, manual).
+2. Map out the decision tree — conditions and branches.
+3. Define actions at each step (API calls, notifications, data ops).
+4. Add error handling and retry logic.
+5. Document the workflow as a structured spec.
+6. Suggest optimizations and edge cases.
+Trigger types: {{triggerTypes}} (default: all).
+Output: {{outputFormat}} (default: structured YAML + diagram description).`,
+      skillFormat: true,
+      skillSource: 'agentskills.io',
+      skillBody: '# Workflow Automation Designer\n\nDesign structured automation workflows.\n\n## Instructions\n1. Identify triggers and events\n2. Map decision logic\n3. Define actions per step\n4. Add error handling\n5. Output workflow specification',
+    },
+  ];
+
+  for (const skill of agentSkills) {
+    const { skillFormat, skillSource, skillBody, ...rest } = skill;
+    await prisma.marketplaceCapability.upsert({
+      where: { slug: skill.slug },
+      update: {
+        name: skill.name,
+        description: skill.description,
+        longDescription: skill.longDescription,
+        icon: skill.icon,
+        category: skill.category,
+        tags: skill.tags,
+        pricingModel: skill.pricingModel,
+        featured: skill.featured || false,
+        editableFields: skill.editableFields,
+        prompt: skill.prompt,
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        publisherUrl: 'https://dividen.ai',
+        approvalStatus: 'approved',
+        skillFormat: true,
+        skillSource: skill.skillSource,
+        skillBody: skill.skillBody,
+      },
+      create: {
+        ...rest,
+        status: 'active',
+        isSystemSeed: true,
+        publisherName: 'DiviDen',
+        publisherType: 'platform',
+        publisherUrl: 'https://dividen.ai',
+        approvalStatus: 'approved',
+        skillFormat: true,
+        skillSource: skill.skillSource,
+        skillBody: skill.skillBody,
+      },
+    });
+  }
+  console.log(`Seeded ${agentSkills.length} Agent Skills capabilities.`);
 
   console.log('Database seeded successfully.');
 }

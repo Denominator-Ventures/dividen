@@ -35,6 +35,11 @@ interface MarketplaceCapability {
   hasAccessPassword?: boolean;
   accessPassword?: string | null;
   isOwner?: boolean;
+  publisherName?: string;
+  publisherType?: string;
+  publisherUrl?: string | null;
+  skillFormat?: boolean;
+  skillSource?: string | null;
 }
 
 interface EditableField {
@@ -320,9 +325,10 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
         <p className="text-xs text-white/50 mt-2 line-clamp-2">{cap.description}</p>
 
         <div className="flex items-center gap-3 mt-3 text-[10px] text-white/30">
+          {cap.publisherName && <span className="text-brand-400/70 font-medium">by {cap.publisherName}</span>}
+          {cap.skillFormat && <span className="text-purple-400/70">🧩 Agent Skill</span>}
           <span>📦 {cap.totalPurchases} installs</span>
           {fields.length > 0 && <span>🔧 {fields.length} customizable</span>}
-          {!needsIntegration && <span>🌐 Broad</span>}
         </div>
 
         {tags.length > 0 && (

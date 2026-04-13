@@ -77,6 +77,7 @@ model User {
   agentExtensions      AgentExtension[]
   userCapabilities     UserCapability[]
   marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
+  createdCapabilities  MarketplaceCapability[] @relation("CreatedCapabilities")
   marketplaceSubs      MarketplaceSubscription[] @relation("MarketplaceSubscriptions")
   marketplaceExecs     MarketplaceExecution[]   @relation("MarketplaceExecutions")
   contactPlatformLinks Contact[]                @relation("ContactPlatformLinks")
@@ -1992,9 +1993,24 @@ model MarketplaceCapability {
   // Commands — actions users can invoke via !command syntax in chat
   commands        String?   @db.Text  // JSON array: [{"name":"summarize","description":"Summarize weekly metrics","usage":"!capslug.summarize"}]
 
+  // Publisher / developer info
+  publisherName   String    @default("DiviDen")  // display name of who published this
+  publisherType   String    @default("platform")  // "platform" | "user" | "community"
+  publisherUrl    String?   // optional link to publisher's website/profile
+
+  // Approval workflow — user-submitted capabilities start as "pending_review"
+  approvalStatus  String    @default("approved")  // "approved" | "pending_review" | "rejected"
+  rejectionReason String?   @db.Text
+
+  // Agent Skills format support (agentskills.io)
+  skillFormat     Boolean   @default(false)  // true = follows Agent Skills spec
+  skillBody       String?   @db.Text         // full SKILL.md body content
+  skillSource     String?                    // e.g. "agentskills.io", "anthropics", "openai"
+
   // System-managed
   isSystemSeed    Boolean   @default(false)  // true = seeded by platform, not user-created
   createdByUserId String?   // userId of the developer who created it
+  createdByUser   User?     @relation("CreatedCapabilities", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   userCapabilities UserCapability[]
 
@@ -2005,6 +2021,8 @@ model MarketplaceCapability {
   @@index([status])
   @@index([integrationType])
   @@index([featured])
+  @@index([approvalStatus])
+  @@index([publisherType])
   @@map("marketplace_capabilities")
 }
 
