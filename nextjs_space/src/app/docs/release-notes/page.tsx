@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — Federation v2, multi-account Google sync, instance approval, admin expansion, and more.',
+  description: 'DiviDen release notes — Capabilities Marketplace, Queue Gating, Integration-Gated Installs, Federation v2, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'Federation v2, multi-account Google sync, instance approval, admin expansion, and more.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=Federation+v2+%2B+Multi-Account+Sync&tag=release', width: 1200, height: 630 }],
+    description: 'Capabilities Marketplace, Queue Gating, Integration-Gated Installs, Federation v2, and more.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=Capabilities+Marketplace+%2B+Queue+Gating&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'Federation v2, multi-account Google sync, instance approval, admin expansion, and more.',
-    images: ['/api/og?title=Release+Notes&subtitle=Federation+v2+%2B+Multi-Account+Sync&tag=release'],
+    description: 'Capabilities Marketplace, Queue Gating, Integration-Gated Installs, Federation v2, and more.',
+    images: ['/api/og?title=Release+Notes&subtitle=Capabilities+Marketplace+%2B+Queue+Gating&tag=release'],
   },
 };
 
@@ -38,17 +38,131 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 12-13, 2026 RELEASE */}
+        {/* APRIL 13, 2026 — CAPABILITIES MARKETPLACE RELEASE */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
           <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 12–13, 2026</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.5</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.4</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">A2A: v0.4</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 13, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.1.0</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.6</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.5</span>
             <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
           </div>
-          <h2 className="text-2xl font-bold mb-4 font-heading">Federation v2, Multi-Account Sync, Admin Expansion</h2>
+          <h2 className="text-2xl font-bold mb-4 font-heading">Capabilities Marketplace, Queue Gating & Integration-Gated Installs</h2>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+
+            {/* Capabilities Marketplace */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚡ Capabilities Marketplace</h3>
+              <p className="mb-2">A new system for discovering, installing, customizing, and creating skill packs that extend what Divi can do for you.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>20 pre-seeded capabilities across productivity, communication, finance, HR, operations, and sales</li>
+                <li>Browse by category, search, or filter by installed — all from the <strong className="text-white">⚡ Capabilities</strong> tab</li>
+                <li>Each capability has a <strong className="text-white">prompt template</strong> with <strong className="text-white">editable fields</strong> — customize behavior per-user after install</li>
+                <li>Capabilities inject resolved prompts into Divi&apos;s system context — Divi automatically uses them</li>
+                <li>Create your own capabilities: name, description, prompt, editable fields, integration type, pricing</li>
+                <li>Custom capabilities auto-install for the creator and appear in the marketplace for all users</li>
+              </ul>
+            </div>
+
+            {/* Integration Gating */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔐 Integration-Gated Installs</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Capabilities tied to a specific integration (email, calendar, slack, CRM, etc.) <strong className="text-white">require</strong> that integration to be connected before install</li>
+                <li>Browse API returns <code className="code-inline">integrationConnected</code> boolean per capability</li>
+                <li>UI shows 🔒 lock badge on capabilities where the required integration isn&apos;t connected</li>
+                <li>Install attempts without the integration return <code className="code-inline">422 INTEGRATION_REQUIRED</code> with actionable error message</li>
+                <li>Broad capabilities (<code className="code-inline">integrationType: null</code>) install without restriction</li>
+              </ul>
+            </div>
+
+            {/* Queue Gating */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🚦 Queue Gating System</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Before dispatching a task to the queue, the system checks if the user has a handler (installed agent, active capability, or built-in capability)</li>
+                <li>If no handler exists, task is blocked and Divi suggests relevant marketplace capabilities via <code className="code-inline">[[suggest_marketplace:...]]</code></li>
+                <li>Inline marketplace suggestion cards render in chat with icon, name, description, and Install button</li>
+                <li>Smart scoring ranks marketplace suggestions by relevance to the blocked task</li>
+              </ul>
+            </div>
+
+            {/* Pricing Enforcement */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">💰 Pricing Enforcement</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Capabilities support <strong className="text-white">free</strong> or <strong className="text-white">one-time purchase</strong> pricing only</li>
+                <li>Subscription pricing model is rejected at both create and install time</li>
+                <li>All 20 seeded capabilities are free</li>
+              </ul>
+            </div>
+
+            {/* Capabilities API */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📡 Capabilities API</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">GET /api/marketplace-capabilities</code> — Browse all or installed only (<code className="code-inline">?installed=true</code>)</li>
+                <li><code className="code-inline">POST /api/marketplace-capabilities</code> — Install capability (with integration gating) or create custom (<code className="code-inline">action: &apos;create&apos;</code>)</li>
+                <li><code className="code-inline">GET /api/marketplace-capabilities/:id</code> — Detail view (prompt hidden until installed)</li>
+                <li><code className="code-inline">PATCH /api/marketplace-capabilities/:id</code> — Update customizations, resolves prompt template</li>
+                <li><code className="code-inline">DELETE /api/marketplace-capabilities/:id</code> — Uninstall capability</li>
+              </ul>
+            </div>
+
+            {/* Schema */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🗃️ New Database Models</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">MarketplaceCapability</code> — name, slug, description, icon, category, tags, integrationType, pricingModel, price, editableFields (JSON), prompt, promptVersion, status, featured, totalPurchases, avgRating, isSystemSeed</li>
+                <li><code className="code-inline">UserCapability</code> — userId, capabilityId, status, customizations (JSON), resolvedPrompt, installedAt, lastUsedAt</li>
+              </ul>
+            </div>
+
+            {/* Admin Key Reset */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔑 Admin Instance Key Reset</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Admin Instances tab now supports resetting API keys for federated instances</li>
+                <li>PATCH endpoint accepts <code className="code-inline">apiKey</code> and <code className="code-inline">name</code> fields</li>
+                <li>Resolves &quot;API key mismatch&quot; errors during re-registration without deleting the instance</li>
+              </ul>
+            </div>
+
+            {/* Agent Card Fix */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🛡️ Agent Card Resilience</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">/.well-known/agent-card.json</code> no longer returns 500 when the federation config table is empty</li>
+                <li>Added try/catch fallback with sensible defaults for new or unconfigured instances</li>
+              </ul>
+            </div>
+
+            {/* Settings Link */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚙️ Other Changes</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Settings → Integrations now shows a &quot;⚡ Capabilities&quot; quick link that opens the marketplace</li>
+                <li>System prompt Layer 16 updated with capability discovery guidance</li>
+                <li><code className="code-inline">dispatch_queue</code> action tag now queue-gated — fails if no handler available</li>
+                <li><code className="code-inline">suggest_marketplace</code> action tag for inline capability suggestions in chat</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 12-13, 2026 RELEASE */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 12–13, 2026</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">MCP Server: v1.5</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.4</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">A2A: v0.4</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 font-heading text-[var(--text-secondary)]">Federation v2, Multi-Account Sync, Admin Expansion</h2>
 
           <div className="space-y-6 text-sm text-[var(--text-secondary)]">
             {/* Instance Approval */}
@@ -790,9 +904,9 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
             <h4 className="text-sm font-semibold text-green-400 mb-2">Expected Results</h4>
             <ul className="text-sm text-[var(--text-secondary)] space-y-1">
               <li>• <code className="code-inline">/api/status</code> → 200 with all checks passing</li>
-              <li>• Agent card version → <code className="code-inline">0.3.0</code></li>
-              <li>• MCP server version → <code className="code-inline">1.4.0</code></li>
-              <li>• <code className="code-inline">tools/list</code> → 20 static tools + dynamic marketplace tools</li>
+              <li>• Agent card version → <code className="code-inline">0.5.0</code></li>
+              <li>• MCP server version → <code className="code-inline">1.6.0</code></li>
+              <li>• <code className="code-inline">tools/list</code> → 22 static tools + dynamic marketplace tools</li>
             </ul>
           </div>
         </Section>
@@ -814,7 +928,7 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
         {/* Footer */}
         <div className="mt-16 pt-6 border-t border-[var(--border-color)] text-center">
           <p className="text-xs text-[var(--text-muted)]">
-            DiviDen Command Center — Last updated April 13, 2026
+            DiviDen Command Center v1.1.0 — Last updated April 13, 2026
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
             <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>

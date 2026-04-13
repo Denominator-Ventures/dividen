@@ -86,13 +86,14 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'architecture', label: 'Architecture' },
+  { id: 'capabilities', label: 'Capabilities Marketplace' },
   { id: 'self-hosting', label: 'Self-Hosting Guide' },
   { id: 'federation', label: 'Federation Protocol' },
   { id: 'registration', label: 'Instance Registration' },
   { id: 'agent-sync', label: 'Agent Sync & Marketplace' },
   { id: 'api-reference', label: 'Full API Reference' },
   { id: 'protocols', label: 'Protocols (DAWP / A2A / MCP)' },
-  { id: 'agent-cards', label: 'Agent Card Spec (v0.4)' },
+  { id: 'agent-cards', label: 'Agent Card Spec (v0.5)' },
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'security', label: 'Security & Auth' },
 ];
@@ -159,7 +160,7 @@ export default function DocumentationPage() {
                 Instances discover each other, share agents, relay tasks, and exchange reputation — without a central authority.
               </Card>
               <Card title="🤖 Build Agents">
-                Create agents that run on DiviDen using A2A protocol. Publish to the marketplace for others to use.
+                Create agents that run on DiviDen using A2A protocol. Install capabilities from the marketplace. Publish your own for others to use.
               </Card>
             </div>
           </Section>
@@ -188,6 +189,59 @@ export default function DocumentationPage() {
             <p className="text-[var(--text-secondary)] text-sm">
               The managed platform at <InlineCode>dividen.ai</InlineCode> acts as the reference instance. Self-hosted instances connect via the federation registration flow.
             </p>
+          </Section>
+
+          {/* ═══ CAPABILITIES MARKETPLACE ═══════════════════════════════ */}
+          <Section id="capabilities" title="Capabilities Marketplace">
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              Capabilities are <strong className="text-white">modular skill packs</strong> that extend what your agents can do. Browse, install, and create them from the <InlineCode>/settings → Integrations → Capabilities</InlineCode> tab or via the REST API.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card title="📦 Browse & Install">
+                <p>20 seeded capabilities across 7 categories: productivity, communication, finance, HR, operations, sales, and custom. Install with one click — or via <InlineCode>POST /api/marketplace-capabilities/:id/install</InlineCode>.</p>
+              </Card>
+              <Card title="🔗 Integration-Gated">
+                <p>Capabilities declare which integration they need (email, calendar, slack, crm, transcript, payments). The install is blocked with a 422 if the required integration isn&apos;t connected.</p>
+              </Card>
+              <Card title="🛠️ Create Your Own">
+                <p>Define a prompt template, pick a category, declare an integration requirement, set pricing (free or one-time), and publish. Your capability appears in the marketplace for all users.</p>
+              </Card>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">How Capabilities Work</h3>
+            <div className="space-y-4 mb-6">
+              <Step n={1} title="Browse">
+                <p><InlineCode>GET /api/marketplace-capabilities</InlineCode> returns all published capabilities. Filter by <InlineCode>?category=finance</InlineCode> or <InlineCode>?search=invoice</InlineCode>.</p>
+              </Step>
+              <Step n={2} title="Install">
+                <p><InlineCode>POST /api/marketplace-capabilities/:id/install</InlineCode>. The server checks the capability&apos;s <InlineCode>integrationRequired</InlineCode> field against your connected integrations. If the integration is missing, you get a <InlineCode>422</InlineCode> with a clear message telling you which integration to connect first.</p>
+              </Step>
+              <Step n={3} title="Prompt Resolution">
+                <p>Installed capabilities inject their <InlineCode>promptTemplate</InlineCode> into the agent&apos;s system prompt at runtime. The agent gains the skill immediately — no restart needed.</p>
+              </Step>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">Pricing</h3>
+            <p className="text-[var(--text-secondary)] mb-4 text-sm">
+              Only <InlineCode>free</InlineCode> and <InlineCode>one_time</InlineCode> pricing models are supported. Subscription-based capabilities are rejected at creation time. One-time capabilities track payment status per install.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Categories</h3>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {['productivity', 'communication', 'finance', 'hr', 'operations', 'sales', 'custom'].map(cat => (
+                <span key={cat} className="px-2.5 py-1 rounded-full bg-brand-500/10 text-brand-400 text-xs font-mono">{cat}</span>
+              ))}
+            </div>
+
+            <div className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-4 mt-4">
+              <h4 className="text-sm font-bold text-white mb-2">API Quick Reference</h4>
+              <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse all published capabilities (filterable by category, search, integration)" auth="Session" />
+              <Endpoint method="POST" path="/api/marketplace-capabilities" description="Create a new capability (admin or developer)" auth="Session" />
+              <Endpoint method="GET" path="/api/marketplace-capabilities/:id" description="Get capability details + install status" auth="Session" />
+              <Endpoint method="POST" path="/api/marketplace-capabilities/:id/install" description="Install a capability (integration-gated)" auth="Session" />
+              <Endpoint method="DELETE" path="/api/marketplace-capabilities/:id/install" description="Uninstall a capability" auth="Session" />
+            </div>
           </Section>
 
           {/* ═══ SELF-HOSTING ══════════════════════════════════════════════ */}
@@ -462,6 +516,15 @@ Authorization: Bearer <platformToken>`}</Code>
               <Endpoint method="GET" path="/api/marketplace" description="Browse marketplace agents" auth="Session" />
             </div>
 
+            <h3 className="text-lg font-bold text-white mb-3">Capabilities Marketplace</h3>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+              <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse capabilities (filter by category, search, integration)" auth="Session" />
+              <Endpoint method="POST" path="/api/marketplace-capabilities" description="Create a custom capability" auth="Session" />
+              <Endpoint method="GET" path="/api/marketplace-capabilities/:id" description="Capability detail + install status" auth="Session" />
+              <Endpoint method="POST" path="/api/marketplace-capabilities/:id/install" description="Install capability (integration-gated)" auth="Session" />
+              <Endpoint method="DELETE" path="/api/marketplace-capabilities/:id/install" description="Uninstall capability" auth="Session" />
+            </div>
+
             <p className="text-sm text-[var(--text-muted)]">
               For detailed request/response schemas, see the <a href="/docs/developers" className="text-brand-400 hover:text-brand-300">Developer Docs</a>.
             </p>
@@ -484,8 +547,8 @@ Authorization: Bearer <platformToken>`}</Code>
               </Card>
             </div>
 
-            <Card title="MCP v1.5 — Model Context Protocol">
-              <p className="mb-2">Tool invocation standard. DiviDen exposes 22 static tools (incl. <code className="text-brand-400 text-[10px] font-mono">marketplace_browse</code> &amp; <code className="text-brand-400 text-[10px] font-mono">marketplace_unlock</code>) plus dynamic tools per user context.</p>
+            <Card title="MCP v1.6 — Model Context Protocol">
+              <p className="mb-2">Tool invocation standard. DiviDen exposes 22 static tools (incl. <code className="text-brand-400 text-[10px] font-mono">marketplace_browse</code>, <code className="text-brand-400 text-[10px] font-mono">marketplace_unlock</code>, &amp; <code className="text-brand-400 text-[10px] font-mono">capabilities_browse</code>) plus dynamic tools per user context. v1.6 adds queue gate awareness and capability-injected prompts.</p>
               <p className="text-xs text-[var(--text-muted)] mb-2"><strong>Endpoint:</strong> POST /api/mcp (SSE transport)</p>
               <p className="text-xs text-[var(--text-muted)]"><strong>Cross-instance:</strong> POST /api/federation/mcp (trust-gated, requires trusted instance)</p>
               <Code>{`// Example MCP tool call
@@ -500,15 +563,15 @@ Authorization: Bearer <platformToken>`}</Code>
           </Section>
 
           {/* ═══ AGENT CARDS ═══════════════════════════════════════════════ */}
-          <Section id="agent-cards" title="Agent Card Spec (v0.4)">
+          <Section id="agent-cards" title="Agent Card Spec (v0.5)">
             <p className="text-[var(--text-secondary)] mb-4">
               Every agent on DiviDen exposes a JSON agent card at <InlineCode>/.well-known/agent-card.json</InlineCode>. This follows the A2A spec with DiviDen extensions.
             </p>
-            <Code title="Agent Card Structure (v0.4)">{`{
+            <Code title="Agent Card Structure (v0.5)">{`{
   "name": "mAIn",
   "description": "AI assistant for venture capital operations",
   "url": "https://cc.fractionalventure.partners/api/a2a",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "protocol": "a2a",
   "protocolVersion": "0.2",
   "provider": {
@@ -543,12 +606,13 @@ Authorization: Bearer <platformToken>`}</Code>
   ]
 }`}</Code>
             <div className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-4 mt-4">
-              <h4 className="text-sm font-bold text-white mb-2">New in v0.4</h4>
+              <h4 className="text-sm font-bold text-white mb-2">New in v0.5</h4>
               <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
                 <li><InlineCode>mcpTools</InlineCode> array — advertises available MCP tool names for capability negotiation</li>
                 <li><InlineCode>webhookEvents</InlineCode> — declares pushable event types</li>
                 <li><InlineCode>marketplacePasswordAccess</InlineCode> — agents can be unlocked with dev-shared passwords</li>
                 <li><InlineCode>persistentConversation</InlineCode> — chat threads continue indefinitely</li>
+                <li>Resilient card serving — <InlineCode>/.well-known/agent.json</InlineCode> now returns a valid card even when the DB is unreachable (static fallback)</li>
               </ul>
             </div>
           </Section>

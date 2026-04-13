@@ -17,6 +17,67 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'capabilities-marketplace-queue-gating',
+    date: '2026-04-13',
+    time: '3:45 PM',
+    title: 'Capabilities Marketplace, Queue Gating & Integration-Gated Installs',
+    subtitle: '20 skill packs your agent can install. Queue items now route through gate checks. Capabilities that need integrations enforce it.',
+    tags: ['capabilities', 'marketplace', 'queue', 'gating', 'integrations', 'pricing', 'agent-card', 'platform'],
+    content: `Big structural release. DiviDen now has a capabilities marketplace, queue gating, and integration-gated installs. Platform v1.1.0, MCP v1.6, Agent Card v0.5.
+
+## Capabilities Marketplace
+
+Capabilities are modular skill packs — a prompt template, a category, and an optional integration requirement. Your agent installs them, and the prompt template is injected into its system context at runtime. No restart, no config.
+
+We seeded 20 capabilities across 7 categories:
+- **Productivity** — task prioritization, daily digest, meeting prep, document summarizer
+- **Communication** — email composer, follow-up generator, meeting notes formatter
+- **Finance** — invoice generator, expense tracker, financial report builder
+- **HR** — candidate screener, onboarding assistant, leave manager
+- **Operations** — workflow automator, inventory tracker, vendor manager
+- **Sales** — lead scorer, proposal generator, pipeline analyzer
+- **Custom** — prompt playground (bring your own template)
+
+Browse them at \`GET /api/marketplace-capabilities\`. Filter by \`?category=finance\` or \`?search=invoice\`. Install with \`POST /api/marketplace-capabilities/:id/install\`.
+
+## Integration-Gated Installs
+
+Some capabilities only make sense if you have the right integration connected. The "Email Composer" needs an email integration. The "Invoice Generator" needs payments. Each capability declares an \`integrationRequired\` field — one of: \`email\`, \`calendar\`, \`slack\`, \`crm\`, \`transcript\`, \`payments\`, or \`generic\`.
+
+When you try to install a capability whose required integration isn't connected, you get a clean \`422\`:
+
+\`\`\`json
+{ "error": "Integration required: email. Connect it in Settings → Integrations before installing." }
+\`\`\`
+
+No half-installed capabilities. No silent failures.
+
+## Queue Gating
+
+Queue items now run through a gate-check pipeline before processing. Three steps:
+1. **Relay handler lookup** — checks \`QueueGateConfig\` for a custom handler matching the item's action tag
+2. **Global gate** — if no handler matched, checks the global fallback handler
+3. **Default pass-through** — if nothing matched, the item proceeds normally
+
+This is the foundation for routing queue items to specific capabilities, blocking certain actions, or forwarding to external handlers. The \`GateCheckResult\` type carries an \`allowed\` boolean, a \`reason\`, and an optional \`handlerId\`.
+
+## Pricing Enforcement
+
+Only \`free\` and \`one_time\` pricing are accepted. If you try to create a capability with \`subscription\` pricing, the API rejects it. One-time capabilities track payment status per install via the \`CapabilityInstall\` model.
+
+## New DB Models
+
+Two new Prisma models:
+- **MarketplaceCapability** — name, description, category, promptTemplate, integrationRequired, pricingModel, price, isPublished
+- **CapabilityInstall** — links a user to an installed capability, tracks status and payment
+
+## Other Changes
+
+- **Agent Card v0.5** — the \`/.well-known/agent.json\` endpoint now returns a valid static fallback if the DB is unreachable. No more 500s during cold starts or transient connection drops.
+- **Admin Key Reset** — admins can regenerate user API keys from the admin panel. Useful when a key leaks or an operator leaves.
+- **MCP v1.6** — new tool \`capabilities_browse\` added to the static tool set. Queue gate awareness in the tool router.`,
+  },
+  {
     id: 'google-write-multi-inbox-self-hosted',
     date: '2026-04-13',
     time: '12:15 AM',

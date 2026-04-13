@@ -260,6 +260,30 @@ export default function IntegrationDocsPage() {
           </div>
         </section>
 
+        {/* Capabilities Marketplace */}
+        <section className="mb-8">
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">🧩 Capabilities Marketplace</h2>
+          <p className="text-[var(--text-secondary)] mb-3">
+            Capabilities are modular skill packs your agent can install to gain new abilities — from drafting emails to generating invoices. They live in <strong>Settings → Integrations → Capabilities</strong>.
+          </p>
+          <div className="grid grid-cols-2 gap-3 mb-4">
+            <div className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <span className="font-medium text-sm text-brand-400">20 Seeded Capabilities</span>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Across 7 categories: productivity, communication, finance, HR, operations, sales, custom.</p>
+            </div>
+            <div className="p-3 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <span className="font-medium text-sm text-brand-400">Integration-Gated</span>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Some capabilities require a connected integration (email, calendar, CRM, etc.) before install.</p>
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)] mb-3">
+            You can also <strong>create custom capabilities</strong> with your own prompt template, category, and integration requirement. Pricing supports <code className="text-brand-400 text-xs">free</code> and <code className="text-brand-400 text-xs">one_time</code> models.
+          </p>
+          <p className="text-sm text-[var(--text-muted)]">
+            📖 Full API reference: see the <a href="/docs/developers#capabilities-api" className="text-brand-400 hover:text-brand-300">Capabilities API</a> section in Developer Docs.
+          </p>
+        </section>
+
         {/* Agent API v2 */}
         <section className="mb-8">
           <h2 className="text-xl font-semibold mb-3 text-brand-400">🔑 Agent API v2</h2>

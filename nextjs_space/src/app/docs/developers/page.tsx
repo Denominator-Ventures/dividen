@@ -64,13 +64,15 @@ function InlineCode({ children }: { children: React.ReactNode }) {
 const TOC = [
   { id: 'auth', label: 'Authentication' },
   { id: 'rest-api', label: 'REST API (v2)' },
+  { id: 'capabilities-api', label: 'Capabilities API' },
   { id: 'federation-v2', label: 'Federation v2 API' },
   { id: 'mcp', label: 'MCP Server' },
   { id: 'a2a', label: 'A2A Protocol' },
   { id: 'webhooks', label: 'Webhooks' },
-  { id: 'marketplace', label: 'Marketplace API' },
+  { id: 'marketplace', label: 'Agent Marketplace API' },
   { id: 'federation', label: 'Cross-Instance API' },
   { id: 'integration-kit', label: 'Integration Kit' },
+  { id: 'queue-gating', label: 'Queue Gating' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
 
@@ -188,6 +190,74 @@ export default function DeveloperDocsPage() {
           </div>
         </Section>
 
+        {/* ── Capabilities API ──────────────────────────────── */}
+        <Section id="capabilities-api" title="Capabilities API">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Browse, install, customize, create, and manage capability skill packs. Capabilities extend Divi&apos;s
+            abilities through prompt templates with editable fields. Integration-gated: some capabilities require
+            a connected service (email, calendar, slack, etc.) before installation.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Browse & Install</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse all capabilities (filter by ?category=, ?search=, ?installed=true)" auth="Session" />
+            <Endpoint method="POST" path="/api/marketplace-capabilities" description="Install a capability (capabilityId) or create a custom one (action: 'create')" auth="Session" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Per-Capability Operations</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="GET" path="/api/marketplace-capabilities/:id" description="Get detail (prompt hidden until installed)" auth="Session" />
+            <Endpoint method="PATCH" path="/api/marketplace-capabilities/:id" description="Update customizations → resolves prompt template with user values" auth="Session" />
+            <Endpoint method="DELETE" path="/api/marketplace-capabilities/:id" description="Uninstall (soft disable) a capability" auth="Session" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Integration Gating</h3>
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4 mb-6">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Capabilities with an <InlineCode>integrationType</InlineCode> (email, calendar, slack, crm, payments, transcript)
+              require the user to have that integration connected before installation. The API checks webhooks,
+              built-in capabilities, and service API keys. If missing, the response is:
+            </p>
+            <Code>{`HTTP 422
+{
+  "error": "This capability requires an active Email integration...",
+  "code": "INTEGRATION_REQUIRED",
+  "requiredIntegration": "email"
+}`}</Code>
+            <p className="text-sm text-[var(--text-secondary)] mt-2">
+              The browse endpoint returns <InlineCode>integrationConnected: boolean</InlineCode> per capability so the UI
+              can show lock icons before the user attempts install.
+            </p>
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Creating Custom Capabilities</h3>
+          <Code>{`POST /api/marketplace-capabilities
+Content-Type: application/json
+
+{
+  "action": "create",
+  "name": "My Custom Capability",
+  "description": "What this capability does",
+  "icon": "🚀",
+  "category": "productivity",
+  "integrationType": null,
+  "pricingModel": "free",
+  "prompt": "When the user asks about {{topic}}, respond with...",
+  "editableFields": "[{\\"name\\":\\"topic\\",\\"label\\":\\"Topic\\",\\"type\\":\\"text\\",\\"default\\":\\"general\\"}]"
+}`}</Code>
+          <p className="text-[var(--text-secondary)] text-sm mb-4">
+            Custom capabilities auto-install for the creator. Only <InlineCode>free</InlineCode> and <InlineCode>one_time</InlineCode> pricing
+            are supported — subscription pricing is rejected.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Prompt Resolution</h3>
+          <p className="text-[var(--text-secondary)] text-sm">
+            Prompts support <InlineCode>{'{{fieldName}}'}</InlineCode> template variables. When a user customizes a capability,
+            the API resolves variables against their custom values and stores the <InlineCode>resolvedPrompt</InlineCode>.
+            Divi injects resolved prompts from all active capabilities into the system context.
+          </p>
+        </Section>
+
         {/* ── Federation v2 API ──────────────────────────────── */}
         <Section id="federation-v2" title="Federation v2 API">
           <p className="text-[var(--text-secondary)] mb-4">
@@ -264,7 +334,7 @@ Content-Type: application/json`}</Code>
           </div>
 
           <div className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-4 mb-6">
-            <h4 className="text-sm font-bold text-white mb-2">New in MCP v1.5</h4>
+            <h4 className="text-sm font-bold text-white mb-2">New in MCP v1.6</h4>
             <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
               <li><InlineCode>marketplace_browse</InlineCode> — Search and filter marketplace agents by category, pricing, skills</li>
               <li><InlineCode>marketplace_unlock</InlineCode> — Unlock paid agents using developer-shared access passwords</li>
@@ -416,6 +486,44 @@ Content-Type: application/json`}</Code>
             Divi then proactively suggests your agent when tasks match its capabilities.
             Uninstalling removes all memory entries — clean separation.
           </p>
+        </Section>
+
+        {/* ── Queue Gating ──────────────────────────────────── */}
+        <Section id="queue-gating" title="Queue Gating">
+          <p className="text-[var(--text-secondary)] mb-4">
+            When Divi dispatches a task to the queue (via <InlineCode>{'[[dispatch_queue:...]]'}</InlineCode>), the system first checks
+            if the user has a handler capable of processing it. This prevents unactionable tasks from entering the queue.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Gate Check Order</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <div className="flex items-center gap-3">
+                <span className="text-brand-400 font-bold">1.</span>
+                <span>Installed marketplace agents with matching task types</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-brand-400 font-bold">2.</span>
+                <span>Active user capabilities matching the task domain</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-brand-400 font-bold">3.</span>
+                <span>Built-in agent capabilities (email, meetings, custom)</span>
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">When No Handler Found</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-4">
+            The task is blocked and Divi uses <InlineCode>{'[[suggest_marketplace:{"search":"..."}]]'}</InlineCode> to surface
+            relevant capabilities from the marketplace. Suggestion cards render inline in chat with an Install button.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Action Tags</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4">
+            <Endpoint method="TAG" path='[[dispatch_queue:{"task":"..."}]]' description="Now queue-gated — fails if no handler, triggers marketplace suggestions" />
+            <Endpoint method="TAG" path='[[suggest_marketplace:{"search":"...","category":"..."}]]' description="Surfaces matching capabilities as inline chat cards" />
+          </div>
         </Section>
 
         {/* ── Rate Limits ─────────────────────────────────────── */}
