@@ -27,6 +27,8 @@ export async function GET(
     where: { userId_capabilityId: { userId, capabilityId: params.id } },
   });
 
+  const isOwner = capability.createdByUserId === userId;
+
   return NextResponse.json({
     id: capability.id,
     name: capability.name,
@@ -49,6 +51,9 @@ export async function GET(
     installed: userCap?.status === 'active',
     customizations: userCap?.customizations || null,
     resolvedPrompt: userCap?.resolvedPrompt || null,
+    isOwner,
+    hasAccessPassword: !!capability.accessPassword,
+    accessPassword: isOwner ? capability.accessPassword : undefined,
   });
 }
 

@@ -1895,8 +1895,12 @@ model MarketplaceCapability {
   avgRating       Float     @default(0)
   totalRatings    Int       @default(0)
 
+  // Access password — developer can share to bypass paywall
+  accessPassword  String?   // plain-text password for free access (sharing mechanism, not security)
+
   // System-managed
   isSystemSeed    Boolean   @default(false)  // true = seeded by platform, not user-created
+  createdByUserId String?   // userId of the developer who created it
 
   userCapabilities UserCapability[]
 
@@ -1928,6 +1932,8 @@ model UserCapability {
   status          String    @default("active") // "active" | "disabled" | "expired"
   installedAt     DateTime  @default(now())
   lastUsedAt      DateTime?
+  paidAt          DateTime? // non-null if user paid or password-unlocked
+  passwordUnlocked Boolean  @default(false) // true if unlocked via access password
 
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   capability      MarketplaceCapability @relation(fields: [capabilityId], references: [id], onDelete: Cascade)

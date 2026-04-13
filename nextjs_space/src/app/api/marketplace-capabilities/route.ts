@@ -81,6 +81,8 @@ export async function GET(req: NextRequest) {
         status: true, featured: true, totalPurchases: true,
         avgRating: true, totalRatings: true,
         isSystemSeed: true,
+        accessPassword: true,   // needed to compute hasAccessPassword
+        createdByUserId: true,  // needed to compute isOwner
         // NOTE: prompt is NOT included — hidden until purchased
       },
     }),
@@ -119,10 +121,16 @@ export async function GET(req: NextRequest) {
       const hasIntegration = needsIntegration
         ? connectedIntegrations.has(c.integrationType!) || connectedIntegrations.has(c.integrationType === 'calendar' ? 'meetings' : c.integrationType!)
         : true;
+      const isOwner = c.createdByUserId === userId;
+      const { accessPassword, createdByUserId, ...safeFields } = c;
       return {
-        ...c,
+        ...safeFields,
         installed: installedIds.has(c.id),
         integrationConnected: hasIntegration,
+        hasAccessPassword: !!accessPassword,
+        isOwner,
+        // Owner sees the actual password; others just see hasAccessPassword
+        accessPassword: isOwner ? accessPassword : undefined,
       };
     }),
   });
@@ -137,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   // ── Branch: Create a custom capability ───────────────────────────────────
   if (body.action === 'create') {
-    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields } = body;
+    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields, accessPassword } = body;
     if (!name || !description || !prompt) {
       return NextResponse.json({ error: 'name, description, and prompt are required' }, { status: 400 });
     }
@@ -163,6 +171,8 @@ export async function POST(req: NextRequest) {
         price: pricingModel === 'one_time' ? (price || 0) : 0,
         prompt,
         editableFields: editableFields || '[]',
+        accessPassword: accessPassword || null,
+        createdByUserId: userId,
         status: 'active',
         isSystemSeed: false,
       },
@@ -186,7 +196,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Branch: Install an existing capability ──────────────────────────────
-  const { capabilityId } = body;
+  const { capabilityId, accessPassword: submittedPassword } = body;
   if (!capabilityId) return NextResponse.json({ error: 'capabilityId is required' }, { status: 400 });
 
   // Check capability exists
@@ -198,6 +208,20 @@ export async function POST(req: NextRequest) {
   // Enforce pricing: only free or one_time
   if (capability.pricingModel === 'subscription') {
     return NextResponse.json({ error: 'Subscription pricing is not supported. Capabilities must be free or one-time purchase.' }, { status: 400 });
+  }
+
+  // Password bypass: if paid and user provides correct access password, treat as free
+  const isPaid = capability.pricingModel === 'one_time' && (capability.price || 0) > 0;
+  const passwordGranted = isPaid && capability.accessPassword && submittedPassword === capability.accessPassword;
+
+  // Purchase gating: paid capabilities require payment or valid password
+  if (isPaid && !passwordGranted) {
+    return NextResponse.json({
+      error: 'Payment required. This capability costs $' + (capability.price || 0).toFixed(2) + '. Complete purchase or enter the developer access password to install.',
+      code: 'PAYMENT_REQUIRED',
+      price: capability.price,
+      hasAccessPassword: !!capability.accessPassword,
+    }, { status: 402 });
   }
 
   // Integration gating: if capability requires a specific integration, verify user has it connected
@@ -241,12 +265,14 @@ export async function POST(req: NextRequest) {
   // Install (upsert in case it was previously disabled)
   const userCap = await prisma.userCapability.upsert({
     where: { userId_capabilityId: { userId, capabilityId } },
-    update: { status: 'active', installedAt: new Date() },
+    update: { status: 'active', installedAt: new Date(), paidAt: isPaid ? new Date() : null, passwordUnlocked: !!passwordGranted },
     create: {
       userId,
       capabilityId,
       status: 'active',
       resolvedPrompt: capability.prompt, // Start with base prompt
+      paidAt: isPaid ? new Date() : null,
+      passwordUnlocked: !!passwordGranted,
     },
   });
 

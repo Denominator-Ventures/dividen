@@ -31,6 +31,7 @@ interface CenterPanelProps {
   chatPrefill?: string | null;
   onChatPrefillConsumed?: () => void;
   onTriage?: (signalId: string) => void;
+  onChatWithPrefill?: (msg: string) => void;
   onOpenCatchUpSettings?: () => void;
 }
 
@@ -62,7 +63,7 @@ const networkTabIds = new Set(networkTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onOpenCatchUpSettings }: CenterPanelProps) {
+export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onChatWithPrefill, onOpenCatchUpSettings }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
   const hasSubRow = isNetworkActive;
   const activeSubTabs = isNetworkActive ? networkTabs : [];
@@ -213,7 +214,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'jobs' && <TabErrorBoundary tabName="Jobs"><JobBoardView /></TabErrorBoundary>}
         {activeTab === 'marketplace' && <TabErrorBoundary tabName="Marketplace"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
-        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesMarketplace /></TabErrorBoundary>}
+        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesMarketplace onStartGuidedChat={(msg) => { if (onChatWithPrefill) onChatWithPrefill(msg); else onTabChange('chat'); }} /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
         {activeTab === 'profile' && <TabErrorBoundary tabName="Profile"><ProfileView onClose={() => onTabChange('chat')} /></TabErrorBoundary>}
       </div>

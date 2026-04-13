@@ -205,7 +205,7 @@ export default function DocumentationPage() {
                 <p>Capabilities declare which integration they need (email, calendar, slack, crm, transcript, payments). The install is blocked with a 422 if the required integration isn&apos;t connected.</p>
               </Card>
               <Card title="🛠️ Create Your Own">
-                <p>Define a prompt template, pick a category, declare an integration requirement, set pricing (free or one-time), and publish. Your capability appears in the marketplace for all users.</p>
+                <p>Define a prompt template, pick a category, declare an integration requirement, set pricing (free or one-time), set an optional access password to let users bypass the paywall, and publish. Your capability appears in the marketplace for all users.</p>
               </Card>
             </div>
 
@@ -215,7 +215,7 @@ export default function DocumentationPage() {
                 <p><InlineCode>GET /api/marketplace-capabilities</InlineCode> returns all published capabilities. Filter by <InlineCode>?category=finance</InlineCode> or <InlineCode>?search=invoice</InlineCode>.</p>
               </Step>
               <Step n={2} title="Install">
-                <p><InlineCode>POST /api/marketplace-capabilities/:id/install</InlineCode>. The server checks the capability&apos;s <InlineCode>integrationRequired</InlineCode> field against your connected integrations. If the integration is missing, you get a <InlineCode>422</InlineCode> with a clear message telling you which integration to connect first.</p>
+                <p><InlineCode>POST /api/marketplace-capabilities</InlineCode> with <InlineCode>capabilityId</InlineCode>. The server checks integration requirements (422 if missing) and purchase gating (402 if paid and not unlocked). Supply <InlineCode>accessPassword</InlineCode> to bypass paid gating.</p>
               </Step>
               <Step n={3} title="Prompt Resolution">
                 <p>Installed capabilities inject their <InlineCode>promptTemplate</InlineCode> into the agent&apos;s system prompt at runtime. The agent gains the skill immediately — no restart needed.</p>
@@ -239,7 +239,7 @@ export default function DocumentationPage() {
               <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse all published capabilities (filterable by category, search, integration)" auth="Session" />
               <Endpoint method="POST" path="/api/marketplace-capabilities" description="Create a new capability (admin or developer)" auth="Session" />
               <Endpoint method="GET" path="/api/marketplace-capabilities/:id" description="Get capability details + install status" auth="Session" />
-              <Endpoint method="POST" path="/api/marketplace-capabilities/:id/install" description="Install a capability (integration-gated)" auth="Session" />
+              <Endpoint method="POST" path="/api/marketplace-capabilities" description="Install a capability (capabilityId + optional accessPassword, integration & purchase gated)" auth="Session (install)" />
               <Endpoint method="DELETE" path="/api/marketplace-capabilities/:id/install" description="Uninstall a capability" auth="Session" />
             </div>
           </Section>
@@ -521,7 +521,7 @@ Authorization: Bearer <platformToken>`}</Code>
               <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse capabilities (filter by category, search, integration)" auth="Session" />
               <Endpoint method="POST" path="/api/marketplace-capabilities" description="Create a custom capability" auth="Session" />
               <Endpoint method="GET" path="/api/marketplace-capabilities/:id" description="Capability detail + install status" auth="Session" />
-              <Endpoint method="POST" path="/api/marketplace-capabilities/:id/install" description="Install capability (integration-gated)" auth="Session" />
+              <Endpoint method="POST" path="/api/marketplace-capabilities" description="Install capability (capabilityId + optional accessPassword)" auth="Session (install)" />
               <Endpoint method="DELETE" path="/api/marketplace-capabilities/:id/install" description="Uninstall capability" auth="Session" />
             </div>
 

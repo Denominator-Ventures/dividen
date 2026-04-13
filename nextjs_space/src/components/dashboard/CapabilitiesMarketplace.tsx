@@ -32,6 +32,9 @@ interface MarketplaceCapability {
   userCapabilityId?: string;
   installedAt?: string;
   lastUsedAt?: string | null;
+  hasAccessPassword?: boolean;
+  accessPassword?: string | null;
+  isOwner?: boolean;
 }
 
 interface EditableField {
@@ -86,7 +89,11 @@ const INTEGRATION_BADGES: Record<string, { label: string; color: string }> = {
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CapabilitiesMarketplace() {
+interface CapabilitiesMarketplaceProps {
+  onStartGuidedChat?: (message: string) => void;
+}
+
+export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarketplaceProps) {
   const [view, setView] = useState<'browse' | 'installed' | 'create'>('browse');
   const [capabilities, setCapabilities] = useState<MarketplaceCapability[]>([]);
   const [loading, setLoading] = useState(true);
@@ -99,11 +106,16 @@ export function CapabilitiesMarketplace() {
   const [installing, setInstalling] = useState<string | null>(null);
   const [installError, setInstallError] = useState<string | null>(null);
 
+  // Password state
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+
   // Create form state
   const [createForm, setCreateForm] = useState({
     name: '', description: '', icon: '⚡', category: 'custom',
     integrationType: '', pricingModel: 'free', price: 0, prompt: '',
-    tags: '', editableFields: '[]',
+    tags: '', editableFields: '[]', accessPassword: '',
   });
   const [creating, setCreating] = useState(false);
 
@@ -132,22 +144,51 @@ export function CapabilitiesMarketplace() {
     if (view !== 'create') fetchCapabilities();
   }, [fetchCapabilities, view]);
 
-  const handleInstall = async (capId: string) => {
+  const handleInstall = async (capId: string, password?: string) => {
     setInstalling(capId);
     setInstallError(null);
+    setPasswordError('');
     try {
+      const payload: any = { capabilityId: capId };
+      if (password) payload.accessPassword = password;
       const res = await fetch('/api/marketplace-capabilities', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ capabilityId: capId }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
+        const data = await res.json();
+        setPasswordInput('');
+        setShowPasswordInput(false);
+        // Find the capability name for the guided chat
+        const cap = capabilities.find(c => c.id === capId) || selected;
         setSelected(null);
-        await fetchCapabilities();
+
+        // Launch guided chat with Divi for configuration
+        if (onStartGuidedChat && cap) {
+          const fields = parseEditableFields(cap.editableFields);
+          const fieldList = fields.length > 0
+            ? `It has ${fields.length} configurable fields: ${fields.map(f => f.label).join(', ')}.`
+            : '';
+          onStartGuidedChat(
+            `I just installed the "${cap.name}" capability. ${fieldList} Help me configure it for my specific needs and use case.`
+          );
+        } else {
+          await fetchCapabilities();
+        }
       } else {
         const err = await res.json();
         if (err.code === 'INTEGRATION_REQUIRED') {
           setInstallError(err.error);
+        } else if (err.code === 'PAYMENT_REQUIRED') {
+          if (password) {
+            setPasswordError('Incorrect password');
+          } else if (err.hasAccessPassword) {
+            setShowPasswordInput(true);
+            setInstallError(`This capability costs $${(err.price || 0).toFixed(2)}. Enter the developer access password to install for free.`);
+          } else {
+            setInstallError(err.error);
+          }
         } else {
           setInstallError(err.error || 'Install failed');
         }
@@ -212,7 +253,7 @@ export function CapabilitiesMarketplace() {
         body: JSON.stringify({ action: 'create', ...createForm }),
       });
       if (res.ok) {
-        setCreateForm({ name: '', description: '', icon: '⚡', category: 'custom', integrationType: '', pricingModel: 'free', price: 0, prompt: '', tags: '', editableFields: '[]' });
+        setCreateForm({ name: '', description: '', icon: '⚡', category: 'custom', integrationType: '', pricingModel: 'free', price: 0, prompt: '', tags: '', editableFields: '[]', accessPassword: '' });
         setView('installed');
       } else {
         const err = await res.json();
@@ -401,9 +442,18 @@ export function CapabilitiesMarketplace() {
     const intBadge = INTEGRATION_BADGES[cap.integrationType] || null;
     const needsIntegration = cap.integrationType && cap.integrationType !== 'generic' && cap.integrationType !== '';
     const locked = needsIntegration && !cap.integrationConnected && !cap.installed;
+    const isPaid = cap.pricingModel === 'one_time' && (cap.price || 0) > 0;
+
+    const closeModal = () => {
+      setSelected(null);
+      setInstallError(null);
+      setPasswordInput('');
+      setPasswordError('');
+      setShowPasswordInput(false);
+    };
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { setSelected(null); setInstallError(null); }}>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={closeModal}>
         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
         <div
           onClick={e => e.stopPropagation()}
@@ -423,10 +473,13 @@ export function CapabilitiesMarketplace() {
                   <span className="text-[10px] text-white/30">{cap.category}</span>
                   {locked && <span className="text-[10px] text-amber-400">🔒 Integration required</span>}
                   {cap.featured && <span className="text-[10px]">⭐</span>}
+                  {isPaid && !cap.installed && (
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25">${(cap.price || 0).toFixed(2)}</span>
+                  )}
                 </div>
               </div>
             </div>
-            <button onClick={() => { setSelected(null); setInstallError(null); }} className="text-white/30 hover:text-white/60 text-lg">✕</button>
+            <button onClick={closeModal} className="text-white/30 hover:text-white/60 text-lg">✕</button>
           </div>
 
           <p className="text-sm text-white/60 mt-4">{cap.longDescription || cap.description}</p>
@@ -448,6 +501,18 @@ export function CapabilitiesMarketplace() {
               <p className="text-[10px] text-amber-400/60 mt-1">
                 Go to Settings → Integrations to connect {cap.integrationType} first.
               </p>
+            </div>
+          )}
+
+          {/* Owner: show access password */}
+          {cap.isOwner && cap.accessPassword && (
+            <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">🔑</span>
+                <span className="text-xs font-medium text-white/50">Access Password:</span>
+                <code className="text-xs text-brand-400 bg-white/5 px-2 py-0.5 rounded font-mono">{cap.accessPassword}</code>
+              </div>
+              <p className="text-[10px] text-white/30 mt-1">Share this with people you want to give free access to this capability.</p>
             </div>
           )}
 
@@ -501,35 +566,94 @@ export function CapabilitiesMarketplace() {
             </div>
           )}
 
+          {/* Password unlock — for paid capabilities with access passwords */}
+          {!cap.installed && !cap.isOwner && isPaid && cap.hasAccessPassword && showPasswordInput && (
+            <div className="mt-3 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-sm">🔑</span>
+                <span className="text-xs font-medium text-white/60">Have an access password?</span>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={passwordInput}
+                  onChange={e => { setPasswordInput(e.target.value); setPasswordError(''); }}
+                  placeholder="Enter password"
+                  onKeyDown={e => e.key === 'Enter' && passwordInput.trim() && handleInstall(cap.id, passwordInput.trim())}
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-sm text-white/90 placeholder:text-white/30 focus:outline-none focus:border-brand-500/50"
+                />
+                <button
+                  onClick={() => handleInstall(cap.id, passwordInput.trim())}
+                  disabled={!passwordInput.trim() || installing === cap.id}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                >
+                  {installing === cap.id ? 'Unlocking...' : 'Unlock Free Access'}
+                </button>
+              </div>
+              {passwordError && (
+                <p className="text-[10px] text-red-400 mt-1">{passwordError}</p>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons — show ONLY Install or Uninstall, never both */}
           <div className="mt-6 flex gap-2">
             {cap.installed ? (
               <>
                 <button
-                  onClick={() => { setSelected(null); setView('installed'); }}
+                  onClick={() => {
+                    closeModal();
+                    // Launch guided chat for reconfiguration
+                    if (onStartGuidedChat) {
+                      const flds = parseEditableFields(cap.editableFields);
+                      const fieldList = flds.length > 0
+                        ? `It has ${flds.length} configurable fields: ${flds.map(f => f.label).join(', ')}.`
+                        : '';
+                      onStartGuidedChat(
+                        `I want to reconfigure the "${cap.name}" capability. ${fieldList} Help me adjust it for my needs.`
+                      );
+                    } else {
+                      setView('installed');
+                    }
+                  }}
                   className="flex-1 py-2.5 rounded-lg bg-brand-500/20 text-brand-400 text-sm font-medium hover:bg-brand-500/30 border border-brand-500/30 transition-colors"
-                >⚙️ Manage</button>
+                >💬 Configure with Divi</button>
                 <button
                   onClick={() => handleUninstall(cap.id)}
                   className="py-2.5 px-4 rounded-lg bg-red-500/10 text-red-400/60 text-sm hover:bg-red-500/20 hover:text-red-400 border border-red-500/20 transition-colors"
                 >Uninstall</button>
               </>
             ) : (
-              <button
-                onClick={() => handleInstall(cap.id)}
-                disabled={installing === cap.id || !!locked}
-                className={cn(
-                  'flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
-                  locked
-                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-not-allowed'
-                    : 'bg-brand-500 text-white hover:bg-brand-600'
+              <>
+                <button
+                  onClick={() => handleInstall(cap.id)}
+                  disabled={installing === cap.id || !!locked}
+                  className={cn(
+                    'flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50',
+                    locked
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 cursor-not-allowed'
+                      : isPaid
+                        ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 hover:bg-amber-500/30'
+                        : 'bg-brand-500 text-white hover:bg-brand-600'
+                  )}
+                >
+                  {locked
+                    ? `🔒 Connect ${cap.integrationType} first`
+                    : installing === cap.id
+                      ? 'Installing...'
+                      : isPaid
+                        ? `💳 Purchase · $${(cap.price || 0).toFixed(2)}`
+                        : '⚡ Install Free'}
+                </button>
+                {/* Show password hint for paid caps without opening yet */}
+                {isPaid && cap.hasAccessPassword && !showPasswordInput && !locked && (
+                  <button
+                    onClick={() => setShowPasswordInput(true)}
+                    className="py-2.5 px-4 rounded-lg bg-white/[0.04] text-white/40 text-sm hover:text-white/60 hover:bg-white/[0.08] border border-white/[0.08] transition-colors"
+                    title="Have an access password?"
+                  >🔑</button>
                 )}
-              >
-                {locked
-                  ? `🔒 Connect ${cap.integrationType} first`
-                  : installing === cap.id
-                    ? 'Installing...'
-                    : cap.price === 0 || !cap.price ? '⚡ Install Free' : `Install · $${cap.price}`}
-              </button>
+              </>
             )}
           </div>
         </div>
@@ -632,6 +756,20 @@ export function CapabilitiesMarketplace() {
                   className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 focus:outline-none focus:border-brand-500/50"
                 />
               </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-[11px] text-white/50 mb-1">🔑 Access Password <span className="text-white/25">(optional — lets users bypass paywall)</span></label>
+            <input
+              type="text"
+              value={createForm.accessPassword}
+              onChange={e => setCreateForm(p => ({ ...p, accessPassword: e.target.value }))}
+              placeholder="Leave empty for no password bypass"
+              className="w-full bg-white/5 border border-white/10 rounded px-2.5 py-1.5 text-xs text-white/80 placeholder:text-white/20 focus:outline-none focus:border-brand-500/50"
+            />
+            {createForm.accessPassword && (
+              <p className="text-[10px] text-amber-400/60 mt-1">🔑 Users with this password can install without paying</p>
             )}
           </div>
 

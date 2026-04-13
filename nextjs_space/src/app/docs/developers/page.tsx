@@ -201,7 +201,7 @@ export default function DeveloperDocsPage() {
           <h3 className="text-lg font-bold mb-3">Browse & Install</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
             <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse all capabilities (filter by ?category=, ?search=, ?installed=true)" auth="Session" />
-            <Endpoint method="POST" path="/api/marketplace-capabilities" description="Install a capability (capabilityId) or create a custom one (action: 'create')" auth="Session" />
+            <Endpoint method="POST" path="/api/marketplace-capabilities" description="Install a capability (capabilityId, optional accessPassword) or create a custom one (action: 'create')" auth="Session" />
           </div>
 
           <h3 className="text-lg font-bold mb-3">Per-Capability Operations</h3>
@@ -230,6 +230,30 @@ export default function DeveloperDocsPage() {
             </p>
           </div>
 
+          <h3 className="text-lg font-bold mb-3">Purchase Gating & Access Passwords</h3>
+          <div className="bg-brand-500/5 border border-brand-500/20 rounded-lg p-4 mb-6">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Paid capabilities (<InlineCode>pricingModel: &quot;one_time&quot;</InlineCode>) require payment before install.
+              Attempting to install without paying returns:
+            </p>
+            <Code>{`HTTP 402
+{
+  "error": "Payment required",
+  "code": "PAYMENT_REQUIRED",
+  "price": 4.99
+}`}</Code>
+            <p className="text-sm text-[var(--text-secondary)] mt-2">
+              Developers can set an <InlineCode>accessPassword</InlineCode> when creating a capability.
+              Users who supply the correct password in the install request bypass the paywall:
+            </p>
+            <Code>{`POST /api/marketplace-capabilities
+{ "capabilityId": "...", "accessPassword": "secret123" }`}</Code>
+            <p className="text-sm text-[var(--text-secondary)] mt-2">
+              The browse endpoint returns <InlineCode>hasAccessPassword: boolean</InlineCode> per capability.
+              Only the capability owner can see the actual password value.
+            </p>
+          </div>
+
           <h3 className="text-lg font-bold mb-3">Creating Custom Capabilities</h3>
           <Code>{`POST /api/marketplace-capabilities
 Content-Type: application/json
@@ -243,11 +267,12 @@ Content-Type: application/json
   "integrationType": null,
   "pricingModel": "free",
   "prompt": "When the user asks about {{topic}}, respond with...",
-  "editableFields": "[{\\"name\\":\\"topic\\",\\"label\\":\\"Topic\\",\\"type\\":\\"text\\",\\"default\\":\\"general\\"}]"
+  "editableFields": "[{\\"name\\":\\"topic\\",\\"label\\":\\"Topic\\",\\"type\\":\\"text\\",\\"default\\":\\"general\\"}]",
+  "accessPassword": "secret123"
 }`}</Code>
           <p className="text-[var(--text-secondary)] text-sm mb-4">
             Custom capabilities auto-install for the creator. Only <InlineCode>free</InlineCode> and <InlineCode>one_time</InlineCode> pricing
-            are supported — subscription pricing is rejected.
+            are supported — subscription pricing is rejected. The optional <InlineCode>accessPassword</InlineCode> lets you share a password that bypasses the paywall for paid capabilities.
           </p>
 
           <h3 className="text-lg font-bold mb-3">Prompt Resolution</h3>
