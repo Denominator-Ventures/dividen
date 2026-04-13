@@ -497,6 +497,10 @@ async function executeTag(
         const taskDesc = params.description || null;
         const taskType = params.type || 'task';
 
+        // Check user's auto-approve preference (open-source users can opt out of confirmation gate)
+        const queueUser = await prisma.user.findUnique({ where: { id: userId }, select: { queueAutoApprove: true } });
+        const queueStatus = queueUser?.queueAutoApprove ? 'ready' : 'pending_confirmation';
+
         // Queue gating: check if user has a handler for this task
         const gateResult = await checkQueueGate(userId, taskTitle, taskDesc, taskType);
 
@@ -516,7 +520,7 @@ async function executeTag(
           };
         }
 
-        // Handler found — create as pending_confirmation (user must approve)
+        // Handler found — create with user's preferred gating status
         const dedupResult = await deduplicatedQueueCreate({
           type: taskType,
           title: taskTitle,
@@ -525,7 +529,7 @@ async function executeTag(
           source: 'agent',
           userId,
           metadata: gateResult.handler ? JSON.stringify({ handler: gateResult.handler }) : null,
-          status: 'pending_confirmation',
+          status: queueStatus,
         });
         return {
           tag: name,
@@ -535,7 +539,7 @@ async function executeTag(
             title: dedupResult.item.title,
             handler: gateResult.handler,
             deduplicated: !dedupResult.created,
-            pending_confirmation: true,
+            pending_confirmation: queueStatus === 'pending_confirmation',
             ...(dedupResult.reason ? { reason: dedupResult.reason } : {}),
           },
         };
@@ -543,6 +547,9 @@ async function executeTag(
 
       // ── Capability Actions (outbound email, meeting scheduling) ──────
       case 'queue_capability_action': {
+        const capUser = await prisma.user.findUnique({ where: { id: userId }, select: { queueAutoApprove: true } });
+        const capQueueStatus = capUser?.queueAutoApprove ? 'ready' : 'pending_confirmation';
+
         const capType = params.capabilityType || 'email';
         const action = params.action || 'outbound';
         const titleMap: Record<string, string> = {
@@ -570,7 +577,7 @@ async function executeTag(
             title: capTitle,
             description: params.subject || params.draft?.substring(0, 100) || `${capType} action`,
             priority: params.priority || 'high',
-            status: 'pending_confirmation',
+            status: capQueueStatus,
             source: 'agent',
             metadata: capMeta,
             userId,
@@ -580,7 +587,7 @@ async function executeTag(
         return {
           tag: name,
           success: true,
-          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action, pending_confirmation: true },
+          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action, pending_confirmation: capQueueStatus === 'pending_confirmation' },
         };
       }
 

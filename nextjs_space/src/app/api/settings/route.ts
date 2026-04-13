@@ -31,7 +31,7 @@ export async function GET() {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, username: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, onboardingPhase: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true },
+    select: { id: true, name: true, email: true, username: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, onboardingPhase: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true, queueAutoApprove: true },
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({
@@ -170,6 +170,14 @@ export async function PUT(request: NextRequest) {
     } else if (clean.length === 0) {
       await prisma.user.update({ where: { id: userId }, data: { username: null } });
     }
+  }
+
+  // Update queue auto-approve setting
+  if (typeof body.queueAutoApprove === 'boolean') {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { queueAutoApprove: body.queueAutoApprove },
+    });
   }
 
   // Update Divi personalization settings

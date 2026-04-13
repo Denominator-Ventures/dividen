@@ -67,7 +67,7 @@ All errors follow a consistent format:
           title: { type: 'string' },
           description: { type: 'string', nullable: true },
           priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] },
-          status: { type: 'string', enum: ['ready', 'in_progress', 'done_today', 'blocked'] },
+          status: { type: 'string', enum: ['pending_confirmation', 'ready', 'in_progress', 'done_today', 'blocked'], description: 'pending_confirmation = awaiting user approval before entering queue' },
           source: { type: 'string', nullable: true },
           metadata: { type: 'string', nullable: true, description: 'JSON string' },
           createdAt: { type: 'string', format: 'date-time' },
@@ -170,7 +170,7 @@ All errors follow a consistent format:
         summary: 'List queue items',
         description: 'Get queue items with optional filtering by status, priority, or type.',
         parameters: [
-          { name: 'status', in: 'query', schema: { type: 'string', enum: ['ready', 'in_progress', 'done_today', 'blocked'] } },
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['pending_confirmation', 'ready', 'in_progress', 'done_today', 'blocked'] } },
           { name: 'priority', in: 'query', schema: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] } },
           { name: 'type', in: 'query', schema: { type: 'string' } },
           { name: 'limit', in: 'query', schema: { type: 'integer', default: 50, maximum: 100 } },
@@ -246,7 +246,7 @@ All errors follow a consistent format:
                 type: 'object',
                 required: ['status'],
                 properties: {
-                  status: { type: 'string', enum: ['ready', 'in_progress', 'done_today', 'blocked'] },
+                  status: { type: 'string', enum: ['pending_confirmation', 'ready', 'in_progress', 'done_today', 'blocked'] },
                 },
               },
               example: { status: 'in_progress' },
@@ -256,6 +256,85 @@ All errors follow a consistent format:
         responses: {
           '200': { description: 'Updated queue item' },
           '404': { description: 'Not found' },
+        },
+      },
+    },
+    '/queue/{id}/confirm': {
+      post: {
+        tags: ['Queue'],
+        summary: 'Approve or reject a pending queue item',
+        description: 'Items created by Divi enter the queue as `pending_confirmation`. Use this endpoint to approve (moves to `ready`) or reject (deletes the item). Only works on items with status `pending_confirmation`.',
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['action'],
+                properties: {
+                  action: { type: 'string', enum: ['approve', 'reject'], description: 'approve = move to ready, reject = delete' },
+                },
+              },
+              example: { action: 'approve' },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Confirmation result' },
+          '400': { description: 'Item not in pending_confirmation status' },
+          '404': { description: 'Not found' },
+        },
+      },
+    },
+    '/settings': {
+      get: {
+        tags: ['Settings'],
+        summary: 'Get user settings',
+        description: 'Returns current mode, queue preferences, and onboarding status.',
+        responses: {
+          '200': {
+            description: 'User settings',
+            content: {
+              'application/json': {
+                example: {
+                  success: true,
+                  data: {
+                    mode: 'cockpit',
+                    queueAutoApprove: false,
+                    diviName: 'Divi',
+                    goalsEnabled: true,
+                    onboardingComplete: true,
+                    onboardingPhase: 6,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      patch: {
+        tags: ['Settings'],
+        summary: 'Update user settings',
+        description: 'Update mode (cockpit ↔ chief_of_staff) or queue behavior. Switching to CoS mode auto-dispatches the next ready item. Switching back to cockpit returns a briefing summary.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  mode: { type: 'string', enum: ['cockpit', 'chief_of_staff'], description: 'Operating mode' },
+                  queueAutoApprove: { type: 'boolean', description: 'When true, tasks skip pending_confirmation and go straight to ready. Useful for open-source self-hosted setups.' },
+                },
+              },
+              example: { mode: 'chief_of_staff' },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Updated settings with optional autoDispatched item or briefing' },
+          '400': { description: 'No valid fields to update' },
         },
       },
     },
