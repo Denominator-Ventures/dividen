@@ -33,7 +33,17 @@ export async function GET(req: NextRequest) {
       take: limit,
     });
 
-    return NextResponse.json({ success: true, data: events });
+    // Get distinct account emails for multi-calendar filtering
+    const accountEmails: string[] = [];
+    const seen = new Set<string>();
+    for (const e of events) {
+      if (e.accountEmail && !seen.has(e.accountEmail)) {
+        seen.add(e.accountEmail);
+        accountEmails.push(e.accountEmail);
+      }
+    }
+
+    return NextResponse.json({ success: true, data: events, accounts: accountEmails });
   } catch (error) {
     console.error('Calendar GET error:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch events' }, { status: 500 });

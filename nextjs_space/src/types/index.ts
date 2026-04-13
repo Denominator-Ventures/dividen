@@ -210,6 +210,7 @@ export interface CalendarEventData {
   attendees: string | null;
   source: string;
   externalId: string | null;
+  accountEmail: string | null;
   metadata: string | null;
   userId: string;
   createdAt: string;

@@ -14,6 +14,7 @@ type IntAccount = {
   refreshToken: string | null;
   tokenExpiry: Date | null;
   syncCursor: string | null;
+  emailAddress: string | null;
 };
 
 function getAuth(accessToken: string) {
@@ -191,6 +192,7 @@ export async function syncCalendar(account: IntAccount, daysAhead = 14): Promise
       attendees,
       source: 'google' as const,
       externalId: event.id,
+      accountEmail: account.emailAddress || null,
       metadata: JSON.stringify({
         htmlLink: event.htmlLink,
         hangoutLink: event.hangoutLink,
@@ -265,6 +267,10 @@ export async function syncDrive(account: IntAccount, limit = 50): Promise<number
           fileSource: 'google_drive',
           url: driveUrl,
           tags: driveTag,
+          accountEmail: account.emailAddress || null,
+          mimeType: file.mimeType || null,
+          fileSize: file.size ? parseInt(String(file.size), 10) : null,
+          thumbnailUrl: (file as any).thumbnailLink || null,
           userId: account.userId,
         },
       });
@@ -272,7 +278,15 @@ export async function syncDrive(account: IntAccount, limit = 50): Promise<number
     } else {
       await prisma.document.update({
         where: { id: existing.id },
-        data: { title: file.name || 'Untitled', content, url: driveUrl },
+        data: {
+          title: file.name || 'Untitled',
+          content,
+          url: driveUrl,
+          accountEmail: account.emailAddress || null,
+          mimeType: file.mimeType || null,
+          fileSize: file.size ? parseInt(String(file.size), 10) : null,
+          thumbnailUrl: (file as any).thumbnailLink || null,
+        },
       });
     }
   }

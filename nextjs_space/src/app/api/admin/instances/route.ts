@@ -125,6 +125,35 @@ export async function PATCH(req: NextRequest) {
       data: safeUpdates,
     });
 
+    // Cascade: when deactivating an instance, suspend its marketplace agents
+    if ('isActive' in safeUpdates && safeUpdates.isActive === false) {
+      const suspended = await prisma.marketplaceAgent.updateMany({
+        where: { sourceInstanceId: id },
+        data: { status: 'suspended' },
+      });
+      console.log(`[Admin] Deactivated instance ${id} — suspended ${suspended.count} marketplace agents`);
+    }
+
+    // Cascade: when disabling marketplace, also suspend agents
+    if ('marketplaceEnabled' in safeUpdates && safeUpdates.marketplaceEnabled === false) {
+      const suspended = await prisma.marketplaceAgent.updateMany({
+        where: { sourceInstanceId: id },
+        data: { status: 'suspended' },
+      });
+      console.log(`[Admin] Marketplace disabled for instance ${id} — suspended ${suspended.count} agents`);
+    }
+
+    // When re-activating, restore suspended agents from this instance
+    if ('isActive' in safeUpdates && safeUpdates.isActive === true && updated.marketplaceEnabled) {
+      const restored = await prisma.marketplaceAgent.updateMany({
+        where: { sourceInstanceId: id, status: 'suspended' },
+        data: { status: 'active' },
+      });
+      if (restored.count > 0) {
+        console.log(`[Admin] Activated instance ${id} — restored ${restored.count} marketplace agents`);
+      }
+    }
+
     return NextResponse.json({ success: true, instance: updated });
   } catch (error) {
     console.error('Admin instance update error:', error);

@@ -42,26 +42,49 @@ interface CreateEventForm {
   description: string;
 }
 
+// Color palette for multi-account calendars
+const ACCOUNT_COLORS = [
+  { dot: 'bg-brand-400', bar: 'bg-brand-500/30', text: 'text-brand-400' },
+  { dot: 'bg-emerald-400', bar: 'bg-emerald-500/30', text: 'text-emerald-400' },
+  { dot: 'bg-purple-400', bar: 'bg-purple-500/30', text: 'text-purple-400' },
+  { dot: 'bg-amber-400', bar: 'bg-amber-500/30', text: 'text-amber-400' },
+  { dot: 'bg-cyan-400', bar: 'bg-cyan-500/30', text: 'text-cyan-400' },
+  { dot: 'bg-pink-400', bar: 'bg-pink-500/30', text: 'text-pink-400' },
+];
+
 export function CalendarView() {
   const [events, setEvents] = useState<CalendarEventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<CalendarEventData | null>(null);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [accounts, setAccounts] = useState<string[]>([]);
+  const [visibleAccounts, setVisibleAccounts] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<CreateEventForm>({
     title: '', date: '', startTime: '', endTime: '', location: '', description: '',
   });
 
+  const getAccountColor = useCallback((email: string | null | undefined) => {
+    if (!email) return ACCOUNT_COLORS[0];
+    const idx = accounts.indexOf(email);
+    return ACCOUNT_COLORS[idx >= 0 ? idx % ACCOUNT_COLORS.length : 0];
+  }, [accounts]);
+
   const fetchEvents = useCallback(async () => {
     try {
-      // Fetch 30 days of events
       const from = new Date();
       from.setHours(0, 0, 0, 0);
       const to = new Date(from);
       to.setDate(to.getDate() + 30);
       const res = await fetch(`/api/calendar?from=${from.toISOString()}&to=${to.toISOString()}`);
       const data = await res.json();
-      if (data.success) setEvents(data.data);
+      if (data.success) {
+        setEvents(data.data);
+        if (data.accounts?.length) {
+          setAccounts(data.accounts);
+          setVisibleAccounts(new Set(data.accounts));
+        }
+      }
     } catch (e) {
       console.error('Failed to fetch calendar events:', e);
     } finally {
@@ -117,9 +140,25 @@ export function CalendarView() {
     }
   }, [selected]);
 
-  // Group events by day
+  const toggleAccount = useCallback((email: string) => {
+    setVisibleAccounts(prev => {
+      const next = new Set(prev);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  }, []);
+
+  // Filter events by visible accounts, then group by day
+  const filteredEvents = accounts.length > 0
+    ? events.filter(evt => {
+        if (!evt.accountEmail) return true; // manual/webhook events always visible
+        return visibleAccounts.has(evt.accountEmail);
+      })
+    : events;
+
   const grouped: { label: string; date: string; events: CalendarEventData[] }[] = [];
-  for (const evt of events) {
+  for (const evt of filteredEvents) {
     const existing = grouped.find((g) => isSameDay(g.date, evt.startTime));
     if (existing) {
       existing.events.push(evt);
@@ -150,6 +189,28 @@ export function CalendarView() {
             <span className="hidden sm:inline">Event</span>
           </button>
         </div>
+
+        {/* Multi-account filter (only when multiple accounts exist) */}
+        {accounts.length > 1 && (
+          <div className="px-3 py-2 border-b border-[var(--border-color)] flex flex-wrap gap-2">
+            {accounts.map((email) => {
+              const color = getAccountColor(email);
+              const active = visibleAccounts.has(email);
+              return (
+                <button
+                  key={email}
+                  onClick={() => toggleAccount(email)}
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-colors ${
+                    active ? 'bg-white/[0.06] text-white' : 'bg-transparent text-white/30 line-through'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${active ? color.dot : 'bg-white/20'}`} />
+                  {email.split('@')[0]}
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto">
           {loading ? (
@@ -189,8 +250,8 @@ export function CalendarView() {
                           <span className="block text-[10px] text-[var(--text-muted)]">{formatTime(evt.endTime)}</span>
                         )}
                       </div>
-                      {/* Divider */}
-                      <div className="w-0.5 self-stretch bg-brand-500/30 rounded-full flex-shrink-0" />
+                      {/* Divider — color-coded by account */}
+                      <div className={`w-0.5 self-stretch rounded-full flex-shrink-0 ${getAccountColor(evt.accountEmail).bar}`} />
                       {/* Event info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-[var(--text-primary)] truncate">{evt.title}</p>
@@ -290,7 +351,7 @@ export function CalendarView() {
                 </div>
               )}
               <div className="mt-4 text-[10px] text-[var(--text-muted)]">
-                Source: {selected.source} • Created {new Date(selected.createdAt).toLocaleString()}
+                Source: {selected.source}{selected.accountEmail ? ` (${selected.accountEmail})` : ''} • Created {new Date(selected.createdAt).toLocaleString()}
               </div>
             </div>
           </div>

@@ -968,8 +968,9 @@ function FederationTab({ token }: { token: string | null }) {
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className={`w-2.5 h-2.5 rounded-full ${inst.isActive ? 'bg-emerald-400' : 'bg-white/20'}`} />
+                        <span className={`w-2.5 h-2.5 rounded-full ${inst.isActive ? 'bg-emerald-400' : 'bg-amber-400 animate-pulse'}`} />
                         <span className="text-sm font-medium text-white">{inst.name}</span>
+                        {!inst.isActive && <span className="px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[9px] font-medium">⏳ Pending Approval</span>}
                         {inst.isTrusted && <span className="px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 text-[9px] font-medium">🛡️ Trusted</span>}
                         {inst.platformLinked && <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 text-[9px] font-medium">🔗 Linked</span>}
                       </div>
@@ -1013,10 +1014,10 @@ function FederationTab({ token }: { token: string | null }) {
                         onClick={() => toggleInstanceField(inst.id, 'isActive', !inst.isActive)}
                         disabled={instanceActionLoading === inst.id}
                         className={`px-2.5 py-1.5 rounded-lg text-[10px] font-medium transition-colors ${
-                          inst.isActive ? 'bg-emerald-400/10 text-emerald-400 hover:bg-red-400/10 hover:text-red-400' : 'bg-red-400/10 text-red-400 hover:bg-emerald-400/10 hover:text-emerald-400'
+                          inst.isActive ? 'bg-emerald-400/10 text-emerald-400 hover:bg-red-400/10 hover:text-red-400' : 'bg-amber-400/10 text-amber-400 hover:bg-emerald-400/10 hover:text-emerald-400'
                         }`}
                       >
-                        {inst.isActive ? 'Active' : 'Inactive'}
+                        {inst.isActive ? '✓ Active' : '✓ Approve'}
                       </button>
                       <button
                         onClick={() => { setRemoteUrl(inst.baseUrl); setSubTab('health'); }}

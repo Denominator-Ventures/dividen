@@ -53,14 +53,14 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Update existing instance
+      // Update existing instance — preserve approval status (isActive) on re-register
       instance = await prisma.instanceRegistry.update({
         where: { id: instance.id },
         data: {
           name,
           platformLinked: true,
           platformToken,
-          isActive: true,
+          // Don't flip isActive back to true — admin approval controls this
           version: version || null,
           userCount: userCount || null,
           agentCount: agentCount || null,
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
         },
       });
     } else {
-      // New registration
+      // New registration — starts as PENDING (isActive: false) until admin approves
       instance = await prisma.instanceRegistry.create({
         data: {
           name,
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
           apiKey,
           platformLinked: true,
           platformToken,
-          isActive: true,
+          isActive: false, // Requires admin approval
           version: version || null,
           userCount: userCount || null,
           agentCount: agentCount || null,
@@ -92,16 +92,20 @@ export async function POST(req: NextRequest) {
     // Return platform token and available endpoints
     const baseApiUrl = process.env.NEXTAUTH_URL || 'https://dividen.ai';
 
+    const isPending = !instance.isActive;
+
     return NextResponse.json({
       success: true,
       instanceId: instance.id,
       platformToken,
+      status: isPending ? 'pending_approval' : 'active',
       registeredAt: new Date().toISOString(),
       endpoints: {
         discover: `${baseApiUrl}/api/v2/network/discover`,
         updates: `${baseApiUrl}/api/v2/updates`,
         heartbeat: `${baseApiUrl}/api/v2/federation/heartbeat`,
         marketplaceLink: `${baseApiUrl}/api/v2/federation/marketplace-link`,
+        agentSync: `${baseApiUrl}/api/v2/federation/agents`,
       },
       features: {
         discovery: true,
@@ -109,7 +113,9 @@ export async function POST(req: NextRequest) {
         marketplace: true,
         relay: true,
       },
-      message: `Instance "${name}" registered successfully. Use the platformToken for authenticated API calls.`,
+      message: isPending
+        ? `Instance "${name}" registered and is pending admin approval. You will receive a platformToken that becomes fully functional once approved. The heartbeat endpoint is available immediately.`
+        : `Instance "${name}" re-registered successfully. Use the platformToken for authenticated API calls.`,
     }, { status: 201 });
   } catch (error: any) {
     console.error('POST /api/v2/federation/register error:', error);

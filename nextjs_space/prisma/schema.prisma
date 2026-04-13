@@ -494,17 +494,21 @@ model ServiceApiKey {
 // ─── Documents / Drive ──────────────────────────────────────────────────────
 
 model Document {
-  id          String   @id @default(cuid())
-  title       String
-  content     String?  // Markdown content
-  type        String   @default("note") // "note" | "report" | "template" | "meeting_notes"
-  tags        String?  // Comma-separated
-  url         String?  // External file URL (Google Drive, Dropbox, etc.)
-  fileSource  String   @default("local") // "local" | "google_drive" | "dropbox" | "onedrive" | "url"
-  cardId      String?  // Optional link to a KanbanCard
-  userId      String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id            String   @id @default(cuid())
+  title         String
+  content       String?  // Markdown content
+  type          String   @default("note") // "note" | "report" | "template" | "meeting_notes"
+  tags          String?  // Comma-separated
+  url           String?  // External file URL (Google Drive, Dropbox, etc.)
+  fileSource    String   @default("local") // "local" | "google_drive" | "dropbox" | "onedrive" | "url"
+  accountEmail  String?  // Email of the Google account this file came from (multi-drive)
+  mimeType      String?  // MIME type for file viewer (e.g. application/pdf, image/png)
+  fileSize      Int?     // File size in bytes
+  thumbnailUrl  String?  // Thumbnail/preview URL
+  cardId        String?  // Optional link to a KanbanCard
+  userId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
@@ -559,20 +563,21 @@ model ActivityLog {
 // ─── Calendar Events ─────────────────────────────────────────────────────────
 
 model CalendarEvent {
-  id          String    @id @default(cuid())
-  title       String
-  description String?
-  startTime   DateTime
-  endTime     DateTime?
-  location    String?
-  attendees   String?   // JSON array of attendees
-  source      String    @default("webhook") // "webhook" | "manual" | "google"
-  externalId  String?   // ID from external system
-  metadata    String?   // JSON string
-  cardId      String?   // Optional link to a KanbanCard
-  userId      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  title         String
+  description   String?
+  startTime     DateTime
+  endTime       DateTime?
+  location      String?
+  attendees     String?   // JSON array of attendees
+  source        String    @default("webhook") // "webhook" | "manual" | "google"
+  externalId    String?   // ID from external system
+  accountEmail  String?   // Email of the Google account this event came from (multi-calendar)
+  metadata      String?   // JSON string
+  cardId        String?   // Optional link to a KanbanCard
+  userId        String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   card        KanbanCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
