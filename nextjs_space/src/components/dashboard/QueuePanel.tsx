@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/utils';
 import { CommsTab } from './CommsTab';
+import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
 import {
   QUEUE_SECTIONS,
   type QueueItemData,
@@ -13,6 +14,7 @@ import {
 
 interface QueuePanelProps {
   onNavigateToMarketplace?: () => void;
+  onDiscuss?: (context: string) => void;
 }
 
 // ─── Priority indicator ─────────────────────────────────────────────────────
@@ -47,11 +49,13 @@ function QueueItemCard({
   onStatusChange,
   onDelete,
   onSendToComms,
+  onDiscuss,
 }: {
   item: QueueItemData;
   onStatusChange: (id: string, status: QueueItemStatus) => void;
   onDelete: (id: string) => void;
   onSendToComms?: (id: string, title: string) => void;
+  onDiscuss?: (context: string) => void;
 }) {
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
   const capMeta = parseCapabilityMeta(item.metadata);
@@ -93,6 +97,13 @@ function QueueItemCard({
               {capMeta.proposedTime && <span>· {capMeta.proposedTime}</span>}
             </div>
           )}
+
+          {/* Agent Widget (if metadata contains widgets) */}
+          {(() => {
+            const widgetPayload = parseWidgetPayload(item.metadata);
+            if (!widgetPayload) return null;
+            return <AgentWidgetContainer payload={widgetPayload} className="mt-2" />;
+          })()}
 
           {/* Capability action buttons (approve / edit) */}
           {isCapabilityAction && item.status === 'ready' && (
@@ -168,6 +179,15 @@ function QueueItemCard({
               title="Unblock"
             >
               ↩
+            </button>
+          )}
+          {onDiscuss && (
+            <button
+              onClick={() => onDiscuss(`Let's discuss this task: "${item.title}". ${item.description ? `Description: ${item.description}` : ''} Status: ${item.status}, Priority: ${item.priority}. Help me work through this.`)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20"
+              title="Discuss with Divi"
+            >
+              💬
             </button>
           )}
           {onSendToComms && (
@@ -248,7 +268,7 @@ function NewQueueItemForm({
 
 // ─── Main Queue Panel ───────────────────────────────────────────────────────
 
-export function QueuePanel({ onNavigateToMarketplace }: QueuePanelProps = {}) {
+export function QueuePanel({ onNavigateToMarketplace, onDiscuss }: QueuePanelProps = {}) {
   const [items, setItems] = useState<QueueItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -470,7 +490,7 @@ export function QueuePanel({ onNavigateToMarketplace }: QueuePanelProps = {}) {
                       </div>
                       <div className="space-y-2">
                         {sectionItems.map((item) => (
-                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} />
+                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} />
                         ))}
                       </div>
                     </div>

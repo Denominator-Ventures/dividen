@@ -26,7 +26,11 @@ function timeAgo(dateString: string): string {
   return new Date(dateString).toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export function InboxView() {
+interface InboxViewProps {
+  onDiscuss?: (context: string) => void;
+}
+
+export function InboxView({ onDiscuss }: InboxViewProps = {}) {
   const [emails, setEmails] = useState<EmailMessageData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<EmailMessageData | null>(null);
@@ -43,6 +47,9 @@ export function InboxView() {
 
   // Integration accounts for sending
   const [emailIntegrations, setEmailIntegrations] = useState<IntegrationBrief[]>([]);
+
+  // Account filter state
+  const [activeAccount, setActiveAccount] = useState<string>('all');
 
   // Sync state
   const [syncing, setSyncing] = useState(false);
@@ -211,7 +218,20 @@ export function InboxView() {
     }
   };
 
-  const unreadCount = emails.filter((e) => !e.isRead).length;
+  // Derive unique account addresses from emails
+  const accountAddresses = Array.from(new Set(
+    emails.map(e => (e as any).accountEmail || e.toEmail || 'unknown').filter(Boolean)
+  )).sort() as string[];
+
+  // Apply account filter
+  const accountFiltered = activeAccount === 'all'
+    ? emails
+    : emails.filter(e => {
+        const acct = (e as any).accountEmail || e.toEmail || 'unknown';
+        return acct === activeAccount;
+      });
+
+  const unreadCount = accountFiltered.filter((e) => !e.isRead).length;
   const hasEmailIntegration = emailIntegrations.length > 0;
 
   return (
@@ -251,6 +271,31 @@ export function InboxView() {
           </div>
         </div>
 
+        {/* Account filter tabs (only if multiple accounts) */}
+        {accountAddresses.length > 1 && (
+          <div className="px-3 py-1.5 border-b border-[var(--border-color)] flex gap-1 overflow-x-auto scrollbar-hide">
+            <button
+              onClick={() => setActiveAccount('all')}
+              className={`px-2 py-1 text-[10px] font-medium rounded transition-colors whitespace-nowrap ${
+                activeAccount === 'all' ? 'bg-brand-500/15 text-brand-400' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+              }`}
+            >
+              All Inboxes
+            </button>
+            {accountAddresses.map(addr => (
+              <button
+                key={addr}
+                onClick={() => setActiveAccount(addr)}
+                className={`px-2 py-1 text-[10px] font-medium rounded transition-colors whitespace-nowrap ${
+                  activeAccount === addr ? 'bg-brand-500/15 text-brand-400' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                }`}
+              >
+                📧 {addr.split('@')[0]}
+              </button>
+            ))}
+          </div>
+        )}
+
         {syncMsg && (
           <div className="px-3 py-1.5 text-[10px] bg-brand-500/10 text-brand-400 border-b border-[var(--border-color)]">
             {syncMsg}
@@ -275,13 +320,13 @@ export function InboxView() {
               </p>
             </div>
           ) : (
-            emails.map((email) => (
-              <button
+            accountFiltered.map((email) => (
+              <div
                 key={email.id}
-                onClick={() => handleSelect(email)}
-                className={`w-full text-left px-3 py-2.5 border-b border-[var(--border-color)] transition-colors ${
+                className={`group w-full text-left px-3 py-2.5 border-b border-[var(--border-color)] transition-colors cursor-pointer ${
                   selected?.id === email.id ? 'bg-[var(--brand-primary)]/8' : 'hover:bg-[var(--bg-surface)]'
                 } ${!email.isRead ? 'border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'}`}
+                onClick={() => handleSelect(email)}
               >
                 <div className="flex items-start gap-2">
                   <button
@@ -301,7 +346,16 @@ export function InboxView() {
                           ? `To: ${email.toEmail || 'Unknown'}`
                           : (email.fromName || email.fromEmail || 'Unknown')}
                       </span>
-                      <span className="text-[10px] text-[var(--text-muted)] flex-shrink-0">{timeAgo(email.receivedAt)}</span>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDiscuss?.(`Let's discuss this email from ${email.fromName || email.fromEmail || 'unknown'}: Subject: "${email.subject}". ${email.snippet ? `Preview: ${email.snippet.substring(0, 200)}` : ''} Help me draft a response or decide on next steps.`); }}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all opacity-0 group-hover:opacity-100"
+                          title="Discuss with Divi"
+                        >
+                          💬
+                        </button>
+                        <span className="text-[10px] text-[var(--text-muted)]">{timeAgo(email.receivedAt)}</span>
+                      </div>
                     </div>
                     <p className={`text-xs truncate ${
                       !email.isRead ? 'font-medium text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'
@@ -324,7 +378,7 @@ export function InboxView() {
                     </div>
                   </div>
                 </div>
-              </button>
+              </div>
             ))
           )}
         </div>
@@ -432,6 +486,10 @@ export function InboxView() {
                     className={`text-lg ${selected.isStarred ? 'text-yellow-400' : 'text-[var(--text-muted)]'}`}>
                     {selected.isStarred ? '★' : '☆'}
                   </button>
+                  <button
+                    onClick={() => onDiscuss?.(`Let's discuss this email from ${selected.fromName || selected.fromEmail || 'unknown'}: Subject: "${selected.subject}". Content: ${(selected.body || selected.snippet || '').substring(0, 500)}. Help me decide how to respond or what action to take.`)}
+                    className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-brand-500/20 text-brand-400 hover:bg-brand-500/10 transition-colors"
+                  >💬 Discuss</button>
                   <button onClick={() => handleDelete(selected.id)}
                     className="text-[11px] font-medium px-3 py-1.5 rounded-md border border-[var(--border-color)] text-red-400/70 hover:text-red-400 hover:bg-red-500/5 transition-colors">Delete</button>
                 </div>

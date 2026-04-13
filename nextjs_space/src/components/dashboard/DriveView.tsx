@@ -91,7 +91,11 @@ function canPreview(doc: Document): boolean {
   return !!getViewerUrl(doc);
 }
 
-export function DriveView() {
+interface DriveViewProps {
+  onDiscuss?: (context: string) => void;
+}
+
+export function DriveView({ onDiscuss }: DriveViewProps = {}) {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Document | null>(null);
@@ -371,7 +375,7 @@ export function DriveView() {
                     key={doc.id}
                     onClick={() => { setSelected(doc); setCreating(false); setEditing(false); }}
                     className={cn(
-                      'border-b border-[var(--border-color)] cursor-pointer transition-colors',
+                      'group border-b border-[var(--border-color)] cursor-pointer transition-colors',
                       selected?.id === doc.id ? 'bg-brand-500/5' : 'hover:bg-[var(--bg-surface)]'
                     )}
                   >
@@ -382,6 +386,13 @@ export function DriveView() {
                         {canPreview(doc) && (
                           <span className="text-[8px] px-1 py-0.5 rounded bg-brand-500/10 text-brand-400 flex-shrink-0">👁</span>
                         )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onDiscuss?.(`Let's discuss this file: "${doc.title}" (${doc.type}). ${doc.content ? `Content preview: ${doc.content.substring(0, 300)}` : ''} Help me review or take action on this document.`); }}
+                          className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                          title="Discuss with Divi"
+                        >
+                          💬
+                        </button>
                       </div>
                     </td>
                     <td className="px-3 py-2 text-[var(--text-muted)] capitalize hidden md:table-cell">

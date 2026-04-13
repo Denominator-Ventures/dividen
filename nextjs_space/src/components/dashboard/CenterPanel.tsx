@@ -159,13 +159,13 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
 
         {/* ── Sub-tabs (Network or Messages) ── */}
         {hasSubRow && (
-          <div className="flex gap-1 w-full border-t border-[var(--border-color)] pt-1.5 pb-1.5 px-1">
+          <div className="flex gap-1 w-full border-t border-[var(--border-color)] pt-1.5 pb-1.5 px-1 overflow-x-auto scrollbar-hide">
             {activeSubTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
                 className={cn(
-                  'px-2.5 py-1 text-[11px] font-medium rounded transition-all',
+                  'px-2.5 py-1 text-[11px] font-medium rounded transition-all whitespace-nowrap flex-shrink-0',
                   activeTab === tab.id
                     ? 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]'
                     : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
@@ -203,10 +203,10 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView prefill={chatPrefill} onPrefillConsumed={onChatPrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
         {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
-        {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView /></TabErrorBoundary>}
-        {activeTab === 'inbox' && <TabErrorBoundary tabName="Inbox"><InboxView /></TabErrorBoundary>}
+        {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
+        {activeTab === 'inbox' && <TabErrorBoundary tabName="Inbox"><InboxView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'recordings' && <TabErrorBoundary tabName="Recordings"><RecordingsView /></TabErrorBoundary>}
-        {activeTab === 'drive' && <TabErrorBoundary tabName="Drive"><DriveView /></TabErrorBoundary>}
+        {activeTab === 'drive' && <TabErrorBoundary tabName="Drive"><DriveView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'discover' && <TabErrorBoundary tabName="Discover"><DiscoverView /></TabErrorBoundary>}
         {activeTab === 'connections' && <TabErrorBoundary tabName="Connections"><ConnectionsView /></TabErrorBoundary>}
         {activeTab === 'teams' && <TabErrorBoundary tabName="Teams"><TeamsView /></TabErrorBoundary>}

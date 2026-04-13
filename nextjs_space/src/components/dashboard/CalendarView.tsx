@@ -52,7 +52,11 @@ const ACCOUNT_COLORS = [
   { dot: 'bg-pink-400', bar: 'bg-pink-500/30', text: 'text-pink-400' },
 ];
 
-export function CalendarView() {
+interface CalendarViewProps {
+  onDiscuss?: (context: string) => void;
+}
+
+export function CalendarView({ onDiscuss }: CalendarViewProps = {}) {
   const [events, setEvents] = useState<CalendarEventData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<CalendarEventData | null>(null);
@@ -190,23 +194,32 @@ export function CalendarView() {
           </button>
         </div>
 
-        {/* Multi-account filter (only when multiple accounts exist) */}
+        {/* Multi-account filter with checkboxes */}
         {accounts.length > 1 && (
           <div className="px-3 py-2 border-b border-[var(--border-color)] flex flex-wrap gap-2">
             {accounts.map((email) => {
               const color = getAccountColor(email);
               const active = visibleAccounts.has(email);
               return (
-                <button
+                <label
                   key={email}
-                  onClick={() => toggleAccount(email)}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-colors ${
-                    active ? 'bg-white/[0.06] text-white' : 'bg-transparent text-white/30 line-through'
+                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium transition-colors cursor-pointer ${
+                    active ? 'bg-white/[0.06] text-white' : 'bg-transparent text-white/30'
                   }`}
                 >
-                  <span className={`w-2 h-2 rounded-full ${active ? color.dot : 'bg-white/20'}`} />
-                  {email.split('@')[0]}
-                </button>
+                  <input
+                    type="checkbox"
+                    checked={active}
+                    onChange={() => toggleAccount(email)}
+                    className="sr-only"
+                  />
+                  <span className={`w-3.5 h-3.5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${
+                    active ? `${color.bar} border-transparent` : 'border-white/20 bg-transparent'
+                  }`}>
+                    {active && <span className="text-[8px] text-white font-bold">✓</span>}
+                  </span>
+                  <span className={active ? '' : 'line-through'}>{email.split('@')[0]}</span>
+                </label>
               );
             })}
           </div>
@@ -235,10 +248,10 @@ export function CalendarView() {
                   </span>
                 </div>
                 {group.events.map((evt) => (
-                  <button
+                  <div
                     key={evt.id}
                     onClick={() => setSelected(evt)}
-                    className={`w-full text-left px-3 py-2.5 border-b border-[var(--border-color)] transition-colors ${
+                    className={`group w-full text-left px-3 py-2.5 border-b border-[var(--border-color)] transition-colors cursor-pointer ${
                       selected?.id === evt.id ? 'bg-[var(--brand-primary)]/8' : 'hover:bg-[var(--bg-surface)]'
                     }`}
                   >
@@ -254,7 +267,16 @@ export function CalendarView() {
                       <div className={`w-0.5 self-stretch rounded-full flex-shrink-0 ${getAccountColor(evt.accountEmail).bar}`} />
                       {/* Event info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium text-[var(--text-primary)] truncate">{evt.title}</p>
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-medium text-[var(--text-primary)] truncate">{evt.title}</p>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDiscuss?.(`Let's discuss this calendar event: "${evt.title}" on ${formatDate(evt.startTime)} at ${formatTime(evt.startTime)}${evt.location ? `, location: ${evt.location}` : ''}. Help me prepare or decide on action items.`); }}
+                            className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
+                            title="Discuss with Divi"
+                          >
+                            💬
+                          </button>
+                        </div>
                         {evt.location && (
                           <p className="text-[10px] text-[var(--text-muted)] truncate mt-0.5">📍 {evt.location}</p>
                         )}
@@ -265,7 +287,7 @@ export function CalendarView() {
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             ))

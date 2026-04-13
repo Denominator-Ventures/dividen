@@ -51,6 +51,7 @@ interface NowPanelProps {
   onItemClick?: (title: string) => void;
   onOpenBoard?: () => void;
   onOpenEarnings?: () => void;
+  onDiscuss?: (context: string) => void;
 }
 
 const URGENCY_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
@@ -69,7 +70,7 @@ const TYPE_ICONS: Record<string, string> = {
   goal_check: '⚡',
 };
 
-export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings }: NowPanelProps) {
+export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings, onDiscuss }: NowPanelProps) {
   const [data, setData] = useState<NowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [showNewTask, setShowNewTask] = useState(false);
@@ -131,6 +132,26 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
       setCreating(false);
     }
   };
+
+  const handleMarkComplete = useCallback(async (item: NowItem) => {
+    setOnboardingActions((prev) => ({ ...prev, [item.sourceId]: 'completing' }));
+    try {
+      await fetch(`/api/queue/${item.sourceId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done_today' }),
+      });
+      fetchNow();
+    } catch (e) {
+      console.error('Failed to mark complete:', e);
+    } finally {
+      setOnboardingActions((prev) => {
+        const next = { ...prev };
+        delete next[item.sourceId];
+        return next;
+      });
+    }
+  }, [fetchNow]);
 
   const handleOnboardingAction = useCallback(async (sourceId: string, action: 'complete' | 'skip') => {
     setOnboardingActions((prev) => ({ ...prev, [sourceId]: action === 'complete' ? 'completing' : 'skipping' }));
@@ -266,25 +287,43 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
                       <span className="text-[8px] text-[var(--text-muted)] font-mono flex-shrink-0">{item.score}</span>
                     </button>
 
-                    {/* Onboarding task actions */}
-                    {isOnboarding && (
-                      <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'complete'); }}
-                          disabled={!!actionInProgress}
-                          className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
-                        >
-                          {actionInProgress === 'completing' ? '...' : '✓ Done'}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'skip'); }}
-                          disabled={!!actionInProgress}
-                          className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
-                        >
-                          {actionInProgress === 'skipping' ? '...' : 'Skip'}
-                        </button>
-                      </div>
-                    )}
+                    {/* Item action buttons */}
+                    <div className="flex items-center gap-1.5 px-2.5 pb-2 pt-0">
+                      {isOnboarding ? (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'complete'); }}
+                            disabled={!!actionInProgress}
+                            className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                          >
+                            {actionInProgress === 'completing' ? '...' : '✓ Done'}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleOnboardingAction(item.sourceId, 'skip'); }}
+                            disabled={!!actionInProgress}
+                            className="text-[9px] px-2 py-0.5 rounded-full bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-color)] hover:text-[var(--text-secondary)] transition-colors disabled:opacity-50"
+                          >
+                            {actionInProgress === 'skipping' ? '...' : 'Skip'}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMarkComplete(item); }}
+                            disabled={!!actionInProgress}
+                            className="text-[9px] px-2 py-0.5 rounded-full bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20 transition-colors disabled:opacity-50"
+                          >
+                            {actionInProgress === 'completing' ? '...' : '✓ Complete'}
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); onDiscuss?.(`Let's discuss this task: "${item.title}". ${item.subtitle ? `Context: ${item.subtitle}` : ''} Priority: ${item.urgency}. Help me work through this and close it out.`); }}
+                            className="text-[9px] px-2 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-colors"
+                          >
+                            💬 Discuss
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })}

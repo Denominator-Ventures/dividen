@@ -54,6 +54,11 @@ export default function DashboardPage() {
     setActiveTab('chat');
   }, []);
 
+  const handleDiscuss = useCallback((context: string) => {
+    setChatPrefill(context);
+    setActiveTab('chat');
+  }, []);
+
   /** Triage a specific signal — uses user's custom prompt if set, else smart default */
   const handleTriage = useCallback(async (signalId: string) => {
     try {
@@ -445,13 +450,13 @@ export default function DashboardPage() {
           ) : (
             <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
               <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-                <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} />
+                <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} />
               </div>
               <div className="flex-1 min-w-0" data-walkthrough="center-panel">
                 <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
               </div>
               <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-                <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} />
+                <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onDiscuss={handleDiscuss} />
               </div>
             </div>
           )}
@@ -468,7 +473,7 @@ export default function DashboardPage() {
                 <>
                   {mobilePanel === 'now' && (
                     <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                      <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} />
+                      <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
                     </div>
                   )}
                   {mobilePanel === 'center' && (
@@ -478,7 +483,7 @@ export default function DashboardPage() {
                   )}
                   {mobilePanel === 'queue' && (
                     <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                      <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} />
+                      <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
                     </div>
                   )}
                 </>

@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
+import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
+import type { WidgetItem, WidgetItemAction, AgentWidgetData } from './AgentWidget';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -702,6 +704,19 @@ function MessageBubble({ message, userPhoto, userName, diviName }: { message: Ch
         <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
           {message.content}
         </p>
+        {/* Agent Widget rendering */}
+        {(() => {
+          const widgetPayload = parseWidgetPayload(message.metadata);
+          if (!widgetPayload) return null;
+          return (
+            <AgentWidgetContainer
+              payload={widgetPayload}
+              onAction={(item: WidgetItem, action: WidgetItemAction, widget: AgentWidgetData) => {
+                console.log('[AgentWidget] Action:', { item: item.id, action: action.action, widget: widget.title });
+              }}
+            />
+          );
+        })()}
         <p className="text-[10px] text-[var(--text-muted)] mt-1">
           {formatTime(message.createdAt)}
         </p>
