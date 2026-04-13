@@ -39,6 +39,7 @@ export default function InstancesTab({ token }: { token: string }) {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'trusted' | 'linked'>('all');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
   const fetchInstances = useCallback(async () => {
     try {
@@ -63,6 +64,19 @@ export default function InstancesTab({ token }: { token: string }) {
       await fetchInstances();
     } catch (err) {
       console.error('Toggle failed:', err);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const deleteInstance = async (id: string) => {
+    setActionLoading(id);
+    try {
+      await adminFetch(`/api/admin/instances?id=${id}`, { method: 'DELETE' });
+      setDeleteConfirm(null);
+      await fetchInstances();
+    } catch (err) {
+      console.error('Delete failed:', err);
     } finally {
       setActionLoading(null);
     }
@@ -185,6 +199,32 @@ export default function InstancesTab({ token }: { token: string }) {
                   >
                     {inst.isActive ? 'Deactivate' : 'Activate'}
                   </button>
+                  {deleteConfirm === inst.id ? (
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => deleteInstance(inst.id)}
+                        disabled={actionLoading === inst.id}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-red-500/20 text-red-400 hover:bg-red-500/40 transition-colors"
+                      >
+                        {actionLoading === inst.id ? '…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(null)}
+                        className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setDeleteConfirm(inst.id)}
+                      disabled={actionLoading === inst.id}
+                      className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-white/[0.04] text-red-400/60 hover:bg-red-400/10 hover:text-red-400 transition-colors"
+                      title="Delete instance"
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

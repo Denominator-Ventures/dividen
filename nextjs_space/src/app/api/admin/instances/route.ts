@@ -102,6 +102,35 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function DELETE(req: NextRequest) {
+  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'Missing id query parameter' }, { status: 400 });
+
+    // Check instance exists
+    const instance = await prisma.instanceRegistry.findUnique({ where: { id } });
+    if (!instance) return NextResponse.json({ error: 'Instance not found' }, { status: 404 });
+
+    // Clean up marketplace agents from this instance
+    const deletedAgents = await prisma.marketplaceAgent.deleteMany({
+      where: { sourceInstanceId: id },
+    });
+
+    // Delete the instance
+    await prisma.instanceRegistry.delete({ where: { id } });
+
+    console.log(`[Admin] Deleted instance ${id} (${instance.name}) — removed ${deletedAgents.count} marketplace agents`);
+
+    return NextResponse.json({ success: true, deleted: { instance: instance.name, marketplaceAgents: deletedAgents.count } });
+  } catch (error) {
+    console.error('Admin delete instance error:', error);
+    return NextResponse.json({ error: 'Failed to delete instance' }, { status: 500 });
+  }
+}
+
 export async function PATCH(req: NextRequest) {
   if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 

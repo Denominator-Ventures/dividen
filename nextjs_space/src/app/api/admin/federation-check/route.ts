@@ -1,8 +1,6 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
 
 /**
  * POST /api/admin/federation-check
@@ -21,21 +19,15 @@ interface CheckResult {
   detail: string;
 }
 
-export async function POST(req: NextRequest) {
-  // Admin auth
+function verifyAdmin(req: NextRequest): boolean {
   const authHeader = req.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  if (!authHeader?.startsWith('Bearer ')) return false;
+  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
+}
 
-  const admin = await prisma.user.findFirst({ where: { role: 'admin' } });
-  if (!admin) {
-    return NextResponse.json({ error: 'No admin user' }, { status: 401 });
-  }
-  const valid = await bcrypt.compare(token, admin.passwordHash);
-  if (!valid) {
-    return NextResponse.json({ error: 'Invalid admin password' }, { status: 401 });
+export async function POST(req: NextRequest) {
+  if (!verifyAdmin(req)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const body = await req.json().catch(() => ({}));
