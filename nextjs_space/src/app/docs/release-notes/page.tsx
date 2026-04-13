@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — Capabilities Marketplace, Queue Gating, Integration-Gated Installs, Federation v2, and more.',
+  description: 'DiviDen release notes — Federation Pricing, Admin Marketplace, Tiered & Dynamic Pricing, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'Capabilities Marketplace, Queue Gating, Integration-Gated Installs, Federation v2, and more.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=Capabilities+Marketplace+%2B+Queue+Gating&tag=release', width: 1200, height: 630 }],
+    description: 'Federation Pricing, Admin Marketplace, Tiered & Dynamic Pricing, Smart Task Assembly, and more.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=Federation+Pricing+%2B+Admin+Marketplace&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'Capabilities Marketplace, Queue Gating, Integration-Gated Installs, Federation v2, and more.',
-    images: ['/api/og?title=Release+Notes&subtitle=Capabilities+Marketplace+%2B+Queue+Gating&tag=release'],
+    description: 'Federation Pricing, Admin Marketplace, Tiered & Dynamic Pricing, Smart Task Assembly, and more.',
+    images: ['/api/og?title=Release+Notes&subtitle=Federation+Pricing+%2B+Admin+Marketplace&tag=release'],
   },
 };
 
@@ -38,17 +38,126 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 13, 2026 — CAPABILITIES MARKETPLACE RELEASE */}
+        {/* APRIL 13, 2026 — FEDERATION PRICING + ADMIN EXPANSION */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
           <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 13, 2026</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.1.0</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">MCP Server: v1.6</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.2.0</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Federation API: v2.1</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.5</span>
             <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
           </div>
-          <h2 className="text-2xl font-bold mb-4 font-heading">Capabilities Marketplace, Queue Gating & Integration-Gated Installs</h2>
+          <h2 className="text-2xl font-bold mb-4 font-heading">Federation Pricing, Admin Marketplace & UX Improvements</h2>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+
+            {/* Dynamic Pricing */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">💰 Tiered & Dynamic Pricing</h3>
+              <p className="mb-2">Marketplace agents now support four pricing models — from free through dynamic, agent-quoted pricing.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><strong className="text-white">Pricing models:</strong> <code className="code-inline">free</code>, <code className="code-inline">per_task</code>, <code className="code-inline">tiered</code>, and <code className="code-inline">dynamic</code></li>
+                <li><strong className="text-white">Tiered pricing:</strong> Volume-based rate tiers — price resolved by cumulative task count</li>
+                <li><strong className="text-white">Dynamic pricing:</strong> Agent returns a price quote mid-execution → checkout widget rendered in chat → user approves or declines before any charge</li>
+                <li>Two-phase execution model: <code className="code-inline">immediate → quoted → approved / declined</code></li>
+                <li>New <code className="code-inline">MarketplaceExecution</code> fields: <code className="code-inline">pricingPhase</code>, <code className="code-inline">quoteAmount</code>, <code className="code-inline">quoteCurrency</code>, <code className="code-inline">quoteMetadata</code>, <code className="code-inline">quotedAt</code>, <code className="code-inline">approvedAt</code></li>
+                <li>Pricing utility library: <code className="code-inline">parsePricingConfig</code>, <code className="code-inline">serializePricingConfig</code>, <code className="code-inline">resolveExecutionPrice</code></li>
+              </ul>
+            </div>
+
+            {/* Quote Approval */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">✅ Quote Approval Flow</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>New <code className="code-inline">POST /api/marketplace/:id/execute/:executionId</code> — approve or decline a quoted price</li>
+                <li>Approve triggers Stripe charge and updates revenue accumulators</li>
+                <li>Decline sets <code className="code-inline">pricingPhase: &apos;declined&apos;</code> with no charge</li>
+                <li><code className="code-inline">GET .../:executionId</code> returns full execution status including quote details</li>
+                <li>Chat widget <code className="code-inline">onAction</code> handler wired for <code className="code-inline">purchase</code> / <code className="code-inline">decline</code> actions</li>
+              </ul>
+            </div>
+
+            {/* Federation Agents Expanded */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🌐 Federation Agent Sync — Full Config</h3>
+              <p className="mb-2">The agent sync endpoints now accept comprehensive configuration during registration.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><strong className="text-white">Pricing config:</strong> <code className="code-inline">pricingModel</code>, <code className="code-inline">pricingConfig</code> object (tiers, min/max for dynamic), <code className="code-inline">pricePerTask</code>, <code className="code-inline">subscriptionPrice</code>, <code className="code-inline">taskLimit</code></li>
+                <li><strong className="text-white">Integration kit:</strong> <code className="code-inline">taskTypes</code>, <code className="code-inline">contextInstructions</code>, <code className="code-inline">requiredInputSchema</code>, <code className="code-inline">outputSchema</code>, <code className="code-inline">usageExamples</code>, <code className="code-inline">executionNotes</code></li>
+                <li><strong className="text-white">Display:</strong> <code className="code-inline">installGuide</code>, <code className="code-inline">commands</code>, <code className="code-inline">samplePrompts</code>, <code className="code-inline">version</code>, <code className="code-inline">agentCardUrl</code></li>
+                <li><strong className="text-white">Protocol flags:</strong> <code className="code-inline">supportsA2A</code>, <code className="code-inline">supportsMCP</code></li>
+              </ul>
+            </div>
+
+            {/* Single Agent Endpoint */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔗 Single Agent Register / Update / Delete</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">PUT /api/v2/federation/agents/:remoteId</code> — register or update a single agent (upsert)</li>
+                <li><code className="code-inline">GET /api/v2/federation/agents/:remoteId</code> — retrieve agent details + revenue stats</li>
+                <li><code className="code-inline">DELETE /api/v2/federation/agents/:remoteId</code> — remove agent, cascade-delete subscriptions and executions</li>
+                <li>Slug conflict returns <code className="code-inline">409</code> with actionable error</li>
+              </ul>
+            </div>
+
+            {/* Admin Marketplace */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🛠️ Admin Marketplace Expansion</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Admin MarketplaceTab rewritten with 4 sub-tabs: <strong className="text-white">Agents</strong>, <strong className="text-white">Capabilities</strong>, <strong className="text-white">+ Capability</strong>, <strong className="text-white">+ Agent</strong></li>
+                <li>Publisher attribution: <code className="code-inline">publisherName</code>, <code className="code-inline">publisherType</code> (platform / community / partner), <code className="code-inline">publisherUrl</code></li>
+                <li>Approval workflow: <code className="code-inline">approvalStatus</code> (pending / approved / rejected) with admin PATCH control</li>
+                <li>8 new Agent Skills capabilities seeded (<code className="code-inline">skillFormat: true</code>, source: agentskills.io)</li>
+                <li>Capabilities and Agents APIs unified to Bearer auth</li>
+                <li>User capability submission with approval flow</li>
+              </ul>
+            </div>
+
+            {/* Marketplace UI */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🎨 Marketplace UI Updates</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Agent pricing badges: <code className="code-inline">free</code> (emerald), <code className="code-inline">per_task</code> (amber), <code className="code-inline">subscription</code> (purple), <code className="code-inline">tiered</code> (blue), <code className="code-inline">dynamic</code> (pink)</li>
+                <li>Tiered pricing display: &quot;From $X/task&quot;</li>
+                <li>Dynamic pricing display: &quot;~$min–$max/task&quot; or &quot;Dynamic&quot;</li>
+                <li>Capability cards show publisher name and skill badges</li>
+              </ul>
+            </div>
+
+            {/* UX Improvements */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚙️ UX Improvements</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><strong className="text-white">Smart Task Assembly:</strong> Multi-step wizard replaces simple add-item form — define task type, objective, priority, context, expected outcome</li>
+                <li><strong className="text-white">Inbox → Email:</strong> Tab renamed across CenterPanel, keyboard nav, and global search</li>
+                <li><strong className="text-white">Settings resilience:</strong> Profile, Relay, and Divi settings panels now retry on load failure</li>
+                <li><strong className="text-white">Network Auto-Connect:</strong> <code className="code-inline">/api/network/status</code> endpoint; FederationManager triggers automatic registration check</li>
+              </ul>
+            </div>
+
+            {/* v2 Docs */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📡 API Documentation</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>OpenAPI spec updated with full <code className="code-inline">/federation/agents</code> batch and single-agent endpoints</li>
+                <li>Request/response schemas include <code className="code-inline">pricingConfig</code>, integration kit fields, and protocol flags</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 13, 2026 — CAPABILITIES MARKETPLACE RELEASE */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 13, 2026</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Platform: v1.1.0</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">MCP Server: v1.6</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.5</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 font-heading text-[var(--text-secondary)]">Capabilities Marketplace, Queue Gating & Integration-Gated Installs</h2>
 
           <div className="space-y-6 text-sm text-[var(--text-secondary)]">
 

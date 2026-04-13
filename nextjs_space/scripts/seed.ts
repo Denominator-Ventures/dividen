@@ -22,7 +22,7 @@ async function main() {
   });
 
   // Seed admin account
-  const adminPasswordHash = await bcrypt.hash('DiviDen2024!', 12);
+  const adminPasswordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'changeme', 12);
 
   await prisma.user.upsert({
     where: { email: 'admin@dividen.ai' },
