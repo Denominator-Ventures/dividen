@@ -682,12 +682,146 @@ Authorization: Bearer <platformToken>`}</Code>
             </div>
           </Section>
 
+          {/* ═══ DISCUSS WITH DIVI ═════════════════════════════════════ */}
+          <Section id="discuss-with-divi" title="Discuss with Divi">
+            <p className="text-[var(--text-secondary)] mb-4">
+              Every view in the dashboard now includes a <InlineCode>💬</InlineCode> &quot;Discuss with Divi&quot; button.
+              One click assembles context from whatever you&apos;re looking at and pre-fills the chat input.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">How It Works</h3>
+            <ol className="text-sm text-[var(--text-secondary)] space-y-2 list-decimal list-inside mb-6">
+              <li>Click the 💬 button on any item (email, queue task, calendar event, drive file)</li>
+              <li>DiviDen assembles a context string from the item metadata</li>
+              <li>Chat input is pre-filled with the context and the Chat tab activates</li>
+              <li>Divi recognizes the pre-filled context and responds in scope</li>
+            </ol>
+
+            <h3 className="text-lg font-bold text-white mb-3">Supported Views</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+              {[
+                { view: 'NOW Panel', ctx: 'Top-priority item title, source, and due info' },
+                { view: 'Queue Panel', ctx: 'Queue item title, action tag, status' },
+                { view: 'Inbox View', ctx: 'Email subject, sender, thread snippet' },
+                { view: 'Calendar View', ctx: 'Event title, time, attendees' },
+                { view: 'Drive View', ctx: 'File name, type, last modified' },
+              ].map((v) => (
+                <div key={v.view} className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-3">
+                  <div className="text-sm font-bold text-white">{v.view}</div>
+                  <div className="text-xs text-[var(--text-muted)] mt-1">{v.ctx}</div>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">Implementation Pattern</h3>
+            <Code title="onDiscuss callback">
+{`// Every view component accepts onDiscuss
+onDiscuss={(context: string) => {
+  setChatPrefill(context);
+  setActiveTab('chat');
+}}`}
+            </Code>
+          </Section>
+
+          {/* ═══ AGENTWIDGET SYSTEM ════════════════════════════════════════ */}
+          <Section id="agent-widgets" title="AgentWidget System">
+            <p className="text-[var(--text-secondary)] mb-4">
+              Agents can return structured widget metadata in chat responses. The <InlineCode>AgentWidget</InlineCode> component
+              renders these as interactive UI components — choice cards, action lists, info cards, and payment prompts.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Widget Types</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+              {[
+                { type: 'choice_card', desc: 'Present labeled options with action callbacks (navigate, execute, dismiss)' },
+                { type: 'action_list', desc: 'List of items with per-item action buttons (approve, reject, etc.)' },
+                { type: 'info_card', desc: 'Read-only structured data — summaries, breakdowns, status cards' },
+                { type: 'payment_prompt', desc: 'Transactional widget with price, payment action, and confirmation flow' },
+              ].map((w) => (
+                <div key={w.type} className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-3">
+                  <code className="text-sm font-mono text-brand-400">{w.type}</code>
+                  <div className="text-xs text-[var(--text-muted)] mt-1">{w.desc}</div>
+                </div>
+              ))}
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">Widget Protocol</h3>
+            <Code title="Metadata JSON (in chat message)">
+{`{
+  "widgets": [
+    {
+      "type": "choice_card",
+      "title": "Which license tier?",
+      "items": [
+        {
+          "id": "tier-basic",
+          "title": "Basic — $49/mo",
+          "actions": [
+            { "label": "Select", "type": "button", "action": "select_tier_basic" }
+          ]
+        }
+      ]
+    }
+  ]
+}`}
+            </Code>
+
+            <h3 className="text-lg font-bold text-white mb-3">Where Widgets Render</h3>
+            <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside mb-6">
+              <li><strong>ChatView</strong> — Inline below the agent&apos;s text response</li>
+              <li><strong>QueuePanel</strong> — In the detail view of queue items with widget metadata</li>
+            </ul>
+
+            <h3 className="text-lg font-bold text-white mb-3">Payment Flow (Marketplace Agents)</h3>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">
+              Marketplace agents use <InlineCode>payment_prompt</InlineCode> widgets to charge for work.
+              The flow is: surface catalog → user selects → present payment prompt → process via Stripe Connect (97% to agent provider, 3% network fee).
+              Everything happens inline in chat — no redirects.
+            </p>
+          </Section>
+
+          {/* ═══ INBOX FEATURES ════════════════════════════════════════════ */}
+          <Section id="inbox-features" title="Inbox: Multi-Account & Drafts">
+            <h3 className="text-lg font-bold text-white mb-3">Multi-Account Support</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Operators can connect up to 3 Google accounts per identity. Each account is tracked via <InlineCode>IntegrationAccount.accountIndex</InlineCode> (0, 1, 2).
+              When multiple accounts are connected, the inbox shows account filter tabs — auto-derived from connected accounts.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Gmail API Send</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Google-connected accounts now send email via the <strong>Gmail API</strong> (<InlineCode>users.messages.send</InlineCode> with RFC 2822 raw encoding)
+              instead of SMTP. No app passwords or SMTP relay config needed. SMTP/nodemailer remains the fallback for non-Google integrations.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Drafts & Inline Reply</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The Inbox filter tabs now include <strong>Drafts</strong> alongside All / Unread / Starred.
+              The inline reply bar sits at the bottom of message threads — always visible when viewing a thread.
+            </p>
+          </Section>
+
+          {/* ═══ CALENDAR & NOW ════════════════════════════════════════════ */}
+          <Section id="calendar-now" title="Calendar & NOW Panel Updates">
+            <h3 className="text-lg font-bold text-white mb-3">Calendar Checkboxes</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Calendar events now use checkbox-style toggles instead of the old button-style toggles. Cleaner, more familiar interaction pattern.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">NOW Panel: Mark Complete</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              The top NOW item now has a ✓ button. Clicking it sends a <InlineCode>PATCH</InlineCode> to <InlineCode>/api/queue/&#123;id&#125;</InlineCode> with <InlineCode>done_today: true</InlineCode>.
+              No need to navigate to the queue view to clear the top-priority item.
+            </p>
+          </Section>
+
           {/* Footer */}
           <div className="border-t border-white/[0.06] pt-8 mt-16 text-center">
             <p className="text-sm text-[var(--text-muted)]">
               Built by <span className="text-white">DiviDen</span> — the individual-first operating system.
             </p>
             <div className="flex items-center justify-center gap-4 mt-3">
+              <a href="/open-source" className="text-xs text-brand-400 hover:text-brand-300">Open Source</a>
               <a href="/docs/developers" className="text-xs text-brand-400 hover:text-brand-300">API Reference</a>
               <a href="/docs/release-notes" className="text-xs text-brand-400 hover:text-brand-300">Changelog</a>
               <a href="/" className="text-xs text-brand-400 hover:text-brand-300">Home</a>

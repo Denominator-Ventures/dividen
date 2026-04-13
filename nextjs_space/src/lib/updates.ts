@@ -17,6 +17,126 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'agent-widget-system',
+    date: '2026-04-13',
+    time: '6:30 PM',
+    title: 'AgentWidget System — Interactive Components in Chat & Kanban',
+    subtitle: 'Agents can now render rich interactive widgets — choice cards, action lists, info cards, and payment prompts — directly in chat and on queue items.',
+    tags: ['agent-widget', 'chat', 'kanban', 'marketplace', 'payments', 'protocol', 'platform'],
+    content: `This one changes how agents communicate. Instead of text-only responses, agents can now return structured widget metadata that renders as interactive UI components.
+
+## What Are AgentWidgets?
+
+An AgentWidget is a typed UI component that an agent can attach to any chat message or queue item. Four types ship today:
+
+- **choice_card** — Present the user with a set of labeled options. Each option can carry an action type (navigate, execute, dismiss) so the agent knows what the user chose.
+- **action_list** — A list of items with action buttons. Think: "Here are 3 invoices that need approval" with Approve/Reject buttons on each.
+- **info_card** — Read-only structured data. Agent surfaces a summary, a breakdown, or a status card.
+- **payment_prompt** — A transactional widget with a price, a payment action, and a confirmation flow. This is how marketplace agents charge for work.
+
+## The Protocol
+
+Agents return widget data in the metadata JSON of a chat response:
+
+\`\`\`json
+{
+  "widgets": [
+    {
+      "type": "choice_card",
+      "title": "Which license tier?",
+      "items": [
+        {
+          "id": "tier-basic",
+          "title": "Basic — $49/mo",
+          "actions": [
+            { "label": "Select", "type": "button", "action": "select_tier_basic" }
+          ]
+        },
+        {
+          "id": "tier-pro",
+          "title": "Pro — $149/mo",
+          "actions": [
+            { "label": "Select", "type": "button", "action": "select_tier_pro" }
+          ]
+        }
+      ]
+    }
+  ]
+}
+\`\`\`
+
+The \`AgentWidget.tsx\` component parses this metadata and renders the appropriate widget type. Actions are dispatched back to the agent via the existing chat action pipeline.
+
+## Payment Prompts — The Synqabl Example
+
+This is the pattern Jon had in mind when designing the system. A music licensing agent (like Synqabl) can:
+
+1. Surface a catalog of tracks as an \`action_list\`
+2. Let the user preview and select
+3. Present a \`payment_prompt\` with the price and license terms
+4. Process payment via Stripe Connect (97% to the agent provider, 3% network fee)
+
+The widget renders inline in chat — no redirects, no external checkout. The agent handles the entire transaction loop.
+
+## Where Widgets Appear
+
+- **ChatView** — Widgets render inline below the agent's text response
+- **QueuePanel** — Queue items with widget metadata render the widget in the detail view
+- **Coming soon** — Widget rendering in relay messages and the brief
+
+## Technical Details
+
+- Widget metadata lives in the chat message's \`metadata\` JSON field — no schema changes
+- The \`AgentWidget\` component is at \`src/components/dashboard/AgentWidget.tsx\`
+- Widget types are extensible — add a new type string and a corresponding render branch
+- Payment actions integrate with the existing Stripe Connect flow on the managed platform`,
+  },
+  {
+    id: 'discuss-with-divi',
+    date: '2026-04-13',
+    time: '5:45 PM',
+    title: 'Discuss with Divi — Contextual Chat from Any View',
+    subtitle: 'Every item in your dashboard now has a 💬 button. One click pre-fills chat with full context so you can ask Divi about anything you\'re looking at.',
+    tags: ['chat', 'ux', 'inbox', 'queue', 'calendar', 'drive', 'discuss', 'platform'],
+    content: `Small UX change, big workflow impact. Every panel in the dashboard now has a "Discuss with Divi" button (💬) that opens chat with context already loaded.
+
+## How It Works
+
+When you click the 💬 button on any item, DiviDen:
+1. Assembles a context string from the item you're viewing (email subject, sender, queue item title, calendar event details, drive file name)
+2. Pre-fills the chat input with that context
+3. Switches to the Chat tab automatically
+
+You're immediately in a conversation about the thing you were just looking at. No copy-pasting, no "hey Divi, regarding that email from..."
+
+## Where It Shows Up
+
+- **NOW Panel** — Discuss the top-priority item with Divi
+- **Queue Panel** — Ask about any queued task, get recommendations on approach
+- **Inbox View** — Discuss an email thread — ask for a draft reply, summarize the thread, or get context on the sender
+- **Calendar View** — Ask about upcoming meetings, prep notes, or scheduling conflicts
+- **Drive View** — Discuss a document — summarize it, extract action items, or ask questions about its contents
+
+## The Pattern
+
+Every view component now accepts an \`onDiscuss\` callback:
+
+\`\`\`typescript
+onDiscuss={(context: string) => {
+  setChatPrefill(context);
+  setActiveTab('chat');
+}}
+\`\`\`
+
+The context string is human-readable and structured enough for Divi to understand what you're referring to. The agent's system prompt already knows about the discuss pattern — it recognizes pre-filled context and responds accordingly.
+
+## Also in This Release
+
+- **NOW Panel: Mark Complete** — The top NOW item now has a ✓ button that marks it complete (PATCH to \`/api/queue/{id}\` with \`done_today: true\`). No need to go into the queue view to clear it.
+- **Inbox: Account Filtering** — If you have multiple Google accounts connected, the inbox now shows account filter tabs. Auto-derived from connected accounts — appears only when >1 account exists.
+- **Calendar: Checkbox UI** — Calendar events now use checkbox-style toggles instead of the old button-style toggles. Cleaner, more familiar.`,
+  },
+  {
     id: 'capabilities-marketplace-queue-gating',
     date: '2026-04-13',
     time: '3:45 PM',

@@ -586,6 +586,7 @@ Content-Type: application/json`}</Code>
             Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
+            <a href="/open-source" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Open Source</a>
             <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>
             <a href="/docs/federation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Federation</a>
             <a href="/docs/release-notes" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Changelog</a>

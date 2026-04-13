@@ -327,6 +327,7 @@ export default function IntegrationDocsPage() {
         <div className="border-t border-[var(--border-primary)] pt-6 text-center text-sm text-[var(--text-muted)]">
           <p>Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system</p>
           <div className="flex items-center justify-center gap-4 mt-2">
+            <a href="/open-source" className="text-brand-400 hover:text-brand-300">Open Source</a>
             <a href="/documentation" className="text-brand-400 hover:text-brand-300">Documentation</a>
             <a href="/docs/developers" className="text-brand-400 hover:text-brand-300">API Reference</a>
             <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">Federation</a>

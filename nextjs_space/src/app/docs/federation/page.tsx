@@ -789,7 +789,7 @@ X-Federation-Token: <token-from-connection-handshake>
             Open source: <a href="https://github.com/Denominator-Ventures/dividen" className="text-brand-400 hover:text-brand-300" target="_blank" rel="noopener noreferrer">github.com/Denominator-Ventures/dividen</a>
           </p>
           <p className="text-sm text-[var(--text-muted)]">
-            OS docs &amp; self-hosting: <a href="https://os.dividen.ai" className="text-brand-400 hover:text-brand-300" target="_blank" rel="noopener noreferrer">os.dividen.ai</a>
+            OS docs &amp; self-hosting: <a href="/open-source" className="text-brand-400 hover:text-brand-300">dividen.ai/open-source</a>
           </p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">Documentation</a>

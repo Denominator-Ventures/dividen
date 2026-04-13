@@ -147,9 +147,9 @@ export function LandingPage() {
                 </span>
               )}
             </Link>
-            <a href="https://os.dividen.ai" target="_blank" rel="noopener noreferrer" className="text-sm text-white/50 hover:text-white transition-colors">
+            <Link href="/open-source" className="text-sm text-white/50 hover:text-white transition-colors">
               Open Source
-            </a>
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -490,10 +490,16 @@ export function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
+                href="/open-source"
+                className="w-full sm:w-auto text-center bg-white/[0.06] hover:bg-white/[0.1] border border-white/[0.1] text-white font-medium px-8 py-3.5 rounded-xl transition-all"
+              >
+                Explore Open Source →
+              </Link>
+              <Link
                 href="/setup"
                 className="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-black font-medium px-8 py-3.5 rounded-xl transition-all hover:shadow-lg hover:shadow-brand-500/20"
               >
-                Try the Managed Platform →
+                Try Managed Platform →
               </Link>
             </div>
           </div>
@@ -547,11 +553,11 @@ export function LandingPage() {
                   </span>
                 )}
               </Link>
-              <Link href="/terms" className="hover:text-white/60 transition-colors">
-                Terms
+              <Link href="/open-source" className="hover:text-white/60 transition-colors">
+                Open Source
               </Link>
-              <Link href="/privacy" className="hover:text-white/60 transition-colors">
-                Privacy
+              <Link href="/documentation" className="hover:text-white/60 transition-colors">
+                Docs
               </Link>
               <a href="https://denominator.ventures" target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">© 2026 Denominator Ventures</a>
             </div>
