@@ -81,6 +81,9 @@ const TOC = [
   { id: 'smart-tagging', label: 'Smart Tagging' },
   { id: 'drag-scroll', label: 'DragScrollContainer' },
   { id: 'board-cortex', label: 'Board Cortex Intelligence' },
+  { id: 'onboarding-v2', label: 'Project-Based Onboarding' },
+  { id: 'cockpit-mode', label: 'Cockpit Mode & Work Partner' },
+  { id: 'auto-patterns', label: 'Auto-Discuss / Auto-Complete' },
   { id: 'now-engine', label: 'NOW Engine Correlation' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
@@ -1156,11 +1159,172 @@ if (isOnCard) return; // Let dnd-kit handle card drag
           </ul>
         </Section>
 
-        {/* ── NOW Engine Correlation ─────────────────────────── */}
-        <Section id="now-engine" title="NOW Engine: Calendar-Queue Correlation">
+        {/* ── Project-Based Onboarding ────────────────────────── */}
+        <Section id="onboarding-v2" title="Project-Based Onboarding (v2)">
           <p className="text-[var(--text-secondary)] mb-4">
-            The NOW engine (<InlineCode>src/lib/now-engine.ts</InlineCode>) dynamically prioritizes queue items
-            by cross-referencing them with upcoming calendar events.
+            Onboarding in DiviDen is not a wizard — it&apos;s a project. The old 6-phase system is replaced
+            by a real kanban project with checklist tasks that show up in the Now Panel and can be discussed with Divi.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Flow</h4>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li><strong className="text-white">Welcome modal</strong> — Two-step: intro screen → API key entry (Anthropic/OpenAI selector). Component: <InlineCode>OnboardingWelcome.tsx</InlineCode></li>
+            <li><strong className="text-white"><InlineCode>POST /api/onboarding/intro</InlineCode></strong> — Creates project + 1 kanban card (&quot;DiviDen Setup&quot;) + 6 checklist items + chat messages, all in a <InlineCode>$transaction</InlineCode> with parallelized reads</li>
+            <li><strong className="text-white">Choice</strong> — &quot;Walk me through it&quot; (due today) or &quot;I&apos;ll handle it myself&quot; (due in 1 week)</li>
+            <li><strong className="text-white"><InlineCode>POST /api/onboarding/setup-project</InlineCode></strong> — Updates due dates on checklist items, returns <InlineCode>firstTaskText</InlineCode> for auto-discussion</li>
+            <li><strong className="text-white">Auto-discuss</strong> — First task discussion auto-sent to chat via <InlineCode>__AUTOSEND__</InlineCode> prefix</li>
+          </ol>
+
+          <h4 className="text-base font-bold text-white mb-2">Setup Checklist Items</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <ol className="list-decimal list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+              <li>Configure Working Style</li>
+              <li>Set Triage Preferences</li>
+              <li>Connect Email &amp; Calendar</li>
+              <li>Review Connected Signals</li>
+              <li>Custom Signals (optional)</li>
+              <li>Run First Catch-Up</li>
+            </ol>
+          </div>
+          <p className="text-[var(--text-secondary)] mb-4">
+            All items have <InlineCode>assigneeType=&apos;self&apos;</InlineCode> and appear naturally in the Now Panel via the NOW engine.
+            Setup tasks are visible to Divi through the normal kanban context (Group 2) — no special onboarding block needed.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">API Key Gate</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The dashboard checks <InlineCode>apiKeys.some(k =&gt; k.isActive)</InlineCode>. No active key → shows
+            <InlineCode>OnboardingWelcome</InlineCode> at step 2, regardless of onboarding phase. Accepts <InlineCode>initialStep</InlineCode> prop.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Legacy Compatibility</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The old <InlineCode>onboardingPhase</InlineCode> field still works for pre-v2 users. New users get phase set to 6 immediately
+            after <InlineCode>/api/onboarding/intro</InlineCode>. The <InlineCode>/api/onboarding/advance</InlineCode> endpoint still works for legacy flows.
+          </p>
+        </Section>
+
+        {/* ── Cockpit Mode & Work Partner ────────────────────── */}
+        <Section id="cockpit-mode" title="Cockpit Mode &amp; Work Partner Behavior">
+          <p className="text-[var(--text-secondary)] mb-4">
+            In cockpit mode, Divi behaves as a <strong className="text-white">work partner</strong> — proactively working through
+            the operator&apos;s task list instead of passively waiting for instructions.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Behavior Loop</h4>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>System prompt includes operator&apos;s incomplete checklist tasks (ranked by NOW engine)</li>
+            <li>Divi picks the highest-priority item and opens discussion</li>
+            <li>Helps the operator execute — may fire capabilities directly (email, calendar) for low-risk actions</li>
+            <li>Marks the task complete via <InlineCode>[[complete_checklist:&#123;&quot;id&quot;:&quot;...&quot;&#125;]]</InlineCode></li>
+            <li>Suggests follow-on tasks or creates them via <InlineCode>[[create_checklist:&#123;...&#125;]]</InlineCode></li>
+            <li>Moves to the next priority</li>
+          </ol>
+
+          <h4 className="text-base font-bold text-white mb-2">System Prompt Integration</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The batch fetch in <InlineCode>buildSystemPrompt()</InlineCode> now queries <InlineCode>checklistItems</InlineCode> with
+            <InlineCode>assigneeType=&apos;self&apos;</InlineCode> and <InlineCode>completed: false</InlineCode>.
+            These are injected as <InlineCode>myChecklistTasks</InlineCode> in the Active State (Group 2), giving Divi
+            visibility into the operator&apos;s to-do list with due dates and parent card context.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Three Assignment Types</h4>
+          <div className="space-y-2 mb-4">
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm"><InlineCode>&quot;self&quot;</InlineCode> — Operator does it. Shows in Now Panel.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm"><InlineCode>&quot;divi&quot;</InlineCode> — Agent handles via queue/capabilities.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm"><InlineCode>&quot;delegated&quot;</InlineCode> — Routed to another user&apos;s Divi via relay.</p>
+            </div>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">Activity Logging</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Actions executed from chat are logged to the activity feed via <InlineCode>logActivity()</InlineCode> or
+            direct <InlineCode>prisma.activityLog.create()</InlineCode>:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-1 text-sm">
+            <li><InlineCode>send_email</InlineCode> → logs <InlineCode>capability_executed</InlineCode></li>
+            <li><InlineCode>create_calendar_event</InlineCode> → logs <InlineCode>capability_executed</InlineCode></li>
+            <li><InlineCode>complete_checklist</InlineCode> → logs <InlineCode>task_completed</InlineCode> with card title</li>
+          </ul>
+        </Section>
+
+        {/* ── Auto-Discuss / Auto-Complete Patterns ─────────── */}
+        <Section id="auto-patterns" title="Auto-Discuss &amp; Auto-Complete Patterns">
+          <p className="text-[var(--text-secondary)] mb-4">
+            DiviDen uses several automation patterns to reduce friction. These patterns are reusable beyond onboarding.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">__AUTOSEND__ Prefix</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            When <InlineCode>chatPrefill</InlineCode> starts with the string <InlineCode>__AUTOSEND__</InlineCode>,
+            <InlineCode>ChatView</InlineCode> automatically sends the message instead of just filling the input field.
+            Used for initiating contextual conversations programmatically.
+          </p>
+          <Code>{`// In dashboard/page.tsx
+setChatPrefill('__AUTOSEND__Let\\'s discuss: ' + firstTaskText);
+
+// In ChatView.tsx — uses pendingAutoSend ref pattern
+const pendingAutoSend = useRef<string | null>(null);
+
+useEffect(() => {
+  if (chatPrefill?.startsWith('__AUTOSEND__')) {
+    pendingAutoSend.current = chatPrefill.replace('__AUTOSEND__', '');
+  }
+}, [chatPrefill]);
+
+// After messages load, check and fire
+useEffect(() => {
+  if (pendingAutoSend.current && messages.length > 0) {
+    sendMessage(pendingAutoSend.current);
+    pendingAutoSend.current = null;
+  }
+}, [messages]);`}</Code>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Auto-Complete on Settings Save</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The <InlineCode>/api/onboarding/advance</InlineCode> endpoint matches saved settings to setup checklist items
+            and marks them complete automatically. For example, saving &quot;Working Style&quot; settings auto-completes
+            the &quot;Configure Working Style&quot; checklist item. Pattern: keyword match against
+            checklist <InlineCode>text</InlineCode> field on the user&apos;s setup card.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Auto-Install Capabilities on Google Connect</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The Google OAuth callback (<InlineCode>/api/auth/callback/google-connect</InlineCode>) silently upserts
+            <InlineCode>AgentCapability</InlineCode> records for &apos;email&apos; (Outbound Email) and &apos;meetings&apos; (Meeting Scheduling)
+            with default rules. Also auto-completes the &quot;Connect Email &amp; Calendar&quot; setup task if it exists.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Interactive Settings Widgets</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The <InlineCode>show_settings_widget</InlineCode> action tag renders interactive settings controls directly
+            in chat messages. Available groups:
+          </p>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3 mb-4">
+            <p className="text-sm font-mono text-[var(--text-secondary)]">
+              <InlineCode>working_style</InlineCode> | <InlineCode>triage</InlineCode> | <InlineCode>goals</InlineCode> | <InlineCode>identity</InlineCode> | <InlineCode>all</InlineCode>
+            </p>
+          </div>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Widget definitions live in <InlineCode>src/lib/onboarding-phases.ts</InlineCode> → <InlineCode>getSettingsWidgets()</InlineCode>.
+            Rendered by <InlineCode>AgentWidget.tsx</InlineCode> when <InlineCode>isSettingsWidget</InlineCode> metadata is present on a message.
+          </p>
+        </Section>
+
+        {/* ── NOW Engine Correlation ─────────────────────────── */}
+        <Section id="now-engine" title="NOW Engine: Priority Scoring &amp; Calendar Correlation">
+          <p className="text-[var(--text-secondary)] mb-4">
+            The NOW engine (<InlineCode>src/lib/now-engine.ts</InlineCode>) produces the operator&apos;s priority stack using
+            deterministic scoring — no LLM. Sources: active kanban cards (assignee=&apos;human&apos;), checklist items
+            (assigneeType=&apos;self&apos;), calendar events, goals with deadlines, and relay responses. Queue items are
+            <strong className="text-white"> excluded</strong> — they belong to Divi. Calendar events within 60 minutes
+            boost related items by +25 score.
           </p>
 
           <h4 className="text-base font-bold text-white mb-2">Correlation Algorithm</h4>

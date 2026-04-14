@@ -17,6 +17,103 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'cockpit-mode-onboarding-v2-auto-everything',
+    date: '2026-04-14',
+    time: '11:59 PM',
+    title: 'Cockpit Mode, Onboarding v2 & the Auto-Everything Update',
+    subtitle: 'We were so excited about the Cortex that we almost forgot to share the other half of the session. Divi is now a work partner, onboarding is a project, and half the manual steps are gone.',
+    tags: ['cockpit-mode', 'onboarding', 'work-partner', 'auto-discuss', 'auto-complete', 'capabilities', 'settings-widgets', 'system-prompt'],
+    content: `We shipped the Board Cortex update and got so deep into the intelligence layer that we almost forgot — there's an entire second half of this session that never got its own post. This is that post.
+
+## Onboarding v2 — Onboarding Is a Project
+
+The old 6-phase onboarding wizard is dead. The new system has one idea: **onboarding IS a project.**
+
+When you enter your API key and hit "Get Started," DiviDen creates a real project called "DiviDen Setup" with a single kanban card and six checklist items:
+
+1. Configure Working Style
+2. Set Triage Preferences
+3. Connect Email & Calendar
+4. Review Connected Signals
+5. Custom Signals (optional)
+6. Run First Catch-Up
+
+These aren't tutorial steps in a wizard. They're **real tasks** on your board that show up in your Now Panel, that Divi can discuss with you, and that get marked complete when you actually do them.
+
+You pick "Walk me through it" or "I'll handle it myself." That sets the pace (due today vs. one week), and then Divi immediately starts discussing your first task.
+
+### Why This Matters
+
+Every other platform teaches you the platform and then hopes you'll use it. We just put you to work. The setup tasks are the product. By the time you're "done onboarding," you've already configured your agent, connected your signals, and run your first catch-up. There's nothing to transition to.
+
+## Cockpit Mode — Divi as Work Partner
+
+This is the big behavior change. When you open chat, Divi now **proactively works through your Now list**.
+
+The system prompt includes your incomplete checklist tasks, ranked by the NOW engine. Divi picks the highest priority item, helps you execute it, marks it complete via \`[[complete_checklist:{...}]]\`, and moves to the next one. No prompt needed. You just open chat.
+
+### What "Work Partner" Means in Practice
+
+- Divi sees your assigned checklist items in the system prompt
+- It picks the top item and starts discussing how to tackle it
+- When context is clear and risk is low, it can execute capabilities directly (send an email, create a calendar event) without going through the queue
+- Everything gets logged to the activity feed
+- After marking one task done, it suggests creating follow-on tasks or moves to the next priority
+
+This is the opposite of a chatbot sitting there waiting. Divi has a to-do list and it's working through it.
+
+## Auto-Everything
+
+Three things that used to require manual clicks are now automatic:
+
+### Auto-Discuss
+
+When onboarding completes, Divi doesn't wait for you to type. It auto-sends a message discussing your first setup task. The \`__AUTOSEND__\` prefix on chat prefill triggers automatic send instead of just filling the input. This pattern is reusable anywhere you want to kick off a contextual conversation.
+
+### Auto-Complete Setup Tasks
+
+When you save your working style via the interactive settings widget in chat, the matching setup checklist item ("Configure Working Style") automatically marks complete. Same for triage preferences, goals, and any other setting that maps to a setup task. No "done" button needed.
+
+### Auto-Install Capabilities
+
+When you connect Google (email/calendar), the system silently installs the corresponding agent capabilities — Outbound Email and Meeting Scheduling — with sensible default rules. You discover them later in the Capabilities tab. Zero friction.
+
+## Interactive Settings Widgets in Chat
+
+This one's subtle but powerful. When Divi discusses a setup task like "Configure Working Style," it doesn't just describe what to do — it renders **actual working settings controls** directly in the chat message.
+
+The \`show_settings_widget\` action tag triggers real interactive UI components: sliders, toggles, selectors. You configure your preferences right in the conversation, the settings save to the backend, and the corresponding checklist task auto-completes.
+
+## Speed Fix — Instant Onboarding
+
+The intro API was rewritten to use a \`$transaction\` with parallelized reads. Creating the project, card, checklist items, and chat messages now happens in a single atomic operation with all database reads running in parallel. What used to feel sluggish now feels instant.
+
+## Activity Feed Integration
+
+Three action tags now log to the activity feed:
+
+- **\`send_email\`** — logs "capability_executed" when Divi sends an email from chat
+- **\`create_calendar_event\`** — logs "capability_executed" when Divi creates a meeting
+- **\`complete_checklist\`** — logs "task_completed" with the card title and task text
+
+This means every significant action Divi takes from chat is auditable. The activity stream tells the full story.
+
+## System Prompt Overhaul
+
+The system prompt got a serious refresh this session:
+
+- **Checklist tasks in context** — Divi now sees operator's incomplete checklist items with due dates, assignee types, and parent card context
+- **Work partner behavioral instructions** — New cockpit mode behavior: pick highest priority → help execute → mark complete → suggest follow-ons → next item
+- **Setup project awareness** — During onboarding, Divi naturally sees setup tasks through the normal kanban context (Group 2), no special onboarding block needed
+- **Board Cortex digest** — (covered in the Cortex post) Pre-digested intelligence replaces raw data analysis
+
+## What's Next
+
+The roadmap from here: scheduled daemon for Board Cortex auto-cleaning, linked Kards for cross-user task visibility, and pushing CoS mode toward full autonomous task processing with the comms channel.
+
+— Jon`,
+  },
+  {
     id: 'board-cortex-intelligence-layer',
     date: '2026-04-14',
     time: '11:59 PM',
