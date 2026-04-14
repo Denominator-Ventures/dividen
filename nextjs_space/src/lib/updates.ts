@@ -102,9 +102,13 @@ Each node has a description. The arrows animate to show flow direction. The loop
 
 Built with CSS animations — no external charting library. The nodes pulse subtly on hover. On mobile, the loop renders as a vertical flow with curved connectors.
 
+## Homepage Diagram Update
+
+While we were at it, we updated the main homepage diagram to match the new loop mental model. The old version showed a vague "AI assistant" pitch — the new one distills how DiviDen actually changes your workflow down to its simplest form. Shoutout to Robert for helping us figure out the cleanest way to present the potential impact of DiviDen on how you work. Sometimes the hardest part of building an OS is explaining what it does in one picture — he made that click.
+
 ---
 
-These changes close the loop between conversation and execution in a very literal way — you can now manage your entire task pipeline without leaving the chat, and the marketing page finally shows what the product actually does.
+These changes close the loop between conversation and execution in a very literal way — you can now manage your entire task pipeline without leaving the chat, and the homepage finally explains what that means for your day-to-day.
 
 — Jon`
   },
