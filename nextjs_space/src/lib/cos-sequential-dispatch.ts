@@ -55,10 +55,90 @@ function parseTaskHandler(item: any): { strategy: 'capability' | 'relay' | 'gene
 }
 
 /**
+ * Find a qualifying project contributor to delegate a task to.
+ * Checks ProjectMember records for the item's project (or team's projects).
+ * Returns the best-match connection if one exists, or null.
+ */
+async function findProjectContributor(
+  userId: string,
+  item: any,
+  meta: any
+): Promise<{ connectionId: string; peerName: string; projectId: string } | null> {
+  // Determine which project this task belongs to
+  const projectId = item.projectId || meta?.projectId;
+  if (!projectId) return null;
+
+  // Find all project members who are NOT the task owner and have a connection link
+  const contributors = await prisma.projectMember.findMany({
+    where: {
+      projectId,
+      role: { in: ['lead', 'contributor'] }, // observers and reviewers don't execute
+      NOT: { userId },
+    },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      connection: {
+        select: {
+          id: true,
+          status: true,
+          peerUserName: true,
+          peerUserEmail: true,
+          nickname: true,
+          accepterId: true,
+          requesterId: true,
+          peerUserId: true,
+        },
+      },
+    },
+  });
+
+  if (contributors.length === 0) return null;
+
+  // Prefer contributors with active connections (for relay delegation)
+  // Local users without connections can't receive relays — they'd need to be on the same instance
+  for (const c of contributors) {
+    if (c.connection && c.connection.status === 'active') {
+      return {
+        connectionId: c.connection.id,
+        peerName: c.connection.peerUserName || c.connection.nickname || c.user?.name || 'project contributor',
+        projectId,
+      };
+    }
+  }
+
+  // Fall back to local users on the same instance (create a local relay)
+  for (const c of contributors) {
+    if (c.userId && c.user) {
+      // Find or check if there's a connection between the task owner and this user
+      const localConnection = await prisma.connection.findFirst({
+        where: {
+          status: 'active',
+          OR: [
+            { requesterId: userId, accepterId: c.userId },
+            { requesterId: c.userId, accepterId: userId },
+          ],
+        },
+      });
+      if (localConnection) {
+        return {
+          connectionId: localConnection.id,
+          peerName: c.user.name || c.user.email || 'project contributor',
+          projectId,
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
  * Execute a queue item based on its handler type.
- * For capability tasks: logs the execution as activity (actual send happens via capability integration).
- * For relay tasks: creates an AgentRelay to the connected agent.
- * For generic tasks: logs that Divi is working on it.
+ * Strategy priority:
+ *   1. Capability tasks → invoke the capability and log as activity
+ *   2. Relay tasks (explicit handler) → send relay to the specified connected agent
+ *   3. Project contributor delegation → if the task is in a project, delegate to a qualifying contributor
+ *   4. Generic tasks → Divi works on it directly
  */
 async function executeTask(userId: string, item: any): Promise<{ executed: boolean; method: string; detail?: string }> {
   const { strategy, handler, meta } = parseTaskHandler(item);
@@ -116,6 +196,40 @@ async function executeTask(userId: string, item: any): Promise<{ executed: boole
     }
 
     default: {
+      // Before falling back to generic, check if there's a project contributor we can delegate to
+      const contributor = await findProjectContributor(userId, item, meta);
+      if (contributor) {
+        const relayPayload = meta?.optimizedPayload
+          ? { source: 'cos_project_delegation', priority: item.priority || 'medium', projectId: contributor.projectId, ...meta.optimizedPayload }
+          : { source: 'cos_project_delegation', taskDescription: item.description || item.title, priority: item.priority || 'medium', projectId: contributor.projectId };
+
+        const connection = await prisma.connection.findUnique({ where: { id: contributor.connectionId } });
+        if (connection) {
+          await prisma.agentRelay.create({
+            data: {
+              type: 'request',
+              intent: 'assign_task',
+              subject: meta?.displaySummary || item.title,
+              payload: JSON.stringify(relayPayload),
+              status: 'pending',
+              fromUserId: userId,
+              toUserId: connection.peerUserId || connection.accepterId || connection.requesterId,
+              connectionId: contributor.connectionId,
+              queueItemId: item.id,
+              projectId: contributor.projectId,
+            },
+          });
+
+          await logActivity({
+            userId,
+            action: 'cos_project_delegated',
+            actor: 'divi',
+            summary: `CoS delegated "${item.title}" to project contributor ${contributor.peerName}`,
+          });
+          return { executed: true, method: 'project_delegation', detail: `Delegated to ${contributor.peerName}` };
+        }
+      }
+
       // Generic task — Divi is working on it
       await logActivity({
         userId,
