@@ -7,9 +7,13 @@ import { prisma } from '@/lib/prisma';
 
 /**
  * POST /api/onboarding/intro
- * Creates the DiviDen Setup project + kanban cards, then sends Divi's intro
- * message + "together or solo?" choice widget into chat.
- * Called after the user saves their API key in the OnboardingWelcome modal.
+ * Creates:
+ *  1. A "DiviDen Setup" project
+ *  2. One kanban card in 'active' column with 6 checklist tasks
+ *  3. Divi's intro message + "together or solo?" choice widget in chat
+ *
+ * The setup card is a real card. The tasks are real checklist items with due dates
+ * and assignees. They flow through the Now Panel like any other task.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -38,9 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, data: { alreadyExists: true } });
     }
 
-    // ── Create the DiviDen Setup project + cards immediately ──
-    // The project exists on the board from the start. The choice widget
-    // just determines due dates (now vs 1 week).
+    // ── Create project + card + checklist tasks ──
     const existingProject = await prisma.project.findFirst({
       where: {
         createdById: userId,
@@ -49,82 +51,85 @@ export async function POST(req: NextRequest) {
     });
 
     let projectId = existingProject?.id;
+    let cardId: string | undefined;
 
     if (!existingProject) {
       const now = new Date();
+
+      // Create project
       const project = await prisma.project.create({
         data: {
           name: 'DiviDen Setup',
-          description: 'Get your command center configured — each step is a task on your board.',
+          description: 'Get your command center configured — each step is a task.',
           status: 'active',
           visibility: 'private',
           color: '#6366f1',
           createdById: userId,
           metadata: JSON.stringify({ isSetupProject: true }),
-          members: {
-            create: { userId, role: 'lead' },
-          },
+          members: { create: { userId, role: 'lead' } },
         },
       });
       projectId = project.id;
 
-      // Create setup task cards — due dates will be updated when user makes their choice
+      // Create ONE card — the setup card
+      const card = await prisma.kanbanCard.create({
+        data: {
+          title: 'DiviDen Setup',
+          description: 'Your onboarding checklist. Complete each task to get your command center fully configured.',
+          status: 'active', // Active column, not leads
+          priority: 'high',
+          assignee: 'human',
+          dueDate: now,
+          order: 0,
+          userId,
+          projectId: project.id,
+        },
+      });
+      cardId = card.id;
+
+      // Create checklist tasks on that card
       const setupTasks = [
         {
-          title: "Configure Divi's Working Style",
-          description: 'Set how Divi communicates with you — verbosity, proactivity, autonomy, and formality levels. This shapes every interaction.',
-          priority: 'high',
+          text: "Configure Divi's Working Style",
           order: 0,
         },
         {
-          title: 'Set Triage Preferences',
-          description: 'Choose how Divi should handle incoming signals — aggressive filtering, balanced, or let everything through.',
-          priority: 'high',
+          text: 'Set Triage Preferences',
           order: 1,
         },
         {
-          title: 'Connect Email & Calendar',
-          description: 'Link your Google account so Divi can read your inbox, calendar, and files. This is how Divi sees your world.',
-          priority: 'urgent',
+          text: 'Connect Email & Calendar',
           order: 2,
         },
         {
-          title: "Review What's Connected",
-          description: 'See what signals Divi can now read and what capabilities are active. Confirm everything looks right.',
-          priority: 'medium',
+          text: "Review What's Connected",
           order: 3,
         },
         {
-          title: 'Set Up Custom Signals (Optional)',
-          description: 'Add webhook endpoints or custom integrations for Slack, GitHub, CRM, or other tools you use daily.',
-          priority: 'low',
+          text: 'Set Up Custom Signals (Optional)',
           order: 4,
         },
         {
-          title: 'Run Your First Catch-Up',
-          description: 'Let Divi scan all connected sources and build your initial priority stack. This is where the magic starts.',
-          priority: 'high',
+          text: 'Run Your First Catch-Up',
           order: 5,
         },
       ];
 
-      await Promise.all(
-        setupTasks.map((task) =>
-          prisma.kanbanCard.create({
-            data: {
-              title: task.title,
-              description: task.description,
-              status: task.order === 0 ? 'active' : 'leads',
-              priority: task.priority,
-              assignee: 'human',
-              dueDate: now, // Default to now — updated if user chooses "solo"
-              order: task.order,
-              userId,
-              projectId: project.id,
-            },
-          })
-        )
-      );
+      await prisma.checklistItem.createMany({
+        data: setupTasks.map((task) => ({
+          text: task.text,
+          order: task.order,
+          cardId: card.id,
+          dueDate: now, // Default: due now. Updated if user chooses "solo"
+          assigneeType: 'self', // Assigned to the human operator
+        })),
+      });
+    } else {
+      // Project already exists — find the card
+      const existingCard = await prisma.kanbanCard.findFirst({
+        where: { projectId: existingProject.id, userId },
+      });
+      cardId = existingCard?.id;
     }
 
     // ── Create chat messages ──
@@ -134,7 +139,7 @@ I read your signals — email, calendar, files, webhooks — and turn them into 
 
 Think of me as your operating layer. I don't just answer questions — I manage the flow of your work.
 
-I've put a **DiviDen Setup** project on your board with ${6} tasks to get everything configured.`;
+I've put a **DiviDen Setup** card on your board with 6 tasks to get everything configured. You can see them in your Now panel too.`;
 
     const choiceMessage = `How would you like to tackle the setup?`;
 
@@ -169,7 +174,7 @@ I've put a **DiviDen Setup** project on your board with ${6} tasks to get everyt
                 },
                 {
                   value: 'solo',
-                  label: '🛠️ I\'ll explore on my own',
+                  label: "🛠️ I'll explore on my own",
                   description: "Tasks due in a week — I'll check in if anything's still open",
                 },
               ],
@@ -194,7 +199,7 @@ I've put a **DiviDen Setup** project on your board with ${6} tasks to get everyt
       },
     });
 
-    return NextResponse.json({ success: true, data: { projectId } });
+    return NextResponse.json({ success: true, data: { projectId, cardId } });
   } catch (err: any) {
     console.error('POST /api/onboarding/intro error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -392,26 +392,40 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         return;
       }
 
-      // ── Setup choice (together/solo) — update due dates on existing setup project ──
+      // ── Setup choice (together/solo) — update due dates on existing setup card ──
       if (phase === 0 && data?.setupMode) {
-        // Project already exists on the board (created during intro).
+        // Project + card already exist on the board (created during intro).
         // "solo" pushes due dates out 1 week; "together" keeps them as today.
-        await fetch('/api/onboarding/setup-project', {
+        const setupRes = await fetch('/api/onboarding/setup-project', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: data.setupMode }),
         });
+        const setupResult = await setupRes.json();
 
-        const confirmContent = data.setupMode === 'together'
-          ? `Great — let's do this together. Your **DiviDen Setup** tasks are all due today and the first one is ready on your board.\n\nLet's start — ask me anything or just say "let's go" and I'll walk you through the first task.`
-          : `No problem — your setup tasks are due in a week. Take your time exploring.\n\nI'll check in if anything's still open. You can always ask me for help with any of them.`;
-
-        setMessages(prev => [...prev, {
-          id: `msg-setup-confirm-${Date.now()}`,
-          role: 'assistant' as const,
-          content: confirmContent,
-          createdAt: new Date().toISOString(),
-        }]);
+        if (data.setupMode === 'together') {
+          // Auto-trigger discussion of the first task — like clicking "Discuss"
+          const firstTask = setupResult.data?.firstTask;
+          if (firstTask) {
+            // Send a message as if the user asked Divi to walk through this task
+            const msg = `Let's start the setup. Walk me through the first task: "${firstTask.text}"`;
+            await sendMessage(msg);
+          } else {
+            setMessages(prev => [...prev, {
+              id: `msg-setup-confirm-${Date.now()}`,
+              role: 'assistant' as const,
+              content: `Great — let's do this together. Your setup tasks are due today. Let's start with the first one.`,
+              createdAt: new Date().toISOString(),
+            }]);
+          }
+        } else {
+          setMessages(prev => [...prev, {
+            id: `msg-setup-confirm-${Date.now()}`,
+            role: 'assistant' as const,
+            content: `No problem — your setup tasks are due in a week. Take your time exploring.\n\nI'll check in if anything's still open. You can always ask me for help with any of them.`,
+            createdAt: new Date().toISOString(),
+          }]);
+        }
         return;
       }
 
@@ -436,7 +450,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     } catch (err) {
       console.error('Onboarding action failed:', err);
     }
-  }, []);
+  }, [sendMessage]);
 
   // ── Quick actions (no API key) ───────────────────────────────────────
   const quickActions = [

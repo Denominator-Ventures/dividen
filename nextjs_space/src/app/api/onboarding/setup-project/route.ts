@@ -7,10 +7,12 @@ import { prisma } from '@/lib/prisma';
 
 /**
  * POST /api/onboarding/setup-project
- * Updates the DiviDen Setup project's due dates based on mode choice.
+ * Updates setup card checklist due dates based on mode choice.
  * Body: { mode: 'together' | 'solo' }
- *   - together: tasks due today
+ *   - together: tasks due today (card stays due today)
  *   - solo: tasks due in 1 week
+ * 
+ * Returns the first checklist task info so the client can auto-discuss it.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -33,31 +35,55 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Setup project not found' }, { status: 404 });
     }
 
+    // Find the setup card
+    const card = await prisma.kanbanCard.findFirst({
+      where: { projectId: project.id, userId },
+      include: {
+        checklist: { orderBy: { order: 'asc' } },
+      },
+    });
+
+    if (!card) {
+      return NextResponse.json({ error: 'Setup card not found' }, { status: 404 });
+    }
+
     const now = new Date();
     const oneWeek = new Date(now);
     oneWeek.setDate(oneWeek.getDate() + 7);
     const dueDate = mode === 'together' ? now : oneWeek;
 
-    // Update all setup project cards with the chosen due date
-    await prisma.kanbanCard.updateMany({
-      where: { projectId: project.id, userId },
-      data: { dueDate },
-    });
+    // Update card due date + all checklist item due dates
+    await Promise.all([
+      prisma.kanbanCard.update({
+        where: { id: card.id },
+        data: { dueDate },
+      }),
+      prisma.checklistItem.updateMany({
+        where: { cardId: card.id },
+        data: { dueDate },
+      }),
+    ]);
 
     // Store the mode choice in project metadata
     await prisma.project.update({
       where: { id: project.id },
       data: {
         metadata: JSON.stringify({ isSetupProject: true, setupMode: mode }),
-        description: mode === 'together'
-          ? "Let's get your command center configured — Divi will walk you through each step."
-          : 'Your setup checklist — complete at your own pace. Divi will check in if anything\'s outstanding.',
       },
     });
 
+    // Return the first incomplete task for auto-discussion
+    const firstTask = card.checklist.find((t: any) => !t.completed);
+
     return NextResponse.json({
       success: true,
-      data: { projectId: project.id, mode, dueDate },
+      data: {
+        projectId: project.id,
+        cardId: card.id,
+        mode,
+        dueDate,
+        firstTask: firstTask ? { id: firstTask.id, text: firstTask.text } : null,
+      },
     });
   } catch (err: any) {
     console.error('Setup project update error:', err);

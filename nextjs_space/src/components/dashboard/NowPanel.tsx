@@ -5,7 +5,7 @@ import { ActivityStream } from './ActivityStream';
 
 interface NowItem {
   id: string;
-  type: 'queue' | 'goal_deadline' | 'kanban_due' | 'relay_response' | 'calendar_prep' | 'goal_check';
+  type: 'queue' | 'goal_deadline' | 'kanban_due' | 'relay_response' | 'calendar_prep' | 'goal_check' | 'checklist_task';
   title: string;
   subtitle?: string;
   score: number;
@@ -67,6 +67,7 @@ const TYPE_ICONS: Record<string, string> = {
   kanban_due: '📌',
   relay_response: '🔗',
   calendar_prep: '📅',
+  checklist_task: '☑️',
   goal_check: '⚡',
 };
 
@@ -157,6 +158,16 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status: 'done' }),
         });
+      } else if (item.type === 'checklist_task') {
+        // Complete a checklist task on a card
+        const cardId = item.meta?.cardId;
+        if (cardId) {
+          await fetch(`/api/kanban/${cardId}/checklist/${item.sourceId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed: true }),
+          });
+        }
       }
       fetchNow();
     } catch (e) {
