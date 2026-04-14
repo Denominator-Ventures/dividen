@@ -396,11 +396,14 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     try {
       // Phase -1 = settings adjustment (not onboarding) — save settings via show_settings endpoint
       if (phase === -1) {
-        await fetch('/api/onboarding/advance', {
+        const settingsRes = await fetch('/api/onboarding/advance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'show_settings', settings: data }),
         });
+        const settingsResult = await settingsRes.json();
+        const { tasksCompleted, nextTaskText, allTasksComplete } = settingsResult?.data || {};
+
         // Add confirmation message
         setMessages(prev => [...prev, {
           id: `msg-confirm-${Date.now()}`,
@@ -408,6 +411,17 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           content: '✅ Settings updated! Your changes are active now.',
           createdAt: new Date().toISOString(),
         }]);
+
+        // Auto-continue the conversation if a setup task was completed
+        if (tasksCompleted) {
+          setTimeout(() => {
+            if (allTasksComplete) {
+              sendMessage('All my setup tasks are done! What should I focus on now?');
+            } else if (nextTaskText) {
+              sendMessage(`That's saved. I'm ready — what's next on my setup list?`);
+            }
+          }, 600);
+        }
         return;
       }
 

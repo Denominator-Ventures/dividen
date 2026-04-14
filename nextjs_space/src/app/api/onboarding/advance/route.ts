@@ -296,7 +296,33 @@ async function handleShowSettings(userId: string, group: string, settings?: any)
       }
     }
 
-    return NextResponse.json({ success: true, data: { saved: true, tasksCompleted: taskPatterns[group] ? true : false } });
+    // Determine the next incomplete setup task (for conversational auto-continue)
+    let nextTaskText: string | null = null;
+    let allTasksComplete = false;
+    if (taskPatterns[group]) {
+      const nextTask = await prisma.checklistItem.findFirst({
+        where: {
+          completed: false,
+          card: {
+            userId,
+            status: { in: ['active', 'in_progress', 'development'] },
+            OR: [
+              { title: { contains: 'Setup' } },
+              { project: { metadata: { contains: '"isSetupProject":true' } } },
+            ],
+          },
+        },
+        orderBy: { order: 'asc' },
+        select: { text: true },
+      });
+      if (nextTask) {
+        nextTaskText = nextTask.text;
+      } else {
+        allTasksComplete = true;
+      }
+    }
+
+    return NextResponse.json({ success: true, data: { saved: true, tasksCompleted: taskPatterns[group] ? true : false, nextTaskText, allTasksComplete } });
   }
 
   // Load current values and generate widget config
