@@ -1,9 +1,9 @@
 # DiviDen Command Center — Deep Agent Handoff Document
 
-> **Last Updated**: April 14, 2026 — End of Session (Board Cortex v1.5.0)  
+> **Last Updated**: April 14, 2026 — End of Session (Board Cortex v1.5.0 + Cockpit Mode + Onboarding v2)  
 > **Author**: AI Agent (for Jon, Denominator Ventures)  
 > **Purpose**: Provide deep context for continuing development in a new Deep Agent thread.  
-> **Git State**: `origin/main` at `4afa1bc` on `github.com/Denominator-Ventures/dividen.git`  
+> **Git State**: `origin/main` at `461bcfa` on `github.com/Denominator-Ventures/dividen.git`  
 > **Deployed**: Live on `dividen.ai` + `sdfgasgfdsgsdg.abacusai.app` (both untagged — single deploy updates both)
 
 ---
@@ -245,16 +245,34 @@ All significant operations (task completions, capability executions, queue dispa
 
 ## 8. What Was Built This Session (Chronological)
 
-1. **Project-based onboarding v2** — Replaced 6-phase system with "onboarding is a project" approach. Single card, 6 checklist items.
-2. **Cockpit mode / Work Partner behavior** — Divi proactively works through NOW list. Picks highest-priority → helps execute → marks complete → next.
-3. **Auto-discuss on welcome** — "Get Started" auto-sends first setup task discussion to chat.
-4. **Auto-complete matching checklist tasks** — Settings save auto-completes the matching setup task.
-5. **Auto-install capabilities on Google connect** — Email + meetings capabilities auto-created.
-6. **Interactive settings widget** — `show_settings_widget` renders actual working settings UI in chat.
-7. **Board Cortex intelligence layer** — Full board analysis: dedup, stale detection, escalation, archive candidates, health scoring, context digest for system prompt.
-8. **NowPanel redesign** — Reordered layout, removed redundant buttons.
-9. **System prompt optimization** — Cortex digest integration, conditional TOP FOCUS, behavioral instructions.
-10. **Developer docs, changelog, git push** — Full documentation of Board Cortex.
+### Phase 1: Onboarding & Cockpit Mode
+1. **Project-based onboarding v2** — Replaced 6-phase wizard with "onboarding is a project." `POST /api/onboarding/intro` creates project + 1 kanban card ("DiviDen Setup") + 6 checklist items + chat messages in a single `$transaction` with parallelized reads. User picks "Walk me through it" (due today) or "I'll handle it myself" (due 1 week). `POST /api/onboarding/setup-project` sets dates, returns `firstTaskText`.
+2. **API key gate fix** — Dashboard checks `apiKeys.some(k => k.isActive)`. No active key → shows `OnboardingWelcome` at step 2 regardless of onboarding phase.
+3. **Now Panel / Queue separation** — Now Panel shows operator priorities (kanban cards assignee='human', checklist items assigneeType='self'). Queue shows Divi's inbox. No overlap. `handleMarkComplete` distinguishes `kanban_due` types from queue items.
+4. **Cockpit mode / Work Partner behavior** — System prompt now includes operator's incomplete checklist tasks ranked by NOW engine. Divi proactively picks highest-priority → helps execute → marks complete via `[[complete_checklist:...]]` → suggests follow-ons → next item.
+5. **Auto-discuss on welcome** — `__AUTOSEND__` prefix on `chatPrefill` triggers automatic message send. Uses `pendingAutoSend` ref pattern in ChatView to handle timing.
+6. **Auto-complete matching checklist tasks** — `/api/onboarding/advance` matches saved settings keywords to setup checklist items and marks them complete automatically.
+7. **Auto-install capabilities on Google connect** — `/api/auth/callback/google-connect` silently upserts `AgentCapability` for 'email' (Outbound Email) and 'meetings' (Meeting Scheduling) with default rules. Also auto-completes the "Connect Email & Calendar" setup task.
+8. **Interactive settings widgets in chat** — `show_settings_widget` action tag renders real interactive settings controls (sliders, toggles, selectors) in chat. Widget definitions in `onboarding-phases.ts` → `getSettingsWidgets()`. Rendered by `AgentWidget.tsx`.
+9. **Speed fix** — Intro API rewritten with `$transaction` + `Promise.all` parallelized reads. Instant.
+10. **Activity feed integration** — `send_email`, `create_calendar_event`, `complete_checklist` action tags now log to `activityLog` with `capability_executed` or `task_completed` actions.
+
+### Phase 2: Board Cortex & UI Polish
+11. **Board Cortex intelligence layer** — `src/lib/board-cortex.ts`: 8 pure functions for board analysis (detectDuplicates, detectDuplicateTasks, findStaleCards, findEscalationCandidates, findArchiveCandidates, computeBoardHealth, buildContextDigest, runBoardScan). Levenshtein-based, no LLM. API at `GET/POST /api/board/cortex`. New `BoardInsight` Prisma model.
+12. **NowPanel redesign** — Reordered: Stats → Priority Stack → Calendar Gap → "Open Board" button. Removed +Task and Chat buttons.
+13. **System prompt optimization** — Cortex digest injected as "🧠 Board Intelligence" in Group 2. TOP FOCUS conditional (only when health issues). "Board Intelligence" behavioral instruction in cockpit mode.
+14. **Bug fix: merge_cards parameter names** — Cortex was emitting `sourceId`/`targetId` but action tag expects `sourceCardId`/`targetCardId`. Fixed.
+
+### Phase 3: Documentation & Deployment
+15. **Updates wall entry: Board Cortex** — "Board Cortex — Your Kanban Has Its Own Brain Now" covering dedup, stale detection, auto-escalation, archive, context digest, NOW panel redesign.
+16. **Updates wall entry: Cockpit Mode** — "Cockpit Mode, Onboarding v2 & the Auto-Everything Update" covering everything else: onboarding v2, work partner behavior, auto-discuss/auto-complete/auto-install, settings widgets, speed fix, activity logging, system prompt overhaul.
+17. **Developer docs: Board Cortex Intelligence** — Architecture, 6 core functions, API endpoints, BoardInsight model, system prompt integration, extension guide.
+18. **Developer docs: Project-Based Onboarding (v2)** — Full flow, setup checklist items, API key gate, legacy compatibility.
+19. **Developer docs: Cockpit Mode & Work Partner** — Behavior loop, system prompt integration, three assignment types, activity logging.
+20. **Developer docs: Auto-Discuss / Auto-Complete Patterns** — `__AUTOSEND__` with code examples, settings auto-complete, capability auto-install, interactive settings widget groups.
+21. **Developer docs: NOW Engine update** — Corrected description from "prioritizes queue items" to "produces operator's priority stack" with accurate source list.
+22. **Git push** — All changes pushed to `origin/main` across multiple commits.
+23. **Handoff document** — This file.
 
 ---
 
@@ -308,7 +326,11 @@ These have been discussed but NOT implemented:
 | `src/lib/smart-task-prompter.ts` | Queue item optimization | Agent integration |
 | `src/lib/activity.ts` | Activity logging | Any new logged action |
 | `src/lib/onboarding-phases.ts` | Settings widgets, legacy phases | Onboarding/settings |
-| `src/components/dashboard/ChatView.tsx` | Chat rendering + widgets | Chat UI changes |
+| `src/app/api/onboarding/intro/route.ts` | Creates setup project + card + tasks | Onboarding flow |
+| `src/app/api/onboarding/advance/route.ts` | Auto-completes tasks on settings save | Onboarding auto-complete |
+| `src/app/api/onboarding/setup-project/route.ts` | Sets due dates, returns firstTask | Onboarding pace |
+| `src/app/api/auth/callback/google-connect/route.ts` | Auto-installs capabilities, auto-completes tasks | Google integration |
+| `src/components/dashboard/ChatView.tsx` | Chat rendering + widgets + __AUTOSEND__ | Chat UI changes |
 | `src/components/dashboard/NowPanel.tsx` | Operator priorities | Priority display |
 | `src/components/dashboard/QueuePanel.tsx` | Divi's queue | Queue UI |
 | `src/components/dashboard/KanbanView.tsx` | Full board view | Board UI |
@@ -332,6 +354,25 @@ When starting a new Deep Agent thread:
 4. **Check git status**: `cd /home/ubuntu/dividen_command_center/nextjs_space && git log --oneline -5`
 5. **Check deployment**: Use `check_deployment_status` tool with `dividen.ai`
 6. **Remember**: Skip `test_nextjs_project` (TSC OOMs). Go straight to `build_and_save_nextjs_project_checkpoint`.
+
+---
+
+### Developer Docs Sections (as of this session)
+
+The `/docs/developers` page now has these sections in the TOC:
+
+Authentication → REST API (v2) → Capabilities API → Federation v2 API → MCP Server → A2A Protocol → Webhooks → Agent Marketplace API → Cross-Instance API → Integration Kit → Queue Gating & Confirmation → CoS Execution Engine → Settings API (v2) → Teams & Project Delegation → Behavior Signals API → Learnings API → Smart Tagging → DragScrollContainer → **Board Cortex Intelligence** → **Project-Based Onboarding (v2)** → **Cockpit Mode & Work Partner** → **Auto-Discuss / Auto-Complete** → NOW Engine → Rate Limits
+
+The bolded sections were added this session.
+
+### Updates Wall Entries (newest first)
+
+1. "Cockpit Mode, Onboarding v2 & the Auto-Everything Update" ← **new this session**
+2. "Board Cortex — Your Kanban Has Its Own Brain Now" ← **new this session**
+3. "Teams, Project Delegation & the Open-Source Billing Boundary"
+4. "Chat Queue Control, Smart Prompter v2, Onboarding Rewrite & HowItWorks Loop"
+5. "Queue Confirmation Gate & Chief of Staff Execution Engine"
+6. ...and 10+ more
 
 ---
 
