@@ -598,12 +598,68 @@ PUT /api/settings
             <Endpoint method="POST" path="/api/queue/confirm" description='Session-based confirm. Body: { "id": "...", "action": "approve" | "reject" }' auth="Session" />
           </div>
 
-          <h3 className="text-lg font-bold mb-3">Action Tags</h3>
-          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4">
+          <h3 className="text-lg font-bold mb-3">Action Tags — Queue Creation</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
             <Endpoint method="TAG" path='[[dispatch_queue:{"title":"...","type":"task"}]]' description="Creates as pending_confirmation (or ready if queueAutoApprove). Gated by capability check." />
             <Endpoint method="TAG" path='[[queue_capability_action:{"capabilityType":"email","action":"compose"}]]' description="Creates capability action as pending_confirmation. Same auto-approve logic." />
             <Endpoint method="TAG" path='[[suggest_marketplace:{"search":"...","category":"..."}]]' description="Surfaces matching capabilities when no handler found (gate failure)" />
           </div>
+
+          <h3 className="text-lg font-bold mb-3">Action Tags — Chat-Based Queue Control</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            Users can manage queue items directly from chat. Divi uses these tags when the user confirms, rejects, or edits items conversationally:
+          </p>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="TAG" path={'[[confirm_queue_item:{"id":"<queue_item_id>"}]]'} description="Approves a pending_confirmation item → status moves to ready. Only works on pending_confirmation items." />
+            <Endpoint method="TAG" path={'[[remove_queue_item:{"id":"<queue_item_id>"}]]'} description="Deletes a queue item entirely. Works on any status." />
+            <Endpoint method="TAG" path={'[[edit_queue_item:{"id":"...","title":"...","description":"...","priority":"..."}]]'} description="Updates title, description, and/or priority. Triggers the Smart Task Prompter to re-optimize the payload for the target agent." />
+          </div>
+          <p className="text-[var(--text-secondary)] text-sm mb-4">
+            The <InlineCode>edit_queue_item</InlineCode> tag is the most powerful — when a user provides detailed context, files, or instructions in chat, Divi
+            includes all of it in the edit. The Smart Task Prompter then generates both a compact <InlineCode>displaySummary</InlineCode> (≤120 chars for the queue card)
+            and a full <InlineCode>optimizedPayload</InlineCode> structured to match the target agent&apos;s input schema.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Smart Task Prompter v2</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            When a queue item is edited (via chat or inline UI), the Smart Task Prompter optimizes the task for its target execution agent:
+          </p>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <div className="space-y-3 text-sm text-[var(--text-secondary)]">
+              <div className="flex items-start gap-3">
+                <span className="text-brand-400 font-bold">1.</span>
+                <span>Resolves the target agent&apos;s <strong className="text-white">Integration Kit</strong> from MarketplaceAgent (taskTypes, requiredInputSchema, contextInstructions, usageExamples, executionNotes)</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-brand-400 font-bold">2.</span>
+                <span>Calls LLM to produce <InlineCode>displaySummary</InlineCode> (≤120 chars — shown on queue card) and <InlineCode>optimizedPayload</InlineCode> (full structured payload matching the agent&apos;s input schema)</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-brand-400 font-bold">3.</span>
+                <span>Stores both in queue item <InlineCode>metadata</InlineCode> (never overwrites title/description). Also stores <InlineCode>_original</InlineCode>, <InlineCode>_optimizedAt</InlineCode>, <InlineCode>_optimizedForAgent</InlineCode></span>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-brand-400 font-bold">4.</span>
+                <span>Falls back to generic <InlineCode>{'{task, context, deliverables, files, constraints}'}</InlineCode> structure when no agent schema is available</span>
+              </div>
+            </div>
+          </div>
+          <p className="text-[var(--text-secondary)] text-sm mb-4">
+            CoS relay dispatch sends <InlineCode>optimizedPayload</InlineCode> when available, falling back to the raw description. Queue cards show a ⚡ badge when the optimized payload exists.
+          </p>
+          <Code>{`// Smart Prompter output stored in metadata:
+{
+  "displaySummary": "Draft Q4 board deck with revenue projections",
+  "optimizedPayload": {
+    "task": "Create board presentation",
+    "context": "Q4 2026 board meeting, Series A metrics...",
+    "deliverables": ["slide-deck"],
+    "constraints": ["under 15 slides", "include ARR chart"]
+  },
+  "_original": { "title": "...", "description": "..." },
+  "_optimizedAt": "2026-04-14T...",
+  "_optimizedForAgent": "research-agent"
+}`}</Code>
 
           <h3 className="text-lg font-bold mb-3">Schema Change</h3>
           <Code>{`// User model — new field

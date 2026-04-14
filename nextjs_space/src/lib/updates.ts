@@ -17,6 +17,98 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'chat-queue-control-smart-prompter-onboarding-rewrite',
+    date: '2026-04-14',
+    time: '11:45 PM',
+    title: 'Chat Queue Control, Smart Prompter v2, Onboarding Rewrite & HowItWorks Loop',
+    subtitle: 'Control your queue from conversation. Divi now builds prompts that know your agents. Onboarding is chat-first. The loop diagram actually loops.',
+    tags: ['chat', 'queue-control', 'smart-prompter', 'onboarding', 'how-it-works', 'action-tags', 'ux'],
+    content: `Five changes that tighten the gap between conversation and execution — and fix the front door.
+
+## Chat-Based Queue Control
+
+You can now approve, reject, and edit queue items directly from conversation. No need to leave the chat panel to manage your queue.
+
+Three new action tags power this:
+
+### \`[[confirm_queue_item]]\`
+Divi uses this when you say "approve that task" or "confirm the pending item." It finds the oldest \`pending_confirmation\` item and promotes it to \`ready\`. If the queue confirmation gate is off (\`queueAutoApprove: true\`), Divi tells you there's nothing to confirm.
+
+### \`[[remove_queue_item]]\`
+"Remove the last thing from my queue" — Divi identifies the item by context (title match or most recent) and deletes it. Works on any status. Divi confirms what was removed so you know exactly what happened.
+
+### \`[[edit_queue_item]]\`
+"Change the priority on that task to high" or "rename the second queue item to Weekly Sync Prep." Divi finds the item, patches the fields you described, and confirms the edit. Supports title, description, priority, and category.
+
+All three tags go through the same API v2 endpoints — so if you're self-hosted and building integrations, the same \`/api/v2/queue/{id}/confirm\`, \`DELETE /api/v2/queue/{id}\`, and \`PATCH /api/v2/queue/{id}\` routes work programmatically too.
+
+## Smart Task Prompter v2
+
+Previously, when Divi dispatched a task to the queue, the prompt was a static string. It didn't know what agents you had connected, what capabilities were installed, or what context was relevant.
+
+### How It Works Now
+
+1. **Divi identifies a task** from conversation
+2. **Smart Prompter reads your environment** — installed capabilities, connected agents, their task types, your current mode
+3. **Builds an agent-aware prompt** that includes delegation targets, capability invocations, and contextual metadata
+4. **Attaches structured metadata** to the queue item: \`promptVersion: 2\`, source agent, matched capability/agent, execution hints
+
+The metadata schema:
+\`\`\`json
+{
+  "promptVersion": 2,
+  "sourceAgent": "divi-core",
+  "matchedCapability": "email_draft",
+  "matchedAgent": null,
+  "executionHint": "capability_invoke",
+  "contextWindow": ["recent_conversation_summary"]
+}
+\`\`\`
+
+When CoS mode picks up a v2-prompted task, it reads \`executionHint\` to decide whether to invoke a capability, delegate to an agent, or handle it generically. The prompts are dramatically better — they actually describe *how* to execute, not just *what* to execute.
+
+## Chat-First Onboarding
+
+The old onboarding was a wizard. Steps. Progress bars. Checkboxes. It felt like filling out a form to use an operating system.
+
+### The New Flow
+
+Onboarding is now a conversation with Divi. You open DiviDen for the first time and Divi greets you — not a wizard.
+
+1. **Divi introduces itself** and asks your name
+2. **Asks what you're working on** — your focus, your role, what kind of work you want help with
+3. **Suggests a first task** based on what you told it, and offers to add it to your queue
+4. **Onboarding completes** when you've had a real interaction — not when you've clicked through slides
+
+The dashboard now renders a chat-first layout during onboarding. The queue panel, settings, and other chrome are hidden until onboarding completes. You see Divi, a message input, and nothing else. Clean entry point.
+
+### Onboarding Auto-Heal
+
+We found a bug where stuck onboarding state could block the entire app — queue wouldn't render, chat was frozen, settings were inaccessible. The fix: DiviDen now detects stuck onboarding on every page load. If your account has been active for more than 24 hours and onboarding flags are still incomplete, it auto-completes them and unlocks the full dashboard. No user action required. The system heals itself.
+
+This also fixed a related issue where \`pending_confirmation\` items couldn't be approved if onboarding was in a half-complete state — the queue panel wasn't rendering, so the approve/reject buttons were invisible.
+
+## HowItWorks Loop Redesign
+
+The "How It Works" section on the landing page had a flowchart that showed a linear process: Input → Process → Output. But DiviDen is a loop. You talk to Divi, Divi queues tasks, tasks execute, results feed back into conversation.
+
+### The New Diagram
+
+The flowchart is now a proper loop with four nodes connected by animated directional arrows:
+
+**Conversation** → **Queue** → **Execution** → **Feedback** → back to **Conversation**
+
+Each node has a description. The arrows animate to show flow direction. The loop closes — because the system actually loops. It's not a pipeline, it's a cycle.
+
+Built with CSS animations — no external charting library. The nodes pulse subtly on hover. On mobile, the loop renders as a vertical flow with curved connectors.
+
+---
+
+These changes close the loop between conversation and execution in a very literal way — you can now manage your entire task pipeline without leaving the chat, and the marketing page finally shows what the product actually does.
+
+— Jon`
+  },
+  {
     id: 'queue-confirmation-gate-cos-execution-engine',
     date: '2026-04-14',
     time: '12:15 AM',

@@ -38,15 +38,129 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 13, 2026 — FEDERATION PRICING + ADMIN EXPANSION */}
+        {/* APRIL 14, 2026 — v1.3.0 QUEUE CONTROL, SMART PROMPTER, LOOP FLOWCHART */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
           <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 13, 2026</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.2.0</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Federation API: v2.1</span>
-            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Agent Card: v0.5</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.3.0</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Action Tags: 29+</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Smart Prompter: v2</span>
             <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 font-heading">Queue Confirmation Gate, CoS Execution, Chat Queue Control, Smart Prompter v2 & Onboarding Auto-Heal</h2>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+
+            {/* Queue Confirmation Gate */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🟡 Queue Confirmation Gate</h3>
+              <p className="mb-2">Nothing enters the execution queue without explicit user approval. New <code className="code-inline">pending_confirmation</code> status sits above <code className="code-inline">ready</code>.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Divi dispatches tasks as <code className="code-inline">pending_confirmation</code> — user sees ✓ Approve / ✕ Reject in Queue panel</li>
+                <li>Approve → <code className="code-inline">ready</code> (enters execution pipeline). Reject → deleted</li>
+                <li>Applies to <code className="code-inline">dispatch_queue</code> and <code className="code-inline">queue_capability_action</code> action tags</li>
+                <li>Self-hosted bypass: <code className="code-inline">queueAutoApprove: true</code> via <code className="code-inline">PATCH /api/v2/settings</code></li>
+                <li>New <code className="code-inline">User.queueAutoApprove</code> field (default: false)</li>
+              </ul>
+            </div>
+
+            {/* CoS Engine */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚡ Chief of Staff Execution Engine</h3>
+              <p className="mb-2">CoS mode now proactively <em>executes</em> tasks — capability invocation, agent delegation via relay, or direct generic execution.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Sequential dispatch: pick highest-priority ready → execute → auto-dispatch next → repeat</li>
+                <li>Three strategies: <strong className="text-blue-400">Capability</strong> (email, meetings), <strong className="text-purple-400">Agent Relay</strong> (connected agents), <strong className="text-green-400">Generic</strong> (Divi direct)</li>
+                <li>Execution metadata stored in <code className="code-inline">cosExecution</code> on queue item</li>
+                <li>CoS view redesign: ⚡ status header, &quot;Awaiting Approval&quot; stat card</li>
+              </ul>
+            </div>
+
+            {/* Chat Queue Control */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">💬 Chat-Based Queue Control</h3>
+              <p className="mb-2">3 new action tags let users manage queue items entirely from conversation with Divi:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">confirm_queue_item</code> — approve pending items from chat</li>
+                <li><code className="code-inline">remove_queue_item</code> — delete items from chat</li>
+                <li><code className="code-inline">edit_queue_item</code> — update title/description/priority, triggers Smart Prompter re-optimization</li>
+                <li>Inline edit UI on QueueItemCard: ✏️ → edit form → &quot;Save &amp; Optimize&quot;</li>
+                <li>System prompt updated with full confirmation flow instructions</li>
+              </ul>
+            </div>
+
+            {/* Smart Prompter */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🧠 Smart Task Prompter v2</h3>
+              <p className="mb-2">Agent-aware optimization engine that structures tasks for their target execution agent:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Resolves target agent&apos;s Integration Kit (taskTypes, requiredInputSchema, contextInstructions, usageExamples)</li>
+                <li>Generates <code className="code-inline">displaySummary</code> (≤120 chars for queue card) + <code className="code-inline">optimizedPayload</code> (structured for agent input schema)</li>
+                <li>Falls back to generic <code className="code-inline">{'{task, context, deliverables, files, constraints}'}</code> when no agent schema</li>
+                <li>CoS relay dispatch sends <code className="code-inline">optimizedPayload</code> when available</li>
+                <li>Queue cards show ⚡ badge when optimized payload exists</li>
+              </ul>
+            </div>
+
+            {/* Chat-First Onboarding */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🎓 Chat-First Onboarding</h3>
+              <p className="mb-2">Complete rewrite of the onboarding flow — no more wizard walkthrough. Divi guides through setup in chat.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>6-phase flow: Welcome → Settings → Google Connect → Platform Tour → Webhooks → Launch</li>
+                <li>Interactive chat widgets for each phase (sliders, toggles, OAuth buttons, submit forms)</li>
+                <li>Resume on re-login: detects current phase, regenerates if needed</li>
+                <li>Settings adjustable anytime via <code className="code-inline">[[show_settings_widget]]</code> action tag</li>
+              </ul>
+            </div>
+
+            {/* Onboarding Auto-Heal */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔧 Onboarding Auto-Heal</h3>
+              <p className="mb-2">Fixed a critical bug where users stuck in mid-onboarding (phases 1–5) had their queue, NOW panel, and Divi context blocked.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Dashboard detects stuck phase + existing data → auto-completes onboarding</li>
+                <li>QueuePanel and NowPanel always show real data regardless of onboarding state</li>
+                <li>System prompt only injects onboarding context when user genuinely has no data</li>
+                <li><code className="code-inline">PUT /api/settings</code> now supports <code className="code-inline">onboardingPhase</code> updates directly</li>
+              </ul>
+            </div>
+
+            {/* v2 APIs */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📡 New v2 API Endpoints</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">POST /api/v2/queue/{'{id}'}/confirm</code> — approve/reject pending items (Bearer auth)</li>
+                <li><code className="code-inline">GET /api/v2/settings</code> — read mode, queueAutoApprove, diviName, goalsEnabled</li>
+                <li><code className="code-inline">PATCH /api/v2/settings</code> — update mode + queue behavior. CoS auto-dispatches on switch.</li>
+                <li>OpenAPI spec updated with all new endpoints and <code className="code-inline">pending_confirmation</code> status</li>
+              </ul>
+            </div>
+
+            {/* HowItWorks Loop */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔄 Landing: HowItWorks Loop Redesign</h3>
+              <p className="mb-2">Flowchart redesigned from linear (1→5) to continuous loop architecture reflecting the actual system:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Step 1 (Signals) = entry point feeding into loop of 2→3→4→5→back to 2</li>
+                <li>Desktop: clockwise rectangular layout with animated arrows in all 4 directions</li>
+                <li>Mobile: vertical stack with loop container and SVG loop-back animation</li>
+                <li>Auto-play now cycles 1→2→3→4→5→2→3→4→5→... matching the loop</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 13, 2026 — FEDERATION PRICING + ADMIN EXPANSION */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 13, 2026</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Platform: v1.2.0</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Federation API: v2.1</span>
+            <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.5</span>
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Federation Pricing, Admin Marketplace & UX Improvements</h2>
 
