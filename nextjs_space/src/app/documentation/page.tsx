@@ -97,6 +97,8 @@ const NAV = [
   { id: 'webhooks', label: 'Webhooks' },
   { id: 'security', label: 'Security & Auth' },
   { id: 'smart-tagging', label: 'Smart Tagging (Kanban)' },
+  { id: 'linked-kards', label: 'Linked Kards (Cross-User)' },
+  { id: 'card-activity', label: 'Card Activity Feeds' },
   { id: 'intelligence-system', label: 'Intelligence & Learning' },
 ];
 
@@ -909,6 +911,63 @@ onDiscuss={(context: string) => {
               <li>Optional fade edges (<InlineCode>showFadeEdges</InlineCode> prop) showing gradient indicators at overflow boundaries</li>
               <li>Used on: Settings tabs, Admin tabs, CenterPanel sub-tabs</li>
             </ul>
+          </Section>
+
+          {/* ═══ LINKED KARDS (CROSS-USER) ════════════════════════════════════ */}
+          <Section id="linked-kards" title="Linked Kards (Cross-User Visibility)">
+            <p className="text-[var(--text-secondary)] mb-4">
+              When a task is delegated to another user via relay, both the originator&apos;s card and the recipient&apos;s card are automatically linked.
+              Both users&apos; Divis see the other side&apos;s status and progress without constant relay pings.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">How Auto-Linking Works</h3>
+            <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>A relay with <InlineCode>assign_task</InlineCode> intent is sent to another user</li>
+              <li>The receiving Divi creates a card from the relay context</li>
+              <li><InlineCode>autoLinkFromRelay()</InlineCode> automatically creates a <InlineCode>CardLink</InlineCode> between the two cards</li>
+              <li>The new card is stamped with <InlineCode>originCardId</InlineCode>, <InlineCode>originUserId</InlineCode>, <InlineCode>sourceRelayId</InlineCode></li>
+            </ol>
+
+            <h3 className="text-lg font-bold text-white mb-3">Accumulate, Don&apos;t Ping</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Status changes on linked cards are logged silently to <InlineCode>CardLink.changeLog</InlineCode> (a capped JSON array).
+              When the user next starts a conversation, accumulated updates are delivered as a digest in the system prompt —
+              not as interrupt-driven relay pings. Divi surfaces them naturally: &ldquo;Sarah completed that task you delegated.&rdquo;
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">In the UI</h3>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>Delegated cards show a <span className="text-purple-400">purple provenance badge</span> with the originating user&apos;s name</li>
+              <li>Linked card indicators show direction, type, title, user, and checklist progress (e.g., <InlineCode>✓2/5</InlineCode>)</li>
+              <li>In the system prompt: <InlineCode>[cardId] &quot;My Card&quot; (high) ⬅️delegated-from:Jon 🔗→delegation:&quot;Their Task&quot; (active) by Sarah ✓2/5</InlineCode></li>
+            </ul>
+            <p className="text-[var(--text-secondary)] text-sm">
+              See the <a href="/docs/developers#linked-kards" className="text-brand-400 hover:underline">developer docs</a> for the full schema, action tags, and status accumulation flow.
+            </p>
+          </Section>
+
+          {/* ═══ CARD ACTIVITY FEEDS ═══════════════════════════════════════════ */}
+          <Section id="card-activity" title="Card Activity Feeds">
+            <p className="text-[var(--text-secondary)] mb-4">
+              Every kanban card has its own activity timeline. When you open a card and expand the <strong className="text-white">Activity</strong> section,
+              you see a chronological feed of everything that&apos;s happened to that card — created, updated, moved, tasks completed, delegated, auto-completed.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Cross-User Mirroring</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              When a card has <a href="#linked-kards" className="text-brand-400 hover:underline">linked cards</a> owned by other users,
+              activity automatically mirrors to the linked card&apos;s timeline. If Sarah completes a task on a card linked to your origin card,
+              your card&apos;s activity feed shows: <InlineCode>🔗 Sarah: Completed task &quot;Research Report&quot;</InlineCode> — without
+              any relay being sent and without your Divi being interrupted.
+            </p>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">Own entries</strong> — 👤 (human) or 🤖 (divi) icon on neutral background</li>
+              <li><strong className="text-white">Cross-user entries</strong> — 🔗 icon on brand-tinted background, with the acting user&apos;s name</li>
+              <li><strong className="text-white">Global feed unchanged</strong> — The main activity stream stays strictly user-scoped. Card feeds are the local surface for cross-user visibility.</li>
+            </ul>
+            <p className="text-[var(--text-secondary)] text-sm">
+              See the <a href="/docs/developers#card-activity-feeds" className="text-brand-400 hover:underline">developer docs</a> for the API endpoint, schema, and mirroring implementation.
+            </p>
           </Section>
 
           {/* ═══ INTELLIGENCE & LEARNING ═════════════════════════════════════ */}

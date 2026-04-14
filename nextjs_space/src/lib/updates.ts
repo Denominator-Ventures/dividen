@@ -17,6 +17,90 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'card-activity-feeds-cross-user-mirroring-v1-7',
+    date: '2026-04-14',
+    time: '11:59 PM',
+    title: 'Card Activity Feeds & Cross-User Mirroring',
+    subtitle: 'Every card now has its own activity timeline. When someone works on a linked card, both users see it — silently, locally, no pings.',
+    tags: ['activity-feeds', 'card-scoped', 'cross-user', 'mirroring', 'linked-kards', 'multi-user'],
+    content: `The last piece of the Linked Kards story. Cards now have their own activity feeds, and cross-user work shows up where it matters — on the card itself.
+
+## Card-Scoped Activity Feeds
+
+Every kanban card now has its own activity timeline. Open a card → expand the **Activity** section → see everything that's happened to this card, in order.
+
+This isn't a filtered view of the global feed. It's a purpose-built, card-indexed feed. The \`ActivityLog\` model now has a \`cardId\` foreign key that maps entries directly to the card they belong to, with a composite index on \`[cardId, createdAt]\` for fast retrieval.
+
+### What Gets Logged per Card
+
+Every action that touches a card now writes \`cardId\` as a first-class column:
+
+- **card_created** — when the card is created (kanban POST)
+- **card_updated** — when title, status, priority, assignee, or description changes (kanban PATCH)
+- **card_deleted** — when the card is removed (kanban DELETE)
+- **card_moved** — when the card moves between columns (move endpoint)
+- **task_completed** — when a checklist item is marked done (action-tags.ts)
+- **task_routed** — when Divi routes a task to another user (action-tags.ts)
+- **task_decomposed** — when Divi breaks a task into subtasks (action-tags.ts)
+- **card_auto_completed** — when all checklist items are done and the card auto-moves to Completed
+
+Previously, \`cardId\` was buried in the \`metadata\` JSON blob. Now it's a queryable, indexed column.
+
+## Cross-User Activity Mirroring
+
+This is the multi-user primitive that makes Linked Kards feel alive.
+
+When \`logActivity()\` is called with a \`cardId\`, a background function — \`mirrorActivityToLinkedCards()\` — fires automatically. It:
+
+1. Looks up all \`CardLink\` records for that card
+2. For each linked card owned by a **different user**, creates a mirror entry on their card
+3. The mirror entry has \`isCrossUser: true\`, a \`🔗\` prefix on the summary, and the acting user's name as the actor
+
+**Example**: Sarah completes a checklist item on a card that's linked to Jon's origin card. Jon's card activity timeline shows: \`🔗 Sarah: Completed task "Research Report"\` — without Sarah's Divi needing to send a relay, without Jon being interrupted.
+
+This is the **accumulate, don't ping** philosophy applied to activity. The data is there when you look at the card. It doesn't chase you.
+
+## The UI
+
+In the CardDetailModal, a new collapsible **Activity** section appears below the metadata row. Click the chevron to expand. It lazy-loads from \`GET /api/kanban/{id}/activity\` on first open.
+
+- **Own entries** get a 👤 (human) or 🤖 (divi) icon on a neutral background
+- **Cross-user entries** get a 🔗 icon with a subtle brand-tinted background and border
+- Relative timestamps (just now, 5m ago, 2h ago, 3d ago)
+- Cursor-based pagination, default 30 entries
+
+## Main Activity Feed — Unchanged
+
+The global activity stream (\`/api/activity\` and SSE stream) stays strictly user-scoped. Your feed shows your activity. Card-scoped feeds are the local surface for cross-user visibility — the global feed stays clean.
+
+## New Schema
+
+\`\`\`
+ActivityLog {
+  ...
+  cardId       String?   @relation → KanbanCard
+  isCrossUser  Boolean   @default(false)
+  @@index([cardId, createdAt])
+}
+\`\`\`
+
+## New Endpoint
+
+\`\`\`
+GET /api/kanban/{id}/activity
+  Auth: session (ownership verified)
+  Query: ?limit=50&cursor=<id>
+  Returns: { data: ActivityEntry[], nextCursor: string | null }
+\`\`\`
+
+## What's Next
+
+Cross-instance activity mirroring (when FVP's federated Linked Kards land), richer card timeline entries (file attachments, relay digests), and the inbox zero automation layer.
+
+— Jon
+`,
+  },
+  {
     id: 'cortex-daemon-linked-kards-google-connect-v1-6',
     date: '2026-04-14',
     time: '11:45 PM',

@@ -38,15 +38,91 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 14, 2026 — v1.4.0 TEAMS, PROJECT DELEGATION, OPEN-SOURCE BILLING */}
+        {/* APRIL 14, 2026 — v1.5.0 CARD ACTIVITY FEEDS, CROSS-USER MIRRORING */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.5.0</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Card Activity Feeds</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Cross-User Mirroring</span>
+            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 font-heading">Card-Scoped Activity Feeds &amp; Cross-User Activity Mirroring</h2>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+
+            {/* Schema Changes */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📊 ActivityLog Schema Extension</h3>
+              <p className="mb-2">The <code className="code-inline">ActivityLog</code> model gains two new fields and a composite index for card-scoped queries:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">cardId String?</code> — FK to <code className="code-inline">KanbanCard</code>. Promotes card context from metadata JSON to a queryable, indexed column.</li>
+                <li><code className="code-inline">isCrossUser Boolean @default(false)</code> — Flags entries that were mirrored from a linked card owned by another user.</li>
+                <li><code className="code-inline">@@index([cardId, createdAt])</code> — Composite index for fast card-scoped feed retrieval.</li>
+              </ul>
+            </div>
+
+            {/* Cross-User Mirroring Engine */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔗 Cross-User Activity Mirroring</h3>
+              <p className="mb-2"><code className="code-inline">mirrorActivityToLinkedCards()</code> fires automatically (fire-and-forget) when <code className="code-inline">logActivity()</code> is called with a <code className="code-inline">cardId</code>. For each <code className="code-inline">CardLink</code> pointing to a card owned by a different user, it creates a mirror <code className="code-inline">ActivityLog</code> entry:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Mirror entry has <code className="code-inline">isCrossUser: true</code></li>
+                <li>Summary prefixed with <code className="code-inline">🔗</code> and the acting user&apos;s name as actor</li>
+                <li>Logged on the <em>linked</em> card&apos;s ID, not the original — so it shows up in the other user&apos;s card timeline</li>
+              </ul>
+            </div>
+
+            {/* Wired Call Sites */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚡ Wired Call Sites</h3>
+              <p className="mb-2">All card-related activity now writes <code className="code-inline">cardId</code>:</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">POST /api/kanban</code> → <code className="code-inline">card_created</code></li>
+                <li><code className="code-inline">PATCH /api/kanban/[id]</code> → <code className="code-inline">card_updated</code></li>
+                <li><code className="code-inline">DELETE /api/kanban/[id]</code> → <code className="code-inline">card_deleted</code></li>
+                <li><code className="code-inline">POST /api/kanban/[id]/move</code> → <code className="code-inline">card_moved</code></li>
+                <li><code className="code-inline">action-tags.ts</code>: <code className="code-inline">task_completed</code>, <code className="code-inline">task_routed</code>, <code className="code-inline">task_decomposed</code></li>
+                <li><code className="code-inline">card-auto-complete.ts</code>: <code className="code-inline">card_auto_completed</code></li>
+              </ul>
+            </div>
+
+            {/* New Endpoint */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🆕 New Endpoint</h3>
+              <p className="mb-2"><code className="code-inline">GET /api/kanban/[id]/activity</code> — Card-scoped activity feed with cursor pagination.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Auth: session (ownership verified)</li>
+                <li>Query: <code className="code-inline">?limit=50&amp;cursor=&lt;id&gt;</code></li>
+                <li>Returns both own and cross-user (<code className="code-inline">isCrossUser</code>) entries, ordered by <code className="code-inline">createdAt desc</code></li>
+              </ul>
+            </div>
+
+            {/* UI */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🖥️ CardDetailModal — Activity Section</h3>
+              <p className="mb-2">Collapsible Activity section in the card detail modal. Lazy-loads on first expand.</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Own entries: 👤 (human) or 🤖 (divi) on neutral background</li>
+                <li>Cross-user entries: 🔗 on brand-tinted background with border</li>
+                <li>Relative timestamps (just now, 5m ago, 2h ago, 3d ago)</li>
+                <li>Global activity feed (<code className="code-inline">/api/activity</code> + SSE) remains user-scoped — no cross-user bleed</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 14, 2026 — v1.4.0 TEAMS, PROJECT DELEGATION, OPEN-SOURCE BILLING */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
           <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.4.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Teams &amp; Invites</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">CoS Delegation: v2</span>
-            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Teams Architecture, CoS Project Contributor Delegation, Invite Flow & Open-Source Billing Boundary</h2>
 

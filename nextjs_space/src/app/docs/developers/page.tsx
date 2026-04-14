@@ -87,6 +87,7 @@ const TOC = [
   { id: 'now-engine', label: 'NOW Engine Correlation' },
   { id: 'cortex-daemon', label: 'Cortex Daemon (Scheduled Scan)' },
   { id: 'linked-kards', label: 'Linked Kards (Cross-User)' },
+  { id: 'card-activity-feeds', label: 'Card Activity Feeds' },
   { id: 'google-connect-widget', label: 'Google Connect Widget' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
@@ -1360,12 +1361,16 @@ if (isOnCard) return; // Let dnd-kit handle card drag
           <h4 className="text-base font-bold text-white mb-2">Activity Logging</h4>
           <p className="text-[var(--text-secondary)] mb-4">
             Actions executed from chat are logged to the activity feed via <InlineCode>logActivity()</InlineCode> or
-            direct <InlineCode>prisma.activityLog.create()</InlineCode>:
+            direct <InlineCode>prisma.activityLog.create()</InlineCode>. Card-related actions now include a <InlineCode>cardId</InlineCode> column
+            for card-scoped activity feeds (see <a href="#card-activity-feeds" className="text-brand-400 hover:underline">Card Activity Feeds</a>):
           </p>
           <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-1 text-sm">
             <li><InlineCode>send_email</InlineCode> → logs <InlineCode>capability_executed</InlineCode></li>
             <li><InlineCode>create_calendar_event</InlineCode> → logs <InlineCode>capability_executed</InlineCode></li>
-            <li><InlineCode>complete_checklist</InlineCode> → logs <InlineCode>task_completed</InlineCode> with card title</li>
+            <li><InlineCode>complete_checklist</InlineCode> → logs <InlineCode>task_completed</InlineCode> with card title + <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>card_created / card_updated / card_deleted / card_moved</InlineCode> → logged with <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>task_routed / task_decomposed</InlineCode> → logged with <InlineCode>cardId</InlineCode> when card context exists</li>
+            <li><InlineCode>card_auto_completed</InlineCode> → logged with <InlineCode>cardId</InlineCode> when all checklist items complete</li>
           </ul>
         </Section>
 
@@ -1568,6 +1573,81 @@ model AgentRelay {
           </p>
           <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">System Prompt Context</h4>
           <Code>{`[cardId] "My Card" (high) ⬅️delegated-from:Jon 🔗→delegation:"Their Task" (active) by Sarah ✓2/5`}</Code>
+        </Section>
+
+        {/* ── Card Activity Feeds ──────────────────────────────── */}
+        <Section id="card-activity-feeds" title="Card Activity Feeds (Card-Scoped + Cross-User)">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Every kanban card has its own activity timeline. Card-related actions write <InlineCode>cardId</InlineCode> as a first-class column on <InlineCode>ActivityLog</InlineCode>.
+            When a card has linked cards (via <a href="#linked-kards" className="text-brand-400 hover:underline">Linked Kards</a>), activity automatically mirrors to linked cards owned by other users.
+          </p>
+
+          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">Schema</h4>
+          <Code>{`model ActivityLog {
+  ...
+  cardId       String?    // FK to KanbanCard — card-scoped feed
+  isCrossUser  Boolean    @default(false) // true for mirrored cross-user entries
+  card         KanbanCard? @relation(...)
+  @@index([cardId, createdAt]) // composite index for fast card queries
+}`}</Code>
+
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Cross-User Mirroring</h4>
+          <Code>{`1. logActivity() called with cardId (e.g. task_completed on Sarah's card)
+2. mirrorActivityToLinkedCards() fires (fire-and-forget):
+   a. Finds all CardLink records for cardId
+   b. For each linked card owned by a DIFFERENT user:
+      - Creates mirror ActivityLog with isCrossUser: true
+      - Prefixes summary with "🔗"
+      - Sets actor to the acting user's name
+3. Jon opens his linked card → Activity section shows:
+   "🔗 Sarah: Completed task 'Research Report'"  (isCrossUser: true)
+   alongside his own card activity`}</Code>
+
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">API Endpoint</h4>
+          <Endpoint method="GET" path="/api/kanban/[id]/activity" description="Card-scoped activity feed. Returns own + cross-user entries ordered by createdAt desc." auth="Session" />
+          <div className="mt-2 text-sm text-[var(--text-secondary)]">
+            <p><strong>Query params:</strong> <InlineCode>limit</InlineCode> (default 50, max 100), <InlineCode>cursor</InlineCode> (entry ID for pagination)</p>
+            <p className="mt-1"><strong>Response:</strong></p>
+          </div>
+          <Code>{`{
+  "success": true,
+  "data": [
+    {
+      "id": "...",
+      "action": "task_completed",
+      "actor": "divi",
+      "summary": "Completed task: \\"Research Report\\"",
+      "isCrossUser": false,
+      "createdAt": "2026-04-14T..."
+    },
+    {
+      "id": "...",
+      "action": "task_completed",
+      "actor": "Sarah",
+      "summary": "🔗 Sarah: Completed task \\"Data Analysis\\"",
+      "isCrossUser": true,
+      "createdAt": "2026-04-14T..."
+    }
+  ],
+  "nextCursor": "..." // null when no more entries
+}`}</Code>
+
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Wired Call Sites</h4>
+          <ul className="list-disc pl-5 space-y-1 text-[var(--text-secondary)] text-sm">
+            <li><InlineCode>POST /api/kanban</InlineCode> → <InlineCode>card_created</InlineCode> with <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>PATCH /api/kanban/[id]</InlineCode> → <InlineCode>card_updated</InlineCode> with <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>DELETE /api/kanban/[id]</InlineCode> → <InlineCode>card_deleted</InlineCode> with <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>POST /api/kanban/[id]/move</InlineCode> → <InlineCode>card_moved</InlineCode> with <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>action-tags.ts</InlineCode> → <InlineCode>task_completed</InlineCode>, <InlineCode>task_routed</InlineCode>, <InlineCode>task_decomposed</InlineCode> with <InlineCode>cardId</InlineCode></li>
+            <li><InlineCode>card-auto-complete.ts</InlineCode> → <InlineCode>card_auto_completed</InlineCode> with <InlineCode>cardId</InlineCode></li>
+          </ul>
+
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">UI (CardDetailModal)</h4>
+          <p className="text-[var(--text-secondary)] text-sm">
+            Collapsible <strong>Activity</strong> section in the card detail modal. Lazy-loads on expand.
+            Own entries show 👤/🤖 icons on neutral backgrounds. Cross-user entries (<InlineCode>isCrossUser: true</InlineCode>) show 🔗 on a brand-tinted background.
+            Relative timestamps. The global activity feed (<InlineCode>/api/activity</InlineCode> and SSE stream) remains user-scoped — no cross-user bleed.
+          </p>
         </Section>
 
         {/* ── Google Connect Widget ──────────────────────────────── */}
