@@ -44,18 +44,7 @@ I read your signals — email, calendar, files, webhooks — and turn them into 
 
 Think of me as your operating layer. I don't just answer questions — I manage the flow of your work.
 
-I've put a **DiviDen Setup** card on your board with 6 tasks to get everything configured. You can see them in your Now panel too.`;
-
-    const choiceMetadata = JSON.stringify({
-      isOnboarding: true, isSetupChoice: true, onboardingPhase: 0,
-      widgets: [
-        { type: 'radio', id: 'setupMode', label: '', options: [
-          { value: 'together', label: '🤝 Walk me through it', description: "We'll go step by step together right now" },
-          { value: 'solo', label: "🛠️ I'll explore on my own", description: "Tasks due in a week — I'll check in if anything's still open" },
-        ], selectedValue: 'together' },
-        { type: 'submit', id: 'setup_choice_submit', submitLabel: "Let's go →" },
-      ],
-    });
+I've put a **DiviDen Setup** card on your board with 6 tasks to get everything configured. Let's knock them out together — starting with how you like to work.`;
 
     const setupTasks = [
       "Configure Divi's Working Style",
@@ -112,13 +101,10 @@ I've put a **DiviDen Setup** card on your board with 6 tasks to get everything c
         cardId = existingCard.id;
       }
 
-      // Create both chat messages + update user in parallel
+      // Create intro message + update user in parallel
       await Promise.all([
         tx.chatMessage.create({
           data: { role: 'assistant', content: introContent, userId, metadata: JSON.stringify({ isSetupIntro: true }) },
-        }),
-        tx.chatMessage.create({
-          data: { role: 'assistant', content: 'How would you like to tackle the setup?', userId, metadata: choiceMetadata },
         }),
         tx.user.update({
           where: { id: userId },
@@ -126,7 +112,10 @@ I've put a **DiviDen Setup** card on your board with 6 tasks to get everything c
         }),
       ]);
 
-      return { projectId, cardId };
+      // Get first task text for the auto-discuss message
+      const firstTaskText = setupTasks[0];
+
+      return { projectId, cardId, firstTaskText };
     });
 
     return NextResponse.json({ success: true, data: result });

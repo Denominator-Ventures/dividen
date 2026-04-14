@@ -160,6 +160,31 @@ export async function GET(req: NextRequest) {
       console.log(`[google-callback] Auto-installed ${capabilityUpserts.length} capabilities`);
     }
 
+    // ── Auto-complete "Connect Email & Calendar" checklist task if it exists ──
+    try {
+      const connectTasks = await prisma.checklistItem.findMany({
+        where: {
+          completed: false,
+          text: { contains: 'Connect' },
+          card: {
+            userId,
+            status: { in: ['active', 'in_progress', 'development'] },
+            project: { metadata: { contains: '"isSetupProject":true' } },
+          },
+        },
+        select: { id: true },
+      });
+      if (connectTasks.length > 0) {
+        await prisma.checklistItem.updateMany({
+          where: { id: { in: connectTasks.map(t => t.id) } },
+          data: { completed: true },
+        });
+        console.log(`[google-callback] Auto-completed ${connectTasks.length} setup checklist tasks`);
+      }
+    } catch (e) {
+      // Non-fatal
+    }
+
     // If returning from onboarding, redirect to dashboard (chat) instead of settings
     if (returnTo === 'onboarding') {
       return NextResponse.redirect(

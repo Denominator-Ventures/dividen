@@ -99,21 +99,25 @@ export default function DashboardPage() {
     setMobilePanel('center');
   }, []);
 
-  // Handle welcome popup "Start Chat" — sends Divi intro + setup choice into chat
+  // Handle welcome popup "Start Chat" — sends Divi intro + auto-starts first task discussion
   const handleWelcomeStart = useCallback(async () => {
     setShowWelcome(false);
     setActiveTab('chat');
     setMobilePanel('center');
 
     try {
-      // Send Divi's intro message + together/solo choice widget
-      await fetch('/api/onboarding/intro', {
+      // Send Divi's intro message + create setup project/card/checklist
+      const res = await fetch('/api/onboarding/intro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      setOnboardingPhase(6); // Project-based onboarding — skip old phase system
+      const result = await res.json();
+      setOnboardingPhase(6);
       // Force ChatView to re-mount and load the new messages
       setChatRefreshKey(k => k + 1);
+      // Auto-send a discuss message for the first task (like clicking Discuss on the Now panel)
+      const firstTask = result?.data?.firstTaskText || "Configure Divi's Working Style";
+      setChatPrefill(`__AUTOSEND__Let's discuss this task: "${firstTask}". Help me work through this and close it out.`);
     } catch (e) {
       console.error('Failed to send intro:', e);
     }

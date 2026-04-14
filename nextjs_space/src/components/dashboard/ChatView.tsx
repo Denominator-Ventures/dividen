@@ -104,9 +104,18 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
 
-  // ── Handle prefill from NOW panel click ──────────────────────────────
+  // ── Pending auto-send message (set by prefill, consumed after sendMessage is ready) ──
+  const pendingAutoSend = useRef<string | null>(null);
+
+  // ── Handle prefill from NOW panel click / auto-send from onboarding ──
   useEffect(() => {
     if (prefill) {
+      // Check if this is an auto-send prefill (starts with __AUTOSEND__)
+      if (prefill.startsWith('__AUTOSEND__')) {
+        pendingAutoSend.current = prefill.replace('__AUTOSEND__', '');
+        onPrefillConsumed?.();
+        return;
+      }
       setInput(prefill);
       onPrefillConsumed?.();
       // Focus the input after setting prefill
@@ -348,6 +357,16 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     [input, isStreaming]
   );
 
+  // ── Consume pending auto-send once sendMessage is available + messages loaded ──
+  useEffect(() => {
+    if (pendingAutoSend.current && !isStreaming && !isLoading && messages.length > 0) {
+      const msg = pendingAutoSend.current;
+      pendingAutoSend.current = null;
+      const timer = setTimeout(() => sendMessage(msg), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, isLoading, messages.length, sendMessage]);
+
   // ── Clear chat ────────────────────────────────────────────────────────
   const clearChat = async () => {
     try {
@@ -392,33 +411,15 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         return;
       }
 
-      // ── Setup choice (together/solo) — update due dates on existing setup card ──
+      // ── Legacy: Setup choice (together/solo) — kept for old onboarding messages in DB ──
       if (phase === 0 && data?.setupMode) {
-        // Project + card already exist on the board (created during intro).
-        // "solo" pushes due dates out 1 week; "together" keeps them as today.
-        const setupRes = await fetch('/api/onboarding/setup-project', {
+        await fetch('/api/onboarding/setup-project', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: data.setupMode }),
         });
-        const setupResult = await setupRes.json();
 
-        if (data.setupMode === 'together') {
-          // Auto-trigger discussion of the first task — like clicking "Discuss"
-          const firstTask = setupResult.data?.firstTask;
-          if (firstTask) {
-            // Send a message as if the user asked Divi to walk through this task
-            const msg = `Let's start the setup. Walk me through the first task: "${firstTask.text}"`;
-            await sendMessage(msg);
-          } else {
-            setMessages(prev => [...prev, {
-              id: `msg-setup-confirm-${Date.now()}`,
-              role: 'assistant' as const,
-              content: `Great — let's do this together. Your setup tasks are due today. Let's start with the first one.`,
-              createdAt: new Date().toISOString(),
-            }]);
-          }
-        } else {
+        if (data.setupMode === 'solo') {
           setMessages(prev => [...prev, {
             id: `msg-setup-confirm-${Date.now()}`,
             role: 'assistant' as const,
