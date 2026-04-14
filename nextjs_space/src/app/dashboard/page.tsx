@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
   const [commsUnread, setCommsUnread] = useState(0);
+  const [chatRefreshKey, setChatRefreshKey] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [catchUpSettingsOpen, setCatchUpSettingsOpen] = useState(false);
   const [catchUpQuickOpen, setCatchUpQuickOpen] = useState(false);
@@ -111,6 +112,8 @@ export default function DashboardPage() {
         headers: { 'Content-Type': 'application/json' },
       });
       setOnboardingPhase(6); // Project-based onboarding — skip old phase system
+      // Force ChatView to re-mount and load the new messages
+      setChatRefreshKey(k => k + 1);
     } catch (e) {
       console.error('Failed to send intro:', e);
     }
@@ -506,7 +509,7 @@ export default function DashboardPage() {
               <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} />
             </div>
             <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
+              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} chatRefreshKey={chatRefreshKey} />
             </div>
             <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
               <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
@@ -524,7 +527,7 @@ export default function DashboardPage() {
               )}
               {mobilePanel === 'center' && (
                 <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
+                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} chatRefreshKey={chatRefreshKey} />
                 </div>
               )}
               {mobilePanel === 'queue' && (
