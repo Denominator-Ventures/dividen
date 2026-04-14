@@ -374,7 +374,7 @@ export async function buildContextDigest(
   // ── Actionable Insights ──
   const insightLines: string[] = [];
   for (const d of dupes.slice(0, 3)) {
-    insightLines.push(`MERGE: "${d.sourceTitle}" → "${d.targetTitle}" (${(d.confidence * 100).toFixed(0)}% match). Use [[merge_cards:{"sourceId":"${d.sourceId}","targetId":"${d.targetId}"}]] if operator agrees.`);
+    insightLines.push(`MERGE: "${d.sourceTitle}" → "${d.targetTitle}" (${(d.confidence * 100).toFixed(0)}% match). Use [[merge_cards:{"sourceCardId":"${d.sourceId}","targetCardId":"${d.targetId}"}]] if operator agrees.`);
   }
   for (const e of escalations.slice(0, 3)) {
     insightLines.push(`ESCALATE: "${e.title}" due in ${e.hoursLeft}h at ${e.checklistProgress}%. Suggest [[update_card:{"id":"${e.id}","priority":"urgent"}]].`);
@@ -396,7 +396,14 @@ export async function buildContextDigest(
     : '';
 
   // ── Full Digest ──
-  const sections = [nowFocus, boardHealth, recentCompletions, insights].filter(Boolean);
+  // Only include TOP FOCUS if there are health issues — otherwise the raw board listing + NOW section cover it
+  const hasIssues = healthFlags.length > 0 || insightLines.length > 0;
+  const sections = [
+    hasIssues ? nowFocus : null,  // Skip focus summary when board is clean — raw board data is enough
+    boardHealth,
+    recentCompletions,
+    insights,
+  ].filter(Boolean) as string[];
   const fullDigest = sections.join('\n\n');
 
   return { nowFocus, boardHealth, recentCompletions, insights, fullDigest };

@@ -80,6 +80,7 @@ const TOC = [
   { id: 'learnings-api', label: 'Learnings API' },
   { id: 'smart-tagging', label: 'Smart Tagging' },
   { id: 'drag-scroll', label: 'DragScrollContainer' },
+  { id: 'board-cortex', label: 'Board Cortex Intelligence' },
   { id: 'now-engine', label: 'NOW Engine Correlation' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
@@ -1076,6 +1077,83 @@ if (isOnCard) return; // Let dnd-kit handle card drag
               <div>• <InlineCode>CenterPanel</InlineCode> sub-tabs — <InlineCode>src/components/dashboard/CenterPanel.tsx</InlineCode></div>
             </div>
           </div>
+        </Section>
+
+        {/* ── Board Cortex Intelligence ─────────────────────── */}
+        <Section id="board-cortex" title="Board Cortex Intelligence">
+          <p className="text-[var(--text-secondary)] mb-4">
+            The Board Cortex is a background intelligence layer that analyzes the kanban board for redundancies,
+            stale items, and escalation candidates. It produces a pre-digested context digest that Divi receives
+            in every conversation — replacing raw data analysis with actionable insights.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Architecture</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Located in <InlineCode>src/lib/board-cortex.ts</InlineCode>. Pure functions that take cards as input
+            and produce structured analysis. No LLM calls — all deterministic, Levenshtein-based similarity matching.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Core Functions</h4>
+          <div className="space-y-3 mb-4">
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm font-mono text-brand-400">detectDuplicates(cards)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Levenshtein scan across active card titles. 75% similarity threshold. Returns merge suggestions with source/target and confidence scores.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm font-mono text-brand-400">detectDuplicateTasks(cards)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Cross-card checklist similarity at 80% threshold. Finds overlapping incomplete tasks across different cards.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm font-mono text-brand-400">findStaleCards(cards, now)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Active cards with no update for 14+ days. Includes checklist progress for context.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm font-mono text-brand-400">findEscalationCandidates(cards, now)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Cards within 48h of deadline at &lt;30% checklist completion. Auto-bumped to &quot;urgent&quot; priority during full scans.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm font-mono text-brand-400">buildContextDigest(userId, cards, now)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Produces the pre-digested summary injected into Divi&apos;s system prompt. Includes TOP FOCUS, BOARD HEALTH, RECENT COMPLETIONS, and actionable BOARD INTELLIGENCE with ready-to-use action tags.</p>
+            </div>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-3">
+              <p className="text-sm font-mono text-brand-400">runBoardScan(userId)</p>
+              <p className="text-xs text-[var(--text-muted)] mt-1">Full scan: detect all issues → auto-escalate deadline cards → persist insights to BoardInsight model → log activity. Called by <InlineCode>POST /api/board/cortex</InlineCode>.</p>
+            </div>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">API Endpoints</h4>
+          <div className="space-y-2 mb-4">
+            <Endpoint method="GET" path="/api/board/cortex" description="Returns the context digest (same format injected into Divi&apos;s prompt)" auth="Session" />
+            <Endpoint method="POST" path="/api/board/cortex" description="Triggers full board scan with auto-housekeeping. Returns health summary, all detected issues, and auto-actions taken." auth="Session" />
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">BoardInsight Model</h4>
+          <Code>{`model BoardInsight {
+  id         String   // cuid
+  type       String   // "merge_suggestion" | "stale_card" | "auto_escalate" | "duplicate_tasks" | "archive_candidate"
+  status     String   // "active" | "dismissed" | "applied"
+  confidence Float    // 0.0 - 1.0
+  reason     String   // Human-readable explanation
+  sourceId   String   // Primary card/item ID
+  targetId   String?  // For merge suggestions — the target card
+  userId     String
+}`}</Code>
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">System Prompt Integration</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The digest is injected into Divi&apos;s Group 2 (Active State) as a &quot;🧠 Board Intelligence&quot; section.
+            It supplements the raw card listing — Divi gets both detail and analysis. When the board
+            is clean, only the health status line appears. When issues are detected, full context plus suggested action
+            tags are included.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Extending the Cortex</h4>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>Add new detection functions following the same pattern: take <InlineCode>CortexCard[]</InlineCode>, return typed results</li>
+            <li>Wire them into <InlineCode>buildContextDigest()</InlineCode> and <InlineCode>runBoardScan()</InlineCode></li>
+            <li>Reuse <InlineCode>similarity()</InlineCode> from <InlineCode>queue-dedup.ts</InlineCode> for any text matching</li>
+            <li>For LLM-powered analysis (semantic dedup, priority suggestions), add to <InlineCode>runBoardScan()</InlineCode> — keep <InlineCode>buildContextDigest()</InlineCode> fast and deterministic</li>
+          </ul>
         </Section>
 
         {/* ── NOW Engine Correlation ─────────────────────────── */}

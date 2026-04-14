@@ -17,6 +17,71 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'board-cortex-intelligence-layer',
+    date: '2026-04-14',
+    time: '11:59 PM',
+    title: 'Board Cortex — Your Kanban Has Its Own Brain Now',
+    subtitle: 'The board scans itself for duplicates, stale projects, and deadline risks. Divi sees a pre-digested brief instead of raw data.',
+    tags: ['board-cortex', 'intelligence', 'kanban', 'system-prompt', 'auto-escalation', 'dedup'],
+    content: `The kanban board is no longer a passive tracking surface. It thinks.
+
+## What Changed
+
+A new intelligence layer — **Board Cortex** — now runs analysis on your board and feeds the results directly into Divi's context. The goal: Divi should only work with the sharpest version of reality. Board janitoring is no longer the AI's job.
+
+### Duplicate Detection
+
+The Cortex uses the same Levenshtein similarity engine that already powers queue deduplication, now applied across **card titles** (75% threshold) and **checklist items across different cards** (80% threshold). When it finds overlap:
+
+- It suggests merging the less-developed card into the richer one
+- Divi gets the suggestion with a ready-to-fire \`[[merge_cards:...]]\` action tag
+- Nothing auto-merges. You confirm.
+
+### Stale Card Detection
+
+Any active card with no update for 14+ days gets flagged. The Cortex calculates checklist completion percentage to distinguish "stuck at 0%" from "90% done but forgotten." Divi asks: continue, pause, or archive?
+
+### Auto-Escalation
+
+Cards approaching their deadline (within 48 hours) with less than 30% checklist completion get **automatically bumped to urgent** priority. No human intervention needed — the urgency is self-evident.
+
+### Archive Candidates
+
+Completed cards sitting for 2+ days are flagged as archive-ready. Keeps the board clean without you thinking about it.
+
+### Context Digest → System Prompt
+
+The big architectural change: Divi now receives a **🧠 Board Intelligence** section in every conversation. Instead of parsing raw card listings to figure out what's important, Divi gets:
+
+- **TOP FOCUS** — top 5 cards ranked by priority and deadline, with completion percentages
+- **BOARD HEALTH** — flags for duplicates, stale items, escalation candidates, overlapping tasks
+- **RECENT COMPLETIONS** — what finished recently (velocity context)
+- **BOARD INTELLIGENCE** — actionable suggestions with ready-to-use action tags
+
+When the board is healthy, this section is one line: "✅ Clean — no redundancies or stale items detected." When there's something to do, Divi proactively raises it.
+
+## NOW Panel Redesign
+
+While we were in there, cleaned up the left sidebar:
+
+- **Stats → Priority Stack → Calendar Gap → Board** — that's the flow now
+- Removed the "+Task" and "Chat" buttons. The panel is for seeing priorities, not input
+- Single wide "📋 Open Board" button beneath the calendar gap indicator
+
+## API Access
+
+- \`GET /api/board/cortex\` — returns the context digest (same format Divi sees)
+- \`POST /api/board/cortex\` — triggers a full scan with auto-housekeeping
+
+The \`BoardInsight\` model persists all detected issues with confidence scores and status tracking.
+
+## What's Next
+
+Scheduled daemon to run the Cortex scan on a cadence — so the board self-cleans even when you're not chatting with Divi. Semantic dedup (LLM-powered, beyond Levenshtein) for catching cards that describe the same thing in different words.
+
+— Jon`,
+  },
+  {
     id: 'teams-architecture-open-source-billing-cos-delegation',
     date: '2026-04-14',
     time: '11:59 PM',
