@@ -138,6 +138,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     contacts,
     unreadEmails,
     connections,
+    myChecklistTasks,
   ] = await Promise.all([
     prisma.kanbanCard.findMany({
       where: { userId },
@@ -187,6 +188,20 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       },
       take: 20,
     }),
+    // Assigned checklist tasks — these are the operator's actionable NOW items
+    prisma.checklistItem.findMany({
+      where: {
+        completed: false,
+        assigneeType: 'self',
+        dueDate: { not: null },
+        card: { userId, status: { in: ['active', 'in_progress', 'development'] } },
+      },
+      orderBy: [{ dueDate: 'asc' }, { order: 'asc' }],
+      take: 15,
+      include: {
+        card: { select: { id: true, title: true, priority: true, project: { select: { name: true } } } },
+      },
+    }),
   ]);
 
   const inProgressCards = kanbanCards.filter((c: any) => c.status === 'in_progress');
@@ -202,8 +217,8 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   });
   const modeName = ctx.mode === 'chief_of_staff' ? 'Chief of Staff' : 'Cockpit';
   const modeDesc = ctx.mode === 'chief_of_staff'
-    ? `You proactively manage tasks, make decisions, and take action on behalf of ${ctx.userName || 'the user'}. You prioritize, delegate, and execute without waiting for explicit approval on routine matters.`
-    : `You present information, options, and recommendations to ${ctx.userName || 'the user'}, who makes all final decisions. You execute tasks only when explicitly instructed.`;
+    ? `You proactively manage tasks, make decisions, and take action on behalf of ${ctx.userName || 'the user'}. You prioritize, delegate, and execute without waiting for explicit approval on routine matters. You work autonomously through the task list, coordinating with other agents via comms and using installed capabilities.`
+    : `You work alongside ${ctx.userName || 'the user'} to drive through their task list. Default to pulling the next NOW item forward — help execute, mark complete, create follow-on work, and delegate what belongs elsewhere. You are a work partner, not a passive assistant.`;
 
   // ── Working style modifiers ──
   const verbosity = workingStyle.verbosity ?? 3;
@@ -286,14 +301,27 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   // ── Group 2: Active State (merged old 4+5+11) ──
   let group2 = '## Active State\n';
 
-  // NOW focus
-  if (inProgressCards.length > 0) {
-    const focusLines = inProgressCards.slice(0, 3)
-      .map((c: any) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
-      .join('\n');
-    group2 += `### 🎯 NOW (In Progress)\n${focusLines}\n\n`;
+  // NOW focus — checklist tasks assigned to operator + in-progress cards
+  if (myChecklistTasks.length > 0 || inProgressCards.length > 0) {
+    group2 += `### 🎯 NOW (Your Task List)\n`;
+    if (myChecklistTasks.length > 0) {
+      group2 += `**Assigned tasks** (work through these with the operator):\n`;
+      group2 += myChecklistTasks.map((t: any) => {
+        const due = t.dueDate ? ` Due:${new Date(t.dueDate).toISOString().split('T')[0]}` : '';
+        const proj = t.card?.project?.name ? ` (${t.card.project.name})` : '';
+        return `- [${t.id}] "${t.text}" on card "${t.card?.title}"${proj}${due}`;
+      }).join('\n') + '\n';
+    }
+    if (inProgressCards.length > 0) {
+      group2 += `**Active cards**:\n`;
+      const focusLines = inProgressCards.slice(0, 3)
+        .map((c: any) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
+        .join('\n');
+      group2 += focusLines + '\n';
+    }
+    group2 += '\n';
   } else {
-    group2 += `### 🎯 NOW\nNo cards currently in progress.\n\n`;
+    group2 += `### 🎯 NOW\nNo assigned tasks or active cards. Help the operator create work or run a catch-up.\n\n`;
   }
 
   // Kanban — Project Cards
@@ -1034,12 +1062,15 @@ Only contributors who are DiviDen users (marked 🟢 on the Board) can receive d
 - **Every task gets a due date**: Infer from context, suggest defaults by priority, confirm with operator. A task without a deadline is a task that drifts.
 - **Three task owners**: "self" (operator), "divi" (you handle directly), "delegated" (another user's Divi manages). The Board shows [me:2 divi:3 via-divi:1] breakdown per card.
 - **People = Contributors + Related**: Contributors actively work on a project (🟢 = DiviDen user, can receive delegated tasks). Related people are contextual (stakeholders, mentioned contacts). CRM-only contacts can't take tasks — suggest inviting them.
-- **${diviName} as Project Manager**: In cockpit mode, you are reactive to the operator — helping them manage their tasks and routing outgoing tasks to other agents. You orchestrate; they execute.
+- **${diviName} as Work Partner (Cockpit Mode)**: Your DEFAULT behavior when the operator opens chat is to work through their NOW list together. Look at their assigned checklist tasks (assigneeType 'self') and active cards. Pick the highest-priority item and drive it forward: ask what they need, help them execute, and mark it complete when done ([[complete_checklist:{"id":"..."}]]). Then move to the next. You are not passive — you pull work forward.
+- **Creating follow-on work**: As tasks complete, NEW work often surfaces. Create checklist items on existing cards ([[add_checklist:{"cardId":"...","text":"...","assigneeType":"self|divi|delegated","assigneeName":"...","dueDate":"ISO"}]]) or new cards for new initiatives. Always assign a due date and owner.
+- **Delegation**: Some tasks belong to other people or agents. Assign to "divi" (you handle via queue/capabilities), "delegated" (route to another user's Divi via relay), or to a marketplace agent. When delegating, create the task and route it — don't just suggest it.
+- **Capability execution from chat**: When a capability is enabled (email, meetings) and the context is clear and low-risk, you can execute it directly from chat and log it as an activity — not everything needs the queue. Use the queue for things that need review or are high-stakes.
 - **Source traceability**: Every task carries sourceType/sourceId/sourceLabel. Every artifact is linked via CardArtifact. The operator can always see WHERE something came from.
 ${triageSettings.autoRouteToBoard ? '- **Auto-routing enabled**: You may add items to the board during triage without waiting for explicit confirmation on each one. Summarize what you added at the end.' : '- **No auto-routing to board**: NEVER automatically add items to the board without the operator seeing them in a triage conversation first. Signal items are triaged conversationally — the operator reviews what you found and decides what becomes tasks.'}
-- **NOW = urgency x impact**: The NOW panel shows in-progress cards. Prioritize what moves goals forward fastest.
+- **NOW = urgency x impact**: The NOW panel shows assigned checklist tasks and active cards ranked by urgency. Your default conversation opener should reference the top item and start driving it forward.
 
-**The full loop**: Signals → Extract Tasks → Route to Project Cards → Assign (self/divi/delegated) + Due Date → Board (projects with people) → NOW (focus) → Queue (execution) → Relay (delegation) → tracked back to Board
+**The full loop**: Signals → Extract Tasks → Route to Project Cards → Assign (self/divi/delegated) + Due Date → Board (projects with people) → NOW (focus) → Queue (execution) / Chat (direct) → Relay (delegation) → tracked back to Board
 
 ### Outbound Capabilities
 Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:

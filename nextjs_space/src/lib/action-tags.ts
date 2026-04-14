@@ -401,7 +401,18 @@ async function executeTag(
         const item = await prisma.checklistItem.update({
           where: { id: params.id },
           data: { completed: params.completed !== false },
+          include: { card: { select: { id: true, title: true } } },
         });
+        // Log to activity feed
+        await prisma.activityLog.create({
+          data: {
+            action: 'task_completed',
+            actor: 'divi',
+            summary: `Completed task: "${item.text}" on card "${(item as any).card?.title || 'unknown'}"`,
+            metadata: JSON.stringify({ checklistId: item.id, cardId: (item as any).card?.id }),
+            userId,
+          },
+        }).catch(() => {});
         return { tag: name, success: true, data: { id: item.id, completed: item.completed } };
       }
 
@@ -701,6 +712,16 @@ async function executeTag(
                 userId,
               },
             });
+            // Log capability execution to activity feed
+            await prisma.activityLog.create({
+              data: {
+                action: 'capability_executed',
+                actor: 'divi',
+                summary: `Sent email to ${params.to}: "${params.subject}"`,
+                metadata: JSON.stringify({ capabilityType: 'email', action: 'send', to: params.to, subject: params.subject, identity: sendIdentity }),
+                userId,
+              },
+            }).catch(() => {});
             return { tag: name, success: true, data: { messageId: result.messageId, sent: true, as: sendIdentity } };
           } catch (err: any) {
             return { tag: name, success: false, error: `SMTP send failed: ${err?.message}` };
@@ -931,6 +952,16 @@ async function executeTag(
             userId,
           },
         });
+        // Log capability execution to activity feed
+        await prisma.activityLog.create({
+          data: {
+            action: 'capability_executed',
+            actor: 'divi',
+            summary: `Created calendar event: "${params.title}" at ${startTime.toISOString()}`,
+            metadata: JSON.stringify({ capabilityType: 'meetings', action: 'create_event', title: params.title }),
+            userId,
+          },
+        }).catch(() => {});
         return {
           tag: name,
           success: true,

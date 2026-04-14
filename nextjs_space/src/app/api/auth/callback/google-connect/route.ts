@@ -109,6 +109,57 @@ export async function GET(req: NextRequest) {
 
     console.log(`[google-callback] Created/updated ${services.length} integration accounts for ${userInfo.email}`);
 
+    // ── Auto-install capabilities for connected signals (silent — user discovers later) ──
+    const capabilityUpserts: Promise<any>[] = [];
+    if (services.includes('email')) {
+      capabilityUpserts.push(
+        prisma.agentCapability.upsert({
+          where: { userId_type: { userId, type: 'email' } },
+          create: {
+            type: 'email', name: 'Outbound Email', status: 'enabled',
+            identity: identity === 'agent' ? 'agent' : 'operator',
+            rules: JSON.stringify([
+              { rule: 'Match my tone and writing style', enabled: true },
+              { rule: 'Always get approval before sending to new contacts', enabled: true },
+            ]),
+            config: JSON.stringify({ provider: 'google', emailAddress: userInfo.email }),
+            userId,
+          },
+          update: {
+            config: JSON.stringify({ provider: 'google', emailAddress: userInfo.email }),
+            // Don't overwrite status/rules if user already configured
+          },
+        })
+      );
+    }
+    if (services.includes('calendar')) {
+      capabilityUpserts.push(
+        prisma.agentCapability.upsert({
+          where: { userId_type: { userId, type: 'meetings' } },
+          create: {
+            type: 'meetings', name: 'Meeting Scheduling', status: 'enabled',
+            identity: identity === 'agent' ? 'agent' : 'operator',
+            rules: JSON.stringify([
+              { rule: 'No meetings before 9am or after 6pm', enabled: true },
+              { rule: 'Default meeting duration is 30 minutes', enabled: true },
+              { rule: 'Always check for conflicts before scheduling', enabled: true },
+            ]),
+            config: JSON.stringify({ provider: 'google' }),
+            userId,
+          },
+          update: {
+            config: JSON.stringify({ provider: 'google' }),
+          },
+        })
+      );
+    }
+    if (capabilityUpserts.length > 0) {
+      await Promise.all(capabilityUpserts).catch((e) =>
+        console.warn('[google-callback] Capability auto-install error (non-fatal):', e.message)
+      );
+      console.log(`[google-callback] Auto-installed ${capabilityUpserts.length} capabilities`);
+    }
+
     // If returning from onboarding, redirect to dashboard (chat) instead of settings
     if (returnTo === 'onboarding') {
       return NextResponse.redirect(
