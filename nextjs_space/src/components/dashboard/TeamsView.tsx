@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { TeamAnalyticsDashboard } from './TeamAnalyticsDashboard';
 
 interface TeamMember {
   id: string;
@@ -100,6 +101,7 @@ export function TeamsView() {
   const [showAssignProject, setShowAssignProject] = useState(false);
   const [assignProjectId, setAssignProjectId] = useState('');
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [teamDetailTab, setTeamDetailTab] = useState<'overview' | 'analytics'>('overview');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -423,7 +425,7 @@ export function TeamsView() {
     return (
       <div className="h-full flex flex-col">
         <div className="px-4 pt-3 pb-2 border-b border-[var(--border-primary)]">
-          <button onClick={() => { setView('list'); setSelectedTeam(null); setTeamInvites([]); }} className="text-xs text-brand-400 hover:text-brand-300 mb-2">← Back to Teams</button>
+          <button onClick={() => { setView('list'); setSelectedTeam(null); setTeamInvites([]); setTeamDetailTab('overview'); }} className="text-xs text-brand-400 hover:text-brand-300 mb-2">← Back to Teams</button>
           <div className="flex items-center gap-3">
             <span className="text-2xl">{team.avatar || '👥'}</span>
             <div className="flex-1">
@@ -455,6 +457,35 @@ export function TeamsView() {
           </div>
         </div>
 
+        {/* Tab switcher for team detail */}
+        <div className="flex items-center gap-1 px-4 pt-2 border-b border-[var(--border-primary)]">
+          {[
+            { id: 'overview' as const, label: 'Overview', icon: '📋' },
+            { id: 'analytics' as const, label: 'Analytics & Billing', icon: '📊' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setTeamDetailTab(tab.id)}
+              className={cn(
+                'px-3 py-2 text-xs font-medium rounded-t-lg transition-colors border-b-2 -mb-px',
+                teamDetailTab === tab.id
+                  ? 'border-[var(--brand-primary)] text-[var(--brand-primary)] bg-[var(--brand-primary)]/5'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+              )}
+            >
+              {tab.icon} {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {teamDetailTab === 'analytics' ? (
+          <div className="flex-1 overflow-y-auto p-4">
+            <TeamAnalyticsDashboard
+              teamId={team.id}
+              userRole={team.members.find(m => m.user)?.role || 'member'}
+            />
+          </div>
+        ) : (
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {/* Subscription info — only for platform teams */}
           {!team.isSelfHosted && team.subscription && (
@@ -627,6 +658,7 @@ export function TeamsView() {
             )}
           </div>
         </div>
+        )}
       </div>
     );
   }
