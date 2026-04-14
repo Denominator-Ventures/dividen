@@ -136,7 +136,13 @@ model KanbanCard {
   linksFrom      CardLink[]   @relation("CardLinkFrom")   // Links where THIS card is the source
   linksTo        CardLink[]   @relation("CardLinkTo")     // Links where THIS card is the target
 
+  // ── Delegation provenance — stamped when work crosses user boundaries ──
+  originCardId    String?    // The card on the SENDER's board that spawned this work
+  originUserId    String?    // The user who delegated this to us
+  sourceRelayId   String?    // The relay that delivered this work
+
   @@index([projectId])
+  @@index([originCardId])
   @@map("kanban_cards")
 }
 
@@ -150,6 +156,15 @@ model CardLink {
   relayId       String?    // The relay that created this link (optional, for traceability)
   linkType      String     @default("delegation") // "delegation" | "collaboration" | "reference"
   createdAt     DateTime   @default(now())
+
+  // Status sync — cached from the linked card for fast reads without joins
+  linkedStatus      String?    // Cached status of the "other" card (updated on change)
+  linkedPriority    String?    // Cached priority
+  lastSyncedAt      DateTime?  // When status was last synced
+
+  // Cross-instance support (for FVP and federated DiviDen instances)
+  externalCardId      String?  // Card ID on the remote instance
+  externalInstanceUrl String?  // Remote instance base URL
 
   fromCard      KanbanCard @relation("CardLinkFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
   toCard        KanbanCard @relation("CardLinkTo", fields: [toCardId], references: [id], onDelete: Cascade)
@@ -965,6 +980,9 @@ model AgentRelay {
 
   // Queue bridge (DEP-003)
   queueItemId     String?   @unique // Links relay to a local queue item (1:1)
+
+  // Card context — the card this relay operates on (on sender's board)
+  cardId          String?   // Direct FK to the KanbanCard this relay is about
 
   // Team/Project context
   teamId          String?

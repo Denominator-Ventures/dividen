@@ -189,14 +189,13 @@ async function executeTag(
             userId,
           },
         });
-        // Linked Kards: if this card was created from another card, link them
-        if (params.linkedFromCardId) {
-          const { linkCards } = await import('./card-links');
-          await linkCards(params.linkedFromCardId, card.id, {
-            relayId: params.relayId || undefined,
-            linkType: params.linkType || 'delegation',
-          });
-        }
+        // v2: Auto-link from relay context (deterministic) or manual override
+        const { autoLinkFromRelay } = await import('./card-links');
+        await autoLinkFromRelay(card.id, userId, {
+          linkedFromCardId: params.linkedFromCardId,
+          relayId: params.relayId,
+          linkType: params.linkType,
+        });
         return { tag: name, success: true, data: { id: card.id, title: card.title } };
       }
 
@@ -213,6 +212,11 @@ async function executeTag(
           where: { id: params.id },
           data: updateData,
         });
+        // v2: Propagate status/priority changes to linked cards
+        if (params.status || params.priority) {
+          const { propagateCardStatusChange } = await import('./card-links');
+          await propagateCardStatusChange(card.id, params.status, params.priority);
+        }
         return { tag: name, success: true, data: { id: card.id, title: card.title } };
       }
 
@@ -222,6 +226,9 @@ async function executeTag(
           where: { id: params.id },
           data: { status: 'completed' },
         });
+        // v2: Propagate completion to linked cards
+        const { propagateCardStatusChange: propagateArchive } = await import('./card-links');
+        await propagateArchive(card.id, 'completed');
         return { tag: name, success: true, data: { id: card.id } };
       }
 
@@ -308,6 +315,13 @@ async function executeTag(
             dueDate: params.dueDate ? new Date(params.dueDate) : null,
             userId,
           },
+        });
+        // v2: Auto-link from relay context (deterministic) or manual override
+        const { autoLinkFromRelay: autoLinkUpsert } = await import('./card-links');
+        await autoLinkUpsert(newCard.id, userId, {
+          linkedFromCardId: params.linkedFromCardId,
+          relayId: params.relayId,
+          linkType: params.linkType,
         });
         return {
           tag: name,
@@ -1197,6 +1211,7 @@ async function executeTag(
             threadId: relayThreadId,
             parentRelayId: params.parentRelayId || null,
             peerInstanceUrl: connection.isFederated ? connection.peerInstanceUrl : null,
+            cardId: params.cardId || null, // v2: Direct FK to source card if provided
           },
         });
 
@@ -1720,6 +1735,7 @@ async function executeTag(
                 payload: JSON.stringify(relayPayload),
                 status: 'pending',
                 priority,
+                cardId: context.card.id, // v2: Direct FK to the card this relay is about
               },
             });
 

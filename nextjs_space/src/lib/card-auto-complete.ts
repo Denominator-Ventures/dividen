@@ -60,6 +60,10 @@ export async function checkAndAutoCompleteCard(
       data: { status: 'completed' },
     });
 
+    // v2: Propagate completion to linked cards
+    const { propagateCardStatusChange } = await import('./card-links');
+    await propagateCardStatusChange(card.id, 'completed');
+
     // Log the auto-completion
     const effectiveUserId = userId || card.userId;
     await logActivity({

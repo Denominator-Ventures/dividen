@@ -390,6 +390,14 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
         if (relatedCount > 0) peopleParts.push(`related:${relatedCount}`);
         const peopleStr = peopleParts.length > 0 ? ` 👥${peopleParts.join(' ')}` : '';
         const proj = c.project?.name ? ` proj:"${c.project.name}"` : '';
+        // v2: Delegation provenance — show who delegated this card
+        let provenanceStr = '';
+        if (c.originUserId && c.originUserId !== userId) {
+          // Find the originator's name from linked cards map or connections
+          const originLink = (linkedCardsMap[c.id] || []).find((l: any) => l.direction === 'inbound');
+          const fromName = originLink?.linkedUserName || 'another user';
+          provenanceStr = ` ⬅️delegated-from:${fromName}`;
+        }
         // Linked Kards: show cross-user linked cards
         const cardLinks = linkedCardsMap[c.id];
         let linkStr = '';
@@ -397,7 +405,7 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
           const { formatLinkedCardsForPrompt } = require('./card-links');
           linkStr = ` 🔗${formatLinkedCardsForPrompt(cardLinks)}`;
         }
-        return `[${c.id}] "${c.title}" (${c.priority})${proj}${due}${checks}${taskStr}${peopleStr}${artStr}${linkStr}`;
+        return `[${c.id}] "${c.title}" (${c.priority})${proj}${due}${checks}${taskStr}${peopleStr}${artStr}${provenanceStr}${linkStr}`;
       }).join(' | ') + '\n';
     }
   } else {
@@ -1239,12 +1247,14 @@ When the user needs to connect their Google account (for Gmail, Calendar, Drive 
 - [[show_google_connect:{"identity":"agent","label":"🤖 Connect Divi's Gmail"}]] — connect Divi's separate account
 This works during onboarding AND in regular conversation. If already connected, it shows the connected state.
 
-### Linked Kards
-When you know two cards across users are related (e.g., a delegated task), link them:
+### Linked Kards (v2)
+**Auto-linking**: When a relay sends work to another user and they create a card, the link is created automatically — you don't need to pass linkedFromCardId (though you still can as a manual override).
+**Status propagation**: When a linked card changes status (moved, completed, etc.), the originator automatically receives an update relay.
+**Delegation provenance**: Cards created from relays are stamped with originCardId/originUserId — visible in board context as "⬅️delegated-from:username".
+Manual linking is still available for ad-hoc references:
 - [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"delegation|collaboration|reference"}]]
-Cards created via create_card can include linkedFromCardId to auto-link:
 - [[create_card:{"title":"...","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
-Linked cards appear in your board context with 🔗 prefix showing the other user's card status.
+Linked cards appear in your board context with 🔗 prefix showing the other user's card status + progress.
 
 **More setup task mappings**:
 - "Run Your First Catch-Up" → Initiate a catch-up/triage run

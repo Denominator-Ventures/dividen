@@ -46,6 +46,11 @@ export interface KanbanCardData {
       connection: { id: string; peerUserName: string | null; peerUserEmail: string | null } | null;
     }>;
   } | null;
+  // v2: Delegation provenance
+  originCardId?: string | null;
+  originUserId?: string | null;
+  originUserName?: string | null; // Resolved from the linked card
+  sourceRelayId?: string | null;
   // Linked Kards: cross-user visibility
   linkedCards?: Array<{
     linkId: string;
@@ -55,6 +60,7 @@ export interface KanbanCardData {
     linkedUserName: string | null;
     direction: 'outbound' | 'inbound';
     linkType: string;
+    checklistProgress?: string;
   }>;
 }
 

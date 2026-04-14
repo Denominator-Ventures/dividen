@@ -54,18 +54,25 @@ export async function GET() {
   try {
     const { getLinkedCardsForUser } = await import('@/lib/card-links');
     const linkedMap = await getLinkedCardsForUser(userId);
-    const enriched = cards.map((card: any) => ({
-      ...card,
-      linkedCards: (linkedMap[card.id] || []).map((l: any) => ({
-        linkId: l.linkId,
-        linkedCardId: l.linkedCardId,
-        linkedCardTitle: l.linkedCardTitle,
-        linkedCardStatus: l.linkedCardStatus,
-        linkedUserName: l.linkedUserName,
-        direction: l.direction,
-        linkType: l.linkType,
-      })),
-    }));
+    const enriched = cards.map((card: any) => {
+      const links = (linkedMap[card.id] || []);
+      // v2: Resolve originUserName from inbound links
+      const inboundLink = links.find((l: any) => l.direction === 'inbound');
+      return {
+        ...card,
+        originUserName: card.originUserId ? (inboundLink?.linkedUserName || null) : null,
+        linkedCards: links.map((l: any) => ({
+          linkId: l.linkId,
+          linkedCardId: l.linkedCardId,
+          linkedCardTitle: l.linkedCardTitle,
+          linkedCardStatus: l.linkedCardStatus,
+          linkedUserName: l.linkedUserName,
+          direction: l.direction,
+          linkType: l.linkType,
+          checklistProgress: l.checklistProgress,
+        })),
+      };
+    });
     return NextResponse.json({ success: true, data: enriched });
   } catch (e) {
     // Fallback: return cards without linked info

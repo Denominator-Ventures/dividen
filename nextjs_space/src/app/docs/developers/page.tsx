@@ -1511,51 +1511,56 @@ x-cron-secret: <ADMIN_PASSWORD>
         </Section>
 
         {/* ── Linked Kards (Cross-User) ─────────────────────────── */}
-        <Section id="linked-kards" title="Linked Kards (Cross-User Visibility)">
+        <Section id="linked-kards" title="Linked Kards v2 (Cross-User Visibility)">
           <p className="text-[var(--text-secondary)] mb-4">
-            When a relay creates work on another user&apos;s board, both cards link together. Both users&apos; Divis see the linked card&apos;s status and progress.
+            When a relay creates work on another user&apos;s board, both cards link together automatically. Both users&apos; Divis see the linked card&apos;s status/progress, and status changes propagate back to the originator via update relays.
           </p>
-          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">Schema: CardLink</h4>
-          <Code>{`model CardLink {
-  id            String     @id @default(cuid())
-  fromCardId    String     // Source card (originator)
-  toCardId      String     // Target card (on another user's board)
-  relayId       String?    // Relay that created this link
-  linkType      String     @default("delegation")
-                           // "delegation" | "collaboration" | "reference"
-  createdAt     DateTime   @default(now())
-  @@unique([fromCardId, toCardId])
+          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">v2 Architecture</h4>
+          <ul className="list-disc pl-5 space-y-1 text-[var(--text-secondary)] mb-4">
+            <li><strong>Auto-linking</strong>: Cards created after inbound relays with <InlineCode>assign_task</InlineCode> intent are automatically linked — no LLM action required</li>
+            <li><strong>Delegation provenance</strong>: Cards stamped with <InlineCode>originCardId</InlineCode>, <InlineCode>originUserId</InlineCode>, <InlineCode>sourceRelayId</InlineCode></li>
+            <li><strong>Status propagation</strong>: When a linked card changes status, cached status updates on CardLink + update relay sent to originator</li>
+            <li><strong>Relay→Card FK</strong>: <InlineCode>AgentRelay.cardId</InlineCode> directly references the source card (no JSON parsing needed)</li>
+          </ul>
+          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">Schema</h4>
+          <Code>{`model KanbanCard {
+  ...
+  originCardId    String?    // Card on SENDER's board
+  originUserId    String?    // User who delegated to us
+  sourceRelayId   String?    // Relay that delivered work
+}
+
+model CardLink {
+  ...
+  linkedStatus      String?    // Cached status (synced on change)
+  linkedPriority    String?    // Cached priority
+  lastSyncedAt      DateTime?  // Last sync timestamp
+  externalCardId    String?    // Cross-instance (FVP)
+  externalInstanceUrl String?  // Remote instance URL
+}
+
+model AgentRelay {
+  ...
+  cardId            String?    // Direct FK to source card
 }`}</Code>
           <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Action Tags</h4>
-          <Code>{`# Create a card with auto-linking to source
-[[create_card:{"title":"Research Report","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
+          <Code>{`# Card creation auto-links from recent relay context (v2 default)
+[[create_card:{"title":"Research Report"}]]
+
+# Manual override with explicit source (still works)
+[[create_card:{"title":"...","linkedFromCardId":"<source_card_id>"}]]
 
 # Explicitly link two existing cards
 [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"collaboration"}]]`}</Code>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Status Propagation Flow</h4>
+          <Code>{`1. Sarah moves card to "completed"
+2. propagateCardStatusChange() fires:
+   a. Updates CardLink.linkedStatus cache
+   b. Creates outbound relay (type:"update", intent:"share_update")
+3. Jon's Divi receives update relay in next turn
+4. Jon's board shows updated linked card status`}</Code>
           <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">System Prompt Context</h4>
-          <p className="text-[var(--text-secondary)] mb-2">
-            In each user&apos;s board context (Group 2), linked cards appear with a 🔗 prefix:
-          </p>
-          <Code>{`[cardId] "My Card" (high) 🔗→delegation:"Their Task" (in_progress) by Sarah ✓2/5`}</Code>
-          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">API: Kanban Response</h4>
-          <p className="text-[var(--text-secondary)] mb-2">
-            The <InlineCode>GET /api/kanban</InlineCode> response now includes <InlineCode>linkedCards</InlineCode> on each card:
-          </p>
-          <Code>{`{
-  "id": "...",
-  "title": "My Card",
-  "linkedCards": [
-    {
-      "linkId": "...",
-      "linkedCardId": "...",
-      "linkedCardTitle": "Their Task",
-      "linkedCardStatus": "in_progress",
-      "linkedUserName": "Sarah",
-      "direction": "outbound",  // "outbound" = I delegated TO them
-      "linkType": "delegation"
-    }
-  ]
-}`}</Code>
+          <Code>{`[cardId] "My Card" (high) ⬅️delegated-from:Jon 🔗→delegation:"Their Task" (active) by Sarah ✓2/5`}</Code>
         </Section>
 
         {/* ── Google Connect Widget ──────────────────────────────── */}

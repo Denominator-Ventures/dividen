@@ -40,22 +40,22 @@ Auth is admin-password-gated. Each DiviDen instance runs its own daemon — no c
 
 Your board now cleans itself even when you're not looking.
 
-## Linked Kards — Cross-User Card Visibility
+## Linked Kards v2 — Cross-User Card Visibility with Auto-Linking & Status Propagation
 
-This is the big multi-user primitive. When a relay creates work on another user's board (via \`task_route\` delegation or direct card creation), the originator's card and the new card now **link together**.
+The big multi-user primitive, now with deterministic infrastructure instead of LLM-dependent linking.
 
-How it works:
-- New \`CardLink\` model — bidirectional, stores fromCard → toCard with link type (\`delegation\`, \`collaboration\`, \`reference\`)
-- \`[[create_card]]\` now accepts \`linkedFromCardId\` to auto-link on creation
-- \`[[link_cards]]\` — new action tag for explicit linking (e.g., when Divi discovers two cards are related)
-- \`[[task_route]]\` results now include \`sourceCardId\` so the receiving Divi can link back
+**v2 Architecture (what changed from v1):**
+- **Auto-linking**: When a relay sends work to another user and they create a card, the link forms automatically. No more hoping the LLM remembers to pass \`linkedFromCardId\` — it's infrastructure now.
+- **Delegation provenance**: Every card created from relay context gets stamped with \`originCardId\`, \`originUserId\`, \`sourceRelayId\`. The card itself knows where it came from.
+- **Relay→Card FK**: \`AgentRelay\` now has a direct \`cardId\` field instead of burying card context in JSON payload. Query-friendly, indexable.
+- **Status propagation**: When a linked card changes status (drag in Kanban, Divi updates it, auto-complete fires), the change propagates: cached status updates on CardLink, and an update relay fires back to the originator. Their Divi receives it proactively.
+- **Cross-instance prep**: CardLink now has \`externalCardId\` + \`externalInstanceUrl\` fields for FVP's federated use case.
 
-**In the system prompt**, each card's Board context now shows 🔗 linked cards:
-\`[cardId] "My Card" (high) 🔗→delegation:"Their Task" (in_progress) by Sarah ✓2/5\`
+**In the system prompt**, delegated cards show: \`[cardId] "My Card" (high) ⬅️delegated-from:Jon 🔗→delegation:"Their Task" (active) by Sarah ✓2/5\`
 
-**In the Kanban UI**, linked cards show a visual indicator below the card with direction arrows, link type, target card title, and user name.
+**In the Kanban UI**, delegated cards show a purple provenance badge + linked card indicators with direction, type, title, user, and checklist progress.
 
-Both users' Divis see the linked card's progress. When Sarah completes her delegated task, your Divi knows immediately — no manual sync, no checking in.
+Manual linking (\`[[link_cards]]\` and \`linkedFromCardId\`) still works as override.
 
 ## Google Connect Button Widget
 

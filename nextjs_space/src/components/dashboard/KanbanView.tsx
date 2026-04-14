@@ -207,6 +207,17 @@ function KanbanCard({
         </div>
       )}
 
+      {/* v2: Delegation provenance badge */}
+      {card.originUserId && (
+        <div className="mt-1.5 flex items-center gap-1 text-[10px] text-purple-400">
+          <span>⬅️</span>
+          <span className="px-1 py-0.5 rounded bg-purple-500/15 font-medium">delegated</span>
+          <span className="text-[var(--text-secondary)] truncate">
+            from {card.originUserName || 'another user'}
+          </span>
+        </div>
+      )}
+
       {/* Linked Kards indicator */}
       {card.linkedCards && card.linkedCards.length > 0 && (
         <div className="mt-2 pt-2 border-t border-[var(--border-color)]">

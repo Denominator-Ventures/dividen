@@ -89,6 +89,12 @@ export async function PATCH(
   const changes = Object.keys(updateData).join(', ');
   logActivity({ userId, action: 'card_updated', summary: `Updated card "${card.title}" (${changes})`, metadata: { cardId: card.id, changes: updateData } });
 
+  // v2: Propagate status/priority changes to linked cards
+  if (status !== undefined || priority !== undefined) {
+    const { propagateCardStatusChange } = await import('@/lib/card-links');
+    await propagateCardStatusChange(card.id, status, priority);
+  }
+
   return NextResponse.json({ success: true, data: card });
 }
 
