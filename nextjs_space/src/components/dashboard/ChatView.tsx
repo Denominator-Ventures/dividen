@@ -392,19 +392,19 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         return;
       }
 
-      // ── Setup choice (together/solo) — create setup project ──
+      // ── Setup choice (together/solo) — update due dates on existing setup project ──
       if (phase === 0 && data?.setupMode) {
-        const setupRes = await fetch('/api/onboarding/setup-project', {
+        // Project already exists on the board (created during intro).
+        // "solo" pushes due dates out 1 week; "together" keeps them as today.
+        await fetch('/api/onboarding/setup-project', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: data.setupMode }),
         });
-        const setupResult = await setupRes.json();
 
-        // Add a confirmation message
         const confirmContent = data.setupMode === 'together'
-          ? `Great — let's do this together. I've created your **DiviDen Setup** project with ${setupResult.data?.cardCount || 6} tasks on your board, all due today.\n\nYour first task is at the top of your **Now** panel on the left. Let's start with configuring how I communicate with you.\n\nCheck your board or ask me to walk you through the first one.`
-          : `No problem — I've created your **DiviDen Setup** project with ${setupResult.data?.cardCount || 6} tasks on your board, due in one week.\n\nTake your time. I'll check in if anything's still open when the due date arrives. You can always ask me for help or tell me to walk you through any of them.\n\nYour tasks are on the board whenever you're ready.`;
+          ? `Great — let's do this together. Your **DiviDen Setup** tasks are all due today and the first one is ready on your board.\n\nLet's start — ask me anything or just say "let's go" and I'll walk you through the first task.`
+          : `No problem — your setup tasks are due in a week. Take your time exploring.\n\nI'll check in if anything's still open. You can always ask me for help with any of them.`;
 
         setMessages(prev => [...prev, {
           id: `msg-setup-confirm-${Date.now()}`,

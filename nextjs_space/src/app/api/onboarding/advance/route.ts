@@ -10,7 +10,6 @@ import {
   getPhase3Message,
   getPhase4Message, getPhase4Widgets,
   getPhase5Message, getPhase5Widgets,
-  getCompletionMessage,
   getSettingsWidgets,
   type SettingsWidgetGroup,
 } from '@/lib/onboarding-phases';
@@ -209,7 +208,8 @@ async function generatePhaseContent(
       };
     }
     case 6:
-      return { message: getCompletionMessage(diviName), widgets: [] };
+      // No hardcoded completion message — Divi recognizes completion naturally
+      return null;
     default:
       return null;
   }

@@ -126,32 +126,10 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const triageSettings = (userSettings?.triageSettings as Record<string, any> | null) || {};
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
 
-  // Force-include setup group during active onboarding or active setup project
+  // Always include setup — the setup layer is lightweight (status line + settings hint)
+  // and setup project cards appear naturally in the kanban board context (group 2).
   const userPhase = userSettings?.onboardingPhase ?? 0;
-  if (userPhase > 0 && userPhase < 6) {
-    // Check if user has real data — if so, they've moved past onboarding even if phase is stuck
-    const hasRealActivity = await prisma.queueItem.count({ where: { userId } }).then(c => c > 0).catch(() => false);
-    if (!hasRealActivity) {
-      relevantGroups.add('setup');
-    }
-  } else if (userPhase === 0) {
-    relevantGroups.add('setup');
-  }
-
-  // Also force-include setup if there's an active setup project (project-based onboarding)
-  if (userPhase === 6) {
-    const hasActiveSetupProject = await prisma.project.count({
-      where: {
-        createdById: userId,
-        metadata: { contains: '"isSetupProject":true' },
-        status: { not: 'archived' },
-        kanbanCards: { some: { status: { not: 'completed' } } },
-      },
-    }).catch(() => 0);
-    if (hasActiveSetupProject > 0) {
-      relevantGroups.add('setup');
-    }
-  }
+  relevantGroups.add('setup');
 
   // ── Batch 1: Pre-fetch shared data (always needed) ──
   const [
@@ -167,6 +145,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       take: 30,
       include: {
         checklist: true,
+        project: { select: { name: true } },
         contacts: {
           include: { contact: { select: { name: true, platformUserId: true } } },
         },
@@ -361,7 +340,8 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
         if (contribNames.length) peopleParts.push(`contributors:[${contribNames.join(',')}]`);
         if (relatedCount > 0) peopleParts.push(`related:${relatedCount}`);
         const peopleStr = peopleParts.length > 0 ? ` 👥${peopleParts.join(' ')}` : '';
-        return `[${c.id}] "${c.title}" (${c.priority})${due}${checks}${taskStr}${peopleStr}${artStr}`;
+        const proj = c.project?.name ? ` proj:"${c.project.name}"` : '';
+        return `[${c.id}] "${c.title}" (${c.priority})${proj}${due}${checks}${taskStr}${peopleStr}${artStr}`;
       }).join(' | ') + '\n';
     }
   } else {
@@ -1143,29 +1123,11 @@ async function buildSetupLayer_conditional(
   connectionCount: number,
   onboardingPhase: number = 6,
 ): Promise<string> {
-  const [apiKeys, webhooks, docCount, profile, setupProject] = await Promise.all([
+  const [apiKeys, webhooks, docCount, profile] = await Promise.all([
     prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
     prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true } }),
     prisma.document.count({ where: { userId } }),
     prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, capacity: true } }),
-    // Fetch active setup project + its kanban cards
-    prisma.project.findFirst({
-      where: {
-        createdById: userId,
-        metadata: { contains: '"isSetupProject":true' },
-        status: { not: 'archived' },
-      },
-      select: {
-        id: true,
-        name: true,
-        status: true,
-        metadata: true,
-        kanbanCards: {
-          orderBy: { order: 'asc' },
-          select: { id: true, title: true, status: true, priority: true, description: true },
-        },
-      },
-    }),
   ]);
 
   const hasApiKey = apiKeys.length > 0;
@@ -1174,48 +1136,9 @@ async function buildSetupLayer_conditional(
   const hasContacts = contactCount > 0;
   const hasConnections = connectionCount > 0;
 
-  // ── Active Setup Project awareness ─────────────────────────────────
-  // This is a real project with real kanban cards. Divi treats it like any project.
-  let setupProjectBlock = '';
-  if (setupProject && setupProject.kanbanCards.length > 0) {
-    const meta = typeof setupProject.metadata === 'string'
-      ? JSON.parse(setupProject.metadata) : (setupProject.metadata || {});
-    const mode = meta.setupMode || 'together';
-    const pendingCards = setupProject.kanbanCards.filter((c: any) => c.status !== 'completed');
-    const completedCards = setupProject.kanbanCards.filter((c: any) => c.status === 'completed');
-
-    if (pendingCards.length > 0) {
-      // Active setup project — guide the user through it
-      const nextCard = pendingCards[0];
-      setupProjectBlock = `### Active Project: ${setupProject.name}
-Mode: ${mode === 'together' ? 'Walking through together (guide each step conversationally)' : 'Self-paced (check in, offer help)'}
-Progress: ${completedCards.length}/${setupProject.kanbanCards.length} tasks done
-
-**Remaining tasks (in order):**
-${pendingCards.map((c: any, i: number) => `${i + 1}. [${c.status}] "${c.title}" (id: ${c.id}) — ${c.description}`).join('\n')}
-
-**Next up:** "${nextCard.title}" (id: ${nextCard.id})
-${nextCard.description}
-
-**CRITICAL RULES for this project:**
-- This is a regular project. Treat each task like any kanban card.
-${mode === 'together' ? `- The user chose "walk me through it" — guide them step by step. Start with the next incomplete task.
-- When the user completes a task (or you help them complete it), move the card to completed: [[update_card:{"id":"${nextCard.id}","status":"completed"}]]
-- Then naturally transition to the next task.` : `- The user chose "I'll explore on my own" — check in periodically, offer help if they ask.
-- When the user confirms a task is done, move the card: [[update_card:{"id":"<card_id>","status":"completed"}]]`}
-- When ALL tasks are completed, the project is done. Acknowledge it naturally ("Nice — your setup project is all wrapped up. Your command center is ready.") and move on. Do NOT display a special "Setup Complete" screen or list of features.
-- NEVER skip ahead or declare setup "complete" while tasks remain incomplete.
-
-`;
-    } else {
-      // All tasks done — project is complete, no special handling needed
-      setupProjectBlock = '';
-    }
-  }
-
   // ── Legacy onboarding awareness (only for old-flow users, phase < 6) ──
   let onboardingBlock = '';
-  if (onboardingPhase < 6 && !setupProject) {
+  if (onboardingPhase < 6) {
     const phaseDescriptions: Record<number, string> = {
       0: 'Not started — waiting for user to begin',
       1: 'Personalizing — configuring working style, triage, goals, agent name',
@@ -1245,7 +1168,7 @@ This shows an interactive settings widget inline in chat. The user adjusts and s
     return `## Platform Status
 API: ${apiKeys.map((k: any) => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
 
-${setupProjectBlock}${onboardingBlock}${settingsHint}### Navigation Reference (for guiding users)
+${onboardingBlock}${settingsHint}### Navigation Reference (for guiding users)
 - **Primary**: Chat, Board (Kanban), CRM, Calendar
 - **Network**: Discover, Connections, Teams, Tasks, Marketplace (includes Earnings)
 - **Messages**: Inbox, Recordings
@@ -1263,7 +1186,6 @@ If user asks "where is X?" → reference the navigation above.`;
   text += 'Help the user complete their setup. Use action tags to do things directly when possible.\n\n';
   text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
 
-  text += setupProjectBlock;
   text += onboardingBlock;
   text += settingsHint;
 
