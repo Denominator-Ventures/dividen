@@ -42,6 +42,19 @@ interface TeamSubscriptionInfo {
   trialEndsAt?: string | null;
 }
 
+interface TeamInvite {
+  id: string;
+  token: string;
+  role: string;
+  status: string;
+  message: string | null;
+  inviteeEmail: string | null;
+  createdAt: string;
+  inviter: { id: string; name: string | null; email: string } | null;
+  invitee: { id: string; name: string | null; email: string } | null;
+  connection: { id: string; peerUserName: string | null; peerUserEmail: string | null; peerInstanceUrl: string | null } | null;
+}
+
 interface Team {
   id: string;
   name: string;
@@ -51,6 +64,8 @@ interface Team {
   headline?: string | null;
   type?: string;
   visibility?: string;
+  isSelfHosted?: boolean;
+  originInstanceUrl?: string | null;
   members: TeamMember[];
   _count: { projects: number; queueItems: number; relays: number; followers?: number };
   subscription?: TeamSubscriptionInfo | null;
@@ -76,6 +91,15 @@ export function TeamsView() {
   const [listTab, setListTab] = useState<'teams' | 'projects'>('teams');
   const [projectCtx, setProjectCtx] = useState<ProjectContextData | null>(null);
   const [loadingCtx, setLoadingCtx] = useState(false);
+  // Team invite & project assignment state
+  const [teamInvites, setTeamInvites] = useState<TeamInvite[]>([]);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState('member');
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [showAssignProject, setShowAssignProject] = useState(false);
+  const [assignProjectId, setAssignProjectId] = useState('');
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -135,6 +159,55 @@ export function TeamsView() {
       const res = await fetch(`/api/projects/${id}/context`);
       if (res.ok) setProjectCtx(await res.json());
     } catch { /* ignore */ } finally { setLoadingCtx(false); }
+  };
+
+  const fetchTeamInvites = async (teamId: string) => {
+    try {
+      const res = await fetch(`/api/teams/${teamId}/invites`);
+      if (res.ok) setTeamInvites(await res.json());
+    } catch { /* ignore */ }
+  };
+
+  const sendInvite = async (teamId: string) => {
+    if (!inviteEmail.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/invites`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole, message: inviteMessage.trim() || null }),
+      });
+      if (res.ok) {
+        setShowInvite(false);
+        setInviteEmail(''); setInviteRole('member'); setInviteMessage('');
+        fetchTeamInvites(teamId);
+      }
+    } finally { setSaving(false); }
+  };
+
+  const assignTeamToProject = async (teamId: string) => {
+    if (!assignProjectId) return;
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/teams/${teamId}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId: assignProjectId }),
+      });
+      if (res.ok) {
+        setShowAssignProject(false);
+        setAssignProjectId('');
+        fetchData();
+      }
+    } finally { setSaving(false); }
+  };
+
+  const copyInviteLink = (token: string) => {
+    const url = `${window.location.origin}/team/invite/${token}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedToken(token);
+      setTimeout(() => setCopiedToken(null), 2000);
+    });
   };
 
   const getMemberDisplay = (m: TeamMember) => {
@@ -345,26 +418,33 @@ export function TeamsView() {
   // ── Team Detail View ─────────────────────────────────────────────────────
   if (view === 'team-detail' && selectedTeam) {
     const team = selectedTeam;
+    const isOwnerOrAdmin = team.members.some(m => m.user && ['owner', 'admin'].includes(m.role));
+    const unassignedProjects = projects.filter(p => p.teamId !== team.id);
     return (
       <div className="h-full flex flex-col">
         <div className="px-4 pt-3 pb-2 border-b border-[var(--border-primary)]">
-          <button onClick={() => { setView('list'); setSelectedTeam(null); }} className="text-xs text-brand-400 hover:text-brand-300 mb-2">← Back to Teams</button>
+          <button onClick={() => { setView('list'); setSelectedTeam(null); setTeamInvites([]); }} className="text-xs text-brand-400 hover:text-brand-300 mb-2">← Back to Teams</button>
           <div className="flex items-center gap-3">
             <span className="text-2xl">{team.avatar || '👥'}</span>
             <div className="flex-1">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h2 className="font-semibold text-lg">{team.name}</h2>
-                {team.subscription && (
+                {team.isSelfHosted && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-emerald-500/15 text-emerald-400">🏠 Self-Hosted</span>
+                )}
+                {!team.isSelfHosted && team.subscription && (
                   <span className={cn(
                     'text-[9px] px-1.5 py-0.5 rounded-full font-medium',
                     team.subscription.tier === 'pro' ? 'bg-purple-500/15 text-purple-400' : 'bg-brand-500/15 text-brand-400'
                   )}>
                     {team.subscription.tier === 'pro' ? '⚡ Pro' : '🌱 Starter'}
+                    {team.subscription.status === 'trialing' && ' trial'}
                   </span>
                 )}
               </div>
               {team.headline && <p className="text-xs text-[var(--text-secondary)]">{team.headline}</p>}
               {!team.headline && team.description && <p className="text-xs text-[var(--text-secondary)]">{team.description}</p>}
+              {team.originInstanceUrl && <p className="text-[10px] text-[var(--text-muted)] mt-0.5">Origin: {team.originInstanceUrl}</p>}
             </div>
             <a
               href={`/team/${team.id}`}
@@ -376,8 +456,8 @@ export function TeamsView() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Subscription info */}
-          {team.subscription && (
+          {/* Subscription info — only for platform teams */}
+          {!team.isSelfHosted && team.subscription && (
             <div className={cn(
               'p-3 rounded-lg border',
               team.subscription.tier === 'pro' ? 'bg-purple-500/5 border-purple-500/15' : 'bg-brand-500/5 border-brand-500/15'
@@ -401,6 +481,16 @@ export function TeamsView() {
             </div>
           )}
 
+          {/* Self-hosted info */}
+          {team.isSelfHosted && (
+            <div className="p-3 rounded-lg border bg-emerald-500/5 border-emerald-500/15">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-emerald-400">🏠 Self-Hosted Team</span>
+              </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">This team originated from an open-source instance. No subscription required — all features are unlimited.</p>
+            </div>
+          )}
+
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2">
             {[
@@ -418,7 +508,52 @@ export function TeamsView() {
 
           {/* Members */}
           <div>
-            <h3 className="text-sm font-semibold mb-2">Members</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold">Members</h3>
+              {isOwnerOrAdmin && (
+                <button onClick={() => { setShowInvite(!showInvite); fetchTeamInvites(team.id); }} className="text-[10px] px-2 py-1 rounded-lg bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-all">
+                  + Invite
+                </button>
+              )}
+            </div>
+
+            {/* Invite form */}
+            {showInvite && (
+              <div className="p-3 rounded-lg bg-[var(--bg-surface)] border border-brand-500/20 mb-2 space-y-2">
+                <div className="flex gap-2">
+                  <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Email address" className="input-field flex-1 text-sm" autoFocus />
+                  <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} className="input-field w-24 text-sm">
+                    <option value="member">Member</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                <input value={inviteMessage} onChange={e => setInviteMessage(e.target.value)} placeholder="Add a note (optional)" className="input-field w-full text-sm" />
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => { setShowInvite(false); setInviteEmail(''); }} className="text-xs text-[var(--text-secondary)] hover:text-white">Cancel</button>
+                  <button onClick={() => sendInvite(team.id)} disabled={saving || !inviteEmail.trim()} className="text-xs px-3 py-1 rounded-lg bg-brand-500 text-black font-medium disabled:opacity-40">Send Invite</button>
+                </div>
+
+                {/* Pending invites */}
+                {teamInvites.filter(i => i.status === 'pending').length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-[var(--border-primary)]">
+                    <p className="text-[10px] text-[var(--text-muted)] mb-1">Pending Invites</p>
+                    {teamInvites.filter(i => i.status === 'pending').map(inv => (
+                      <div key={inv.id} className="flex items-center gap-2 py-1">
+                        <span className="text-xs text-[var(--text-secondary)] flex-1 truncate">{inv.inviteeEmail || inv.invitee?.email || inv.connection?.peerUserEmail || 'Unknown'}</span>
+                        <span className={cn('text-[9px]', roleColors[inv.role])}>{inv.role}</span>
+                        <button
+                          onClick={() => copyInviteLink(inv.token)}
+                          className="text-[9px] px-2 py-0.5 rounded bg-white/[0.06] text-[var(--text-muted)] hover:text-white transition-colors"
+                        >
+                          {copiedToken === inv.token ? '✓ Copied' : '🔗 Copy Link'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="space-y-1">
               {team.members.map(m => {
                 const d = getMemberDisplay(m);
@@ -444,7 +579,32 @@ export function TeamsView() {
 
           {/* Team's Projects */}
           <div>
-            <h3 className="text-sm font-semibold mb-2">Projects</h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold">Projects</h3>
+              {isOwnerOrAdmin && unassignedProjects.length > 0 && (
+                <button onClick={() => setShowAssignProject(!showAssignProject)} className="text-[10px] px-2 py-1 rounded-lg bg-brand-500/10 text-brand-400 hover:bg-brand-500/20 transition-all">
+                  + Assign Project
+                </button>
+              )}
+            </div>
+
+            {/* Assign project form */}
+            {showAssignProject && (
+              <div className="p-3 rounded-lg bg-[var(--bg-surface)] border border-brand-500/20 mb-2 space-y-2">
+                <p className="text-[10px] text-[var(--text-muted)]">Assigning a project adds all team members as contributors. Divi&apos;s CoS mode will consider team members for qualifying tasks.</p>
+                <select value={assignProjectId} onChange={e => setAssignProjectId(e.target.value)} className="input-field w-full text-sm">
+                  <option value="">Select a project...</option>
+                  {unassignedProjects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.status})</option>
+                  ))}
+                </select>
+                <div className="flex gap-2 justify-end">
+                  <button onClick={() => { setShowAssignProject(false); setAssignProjectId(''); }} className="text-xs text-[var(--text-secondary)] hover:text-white">Cancel</button>
+                  <button onClick={() => assignTeamToProject(team.id)} disabled={saving || !assignProjectId} className="text-xs px-3 py-1 rounded-lg bg-brand-500 text-black font-medium disabled:opacity-40">Assign</button>
+                </div>
+              </div>
+            )}
+
             {projects.filter(p => p.teamId === team.id).length === 0 ? (
               <p className="text-xs text-[var(--text-muted)] p-3 text-center">No projects in this team yet</p>
             ) : (
@@ -470,7 +630,6 @@ export function TeamsView() {
       </div>
     );
   }
-
   // ── Project Detail View ──────────────────────────────────────────────────
   if (view === 'project-detail' && selectedProject) {
     const project = selectedProject;

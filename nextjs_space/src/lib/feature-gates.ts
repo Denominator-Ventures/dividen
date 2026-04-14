@@ -23,10 +23,47 @@ export class FeatureGateError extends Error {
 }
 
 /**
+ * Check if a team is self-hosted (open-source instance origin).
+ * Self-hosted teams bypass all subscription and billing gates.
+ */
+async function isTeamSelfHosted(teamId: string): Promise<boolean> {
+  const team = await prisma.team.findUnique({
+    where: { id: teamId },
+    select: { isSelfHosted: true },
+  });
+  return team?.isSelfHosted ?? false;
+}
+
+/** Synthetic unlimited subscription for self-hosted teams — no billing required. */
+const SELF_HOSTED_SUB = {
+  id: 'self-hosted',
+  teamId: '',
+  tier: 'pro',
+  status: 'active' as const,
+  memberLimit: 999,
+  currentMembers: 0,
+  monthlyPrice: 0,
+  perSeatPrice: null,
+  billingCycleStart: new Date(),
+  trialEndsAt: null,
+  canceledAt: null,
+  stripeSubscriptionId: null,
+  stripeCustomerId: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+/**
  * Require an active team subscription (any tier).
+ * Self-hosted teams bypass this check entirely.
  * Use this for: team creation, team projects, team billing, team profiles.
  */
 export async function requireTeamSubscription(teamId: string) {
+  // Self-hosted teams are free — return a synthetic unlimited subscription
+  if (await isTeamSelfHosted(teamId)) {
+    return { ...SELF_HOSTED_SUB, teamId } as any;
+  }
+
   const sub = await prisma.teamSubscription.findUnique({
     where: { teamId },
   });
@@ -125,9 +162,14 @@ export async function checkTeamProjectLimit(teamId: string) {
 
 /**
  * Check team spending policy before allowing a billable action.
+ * Self-hosted teams bypass budget checks.
  * Returns true if the action is within budget, throws if over limit.
  */
 export async function checkTeamBudget(teamId: string, amount: number) {
+  if (await isTeamSelfHosted(teamId)) {
+    return { id: 'self-hosted', teamId, isActive: true, monthlyBudget: null, currentSpend: 0 } as any;
+  }
+
   const billing = await prisma.teamBilling.findUnique({
     where: { teamId },
   });

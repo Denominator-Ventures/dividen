@@ -88,6 +88,8 @@ model User {
   contactPlatformLinks Contact[]                @relation("ContactPlatformLinks")
   teamFollows          TeamFollow[]
   teamAgentGrants      TeamAgentAccess[]        @relation("TeamAgentGrantedBy")
+  teamInvitesSent      TeamInvite[]             @relation("TeamInvitesSent")
+  teamInvitesReceived  TeamInvite[]             @relation("TeamInvitesReceived")
   signalConfigs        SignalConfig[]
   customSignals        CustomSignal[]
 
@@ -873,6 +875,7 @@ model Connection {
   accepter        User?    @relation("ConnectionsAccepted", fields: [accepterId], references: [id], onDelete: Cascade)
   relays          AgentRelay[]
   teamMemberships TeamMember[]
+  teamInvites     TeamInvite[]
   projectMemberships ProjectMember[]
   projectInvites  ProjectInvite[]
 
@@ -1273,6 +1276,10 @@ model Team {
   industry    String?
   foundedAt   DateTime?
 
+  // ── Origin / Federation ──
+  originInstanceUrl String?                       // null = created on dividen.ai platform
+  isSelfHosted      Boolean  @default(false)      // true = created on an open-source instance (billing bypassed)
+
   // ── Team Agent ──
   agentEnabled Boolean     @default(false)       // Requires Team Pro subscription
   agentConfig  String?     // JSON: system prompt overrides, check-in frequency, notification prefs
@@ -1288,6 +1295,7 @@ model Team {
   spendingPolicies TeamSpendingPolicy[]
   agentAccess   TeamAgentAccess[]
   followers     TeamFollow[]
+  invites       TeamInvite[]
 
   @@index([createdById])
   @@index([type])
@@ -1963,6 +1971,43 @@ model TeamFollow {
   @@index([userId])
   @@index([teamId])
   @@map("team_follows")
+}
+
+// ─── Team Invites ────────────────────────────────────────────────────────────
+// Invitations to join a team. Supports local users (by email) and cross-instance
+// federation (by connectionId or deep-link token).
+
+model TeamInvite {
+  id              String    @id @default(cuid())
+  token           String    @unique @default(cuid()) // Deep-link token for accepting
+  teamId          String
+  inviterId       String    // Who sent the invite
+  inviteeId       String?   // Target DiviDen user (null if cross-instance or email-only)
+  inviteeEmail    String?   // Email for lookup / notification
+  connectionId    String?   // If inviting a federated connection
+  role            String    @default("member") // "owner" | "admin" | "member"
+  status          String    @default("pending") // "pending" | "accepted" | "declined" | "expired"
+  message         String?   // Personal note from inviter
+  sourceInstance  String?   // Instance URL this invite originated from (for cross-instance)
+
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  team            Team       @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  inviter         User       @relation("TeamInvitesSent", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitee         User?      @relation("TeamInvitesReceived", fields: [inviteeId], references: [id], onDelete: Cascade)
+  connection      Connection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+
+  @@unique([teamId, inviteeId])
+  @@index([teamId])
+  @@index([inviterId])
+  @@index([inviteeId])
+  @@index([token])
+  @@index([status])
+  @@map("team_invites")
 }
 
 // ─── Marketplace Capabilities ────────────────────────────────────────────────

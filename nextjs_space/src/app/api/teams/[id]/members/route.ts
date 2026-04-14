@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
+import { syncNewMemberToTeamProjects } from '@/lib/team-project-sync';
 
 // POST /api/teams/:id/members — add a member (local user or federated connection)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -47,6 +48,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
         include: { connection: { select: { id: true, peerUserName: true, peerUserEmail: true, peerInstanceUrl: true } } },
       });
+
+      // Auto-sync new member to all team projects
+      await syncNewMemberToTeamProjects(params.id, null, connectionId).catch(() => {});
+
       return NextResponse.json(member, { status: 201 });
     }
 
@@ -69,6 +74,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
       include: { user: { select: { id: true, name: true, email: true } } },
     });
+
+    // Auto-sync new member to all team projects
+    await syncNewMemberToTeamProjects(params.id, targetUser.id, null).catch(() => {});
 
     return NextResponse.json(member, { status: 201 });
   } catch (error: any) {

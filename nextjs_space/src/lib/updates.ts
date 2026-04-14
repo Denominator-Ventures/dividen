@@ -17,6 +17,193 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'teams-architecture-open-source-billing-cos-delegation',
+    date: '2026-04-14',
+    time: '11:59 PM',
+    title: 'Teams, Project Delegation & the Open-Source Billing Boundary',
+    subtitle: 'Create a team on the platform or from your own instance. Assign it to a project. Divi delegates qualifying tasks to contributors automatically.',
+    tags: ['teams', 'projects', 'open-source', 'federation', 'cos-delegation', 'billing', 'invites'],
+    content: `Teams are live. Here's how they work, why they're free for self-hosted instances, and what happens when you assign one to a project.
+
+## The Model
+
+A team is a persistent group of people who work together across projects. Not a project — a unit. You create a team, invite members, and then assign that team to projects. The team is the organizational wrapper. The project is the execution context.
+
+When you assign a team to a project, all team members automatically become project contributors. When a new member joins the team later, they're synced to all team projects too. The team is a bundled unit that flows into projects.
+
+### How to Create a Team
+
+From the [Teams panel](/dashboard) (👥 Teams tab), hit **+ New Team**. Name it, add a description, pick an emoji. You're the owner.
+
+### How to Invite Members
+
+Open your team → **+ Invite** → enter an email. DiviDen creates a [token-based invite link](/docs/developers#teams-api) that you can copy and share. The invitee clicks the link, logs in (or signs up), and joins. They're automatically added to all team projects as contributors.
+
+For cross-instance members (someone running their own DiviDen), the invite works through the existing [federation connection](/docs/federation) infrastructure — the \`TeamInvite\` links to a \`connectionId\`, and the membership flows through the relay system.
+
+### How to Assign a Team to a Project
+
+Open your team → **+ Assign Project** → select from your existing projects. All team members become ProjectMembers instantly. You can unassign later without losing individual memberships.
+
+## CoS Delegation to Project Contributors
+
+This is the real payoff. When Divi is in [Chief of Staff mode](/docs/developers#cos-engine) and dispatches a task from the queue, it now checks: *does this task belong to a project with contributors?*
+
+The dispatch strategy is now four layers deep:
+
+1. **Capability tasks** → invoke installed capability (email draft, meeting scheduling, etc.)
+2. **Explicit relay handler** → delegate to the specific connected agent in the task metadata
+3. **Project contributor delegation** → if the task is in a project, find a qualifying lead or contributor with an active connection, and send them an \`AgentRelay\` (type: \`request\`, intent: \`assign_task\`)
+4. **Generic** → Divi works on it directly
+
+Layer 3 is new. It doesn't care whether the contributor was added individually or came in through a team. A team just adds members as a bundled unit — the delegation logic operates at the \`ProjectMember\` level. If you have three contributors on a project, one from your team and two independent, all three are candidates for delegation.
+
+The contributor finder prefers members with active federated connections (relay-ready), then falls back to local users with local connections. Observer and reviewer roles are excluded — only leads and contributors qualify.
+
+## The Open-Source Billing Boundary
+
+Here's the rule: **if you create a team from your own self-hosted instance, it's free.** No subscription, no seat limits, no feature gates. Every billing check in DiviDen — \`requireTeamSubscription()\`, \`requireTeamPro()\`, \`checkTeamMemberLimit()\`, \`checkTeamBudget()\` — first calls \`isTeamSelfHosted()\`. If true, it returns a synthetic unlimited subscription and moves on.
+
+If you create a team on dividen.ai (the platform), you get a [14-day Team Pro trial](/docs/developers#teams-api). After that, it's $29/mo Starter (5 seats, 3 projects) or $79/mo Pro (10 seats + $9/each, unlimited projects, team agent).
+
+The billing boundary follows the **team origin**, not the member origin:
+
+| Scenario | Billing |
+|---|---|
+| Team created on dividen.ai | Subscription required |
+| Team created on self-hosted instance | Free, unlimited |
+| Platform user joins a self-hosted team | Free — team origin wins |
+| Self-hosted user joins a platform team | Counts as a seat on the team's subscription |
+
+This is the open-core contract. The code is MIT. The infrastructure to host teams at scale is the premium.
+
+## What Open-Source Instances Need to Do
+
+If you're self-hosting and want to implement teams:
+
+1. **Pull the latest schema.** \`Team\` now has \`originInstanceUrl\` and \`isSelfHosted\` fields. \`TeamInvite\` is a new model. Run \`npx prisma db push\`.
+2. **Set \`isSelfHosted: true\`** when creating teams on your instance. The simplest way: set an env var like \`DIVIDEN_INSTANCE_URL\` and pass it as \`originInstanceUrl\` in your team creation call. The API sets \`isSelfHosted = !!originInstanceUrl\`.
+3. **The feature gates already bypass** for self-hosted teams. No code changes needed — \`feature-gates.ts\` handles it.
+4. **Team invites work locally** — same token-based flow. For cross-instance invites, you'll need the [federation connection](/docs/federation) between instances set up first.
+5. **CoS project delegation works automatically** once team members are synced to projects. No configuration.
+
+See the [developer docs](/docs/developers#teams-api) for the full API reference, and the [open-source guide](/open-source) for general self-hosting setup.
+
+## New API Endpoints
+
+- \`POST /api/teams\` — create team (accepts \`originInstanceUrl\` for self-hosted)
+- \`POST /api/teams/:id/invites\` — create invite (email, userId, or connectionId)
+- \`GET /api/teams/invite/:token\` — preview invite (no auth required)
+- \`POST /api/teams/invite/:token\` — accept or decline
+- \`POST /api/teams/:id/projects\` — assign team to project (syncs members)
+- \`GET /api/teams/:id/projects\` — list team's projects
+- \`DELETE /api/teams/:id/projects?projectId=x\` — unassign
+
+All endpoints use session auth. The v2 Bearer token equivalents are coming.
+
+---
+
+Teams are a persistent social structure, not a billing construct. The billing is layered on top for the platform. The architecture is the same whether you're on dividen.ai or running your own instance. That's the point.
+
+— Jon`
+  },
+  {
+    id: 'chat-queue-control-smart-prompter-onboarding-rewrite',
+    date: '2026-04-14',
+    time: '11:45 PM',
+    title: 'Chat Queue Control, Smart Prompter v2, Onboarding Rewrite & HowItWorks Loop',
+    subtitle: 'Control your queue from conversation. Divi now builds prompts that know your agents. Onboarding is chat-first. The loop diagram actually loops.',
+    tags: ['chat', 'queue-control', 'smart-prompter', 'onboarding', 'how-it-works', 'action-tags', 'ux'],
+    content: `Five changes that tighten the gap between conversation and execution — and fix the front door.
+
+## Chat-Based Queue Control
+
+You can now approve, reject, and edit queue items directly from conversation. No need to leave the chat panel to manage your queue.
+
+Three new action tags power this:
+
+### \`[[confirm_queue_item]]\`
+Divi uses this when you say "approve that task" or "confirm the pending item." It finds the oldest \`pending_confirmation\` item and promotes it to \`ready\`. If the queue confirmation gate is off (\`queueAutoApprove: true\`), Divi tells you there's nothing to confirm.
+
+### \`[[remove_queue_item]]\`
+"Remove the last thing from my queue" — Divi identifies the item by context (title match or most recent) and deletes it. Works on any status. Divi confirms what was removed so you know exactly what happened.
+
+### \`[[edit_queue_item]]\`
+"Change the priority on that task to high" or "rename the second queue item to Weekly Sync Prep." Divi finds the item, patches the fields you described, and confirms the edit. Supports title, description, priority, and category.
+
+All three tags go through the same API v2 endpoints — so if you're self-hosted and building integrations, the same \`/api/v2/queue/{id}/confirm\`, \`DELETE /api/v2/queue/{id}\`, and \`PATCH /api/v2/queue/{id}\` routes work programmatically too.
+
+## Smart Task Prompter v2
+
+Previously, when Divi dispatched a task to the queue, the prompt was a static string. It didn't know what agents you had connected, what capabilities were installed, or what context was relevant.
+
+### How It Works Now
+
+1. **Divi identifies a task** from conversation
+2. **Smart Prompter reads your environment** — installed capabilities, connected agents, their task types, your current mode
+3. **Builds an agent-aware prompt** that includes delegation targets, capability invocations, and contextual metadata
+4. **Attaches structured metadata** to the queue item: \`promptVersion: 2\`, source agent, matched capability/agent, execution hints
+
+The metadata schema:
+\`\`\`json
+{
+  "promptVersion": 2,
+  "sourceAgent": "divi-core",
+  "matchedCapability": "email_draft",
+  "matchedAgent": null,
+  "executionHint": "capability_invoke",
+  "contextWindow": ["recent_conversation_summary"]
+}
+\`\`\`
+
+When CoS mode picks up a v2-prompted task, it reads \`executionHint\` to decide whether to invoke a capability, delegate to an agent, or handle it generically. The prompts are dramatically better — they actually describe *how* to execute, not just *what* to execute.
+
+## Chat-First Onboarding
+
+The old onboarding was a wizard. Steps. Progress bars. Checkboxes. It felt like filling out a form to use an operating system.
+
+### The New Flow
+
+Onboarding is now a conversation with Divi. You open DiviDen for the first time and Divi greets you — not a wizard.
+
+1. **Divi introduces itself** and asks your name
+2. **Asks what you're working on** — your focus, your role, what kind of work you want help with
+3. **Suggests a first task** based on what you told it, and offers to add it to your queue
+4. **Onboarding completes** when you've had a real interaction — not when you've clicked through slides
+
+The dashboard now renders a chat-first layout during onboarding. The queue panel, settings, and other chrome are hidden until onboarding completes. You see Divi, a message input, and nothing else. Clean entry point.
+
+### Onboarding Auto-Heal
+
+We found a bug where stuck onboarding state could block the entire app — queue wouldn't render, chat was frozen, settings were inaccessible. The fix: DiviDen now detects stuck onboarding on every page load. If your account has been active for more than 24 hours and onboarding flags are still incomplete, it auto-completes them and unlocks the full dashboard. No user action required. The system heals itself.
+
+This also fixed a related issue where \`pending_confirmation\` items couldn't be approved if onboarding was in a half-complete state — the queue panel wasn't rendering, so the approve/reject buttons were invisible.
+
+## HowItWorks Loop Redesign
+
+The "How It Works" section on the landing page had a flowchart that showed a linear process: Input → Process → Output. But DiviDen is a loop. You talk to Divi, Divi queues tasks, tasks execute, results feed back into conversation.
+
+### The New Diagram
+
+The flowchart is now a proper loop with four nodes connected by animated directional arrows:
+
+**Conversation** → **Queue** → **Execution** → **Feedback** → back to **Conversation**
+
+Each node has a description. The arrows animate to show flow direction. The loop closes — because the system actually loops. It's not a pipeline, it's a cycle.
+
+Built with CSS animations — no external charting library. The nodes pulse subtly on hover. On mobile, the loop renders as a vertical flow with curved connectors.
+
+## Homepage Diagram Update
+
+While we were at it, we updated the main homepage diagram to match the new loop mental model. The old version showed a vague "AI assistant" pitch — the new one distills how DiviDen actually changes your workflow down to its simplest form. Shoutout to Robert for helping us figure out the cleanest way to present the potential impact of DiviDen on how you work. Sometimes the hardest part of building an OS is explaining what it does in one picture — he made that click.
+
+---
+
+These changes close the loop between conversation and execution in a very literal way — you can now manage your entire task pipeline without leaving the chat, and the homepage finally explains what that means for your day-to-day.
+
+— Jon`
+  },
+  {
     id: 'queue-confirmation-gate-cos-execution-engine',
     date: '2026-04-14',
     time: '12:15 AM',
