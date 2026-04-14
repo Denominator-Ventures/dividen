@@ -392,7 +392,30 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         return;
       }
 
-      // Regular onboarding — advance to next phase
+      // ── Setup choice (together/solo) — create setup project ──
+      if (phase === 0 && data?.setupMode) {
+        const setupRes = await fetch('/api/onboarding/setup-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: data.setupMode }),
+        });
+        const setupResult = await setupRes.json();
+
+        // Add a confirmation message
+        const confirmContent = data.setupMode === 'together'
+          ? `Great — let's do this together. I've created your **DiviDen Setup** project with ${setupResult.data?.cardCount || 6} tasks on your board, all due today.\n\nYour first task is at the top of your **Now** panel on the left. Let's start with configuring how I communicate with you.\n\nCheck your board or ask me to walk you through the first one.`
+          : `No problem — I've created your **DiviDen Setup** project with ${setupResult.data?.cardCount || 6} tasks on your board, due in one week.\n\nTake your time. I'll check in if anything's still open when the due date arrives. You can always ask me for help or tell me to walk you through any of them.\n\nYour tasks are on the board whenever you're ready.`;
+
+        setMessages(prev => [...prev, {
+          id: `msg-setup-confirm-${Date.now()}`,
+          role: 'assistant' as const,
+          content: confirmContent,
+          createdAt: new Date().toISOString(),
+        }]);
+        return;
+      }
+
+      // Regular onboarding — advance to next phase (legacy)
       const res = await fetch('/api/onboarding/advance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

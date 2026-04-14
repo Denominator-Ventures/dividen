@@ -114,10 +114,17 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
     if (!newTaskTitle?.trim()) return;
     setCreating(true);
     try {
-      const res = await fetch('/api/queue', {
+      // Create a kanban card (operator-assigned) so it appears in Now Panel
+      const res = await fetch('/api/kanban', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'task', title: newTaskTitle.trim(), priority: 'medium', status: 'ready', source: 'user' }),
+        body: JSON.stringify({
+          title: newTaskTitle.trim(),
+          priority: 'medium',
+          status: 'active',
+          assignee: 'human',
+          dueDate: new Date().toISOString(),
+        }),
       });
       const json = await res.json();
       if (json?.success) {
@@ -136,11 +143,21 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
   const handleMarkComplete = useCallback(async (item: NowItem) => {
     setOnboardingActions((prev) => ({ ...prev, [item.sourceId]: 'completing' }));
     try {
-      await fetch(`/api/queue/${item.sourceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'done_today' }),
-      });
+      if (item.type === 'queue') {
+        // Legacy: complete a queue item
+        await fetch(`/api/queue/${item.sourceId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'done_today' }),
+        });
+      } else if (item.type === 'kanban_due') {
+        // Complete a kanban card
+        await fetch(`/api/kanban/${item.sourceId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'done' }),
+        });
+      }
       fetchNow();
     } catch (e) {
       console.error('Failed to mark complete:', e);

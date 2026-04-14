@@ -98,39 +98,22 @@ export default function DashboardPage() {
     setMobilePanel('center');
   }, []);
 
-  // Handle welcome popup "Start Chat" — transition directly to chat with Divi intro
+  // Handle welcome popup "Start Chat" — sends Divi intro + setup choice into chat
   const handleWelcomeStart = useCallback(async () => {
     setShowWelcome(false);
     setActiveTab('chat');
     setMobilePanel('center');
 
     try {
-      // Mark walkthrough as seen so we don't show welcome again
-      await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hasSeenWalkthrough: true }),
-      });
-    } catch {}
-
-    // Initialize onboarding (creates project + sets phase 0)
-    try {
-      await fetch('/api/onboarding/init', {
+      // Send Divi's intro message + together/solo choice widget
+      await fetch('/api/onboarding/intro', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agentName: 'Divi' }),
       });
-    } catch {}
-
-    // Advance to phase 1 — Divi intro message appears in chat
-    try {
-      await fetch('/api/onboarding/advance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'advance' }),
-      });
-      setOnboardingPhase(1);
-    } catch {}
+      setOnboardingPhase(6); // Project-based onboarding — skip old phase system
+    } catch (e) {
+      console.error('Failed to send intro:', e);
+    }
   }, []);
 
   const handleWelcomeDismiss = useCallback(async () => {
