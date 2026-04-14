@@ -10,7 +10,6 @@ import {
   getPhase3Message,
   getPhase4Message, getPhase4Widgets,
   getPhase5Message, getPhase5Widgets,
-  getCompletionMessage,
   getSettingsWidgets,
   type SettingsWidgetGroup,
 } from '@/lib/onboarding-phases';
@@ -209,7 +208,8 @@ async function generatePhaseContent(
       };
     }
     case 6:
-      return { message: getCompletionMessage(diviName), widgets: [] };
+      // No hardcoded completion message — Divi recognizes completion naturally
+      return null;
     default:
       return null;
   }
@@ -251,7 +251,42 @@ async function handleShowSettings(userId: string, group: string, settings?: any)
   // If settings are being submitted (not just showing the widget)
   if (settings) {
     await applySettings(userId, -1, settings);
-    return NextResponse.json({ success: true, data: { saved: true } });
+
+    // ── Auto-complete matching checklist tasks on setup card ──
+    // Map settings groups to setup task text patterns
+    const taskPatterns: Record<string, string> = {
+      working_style: 'Working Style',
+      triage: 'Triage Preferences',
+      goals: 'Goals',
+      identity: 'Working Style', // identity is part of working style setup
+    };
+    const pattern = taskPatterns[group];
+    if (pattern) {
+      // Find incomplete checklist items matching this pattern on active setup cards
+      const matchingTasks = await prisma.checklistItem.findMany({
+        where: {
+          completed: false,
+          text: { contains: pattern },
+          card: {
+            userId,
+            status: { in: ['active', 'in_progress', 'development'] },
+            OR: [
+              { title: { contains: 'Setup' } },
+              { project: { metadata: { contains: '"isSetupProject":true' } } },
+            ],
+          },
+        },
+        select: { id: true },
+      });
+      if (matchingTasks.length > 0) {
+        await prisma.checklistItem.updateMany({
+          where: { id: { in: matchingTasks.map(t => t.id) } },
+          data: { completed: true },
+        });
+      }
+    }
+
+    return NextResponse.json({ success: true, data: { saved: true, tasksCompleted: taskPatterns[group] ? true : false } });
   }
 
   // Load current values and generate widget config

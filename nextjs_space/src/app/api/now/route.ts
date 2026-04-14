@@ -27,12 +27,9 @@ export async function GET(req: NextRequest) {
     tomorrow.setHours(23, 59, 59, 999);
 
     // Parallel queries — 5 concurrent is fine within our pool limit
-    const [queueItems, goals, kanbanCards, calendarEvents, relays] = await Promise.all([
-      prisma.queueItem.findMany({
-        where: { userId, status: { in: ['ready', 'in_progress', 'blocked'] } },
-        orderBy: { createdAt: 'desc' },
-        take: 50,
-      }),
+    // NOTE: Queue items are Divi's/agent domain — they belong in QueuePanel.
+    // Now Panel only shows operator-facing items: kanban cards (assignee=human), goals, calendar, relays.
+    const [goals, kanbanCards, calendarEvents, relays, checklistTasks] = await Promise.all([
       prisma.goal.findMany({
         where: { userId, status: 'active' },
         include: {
@@ -42,7 +39,11 @@ export async function GET(req: NextRequest) {
         take: 30,
       }),
       prisma.kanbanCard.findMany({
-        where: { userId, status: { in: ['active', 'development', 'planning', 'leads', 'qualifying', 'proposal', 'negotiation'] } },
+        where: {
+          userId,
+          assignee: 'human', // Only cards assigned to the operator — agent cards are Divi's domain
+          status: { in: ['active', 'development', 'planning', 'leads', 'qualifying', 'proposal', 'negotiation'] },
+        },
         select: { id: true, title: true, status: true, priority: true, dueDate: true, projectId: true },
         take: 50,
       }),
@@ -60,14 +61,37 @@ export async function GET(req: NextRequest) {
         take: 20,
         select: { id: true, type: true, subject: true, status: true, fromUserId: true, toUserId: true, updatedAt: true },
       }),
+      // Fetch incomplete checklist tasks assigned to human with due dates
+      prisma.checklistItem.findMany({
+        where: {
+          completed: false,
+          assigneeType: 'self',
+          dueDate: { not: null },
+          card: {
+            userId,
+            status: { in: ['active', 'development', 'planning'] },
+          },
+        },
+        orderBy: [{ dueDate: 'asc' }, { order: 'asc' }],
+        take: 30,
+        select: {
+          id: true, text: true, completed: true, order: true, dueDate: true,
+          assigneeType: true, cardId: true,
+          card: { select: { title: true } },
+        },
+      }),
     ]);
 
     const ranked = scoreAndRankNow({
-      queueItems,
+      queueItems: [], // Queue items are Divi's domain — shown in Queue Panel only
       goals,
       kanbanCards,
       calendarEvents,
       relays,
+      checklistTasks: checklistTasks.map((t: any) => ({
+        ...t,
+        cardTitle: t.card?.title,
+      })),
       userId,
       now,
     });

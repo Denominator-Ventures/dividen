@@ -34,6 +34,7 @@ interface CenterPanelProps {
   onTriage?: (signalId: string) => void;
   onChatWithPrefill?: (msg: string) => void;
   onOpenCatchUpSettings?: () => void;
+  chatRefreshKey?: number;
 }
 
 /* ── Tab Organization ──────────────────────────────────────── */
@@ -64,7 +65,7 @@ const networkTabIds = new Set(networkTabs.map((t) => t.id));
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onChatWithPrefill, onOpenCatchUpSettings }: CenterPanelProps) {
+export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onChatWithPrefill, onOpenCatchUpSettings, chatRefreshKey }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
 
   // ── Tab badge counts ──────────────────────────────────────────────
@@ -241,7 +242,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
 
       {/* ── Tab Content ── */}
       <div className="flex-1 overflow-hidden relative">
-        {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView prefill={chatPrefill} onPrefillConsumed={onChatPrefillConsumed} /></TabErrorBoundary>}
+        {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView key={chatRefreshKey} prefill={chatPrefill} onPrefillConsumed={onChatPrefillConsumed} /></TabErrorBoundary>}
         {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
         {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
         {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}

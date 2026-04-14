@@ -56,7 +56,7 @@ interface RelayInput {
 
 export interface NowItem {
   id: string;
-  type: 'queue' | 'goal_deadline' | 'kanban_due' | 'relay_response' | 'calendar_prep' | 'goal_check';
+  type: 'queue' | 'goal_deadline' | 'kanban_due' | 'relay_response' | 'calendar_prep' | 'goal_check' | 'checklist_task';
   title: string;
   subtitle?: string;
   score: number;
@@ -72,12 +72,24 @@ export interface NowEngineOutput {
   focusSuggestion: string | null;
 }
 
+interface ChecklistTaskInput {
+  id: string;
+  text: string;
+  completed: boolean;
+  order: number;
+  dueDate: Date | null;
+  assigneeType: string;
+  cardId: string;
+  cardTitle?: string;
+}
+
 interface NowEngineInput {
   queueItems: QueueItemInput[];
   goals: GoalInput[];
   kanbanCards: KanbanCardInput[];
   calendarEvents: CalendarEventInput[];
   relays: RelayInput[];
+  checklistTasks?: ChecklistTaskInput[];
   userId: string;
   now: Date;
 }
@@ -231,6 +243,32 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
       urgency: urgencyFromScore(totalScore),
       sourceId: card.id,
       meta: { status: card.status, priority: card.priority, dueDate: card.dueDate },
+    });
+  }
+
+  // ─── Score Checklist Tasks (individual tasks from cards) ────────────────
+  const checklistTasks = input.checklistTasks || [];
+  for (const task of checklistTasks) {
+    if (task.completed) continue;
+    if (task.assigneeType !== 'self') continue; // Only operator-assigned tasks
+
+    let taskScore = 30; // Base score for incomplete tasks
+    if (task.dueDate) {
+      const dlScore = deadlineScore(task.dueDate, now);
+      taskScore = Math.max(taskScore, dlScore);
+    }
+    // Earlier tasks in the checklist get higher priority
+    taskScore += Math.max(0, 10 - task.order * 2);
+
+    items.push({
+      id: `task_${task.id}`,
+      type: 'checklist_task',
+      title: task.text,
+      subtitle: task.cardTitle ? `Card: ${task.cardTitle}` : undefined,
+      score: taskScore,
+      urgency: urgencyFromScore(taskScore),
+      sourceId: task.id,
+      meta: { cardId: task.cardId, cardTitle: task.cardTitle, order: task.order, dueDate: task.dueDate },
     });
   }
 

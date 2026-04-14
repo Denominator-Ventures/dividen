@@ -104,9 +104,18 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     scrollToBottom();
   }, [messages, streamingContent, scrollToBottom]);
 
-  // ── Handle prefill from NOW panel click ──────────────────────────────
+  // ── Pending auto-send message (set by prefill, consumed after sendMessage is ready) ──
+  const pendingAutoSend = useRef<string | null>(null);
+
+  // ── Handle prefill from NOW panel click / auto-send from onboarding ──
   useEffect(() => {
     if (prefill) {
+      // Check if this is an auto-send prefill (starts with __AUTOSEND__)
+      if (prefill.startsWith('__AUTOSEND__')) {
+        pendingAutoSend.current = prefill.replace('__AUTOSEND__', '');
+        onPrefillConsumed?.();
+        return;
+      }
       setInput(prefill);
       onPrefillConsumed?.();
       // Focus the input after setting prefill
@@ -348,6 +357,16 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     [input, isStreaming]
   );
 
+  // ── Consume pending auto-send once sendMessage is available + messages loaded ──
+  useEffect(() => {
+    if (pendingAutoSend.current && !isStreaming && !isLoading && messages.length > 0) {
+      const msg = pendingAutoSend.current;
+      pendingAutoSend.current = null;
+      const timer = setTimeout(() => sendMessage(msg), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isStreaming, isLoading, messages.length, sendMessage]);
+
   // ── Clear chat ────────────────────────────────────────────────────────
   const clearChat = async () => {
     try {
@@ -392,7 +411,26 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         return;
       }
 
-      // Regular onboarding — advance to next phase
+      // ── Legacy: Setup choice (together/solo) — kept for old onboarding messages in DB ──
+      if (phase === 0 && data?.setupMode) {
+        await fetch('/api/onboarding/setup-project', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: data.setupMode }),
+        });
+
+        if (data.setupMode === 'solo') {
+          setMessages(prev => [...prev, {
+            id: `msg-setup-confirm-${Date.now()}`,
+            role: 'assistant' as const,
+            content: `No problem — your setup tasks are due in a week. Take your time exploring.\n\nI'll check in if anything's still open. You can always ask me for help with any of them.`,
+            createdAt: new Date().toISOString(),
+          }]);
+        }
+        return;
+      }
+
+      // Regular onboarding — advance to next phase (legacy)
       const res = await fetch('/api/onboarding/advance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -413,7 +451,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     } catch (err) {
       console.error('Onboarding action failed:', err);
     }
-  }, []);
+  }, [sendMessage]);
 
   // ── Quick actions (no API key) ───────────────────────────────────────
   const quickActions = [
@@ -969,8 +1007,9 @@ function MarketplaceSuggestionCard({
   onInstall: (type: string, id: string) => void;
 }) {
   const [installingId, setInstallingId] = useState<string | null>(null);
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
   const [installedIds, setInstalledIds] = useState<Set<string>>(
-    new Set(suggestions.filter(s => s.installed).map(s => s.id))
+    new Set(safeSuggestions.filter(s => s.installed).map(s => s.id))
   );
 
   const handleInstall = async (type: string, id: string) => {
@@ -1010,7 +1049,7 @@ function MarketplaceSuggestionCard({
         <p className="text-[11px] text-[var(--text-secondary)] mb-3">{message}</p>
 
         <div className="grid gap-2">
-          {suggestions.map((s) => {
+          {safeSuggestions.map((s) => {
             const isInstalled = installedIds.has(s.id);
             const colorClass = categoryColors[s.category] || categoryColors.general;
 

@@ -323,27 +323,6 @@ export function getPhase5Widgets(hasConnectedSources: boolean): OnboardingWidget
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// PHASE 6: Complete
-// ═══════════════════════════════════════════════════════════════════════════════
-
-export function getCompletionMessage(diviName: string): string {
-  return `\u2705 **Setup Complete!**
-
-${diviName || 'Divi'} is fully configured and ready to work. Here's your command center:
-
-\u2022 **Chat** \u2014 Talk to me anytime. I'm always here.
-\u2022 **NOW** \u2014 Your prioritized task list. I keep it fresh.
-\u2022 **Board** \u2014 Kanban cards for everything that needs tracking.
-\u2022 **Email / Calendar / Drive** \u2014 Interactive tabs. Hover to engage.
-\u2022 **\ud83d\udce1 Signals** \u2014 Your data feeds. Add more anytime.
-\u2022 **\ud83d\udd04 Catch Up** \u2014 One-click triage of everything.
-
-Remember: you can always ask me to adjust any of these settings. Just say something like "change my autonomy to 5" or "show me my Divi settings" and I'll pull up the controls right here in chat.
-
-What would you like to tackle first?`;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // Settings widget configs (for re-invocation from chat via action tags)
 // ═══════════════════════════════════════════════════════════════════════════════
 

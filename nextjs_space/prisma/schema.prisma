@@ -638,6 +638,24 @@ model Recording {
 
 // ─── Activity Log ───────────────────────────────────────────────────────────
 
+model BoardInsight {
+  id         String   @id @default(cuid())
+  type       String   // "merge_suggestion" | "stale_card" | "auto_escalate" | "duplicate_tasks" | "archive_candidate"
+  status     String   @default("active") // "active" | "dismissed" | "applied"
+  confidence Float    @default(0.8)
+  reason     String
+  sourceId   String   // primary card/item ID
+  targetId   String?  // for merge suggestions, the target card ID
+  metadata   String?  // JSON — additional context
+  userId     String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([userId, type])
+  @@map("board_insights")
+}
+
 model ActivityLog {
   id        String   @id @default(cuid())
   action    String   // "card_created" | "card_moved" | "task_dispatched" | "contact_added" | "mode_changed" | "recording_processed" etc.

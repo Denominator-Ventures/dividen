@@ -49,7 +49,16 @@ export function parseWidgetPayload(metadata?: string | any): WidgetPayload | nul
   try {
     const parsed = typeof metadata === 'string' ? JSON.parse(metadata) : metadata;
     if (parsed?.widgets && Array.isArray(parsed.widgets) && parsed.widgets.length > 0) {
-      return parsed as WidgetPayload;
+      // Defensively ensure items and actions arrays exist on each widget/item
+      const safeWidgets = parsed.widgets.map((w: any) => ({
+        ...w,
+        items: Array.isArray(w.items) ? w.items.map((item: any) => ({
+          ...item,
+          actions: Array.isArray(item.actions) ? item.actions : [],
+          tags: Array.isArray(item.tags) ? item.tags : [],
+        })) : [],
+      }));
+      return { widgets: safeWidgets } as WidgetPayload;
     }
     return null;
   } catch {
@@ -116,7 +125,7 @@ function WidgetItemCard({ item, onAction, compact }: {
       </div>
 
       {/* Actions */}
-      {item.actions.length > 0 && (
+      {item.actions && item.actions.length > 0 && (
         <div className={cn(
           'flex gap-1.5 flex-shrink-0',
           compact ? 'flex-col' : 'flex-row mt-2'
@@ -197,7 +206,7 @@ export function AgentWidget({ widget, onAction, className }: {
         widget.layout === 'horizontal' ? 'flex gap-2 overflow-x-auto scrollbar-hide pb-1' :
         'space-y-2'
       )}>
-        {widget.items.map((item) => (
+        {(widget.items || []).map((item) => (
           <div
             key={item.id}
             className={cn(
@@ -226,7 +235,7 @@ export function AgentWidgetContainer({ payload, onAction, className }: {
 }) {
   return (
     <div className={cn('space-y-3', className)}>
-      {payload.widgets.map((widget, i) => (
+      {(payload.widgets || []).map((widget, i) => (
         <AgentWidget key={i} widget={widget} onAction={onAction} />
       ))}
     </div>

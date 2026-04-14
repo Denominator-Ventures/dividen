@@ -7,6 +7,7 @@
  */
 
 import { prisma } from './prisma';
+import { buildContextDigest as buildContextDigestFn } from './board-cortex';
 
 interface PromptContext {
   userId: string;
@@ -126,18 +127,10 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const triageSettings = (userSettings?.triageSettings as Record<string, any> | null) || {};
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
 
-  // Force-include setup group during active onboarding (so Divi always has context)
-  // But only if user hasn't already been using the app (has queue items, cards, etc.)
+  // Always include setup — the setup layer is lightweight (status line + settings hint)
+  // and setup project cards appear naturally in the kanban board context (group 2).
   const userPhase = userSettings?.onboardingPhase ?? 0;
-  if (userPhase > 0 && userPhase < 6) {
-    // Check if user has real data — if so, they've moved past onboarding even if phase is stuck
-    const hasRealActivity = await prisma.queueItem.count({ where: { userId } }).then(c => c > 0).catch(() => false);
-    if (!hasRealActivity) {
-      relevantGroups.add('setup');
-    }
-  } else if (userPhase === 0) {
-    relevantGroups.add('setup');
-  }
+  relevantGroups.add('setup');
 
   // ── Batch 1: Pre-fetch shared data (always needed) ──
   const [
@@ -146,6 +139,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     contacts,
     unreadEmails,
     connections,
+    myChecklistTasks,
   ] = await Promise.all([
     prisma.kanbanCard.findMany({
       where: { userId },
@@ -153,6 +147,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       take: 30,
       include: {
         checklist: true,
+        project: { select: { name: true } },
         contacts: {
           include: { contact: { select: { name: true, platformUserId: true } } },
         },
@@ -194,9 +189,34 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       },
       take: 20,
     }),
+    // Assigned checklist tasks — these are the operator's actionable NOW items
+    prisma.checklistItem.findMany({
+      where: {
+        completed: false,
+        assigneeType: 'self',
+        dueDate: { not: null },
+        card: { userId, status: { in: ['active', 'in_progress', 'development'] } },
+      },
+      orderBy: [{ dueDate: 'asc' }, { order: 'asc' }],
+      take: 15,
+      include: {
+        card: { select: { id: true, title: true, priority: true, project: { select: { name: true } } } },
+      },
+    }),
   ]);
 
   const inProgressCards = kanbanCards.filter((c: any) => c.status === 'in_progress');
+
+  // ── Board Cortex: pre-digested intelligence layer ──
+  let boardCortexDigest = '';
+  try {
+    const cortexNow = new Date();
+    const digest = await buildContextDigestFn(userId, kanbanCards as any, cortexNow);
+    boardCortexDigest = digest.fullDigest;
+  } catch (e) {
+    // Non-critical — fall back to raw card display
+    console.error('[system-prompt] Board Cortex digest failed:', e);
+  }
 
   // ── Group 1: Identity, Rules & Time (merged old 1+2+9) ──
   const now = new Date();
@@ -209,8 +229,8 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   });
   const modeName = ctx.mode === 'chief_of_staff' ? 'Chief of Staff' : 'Cockpit';
   const modeDesc = ctx.mode === 'chief_of_staff'
-    ? `You proactively manage tasks, make decisions, and take action on behalf of ${ctx.userName || 'the user'}. You prioritize, delegate, and execute without waiting for explicit approval on routine matters.`
-    : `You present information, options, and recommendations to ${ctx.userName || 'the user'}, who makes all final decisions. You execute tasks only when explicitly instructed.`;
+    ? `You proactively manage tasks, make decisions, and take action on behalf of ${ctx.userName || 'the user'}. You prioritize, delegate, and execute without waiting for explicit approval on routine matters. You work autonomously through the task list, coordinating with other agents via comms and using installed capabilities.`
+    : `You work alongside ${ctx.userName || 'the user'} to drive through their task list. Default to pulling the next NOW item forward — help execute, mark complete, create follow-on work, and delegate what belongs elsewhere. You are a work partner, not a passive assistant.`;
 
   // ── Working style modifiers ──
   const verbosity = workingStyle.verbosity ?? 3;
@@ -293,14 +313,27 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   // ── Group 2: Active State (merged old 4+5+11) ──
   let group2 = '## Active State\n';
 
-  // NOW focus
-  if (inProgressCards.length > 0) {
-    const focusLines = inProgressCards.slice(0, 3)
-      .map((c: any) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
-      .join('\n');
-    group2 += `### 🎯 NOW (In Progress)\n${focusLines}\n\n`;
+  // NOW focus — checklist tasks assigned to operator + in-progress cards
+  if (myChecklistTasks.length > 0 || inProgressCards.length > 0) {
+    group2 += `### 🎯 NOW (Your Task List)\n`;
+    if (myChecklistTasks.length > 0) {
+      group2 += `**Assigned tasks** (work through these with the operator):\n`;
+      group2 += myChecklistTasks.map((t: any) => {
+        const due = t.dueDate ? ` Due:${new Date(t.dueDate).toISOString().split('T')[0]}` : '';
+        const proj = t.card?.project?.name ? ` (${t.card.project.name})` : '';
+        return `- [${t.id}] "${t.text}" on card "${t.card?.title}"${proj}${due}`;
+      }).join('\n') + '\n';
+    }
+    if (inProgressCards.length > 0) {
+      group2 += `**Active cards**:\n`;
+      const focusLines = inProgressCards.slice(0, 3)
+        .map((c: any) => `- "${c.title}" [${c.priority}]${c.dueDate ? ` — Due: ${c.dueDate.toISOString().split('T')[0]}` : ''}`)
+        .join('\n');
+      group2 += focusLines + '\n';
+    }
+    group2 += '\n';
   } else {
-    group2 += `### 🎯 NOW\nNo cards currently in progress.\n\n`;
+    group2 += `### 🎯 NOW\nNo assigned tasks or active cards. Help the operator create work or run a catch-up.\n\n`;
   }
 
   // Kanban — Project Cards
@@ -347,11 +380,17 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
         if (contribNames.length) peopleParts.push(`contributors:[${contribNames.join(',')}]`);
         if (relatedCount > 0) peopleParts.push(`related:${relatedCount}`);
         const peopleStr = peopleParts.length > 0 ? ` 👥${peopleParts.join(' ')}` : '';
-        return `[${c.id}] "${c.title}" (${c.priority})${due}${checks}${taskStr}${peopleStr}${artStr}`;
+        const proj = c.project?.name ? ` proj:"${c.project.name}"` : '';
+        return `[${c.id}] "${c.title}" (${c.priority})${proj}${due}${checks}${taskStr}${peopleStr}${artStr}`;
       }).join(' | ') + '\n';
     }
   } else {
     group2 += 'No project cards on the board yet.\n';
+  }
+
+  // Board Intelligence (Cortex digest)
+  if (boardCortexDigest) {
+    group2 += `\n### 🧠 Board Intelligence\n${boardCortexDigest}\n\n`;
   }
 
   // Queue
@@ -1040,12 +1079,15 @@ Only contributors who are DiviDen users (marked 🟢 on the Board) can receive d
 - **Every task gets a due date**: Infer from context, suggest defaults by priority, confirm with operator. A task without a deadline is a task that drifts.
 - **Three task owners**: "self" (operator), "divi" (you handle directly), "delegated" (another user's Divi manages). The Board shows [me:2 divi:3 via-divi:1] breakdown per card.
 - **People = Contributors + Related**: Contributors actively work on a project (🟢 = DiviDen user, can receive delegated tasks). Related people are contextual (stakeholders, mentioned contacts). CRM-only contacts can't take tasks — suggest inviting them.
-- **${diviName} as Project Manager**: In cockpit mode, you are reactive to the operator — helping them manage their tasks and routing outgoing tasks to other agents. You orchestrate; they execute.
+- **${diviName} as Work Partner (Cockpit Mode)**: Your DEFAULT behavior when the operator opens chat is to work through their NOW list together. Look at their assigned checklist tasks (assigneeType 'self') and active cards. Pick the highest-priority item and drive it forward: ask what they need, help them execute, and mark it complete when done ([[complete_checklist:{"id":"..."}]]). Then move to the next. You are not passive — you pull work forward.
+- **Creating follow-on work**: As tasks complete, NEW work often surfaces. Create checklist items on existing cards ([[add_checklist:{"cardId":"...","text":"...","assigneeType":"self|divi|delegated","assigneeName":"...","dueDate":"ISO"}]]) or new cards for new initiatives. Always assign a due date and owner.
+- **Delegation always goes through queue**: When work belongs to someone else (another user's Divi, a marketplace agent, or Divi itself for async work), create it as a queue item with [[dispatch_queue:{"title":"...","description":"...","priority":"..."}]] or [[queue_capability_action:{...}]]. The operator reviews and clicks "Execute" when ready. NEVER auto-fire relays or capability actions without the operator seeing them in the queue first.
+- **Capability execution from chat**: When the operator explicitly asks you to do something simple and immediate (draft an email, schedule a meeting) and a capability is enabled, you CAN execute it directly from chat. This is for interactive, operator-present actions — not batch or autonomous work. Logged as activity.
 - **Source traceability**: Every task carries sourceType/sourceId/sourceLabel. Every artifact is linked via CardArtifact. The operator can always see WHERE something came from.
 ${triageSettings.autoRouteToBoard ? '- **Auto-routing enabled**: You may add items to the board during triage without waiting for explicit confirmation on each one. Summarize what you added at the end.' : '- **No auto-routing to board**: NEVER automatically add items to the board without the operator seeing them in a triage conversation first. Signal items are triaged conversationally — the operator reviews what you found and decides what becomes tasks.'}
-- **NOW = urgency x impact**: The NOW panel shows in-progress cards. Prioritize what moves goals forward fastest.
+- **NOW = urgency x impact**: The NOW panel shows assigned checklist tasks and active cards ranked by urgency. Your default conversation opener should reference the top item and start driving it forward.
 
-**The full loop**: Signals → Extract Tasks → Route to Project Cards → Assign (self/divi/delegated) + Due Date → Board (projects with people) → NOW (focus) → Queue (execution) → Relay (delegation) → tracked back to Board
+**The full loop**: Signals → Extract Tasks → Route to Project Cards → Assign (self/divi/delegated) + Due Date → Board (projects with people) → NOW (focus) → Queue (execution) / Chat (direct) → Relay (delegation) → tracked back to Board
 
 ### Outbound Capabilities
 Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:
@@ -1142,7 +1184,7 @@ async function buildSetupLayer_conditional(
   const hasContacts = contactCount > 0;
   const hasConnections = connectionCount > 0;
 
-  // ── Onboarding awareness (lean — only when in progress) ─────────────
+  // ── Legacy onboarding awareness (only for old-flow users, phase < 6) ──
   let onboardingBlock = '';
   if (onboardingPhase < 6) {
     const phaseDescriptions: Record<number, string> = {
@@ -1162,10 +1204,25 @@ Do NOT repeat onboarding steps the user has already completed.
   }
 
   // ── Settings widget action (always available) ──────────────────────
-  const settingsHint = `### Adjustable Settings (anytime)
-If the user asks to change working style, triage mode, goals, agent name, or identity preference:
+  const settingsHint = `### Interactive Settings Widgets
+When discussing ANYTHING related to working style, triage, goals, agent name, or identity — ALWAYS surface the interactive widget:
 Use [[show_settings_widget:{"group":"<GROUP>"}]] where GROUP is: working_style, triage, goals, identity, or all.
-This shows an interactive settings widget inline in chat. The user adjusts and saves directly.
+This renders the actual interactive settings UI inline in chat. The user adjusts sliders/toggles and saves right there.
+
+**CRITICAL for setup tasks**: When working through a setup checklist task, ALWAYS show the relevant widget:
+- "Configure Divi's Working Style" → [[show_settings_widget:{"group":"working_style"}]]
+- "Set Triage Preferences" → [[show_settings_widget:{"group":"triage"}]]
+- "Connect Email & Calendar" → Guide user to connect Google (provide the link/button)
+- "Review What's Connected" → Summarize what's connected and show status
+- "Set Up Custom Signals" → Guide through webhook/signal setup
+- "Run Your First Catch-Up" → Initiate a catch-up/triage run
+
+### Continuous Task Awareness
+You ALWAYS track the operator's NOW list during conversation. As topics naturally progress:
+- **Auto-detect completion**: When the user finishes configuring something that corresponds to a checklist task (e.g., they save their working style settings, or you confirm their triage preferences are set), immediately mark it complete with [[complete_checklist:{"id":"<TASK_ID>"}]]. The user should NEVER have to manually check off a task that was clearly accomplished in conversation.
+- **Auto-detect related tasks**: If the conversation touches on a topic that has a corresponding task on the board, acknowledge it. If the task is done, mark it. If new work surfaces, create a new task.
+- **Proactive next-task transitions**: After completing a task, naturally transition to the next one on the NOW list. Don't wait to be asked — say something like "Good, that's done. Next up is [task]. Let me show you..." and surface the relevant widget.
+- **Create follow-on work**: If the conversation reveals new work (action items, decisions, follow-ups), create them as checklist items or new cards immediately — don't just suggest it.
 
 `;
 

@@ -1,787 +1,676 @@
 # DiviDen Command Center — Project Bible
 
-**Last updated:** April 13, 2026  
-**Author:** Build session handoff document  
-**Purpose:** Everything a new Deep Agent conversation needs to continue this project effectively.
+> **Last updated**: April 14, 2026 (v1.4.0)  
+> **Purpose**: Comprehensive onboarding document for any new developer or AI agent continuing this project.
 
 ---
 
-## Table of Contents
+## 1. What Is DiviDen?
 
-1. [What DiviDen Is](#what-dividen-is)
-2. [Architecture Overview](#architecture-overview)
-3. [Tech Stack](#tech-stack)
-4. [Project Structure](#project-structure)
-5. [Database Schema (60 Models)](#database-schema)
-6. [AI Agent System (Divi)](#ai-agent-system)
-7. [Dashboard Layout](#dashboard-layout)
-8. [Authentication & Authorization](#authentication)
-9. [Google OAuth Integration](#google-oauth)
-10. [Integrations & Signals](#integrations-signals)
-11. [Capabilities System](#capabilities-system)
-12. [Smart Triage & Task-First Architecture](#smart-triage)
-13. [Connections & Federation](#connections-federation)
-14. [Marketplace & Payments](#marketplace-payments)
-15. [Jobs → Paying Tasks](#paying-tasks)
-16. [Admin Dashboard](#admin-dashboard)
-17. [Protocol Versions (MCP, A2A, Agent Card)](#protocol-versions)
-18. [Settings Page](#settings-page)
-19. [Landing Page & Public Pages](#landing-page)
-20. [Environment Variables](#environment-variables)
-21. [Deployment](#deployment)
-22. [Known Constraints & Gotchas](#gotchas)
-23. [Credentials](#credentials)
-24. [Open Source Site (os.dividen.ai)](#open-source-site)
-25. [Style & Design System](#design-system)
-26. [Feature Inventory (Complete)](#feature-inventory)
-27. [Audit Documents](#audit-documents)
+DiviDen is an **AI-native personal operating system for professionals**. Every user gets their own AI agent called **Divi** that manages their queue, calendar, email, CRM, projects, kanban, goals, and more — all from a single dashboard with a conversational interface.
+
+The core philosophy:
+- **Individual-first**: Each person runs their own DiviDen instance (or uses the hosted platform at dividen.ai)
+- **Agent-to-Agent federation**: DiviDen instances connect to each other. Your Divi talks to my Divi.
+- **Open-core**: The codebase is MIT-licensed. Self-hosted instances are free with no feature gates. The hosted platform (dividen.ai) is the monetization layer with subscriptions and marketplace fees.
+- **Teams are grouping, not hierarchy**: A team just adds a group of users to a project as an organized bundled unit. CoS delegation still operates at the ProjectMember level.
+
+**Deployed at**: `dividen.ai` (custom domain) and `sdfgasgfdsgsdg.abacusai.app` (Abacus staging). Both are untagged deployments.
+
+**GitHub**: `https://github.com/Denominator-Ventures/dividen.git` (remote `origin`, PAT auth configured)
 
 ---
 
-## 1. What DiviDen Is <a name="what-dividen-is"></a>
+## 2. Tech Stack
 
-DiviDen is an **AI-powered workflow command center**. Think: an AI chief of staff that manages your email, calendar, CRM, task board, and professional network — all through natural conversation.
-
-**Core philosophy:** Individual-first. It's a powerful tool for one person to manage their entire workflow. Teams and social features are secondary. The AI agent ("Divi") learns how you work, handles what it can, and surfaces only what needs you.
-
-**Two deployment models:**
-- **Managed platform** at `dividen.ai` — hosted, multi-tenant, includes network features
-- **Self-hosted** (MIT license) — full codebase, documented at `os.dividen.ai`
-
-**Founder:** Jon (Denominator Ventures). Thinks in product terms, builder-log tone, no fluff.
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript (strict) |
+| Styling | Tailwind CSS + CSS custom properties (dark theme only) |
+| Database | PostgreSQL via Prisma ORM |
+| Auth | NextAuth.js (credentials provider, JWT strategy, 30-day sessions) |
+| AI/LLM | Anthropic Claude (via `src/lib/llm.ts`), Abacus AI API key |
+| Payments | Stripe (Connect for payouts, Customer for billing) |
+| Storage | AWS S3 (file uploads, cloud storage) |
+| Google | OAuth for calendar/email sync, Gemini API for meeting notes |
+| Package Manager | **yarn only** — never npm/npx |
+| Deployment | Abacus AI platform (standalone Next.js output) |
 
 ---
 
-## 2. Architecture Overview <a name="architecture-overview"></a>
+## 3. Project Structure
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    Next.js 14 App               │
-│              (App Router, Server Actions)        │
-├─────────────┬──────────────┬────────────────────┤
-│  Landing    │  Dashboard   │  Settings/Admin    │
-│  (public)   │  (authed)    │  (authed)          │
-├─────────────┴──────────────┴────────────────────┤
-│                   API Layer                      │
-│  /api/*  (NextAuth, CRUD, Chat, Federation)     │
-│  /api/v2/* (Public APIs, Federation endpoints)  │
-├─────────────────────────────────────────────────┤
-│               Core Libraries                     │
-│  system-prompt.ts · action-tags.ts · llm.ts     │
-│  signals.ts · google-sync.ts · now-engine.ts    │
-├─────────────────────────────────────────────────┤
-│          PostgreSQL (Prisma ORM, 60 models)     │
-│          S3 (profile photos, drive files)       │
-│          Stripe Connect (payments)              │
-└─────────────────────────────────────────────────┘
-```
-
-**Dashboard is a 3-column layout:**
-- **Left:** NOW Panel (scored priority items, quick actions, earnings widget, activity stream)
-- **Center:** Tabbed workspace (Chat, CRM, Calendar, Inbox, Recordings + network tabs)
-- **Right:** Queue Panel (task queue + Comms tab)
-
-**Two modes:** Cockpit (operator view) and Chief of Staff (observer view for a founder's right hand)
-
----
-
-## 3. Tech Stack <a name="tech-stack"></a>
-
-| Layer | Technology | Version |
-|-------|-----------|--------|
-| Framework | Next.js (App Router) | 14.2.28 |
-| React | React | 18.2.0 |
-| Language | TypeScript | 5.2.2 |
-| Auth | NextAuth.js | 4.24.11 |
-| Database | PostgreSQL via Prisma | 6.7.0 |
-| Styling | Tailwind CSS | 3.3.3 |
-| UI Components | Radix UI + shadcn/ui patterns | Various |
-| State | Jotai, Zustand, SWR, TanStack Query | Various |
-| Animation | Framer Motion | 10.18.0 |
-| Charts | Recharts, Plotly.js | Various |
-| Payments | Stripe + Stripe Connect | ^22.0.1 |
-| Email | Nodemailer (SMTP) + Gmail API (Google) | ^8.0.5 |
-| Google APIs | googleapis npm | ^171.4.0 |
-| Cloud Storage | AWS S3 | @aws-sdk/client-s3 |
-| LLM | Anthropic (Claude) via custom wrapper | BYOK |
-| Package Manager | **yarn ONLY** (never npm/npx) | — |
-
-**Fonts:** Space Grotesk (headings), Inter (body), JetBrains Mono (code)  
-**Color palette:** Dark theme, brand blue `#4f7cff`, surfaces at `#0a0a0a` / `#111` / `#1a1a1a`
-
----
-
-## 4. Project Structure <a name="project-structure"></a>
-
-```
-/home/ubuntu/dividen_command_center/
-├── .project_instructions.md          ← Agent memory (design decisions, patterns)
-├── nextjs_space/
-│   ├── prisma/schema.prisma          ← 60 models, 1847 lines
+/home/ubuntu/dividen_command_center/          ← PROJECT ROOT (use this in all tools)
+├── .project_instructions.md                  ← Agent memory file (design decisions, patterns)
+├── .abacus.donotdelete                       ← NEVER MODIFY
+├── nextjs_space/                             ← All source code lives here
+│   ├── prisma/schema.prisma                  ← Database schema (2139 lines, 67 models)
+│   ├── scripts/seed.ts                       ← Database seed (upserts, never deletes)
 │   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx              ← Redirects to landing or dashboard
-│   │   │   ├── layout.tsx            ← Root layout (providers, fonts, meta)
-│   │   │   ├── globals.css           ← Global styles, PWA fixes
-│   │   │   ├── providers.tsx         ← SessionProvider wrapper
-│   │   │   ├── login/page.tsx
-│   │   │   ├── setup/page.tsx
-│   │   │   ├── dashboard/page.tsx     ← Main dashboard (3-column layout)
-│   │   │   ├── settings/page.tsx     ← 6-tab settings page
-│   │   │   ├── admin/page.tsx        ← 11-tab admin dashboard
-│   │   │   ├── updates/page.tsx
-│   │   │   ├── profile/[userId]/page.tsx
-│   │   │   ├── team/[id]/page.tsx
-│   │   │   ├── docs/                 ← Developer docs, federation, integrations
-│   │   │   ├── api/                  ← ~100+ API routes
-│   │   │   │   ├── auth/             ← NextAuth, Google OAuth, login, signup
-│   │   │   │   ├── chat/             ← Chat messages, send (LLM)
-│   │   │   │   ├── integrations/     ← Google/SMTP connect, sync, send
-│   │   │   │   ├── v2/               ← Public APIs (federation, network)
-│   │   │   │   ├── admin/            ← Admin endpoints (stats, tasks, etc.)
-│   │   │   │   ├── stripe/           ← Stripe Connect, payments, webhooks
-│   │   │   │   └── ...               ← CRM, calendar, queue, jobs, etc.
+│   │   ├── app/                              ← Next.js App Router pages + API routes
+│   │   │   ├── page.tsx                      ← Landing page (renders LandingPage component)
+│   │   │   ├── layout.tsx                    ← Root layout (SessionProvider, fonts, OG)
+│   │   │   ├── providers.tsx                 ← SessionProvider wrapper
+│   │   │   ├── globals.css                   ← CSS variables, Tailwind, PWA fixes
+│   │   │   ├── dashboard/page.tsx            ← Main app dashboard (orchestrator)
+│   │   │   ├── admin/page.tsx                ← Admin panel
+│   │   │   ├── settings/page.tsx             ← User settings page
+│   │   │   ├── login/page.tsx                ← Login page
+│   │   │   ├── setup/page.tsx                ← Account creation / signup
+│   │   │   ├── updates/page.tsx              ← Updates wall page
+│   │   │   ├── profile/[userId]/page.tsx     ← Public user profiles
+│   │   │   ├── team/[id]/page.tsx            ← Team profile page
+│   │   │   ├── team/invite/[token]/page.tsx  ← Team invite acceptance
+│   │   │   ├── docs/                         ← Documentation pages
+│   │   │   │   ├── developers/page.tsx       ← API reference (v2 endpoints)
+│   │   │   │   ├── federation/page.tsx       ← Federation protocol docs
+│   │   │   │   ├── integrations/page.tsx     ← Integration guides
+│   │   │   │   └── release-notes/page.tsx    ← Versioned release notes
+│   │   │   ├── open-source/page.tsx          ← Open-source landing page
+│   │   │   ├── terms/page.tsx                ← Terms of Service
+│   │   │   ├── privacy/page.tsx              ← Privacy Policy
+│   │   │   └── api/                          ← API routes (see Section 6)
 │   │   ├── components/
-│   │   │   ├── landing/LandingPage.tsx
-│   │   │   ├── dashboard/            ← 30+ dashboard components
-│   │   │   ├── settings/             ← 11 settings components
-│   │   │   ├── admin/                ← 6 admin tab components
-│   │   │   └── updates/UpdatesPage.tsx
-│   │   ├── lib/                      ← 40+ library modules
-│   │   │   ├── system-prompt.ts      ← 1635 lines, 13 prompt groups
-│   │   │   ├── action-tags.ts        ← 53 action tags + execution logic
-│   │   │   ├── llm.ts                ← LLM provider abstraction
-│   │   │   ├── signals.ts            ← 6 built-in signals + custom
-│   │   │   ├── google-oauth.ts       ← OAuth token management
-│   │   │   ├── google-sync.ts        ← Gmail, Calendar, Drive sync
-│   │   │   ├── now-engine.ts         ← Priority scoring for NOW panel
-│   │   │   ├── brief-assembly.ts     ← Smart brief generation
-│   │   │   ├── prisma.ts             ← Singleton client + telemetry
-│   │   │   ├── stripe.ts             ← Stripe integration
-│   │   │   └── ...                   ← Many more utilities
-│   │   ├── types/index.ts            ← Shared TypeScript types
-│   │   └── docs/                     ← Audit documents for os.dividen.ai
-│   ├── scripts/seed.ts               ← DB seed (test users + defaults)
-│   ├── public/                       ← Static assets, PWA manifest
-│   ├── .env                          ← Environment variables
-│   ├── tailwind.config.ts
-│   ├── next.config.js
-│   └── tsconfig.json
+│   │   │   ├── landing/                      ← Landing page components
+│   │   │   │   ├── LandingPage.tsx           ← Full landing page (hero, features, pricing)
+│   │   │   │   └── HowItWorks.tsx            ← Animated loop flowchart
+│   │   │   ├── dashboard/                    ← Dashboard tab components
+│   │   │   │   ├── ChatView.tsx              ← Chat with Divi
+│   │   │   │   ├── QueuePanel.tsx            ← Task queue (left sidebar)
+│   │   │   │   ├── NowPanel.tsx              ← NOW engine ranked items
+│   │   │   │   ├── CenterPanel.tsx           ← Tab switcher (center content)
+│   │   │   │   ├── KanbanView.tsx            ← Kanban board
+│   │   │   │   ├── CrmView.tsx               ← CRM / contacts
+│   │   │   │   ├── CalendarView.tsx           ← Calendar
+│   │   │   │   ├── InboxView.tsx             ← Email inbox
+│   │   │   │   ├── ChiefOfStaffView.tsx      ← CoS mode panel
+│   │   │   │   ├── TeamsView.tsx             ← Teams management + invites
+│   │   │   │   ├── GoalsView.tsx             ← Goals tracking
+│   │   │   │   ├── MarketplaceView.tsx       ← Agent marketplace
+│   │   │   │   ├── ConnectionsView.tsx       ← Network connections
+│   │   │   │   ├── MemoryPanel.tsx           ← Agent memory items
+│   │   │   │   ├── DriveView.tsx             ← Document drive
+│   │   │   │   ├── RecordingsView.tsx        ← Meeting recordings
+│   │   │   │   ├── CapabilitiesView.tsx      ← Agent capabilities
+│   │   │   │   ├── FederationIntelligenceView.tsx ← Federation intel
+│   │   │   │   ├── JobBoardView.tsx          ← Network job board
+│   │   │   │   ├── ExtensionsView.tsx        ← Agent extensions
+│   │   │   │   ├── GlobalSearch.tsx          ← Cross-surface search
+│   │   │   │   ├── NotificationCenter.tsx    ← Notification dropdown
+│   │   │   │   ├── OnboardingWelcome.tsx     ← Welcome popup for new users
+│   │   │   │   ├── OnboardingChatWidgets.tsx  ← Interactive onboarding widgets
+│   │   │   │   └── AgentWidget.tsx           ← In-chat interactive widget system
+│   │   │   ├── settings/                     ← Settings page components
+│   │   │   ├── admin/                        ← Admin panel tabs
+│   │   │   ├── updates/UpdatesPage.tsx       ← Updates wall renderer
+│   │   │   └── ui/DragScrollContainer.tsx    ← Utility component
+│   │   ├── lib/                              ← Core business logic
+│   │   │   ├── prisma.ts                     ← Singleton PrismaClient + telemetry
+│   │   │   ├── auth.ts                       ← NextAuth config (credentials)
+│   │   │   ├── api-auth.ts                   ← Bearer token auth for v2 API
+│   │   │   ├── llm.ts                        ← LLM integration (Anthropic Claude)
+│   │   │   ├── system-prompt.ts              ← Dynamic system prompt builder (1844 lines)
+│   │   │   ├── action-tags.ts                ← Action tag parser + executors (2495 lines)
+│   │   │   ├── cos-sequential-dispatch.ts    ← Chief of Staff execution engine
+│   │   │   ├── smart-task-prompter.ts        ← Agent-aware task optimizer
+│   │   │   ├── feature-gates.ts              ← Subscription/billing gates
+│   │   │   ├── team-project-sync.ts          ← Team→Project member sync
+│   │   │   ├── now-engine.ts                 ← NOW panel scoring/ranking
+│   │   │   ├── queue-gate.ts                 ← Queue confirmation gate logic
+│   │   │   ├── queue-dedup.ts                ← Deduplication for queue items
+│   │   │   ├── queue-dispatch.ts             ← Queue dispatching logic
+│   │   │   ├── signals.ts                    ← Signal processing
+│   │   │   ├── behavior-signals.ts           ← User behavior tracking
+│   │   │   ├── stripe.ts                     ← Stripe client + helpers
+│   │   │   ├── s3.ts                         ← S3 upload/presign helpers
+│   │   │   ├── google-oauth.ts               ← Google OAuth helpers
+│   │   │   ├── google-sync.ts                ← Calendar/email sync
+│   │   │   ├── telemetry.ts                  ← Request/error logging
+│   │   │   ├── memory.ts                     ← Memory system
+│   │   │   ├── activity.ts                   ← Activity logging
+│   │   │   ├── entity-resolution.ts          ← Cross-surface entity matching
+│   │   │   ├── brief-assembly.ts             ← AI brief generation
+│   │   │   ├── ambient-learning.ts           ← Ambient learning synthesis
+│   │   │   ├── relay-queue-bridge.ts         ← Relay↔queue bridging
+│   │   │   ├── job-matcher.ts                ← Job matching algorithm
+│   │   │   ├── task-exchange.ts              ← Task exchange protocol
+│   │   │   ├── webhook-actions.ts            ← Webhook action handlers
+│   │   │   ├── webhook-auth.ts               ← Webhook authentication
+│   │   │   ├── webhook-learn.ts              ← Webhook pattern learning
+│   │   │   ├── webhook-push.ts               ← Outbound webhook delivery
+│   │   │   ├── contact-platform-bridge.ts    ← Contact auto-linking
+│   │   │   ├── marketplace-config.ts         ← Marketplace configuration
+│   │   │   ├── pricing-types.ts              ← Pricing model types
+│   │   │   ├── free-tier.ts                  ← Free tier check
+│   │   │   ├── rate-limit.ts                 ← Rate limiting
+│   │   │   ├── updates.ts                    ← Changelog entries (founder voice)
+│   │   │   ├── landing-data.ts               ← Landing page content data
+│   │   │   ├── federation/                   ← Federation subsystem
+│   │   │   │   ├── composite-prompts.ts      ← Cross-instance prompt composition
+│   │   │   │   ├── graph-matching.ts         ← Graph-based matching
+│   │   │   │   ├── pattern-sharing.ts        ← Pattern sharing protocol
+│   │   │   │   └── task-routing.ts           ← Federated task routing
+│   │   │   └── utils.ts                      ← Shared utilities (cn, etc.)
+│   │   └── types/index.ts                    ← Shared TypeScript types
+│   ├── .env                                  ← Environment variables
+│   ├── next.config.js                        ← Next.js configuration
+│   ├── tailwind.config.ts                    ← Tailwind config + custom animations
+│   ├── tsconfig.json                         ← TypeScript config
+│   └── public/                               ← Static assets
 ```
 
 ---
 
-## 5. Database Schema (60 Models) <a name="database-schema"></a>
+## 4. Design System & Theme
 
-**ORM:** Prisma 6.7.0 with PostgreSQL  
-**Schema file:** `prisma/schema.prisma` (1847 lines)  
-**Migration strategy:** `yarn prisma db push` only (no migrations, shadow DB is broken in this env)  
-**⚠️ NEVER run `--accept-data-loss`** without explicit user confirmation — dev and prod share the same DB.
+DiviDen uses a **dark-only** theme with CSS custom properties:
 
-### Core Models (grouped by domain)
+| Variable | Value | Usage |
+|----------|-------|-------|
+| `--brand-primary` | `#4f7cff` | Primary blue (buttons, links, active tabs) |
+| `--brand-secondary` | `#5a8fff` | Secondary blue |
+| `--brand-accent` | `#b4ff3b` | Lime green accent |
+| `--bg-primary` | `#0a0a0a` | Page background |
+| `--bg-secondary` | `#0e0e0e` | Slightly lighter bg |
+| `--bg-tertiary` | `#161616` | Card/panel background |
+| `--bg-surface` | `rgba(255,255,255,0.04)` | Surface elements |
+| `--bg-surface-hover` | `rgba(255,255,255,0.07)` | Hover state |
+| `--border-color` | `rgba(255,255,255,0.06)` | Default borders |
+| `--text-primary` | `#f5f5f5` | Main text |
+| `--text-secondary` | `#a1a1a1` | Secondary text |
+| `--text-muted` | `rgba(161,161,161,0.5)` | Muted/disabled text |
 
-**Users & Auth:**
-`User` · `UserProfile` · `UserLearning` · `AgentApiKey` · `ExternalApiKey` · `ServiceApiKey`
+**CSS utility classes** (defined in `globals.css`):
+- `.card` — surface bg + border + rounded-xl
+- `.card-header` — border-bottom flex header
+- `.btn-primary` — brand blue button
+- `.btn-secondary` — surface bg button with border
+- `.input-base` — standard text input
+- `.tab-active` / `.tab-inactive` — tab styling
+- `.code-inline` — inline code snippet styling
 
-**Chat & AI:**
-`ChatMessage` (with `clearedAt` for soft-clear) · `AgentMessage` · `AgentRule` · `AmbientPattern` · `AmbientRelaySignal`
+**Fonts**: Google Fonts loaded in layout.tsx (Inter for body, heading font configured via CSS).
 
-**CRM:**
-`Contact` · `ContactRelationship`
-
-**Kanban / Project Board:**
-`KanbanCard` · `ChecklistItem` (with `assigneeType`, `dueDate`, `sourceType`) · `CardContact` · `CardArtifact` · `Project` · `ProjectMember` · `ProjectInvite`
-
-**Calendar & Email:**
-`CalendarEvent` · `EmailMessage` · `IntegrationAccount` (multi-account via `accountIndex`)
-
-**Signals & Capabilities:**
-`SignalConfig` · `CustomSignal` · `AgentCapability`
-
-**Queue & NOW:**
-`QueueItem`
-
-**Connections & Federation:**
-`Connection` · `AgentRelay` · `FederationConfig` · `InstanceRegistry` · `Invitation`
-
-**Marketplace:**
-`MarketplaceAgent` (with `accessPassword`) · `MarketplaceSubscription` · `MarketplaceExecution`
-
-**Jobs/Tasks:**
-`NetworkJob` (with `taskBreakdown`, `contributorProjectId`) · `JobApplication` · `JobContract` · `JobPayment` · `JobReview`
-
-**Teams:**
-`Team` · `TeamMember` · `TeamFollow` · `TeamSubscription` · `TeamBilling` · `TeamAgentAccess` · `TeamSpendingPolicy`
-
-**Documents & Recordings:**
-`Document` · `Recording`
-
-**Comms & Notifications:**
-`CommsMessage` (legacy) · `NotificationRule`
-
-**Extensions:**
-`AgentExtension`
-
-**Goals & Memory:**
-`Goal` · `MemoryItem`
-
-**Briefs & Activity:**
-`AgentBrief` · `ActivityLog`
-
-**Reputation & Webhooks:**
-`ReputationScore` · `Webhook` · `WebhookLog`
-
-**Telemetry:**
-`TelemetryEvent`
+**PWA**: Service worker registered, standalone display mode supported with safe-area-inset handling.
 
 ---
 
-## 6. AI Agent System (Divi) <a name="ai-agent-system"></a>
+## 5. Database Schema (67 Models)
 
-### System Prompt
-- **File:** `src/lib/system-prompt.ts` (1635 lines)
-- **13 prompt groups** (conditionally assembled per user state):
-  1. Identity, Rules & Time
-  2. Active State (board, queue, goals)
-  3. Conversation
-  4. People (CRM + profiles)
-  5. Memory & Learning
-  6. Calendar & Inbox
-  7. Capabilities & Action Tags
-  8. Connections & Relay
-  9. Extensions (conditional)
-  10. Platform Setup (conditional)
-  11. Business Operations
-  12. Team Agent Context (conditional)
-  13. Active Capabilities (conditional)
+The Prisma schema is at `prisma/schema.prisma` (2139 lines). Key model groups:
 
-### Action Tags (53)
-Divi emits structured `[[tag:payload]]` patterns that get parsed and executed. The full list in `src/lib/action-tags.ts`:
+### Core User
+- **User** — email/password auth, role, mode (cockpit/chief_of_staff), Stripe IDs, free tier flag, queueAutoApprove, onboarding state
+- **UserProfile** — extended profile (bio, skills, languages, headline, LinkedIn)
 
-**Core:** `create_card`, `update_card`, `archive_card`, `upsert_card`, `merge_cards`, `create_contact`, `update_contact`, `link_contact`, `add_relationship`, `link_artifact`, `link_recording`
+### Task Management
+- **QueueItem** — central task queue. Statuses: `pending_confirmation`, `ready`, `in_progress`, `completed`, `blocked`, `canceled`. Has `cosExecution` JSON for CoS metadata.
+- **KanbanCard** — project cards with checklists, artifacts, contacts
+- **ChecklistItem** — subtasks on kanban cards
+- **CardArtifact** — linked emails/docs/recordings on cards
+- **Goal** — OKR-style goals with progress tracking
 
-**Tasks:** `add_checklist` (alias: `add_task`), `complete_checklist`, `dispatch_queue` (alias: `dispatch`)
+### Communication
+- **ChatMessage** — user↔Divi chat messages
+- **AgentMessage** — system/agent messages
+- **EmailMessage** — synced emails
+- **CommsMessage** — in-app messaging
+- **CalendarEvent** — synced calendar events
+- **Recording** — meeting recordings + AI notes
 
-**Calendar/Email:** `create_event` (alias: `schedule_event`), `create_calendar_event`, `set_reminder`, `send_email`, `send_comms`
+### CRM
+- **Contact** — CRM contacts with enrichment data
+- **ContactRelationship** — typed relationships between contacts
+- **CardContact** — contact↔card linkage
 
-**Memory:** `update_memory`, `save_learning`
+### Teams & Projects
+- **Team** — name, description, type, visibility, originInstanceUrl, isSelfHosted, agentEnabled
+- **TeamMember** — userId or connectionId (federated), role (owner/admin/member)
+- **TeamInvite** — token-based invites with email/role/expiry/status
+- **Project** — scoped collaborations, optional team ownership
+- **ProjectMember** — user membership in projects
+- **ProjectInvite** — project-level invitations
+- **TeamSubscription** — billing tier for platform teams
+- **TeamBilling** — billing details
+- **TeamSpendingPolicy** — spending limits
+- **TeamAgentAccess** — agent marketplace access control
+- **TeamFollow** — team followers
 
-**Setup:** `setup_webhook`, `save_api_key`, `add_known_person`, `create_document`, `update_profile`
-
-**Connections:** `relay_request`, `relay_broadcast`, `relay_ambient`, `accept_connection`, `relay_respond`
-
-**Orchestration:** `task_route`, `assemble_brief`, `project_dashboard`, `queue_capability_action`
-
-**Goals:** `create_goal`, `update_goal`
-
-**Jobs/Tasks:** `post_job`, `propose_task`, `find_jobs`
-
-**Entity:** `entity_resolve`
-
-**Marketplace:** `install_agent`, `uninstall_agent`
-
-**Integration:** `sync_signal`
-
-### LLM Integration
-- **BYOK model** — users bring their own OpenAI or Anthropic key
-- **File:** `src/lib/llm.ts`
-- **Current model:** `claude-sonnet-4-6` (Anthropic)
-- **Context window:** 50 messages in `/api/chat/send`
-- **Chat persistence:** Messages stored in DB, `clearedAt` for soft-clear
-
-### Divi Personality
-- Configurable name via `User.diviName` (default "Divi")
-- 4-dimension working style (verbosity, proactivity, autonomy, formality)
-- Triage settings (autoMerge, autoRouteToBoard, triageStyle)
-- Goals toggle (`goalsEnabled`, default false)
-- All configured in Settings → Your Divi
-
----
-
-## 7. Dashboard Layout <a name="dashboard-layout"></a>
-
-**No sidebar.** 3-column layout: NOW | Center | Queue
-
-### Header
-- DiviDen logo, Search, Catch Up (with gear → CatchUpQuickMenu), notification bell, mode toggle strip below header
-
-### Primary Tabs (CenterPanel)
-`Chat` · `CRM` · `Calendar` · `Inbox` · `Recordings`
-
-### Network Tabs
-`Discover` · `Connections` · `Teams` · `Tasks` (was Jobs) · `Marketplace` · `Federation Intel`
-
-### Tab scroll behavior
-Drag-to-scroll with 5px threshold + fade gradients on mobile
-
-### Key Components
-- `NowPanel.tsx` — Scored priority items, quick actions (📋 Board), conditional earnings widget, activity stream
-- `CenterPanel.tsx` — Tab router for all workspace views
-- `QueuePanel.tsx` — Task queue + CommsTab
-- `ChiefOfStaffView.tsx` — Observer mode
-- `ChatView.tsx` — AI conversation with personalized avatars
-- `InboxView.tsx` — Email inbox with All/Unread/Starred/Drafts filters + inline reply bar
-- `KanbanView.tsx` — Project board with task delegation breakdown
-- `ConnectionsView.tsx` — 3 sub-tabs: Find People, My Connections, Relays
-- `JobBoardView.tsx` — Network tasks (Open Tasks, My Tasks, Accepted, Agreements)
-- `MarketplaceView.tsx` — Agent marketplace + Earnings view
-
-### Board accessible via
-📋 button in NowPanel quick actions (not a primary tab)
-
-### Mobile
-Single-panel view with bottom nav switching between NOW/Center/Queue
-
----
-
-## 8. Authentication & Authorization <a name="authentication"></a>
-
-- **NextAuth.js** with email/password credentials provider
-- **Session:** JWT-based
-- **Files:** `src/lib/auth.ts`, `src/app/api/auth/[...nextauth]/route.ts`
-- **Setup page:** `/setup` (account creation + Terms of Service acceptance)
-- **Login page:** `/login` (with deep-link invitation support)
-- **Admin:** Bearer token auth via `ADMIN_PASSWORD` env var, separate from NextAuth
-- **⚠️ NEXTAUTH_URL** is auto-configured by Abacus AI. Never set manually. Files reading it need `export const dynamic = "force-dynamic"`.
-
----
-
-## 9. Google OAuth Integration <a name="google-oauth"></a>
-
-**Purpose:** Data access (signals) — separate from NextAuth login. Users authenticate with email/password, then optionally connect Google.
-
-### Google Cloud Project
-- **Project:** `dividen-493203`, Number: `689488798650`
-- **Scopes:** `gmail.readonly`, `gmail.send`, `gmail.compose`, `calendar` (full read+write), `drive.readonly`, `userinfo.email`, `userinfo.profile`
-- **⚠️ Gmail scopes are RESTRICTED** — Google security audit required for 100+ users. Testing mode allows up to 100 test users.
-
-### Multi-Inbox Support
-- `IntegrationAccount.accountIndex` — `Int @default(0)`
-- Unique constraint: `@@unique([userId, identity, service, accountIndex])`
-- **Operators:** up to 3 Google accounts (accountIndex 0, 1, 2)
-- **Agent identities:** 1 Google account
-- UI groups all accounts under one Google section with per-account connect/disconnect
-
-### Self-Hosted OAuth Isolation
-- When `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` are missing:
-  - `/api/auth/google-connect` returns 501 with clear message
-  - IntegrationManager shows self-setup prompt + Google Cloud Console link
-  - `googleOAuthAvailable` boolean in GET `/api/integrations` response
-
-### Send Route
-- `/api/integrations/send` — detects provider:
-  - **Google accounts:** Gmail API (`users.messages.send` with RFC 2822 raw message)
-  - **SMTP accounts:** Nodemailer
-
-### Redirect URI Fix
-- All OAuth routes use `getPublicBaseUrl(req)` helper (reads `x-forwarded-host`) instead of `req.url` to avoid container hostname leaking
-
-### Redirect URIs (must be in Google Console)
-```
-https://dividen.ai/api/auth/callback/google-connect
-https://sdfgasgfdsgsdg.abacusai.app/api/auth/callback/google-connect
-http://localhost:3000/api/auth/callback/google-connect
-```
-
-### Key Files
-- `src/lib/google-oauth.ts` — Token exchange, refresh, scope management, `getValidAccessToken()` with auto-refresh (5-min buffer)
-- `src/lib/google-sync.ts` — `syncGmail()`, `syncCalendar()`, `syncDrive()`, `syncAllGoogleServices()`
-- `src/app/api/auth/google-connect/route.ts` — Initiates OAuth, builds consent URL
-- `src/app/api/auth/callback/google-connect/route.ts` — Handles callback, creates 3 IntegrationAccount records
-- `src/components/settings/IntegrationManager.tsx` — UI for all integrations
-
----
-
-## 10. Integrations & Signals <a name="integrations-signals"></a>
-
-### Signal Framework
-- **File:** `src/lib/signals.ts`
-- **6 built-in signals:** email, calendar, recordings, crm, drive, connections
-- **Custom signals:** Webhook-based, user-created, auto-generate task-first triage prompts
-- **Per-user config:** `SignalConfig` model — priority (int), catchUpEnabled, triageEnabled
-- **Catch Up:** Dynamic prompt respecting priority order and exclusions
-- **CatchUpQuickMenu:** Dropdown with drag-reorder + checkboxes for signals
-
-### Sync
-- `sync_signal` action tag triggers Google service syncs
-- `/api/integrations/sync` — manual sync endpoint
-- Drive sync stores files as `Document` records with `fileSource: 'google_drive'`
-
----
-
-## 11. Capabilities System <a name="capabilities-system"></a>
-
-- **Model:** `AgentCapability` (type: email/meetings/custom, identity, rules, config, status)
-- **API:** `/api/capabilities` (GET, POST), `/api/capabilities/[type]` (GET, PATCH, DELETE)
-- **Setup wizard:** 4 steps (intro → identity → rules → review)
-- **Queue integration:** `queue_capability_action` creates queue items with `capabilityType` metadata
-- **System prompt Group 13:** Dynamic capabilities context injected from DB
-
----
-
-## 12. Smart Triage & Task-First Architecture <a name="smart-triage"></a>
-
-**Mental model:** Cards = Projects (containers), Checklist Items = Tasks (atomic work items)
-
-### Triage Protocol (8 steps)
-1. EXTRACT TASKS → 2. ROUTE TO PROJECT → 3. ADD TO EXISTING (checklist + artifact) → 4. CREATE NEW PROJECT (sparingly) → 5. ASSIGN → 6. QUEUE → 7. LEARN → 8. SUMMARIZE
-
-### Key Patterns
-- **upsert_card:** Levenshtein similarity ≥80% — finds existing card by title before creating
-- **link_artifact:** Dual-write system — direct FK for built-in types + generic `CardArtifact` for extensibility
-- **ChecklistItem source tracking:** `sourceType`, `sourceId`, `sourceLabel` fields
-- **Task delegation:** `assigneeType` (self/divi/delegated), delegation via relay
-- **Due dates:** Every task should have one; Divi infers from context
-- **Queue dedup:** Levenshtein ≥80% prevents duplicate queue items
-- **Card merging:** `merge_cards` action tag + `/api/kanban/merge` API
-
----
-
-## 13. Connections & Federation <a name="connections-federation"></a>
-
-### Connections
-- **3 sub-tabs:** Find People (default), My Connections, Relays
-- **AcceptConnectionModal:** Full ceremony (nickname, relationship type, trust level, notes)
-- **No local/federated toggle** — federation hidden behind collapsible in Connect by Email
-
-### Federation
-- **InstanceRegistry model:** platformLinked, platformToken, marketplaceEnabled, discoveryEnabled, etc.
-- **Public APIs (v2):**
-  - `GET /api/v2/updates` — unified updates feed
-  - `GET /api/v2/network/discover` — network discovery
-  - `POST /api/v2/federation/register` — instance registration
-  - `POST /api/v2/federation/marketplace-link` — marketplace participation toggle
-  - `POST /api/v2/federation/heartbeat` — health check
-  - `POST /api/v2/federation/validate-payment` — fee validation
-- **Relay system:** Agent-to-agent communication (Comms tab in QueuePanel)
-
----
-
-## 14. Marketplace & Payments <a name="marketplace-payments"></a>
+### Federation & Network
+- **Connection** — peer connections (local or federated)
+- **AgentRelay** — agent-to-agent relay messages
+- **AmbientRelaySignal** / **AmbientPattern** — ambient learning from relays
+- **FederationConfig** — instance-level federation settings
+- **InstanceRegistry** — known federated instances
+- **Invitation** — cross-instance connection invitations
 
 ### Marketplace
-- Agents can be listed, sold, subscribed to
-- **Password-protected agents:** `accessPassword` field for private distribution
-- **97% developer revenue share**, 3% platform routing fee
-- **Internal fees:** Configurable via `MARKETPLACE_FEE_PERCENT`
-- **Network fee floors:** 3% marketplace, 7% recruiting (enforced minimums)
+- **MarketplaceAgent** — published agents with Integration Kits, pricing, access passwords
+- **MarketplaceSubscription** — user subscriptions to agents
+- **MarketplaceExecution** — execution logs
+- **MarketplaceCapability** / **UserCapability** — capability definitions
 
-### Stripe Integration
-- Stripe Connect for seller onboarding
-- Payment methods management
-- Webhooks for payment events
-- **Files:** `src/lib/stripe.ts`, `src/app/api/stripe/*`
+### Jobs & Economy
+- **NetworkJob** — task postings on the job board
+- **JobApplication** — applications to jobs
+- **JobContract** — agreed work contracts
+- **JobPayment** — payment records
+- **JobReview** — post-completion reviews
+- **ReputationScore** — user reputation
 
----
+### Agent Intelligence
+- **MemoryItem** — agent memory (patterns, preferences, learnings)
+- **UserLearning** — synthesized learnings from behavior
+- **BehaviorSignal** — tracked user behavior signals
+- **AgentQualityScore** — self-assessment scores
+- **WorkflowPattern** — detected workflow patterns
+- **SignalConfig** / **CustomSignal** — signal configuration
 
-## 15. Jobs → Paying Tasks <a name="paying-tasks"></a>
-
-**Core principle:** Jobs are project-based paying tasks, NOT employment.
-
-### Language Mapping
-| Old | New |
-|-----|-----|
-| Job | Task |
-| Hire | Assign |
-| Worker | Contributor |
-| Client | Poster |
-| Contract | Agreement |
-| Apply | Express Interest |
-| Recruiting fee | Platform fee |
-
-### Key Features
-- Dual projects on acceptance (poster oversight + contributor execution)
-- `taskBreakdown` field → becomes kanban cards
-- 5-star default rating (real ratings after 5+ completed tasks)
-- Equity/alternative compensation supported
-- `propose_task` action tag → operator reviews before posting
-- Inner-circle-first routing waterfall
-
----
-
-## 16. Admin Dashboard <a name="admin-dashboard"></a>
-
-- **URL:** `/admin` (password: `ADMIN_PASSWORD` env var)
-- **11 tabs:** Overview · Users · Content · Activity · Instances · Marketplace · Usage · System Prompt · Tasks · Federation · Telemetry
-- **Components:** `src/components/admin/` (shared.tsx + 5 tab components)
-- **APIs:** `src/app/api/admin/` (7 endpoints, all Bearer token auth)
+### Infrastructure
+- **AgentApiKey** — v2 API bearer tokens
+- **ServiceApiKey** — user-stored API keys for external services
+- **ExternalApiKey** — external API keys (LLM, etc.)
+- **Webhook** / **WebhookLog** — webhook management + logs
+- **Document** — drive documents
+- **IntegrationAccount** — connected services (Google, etc.)
+- **NotificationRule** — notification preferences
+- **AgentCapability** — registered agent capabilities
+- **CapabilityUsageLog** — capability usage tracking
+- **RelayTemplate** — relay message templates
+- **AgentBrief** — generated intelligence briefs
+- **AgentExtension** — custom agent extensions
+- **ActivityLog** — system activity log
+- **TelemetryEvent** — request/error telemetry
+- **Feedback** — user feedback
 
 ---
 
-## 17. Protocol Versions <a name="protocol-versions"></a>
+## 6. API Architecture
 
-| Protocol | Version | File |
-|----------|---------|------|
-| MCP | v1.5.0 | `/api/mcp` — 22+ dynamic tools |
-| A2A | v0.4.0 | `/api/a2a` — marketplace password access, persistent conversation |
-| Agent Card | v0.4.0 | `/.well-known/agent-card.json` |
-| DAWP | v0.1 | Internal relay protocol |
+### Session-based APIs (`/api/*`)
+Authenticated via NextAuth session (cookie-based). Used by the dashboard UI.
+
+**Chat**: `/api/chat/send` (POST, SSE streaming), `/api/chat/messages` (GET), `/api/chat/mentions` (GET)
+
+**Queue**: `/api/queue` (GET/POST), `/api/queue/[id]` (GET/PATCH/DELETE), `/api/queue/confirm` (POST), `/api/queue/dispatch` (POST), `/api/queue/[id]/optimize` (POST)
+
+**Kanban**: `/api/kanban` (GET/POST), `/api/kanban/[id]` (GET/PATCH/DELETE), `/api/kanban/[id]/checklist`, `/api/kanban/[id]/move`, `/api/kanban/merge`
+
+**Contacts/CRM**: `/api/contacts` (GET/POST), `/api/contacts/[id]` (GET/PATCH/DELETE), `/api/contacts/[id]/activity`, `/api/contacts/[id]/relationships`, `/api/contacts/[id]/research`, `/api/contacts/[id]/cards`
+
+**Email**: `/api/emails` (GET/POST), `/api/emails/[id]`
+
+**Calendar**: `/api/calendar` (GET/POST), `/api/calendar/[id]`
+
+**Teams**: `/api/teams` (GET/POST), `/api/teams/[id]` (GET/PATCH/DELETE), `/api/teams/[id]/members`, `/api/teams/[id]/projects`, `/api/teams/[id]/invites`, `/api/teams/[id]/agent`, `/api/teams/[id]/follow`, `/api/teams/[id]/subscription`, `/api/teams/invite/[token]`
+
+**Projects**: `/api/projects` (GET/POST), `/api/projects/[id]` (GET/PATCH/DELETE), `/api/projects/[id]/members`, `/api/projects/[id]/invite`, `/api/projects/[id]/context`
+
+**Goals**: `/api/goals` (GET/POST), `/api/goals/[id]` (GET/PATCH/DELETE)
+
+**Connections**: `/api/connections` (GET/POST), `/api/connections/[id]`
+
+**Relays**: `/api/relays` (GET/POST), `/api/relays/[id]`, `/api/relays/counts`
+
+**Marketplace**: `/api/marketplace` (GET/POST), `/api/marketplace/[id]` (GET/PATCH/DELETE), `/api/marketplace/[id]/execute`, `/api/marketplace/[id]/install`, `/api/marketplace/[id]/rate`, `/api/marketplace/[id]/subscribe`, `/api/marketplace/earnings`, `/api/marketplace/fee-info`
+
+**Jobs**: `/api/jobs` (GET/POST), `/api/jobs/[id]` (GET/PATCH), `/api/jobs/[id]/apply`, `/api/jobs/[id]/hire`, `/api/jobs/[id]/complete`, `/api/jobs/[id]/review`, `/api/jobs/earnings`, `/api/jobs/match`
+
+**Memory/Learning**: `/api/memory` (GET/POST), `/api/memory/[id]`, `/api/learnings` (GET/POST), `/api/learnings/analyze`
+
+**Other**: `/api/settings`, `/api/profile`, `/api/notifications`, `/api/briefs`, `/api/documents`, `/api/recordings`, `/api/capabilities`, `/api/extensions`, `/api/integrations`, `/api/signals`, `/api/behavior-signals`, `/api/search`, `/api/now`, `/api/activity`, `/api/feedback`, `/api/webhooks-management`, `/api/entity-resolve`, `/api/discover`, `/api/directory`, `/api/comms`, `/api/contracts`, `/api/earnings`
+
+**Stripe**: `/api/stripe/webhooks`, `/api/stripe/status`, `/api/stripe/payment-methods`, `/api/stripe/connect/*`
+
+**Auth**: `/api/auth/[...nextauth]`, `/api/auth/login`, `/api/auth/google-connect`, `/api/signup`, `/api/setup`
+
+**Onboarding**: `/api/onboarding/init`, `/api/onboarding/advance`, `/api/onboarding/phase`, `/api/onboarding/task`
+
+### Bearer Token APIs (`/api/v2/*`)
+Authenticated via `Authorization: Bearer <AgentApiKey>`. For external agent/automation access.
+
+- `/api/v2/queue` (GET/POST), `/api/v2/queue/[id]` (GET/PATCH/DELETE), `/api/v2/queue/[id]/status`, `/api/v2/queue/[id]/confirm`, `/api/v2/queue/[id]/result`
+- `/api/v2/contacts` (GET/POST), `/api/v2/contacts/[id]` (GET/PATCH/DELETE)
+- `/api/v2/kanban` (GET/POST), `/api/v2/kanban/[id]` (GET/PATCH/DELETE)
+- `/api/v2/settings` (GET/PATCH)
+- `/api/v2/keys` (GET/POST)
+- `/api/v2/docs` — OpenAPI/Swagger spec
+- `/api/v2/updates` — programmatic updates feed
+- `/api/v2/shared-chat/*` — shared chat endpoints
+- `/api/v2/network/discover`
+
+### Federation APIs (`/api/federation/*` and `/api/v2/federation/*`)
+- `/api/federation/connect`, `/api/federation/relay`, `/api/federation/config`
+- `/api/federation/instances`, `/api/federation/briefing`, `/api/federation/graph`
+- `/api/federation/jobs`, `/api/federation/mcp`, `/api/federation/patterns`
+- `/api/federation/reputation`, `/api/federation/routing`, `/api/federation/entity-search`
+- `/api/v2/federation/register`, `/api/v2/federation/heartbeat`, `/api/v2/federation/agents`, `/api/v2/federation/marketplace-link`, `/api/v2/federation/validate-payment`
+
+### Well-Known
+- `/.well-known/agent-card.json` — A2A agent card
+- `/.well-known/mcp/server-card.json` — MCP server card
+- `/.well-known/oauth-protected-resource` — OAuth resource descriptor
+
+### Webhooks (inbound)
+- `/api/webhooks/email`, `/api/webhooks/calendar`, `/api/webhooks/generic`, `/api/webhooks/transcript`
 
 ---
 
-## 18. Settings Page <a name="settings-page"></a>
+## 7. Core Systems Deep Dive
 
-**6 tabs** (down from 8):
-1. **Your Divi** — Agent name, working style, triage settings, goals toggle
-2. **General** — API keys, mode toggle
-3. **Integrations** — Google OAuth, SMTP
-4. **Network** — Relay settings + Federation manager (merged)
-5. **Payments** — Stripe Connect, payment methods
-6. **Alerts** — Notification rules
+### 7.1 The Divi AI Agent
 
-Mobile-friendly: `overflow-x-auto scrollbar-hide` tab bar
+**Chat flow** (`/api/chat/send`):
+1. User sends message → API builds system prompt via `buildSystemPrompt()` (1844-line prompt builder)
+2. System prompt is assembled from ~13 logical groups, conditionally included based on message relevance scoring
+3. LLM streams response via SSE using Anthropic Claude (`src/lib/llm.ts`)
+4. Response is parsed for **action tags** (e.g., `[[create_card:{...}]]`)
+5. Action tags are executed server-side (`src/lib/action-tags.ts`, 2495 lines, 50+ tags)
+6. Both messages saved to `ChatMessage` table
+
+**Action tags** (50+): `create_card`, `update_card`, `dispatch_queue`, `send_email`, `create_event`, `relay_request`, `relay_broadcast`, `relay_ambient`, `confirm_queue_item`, `remove_queue_item`, `edit_queue_item`, `install_agent`, `entity_resolve`, `task_route`, `assemble_brief`, `post_job`, `generate_meeting_notes`, `show_settings_widget`, and many more.
+
+### 7.2 Queue & Confirmation Gate
+
+- All tasks enter queue as `pending_confirmation` by default
+- User must approve (✓) or reject (✕) before execution
+- `User.queueAutoApprove` bypasses this (default: false)
+- Chat-based control: Divi can confirm/remove/edit queue items from conversation
+- Smart Task Prompter v2: on edit, re-optimizes task wording for the target agent's Integration Kit
+
+### 7.3 Chief of Staff (CoS) Mode
+
+`src/lib/cos-sequential-dispatch.ts` — proactive execution engine:
+1. Picks highest-priority `ready` queue item
+2. Determines strategy: **Capability** (email, meetings) → **Agent Relay** (connected agents) → **Project Contributor** (team members) → **Generic** (Divi direct)
+3. Executes the action
+4. Logs activity, advances to next task
+5. Stores execution metadata in `cosExecution` JSON on queue item
+
+### 7.4 NOW Engine
+
+`src/lib/now-engine.ts` — scores and ranks items for the NOW panel:
+- Factors: deadline proximity, goal impact, calendar awareness, relay urgency
+- Returns unified ranked list of "what to do right now"
+- Inputs: queue items, goals, kanban cards, calendar events, relays
+
+### 7.5 Teams Architecture
+
+- **Team** model has `originInstanceUrl` and `isSelfHosted`
+- Self-hosted teams (`isSelfHosted: true`) bypass ALL subscription/billing gates
+- Platform teams require `TeamSubscription` for premium features
+- **TeamInvite**: token-based, supports email + role + expiry + message
+- **Team→Project sync** (`team-project-sync.ts`): when a team is assigned to a project, all team members auto-sync to `ProjectMember`
+- **Billing boundary**: follows team origin, not member origin. A platform user in a self-hosted team inherits the team's free billing.
+
+### 7.6 Federation Protocol
+
+DiviDen instances discover and connect to each other:
+- **Connection** model with `isFederated` flag and `federationToken`
+- **AgentRelay** for agent-to-agent messages (task delegation, ambient signals)
+- **InstanceRegistry** for known instances
+- **FederationConfig** for instance-level settings (allowInbound, etc.)
+- **x-federation-token** header auth for inter-instance API calls
+- Federation subsystem: `src/lib/federation/` (composite prompts, graph matching, pattern sharing, task routing)
+
+### 7.7 Marketplace
+
+- **MarketplaceAgent** — published agents with Integration Kits (taskTypes, requiredInputSchema, contextInstructions, usageExamples)
+- Pricing models: `free`, `per_task`, `tiered`, `dynamic`
+- Platform takes configurable fee (`MARKETPLACE_FEE_PERCENT` env var)
+- Stripe Connect for developer payouts
+- Install/uninstall agents into Divi's active toolkit via action tags
+
+### 7.8 Onboarding
+
+- Chat-first: Divi guides through setup phases (API key → settings → email → signals → webhooks → done)
+- Phase stored in `User.onboardingPhase` (0-6)
+- **Auto-heal**: Dashboard detects stuck users with real data and auto-completes onboarding
+- No blocking empty states — QueuePanel and NowPanel always show real data
+- Interactive in-chat widgets for settings adjustment (`OnboardingChatWidgets.tsx`, `AgentWidget.tsx`)
+
+### 7.9 Signal System
+
+- **SignalConfig** / **CustomSignal** — configurable signal sources
+- **BehaviorSignal** — tracked user behaviors
+- Google calendar/email sync via `google-sync.ts`
+- Webhook inbound signals (email, calendar, generic, transcript)
 
 ---
 
-## 19. Landing Page & Public Pages <a name="landing-page"></a>
+## 8. Environment Variables
 
-### Landing Page (`src/components/landing/LandingPage.tsx`)
-- **Hero:** "The last interface you'll ever need." (Jon explicitly chose this — do NOT change)
-- **Nav:** Features · Marketplace · Updates · Open Source (→ os.dividen.ai) · Log in · Get Started
-- **Sections:** Hero → Problem/Solution → Features (4 core + 5 power) → Protocol accordion → Marketplace → FVP → Contact → Footer
-- **Data file:** `src/lib/landing-data.ts`
+All in `nextjs_space/.env`:
 
-### Other Public Pages
-- `/updates` — Changelog (data in `src/lib/updates.ts`)
-- `/terms` — Terms of Service
-- `/privacy` — Privacy Policy
-- `/docs/*` — Developer docs, federation, integrations, release notes
-- `/profile/[userId]` — Public profile view
-- `/team/[id]` — Team page
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | PostgreSQL connection string |
+| `NEXTAUTH_SECRET` | NextAuth JWT secret |
+| `ABACUSAI_API_KEY` | Abacus AI platform key (LLM proxy) |
+| `ADMIN_PASSWORD` | Admin panel password |
+| `WEB_APP_ID` | Abacus web app identifier |
+| `NOTIF_ID_CONNECTION_INVITATION` | Notification type ID |
+| `MARKETPLACE_FEE_PERCENT` | Platform marketplace fee % |
+| `STRIPE_SECRET_KEY` | Stripe secret key |
+| `STRIPE_PUBLISHABLE_KEY` | Stripe publishable key |
+| `AWS_PROFILE` | AWS credentials profile |
+| `AWS_REGION` | S3 region |
+| `AWS_BUCKET_NAME` | S3 bucket |
+| `AWS_FOLDER_PREFIX` | S3 key prefix |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GEMINI_API_KEY` | Google Gemini API key |
 
----
-
-## 20. Environment Variables <a name="environment-variables"></a>
-
-```
-DATABASE_URL              ← PostgreSQL connection string (shared dev/prod!)
-NEXTAUTH_SECRET           ← Auto-managed by Abacus
-ADMIN_PASSWORD            ← Admin dashboard + API auth
-ABACUSAI_API_KEY          ← For notification emails
-AWS_BUCKET_NAME           ← S3 bucket for file uploads
-AWS_FOLDER_PREFIX         ← S3 key prefix
-AWS_REGION                ← S3 region
-AWS_PROFILE               ← AWS credentials profile
-GOOGLE_CLIENT_ID          ← Google OAuth (optional for self-hosted)
-GOOGLE_CLIENT_SECRET      ← Google OAuth (optional for self-hosted)
-STRIPE_SECRET_KEY         ← Stripe payments
-STRIPE_PUBLISHABLE_KEY    ← Stripe client-side
-MARKETPLACE_FEE_PERCENT   ← Internal marketplace fee
-NOTIF_ID_CONNECTION_INVITATION ← Email notification type ID
-WEB_APP_ID                ← Abacus app ID
-```
-
-**⚠️ NEXTAUTH_URL** is auto-set. Never add it to `.env`.
+**Note**: `NEXTAUTH_URL` is auto-configured by Abacus AI per environment. Never set manually.
 
 ---
 
-## 21. Deployment <a name="deployment"></a>
+## 9. Landing Page Structure
 
-### Environments
-- **Production:** `dividen.ai` + `sdfgasgfdsgsdg.abacusai.app` (both untagged)
-- **Preview:** Dev server at localhost:3000 (reverse-proxied to user interface)
-- **Dev and prod share the same database** — be careful with data operations
+`src/components/landing/LandingPage.tsx` sections (top to bottom):
+1. **Navbar** — logo, nav links, login/signup buttons
+2. **Hero** — typing effect headline, subtitle, CTA
+3. **HowItWorks** — animated 5-step loop flowchart (Step 1 feeds loop of 2→3→4→5→2)
+4. **Problem / Solution** — side-by-side comparison
+5. **Features Grid** — core + expandable power features
+6. **Agent Marketplace** — developer/buyer split, stats
+7. **Protocol Stack** — accordion of technical capabilities
+8. **Open Core Banner** — MIT license, self-hosting pitch
+9. **Final CTA** — signup call to action
+10. **Footer** — links, legal
 
-### Git
-- **Remote:** `https://github.com/Denominator-Ventures/dividen.git` (branch `main`)
-- **Always** reset `.abacus.donotdelete` before commit. Pull-rebase before push.
+---
 
-### Build
-- Uses `NODE_OPTIONS="--max-old-space-size=10240"` (required because `googleapis` npm package causes OOM with default memory)
-- `tsc --noEmit` also needs `--max-old-space-size=4096` minimum
-- Standalone output mode
+## 10. Dashboard Layout
 
-### Deploy Command
+`src/app/dashboard/page.tsx` orchestrates a 3-panel layout:
+
+| Panel | Component | Content |
+|-------|-----------|----------|
+| Left sidebar | `QueuePanel` | Task queue with status sections, confirmation buttons |
+| Center | `CenterPanel` | Tab switcher → Chat, Kanban, CRM, Calendar, Inbox, CoS, Teams, Marketplace, Jobs, Goals, Capabilities, Federation, Extensions, Memory, Drive, Recordings, Discover, Comms, Feedback |
+| Right sidebar | `NowPanel` | Ranked NOW items, focus suggestion, quick actions |
+
+Mobile: collapsible sidebar with tab navigation.
+
+---
+
+## 11. Updates Wall
+
+`src/lib/updates.ts` — array of `Update` objects in reverse chronological order. Each entry has:
+- `id` (kebab-case slug)
+- `date` (ISO), `time` (display string)
+- `title`, `subtitle`, `tags[]`
+- `content` (markdown-ish, rendered by `UpdatesPage.tsx`)
+
+Written in **founder voice** (casual, technical, signed "— Jon"). Currently 20+ entries.
+
+Rendered at `/updates` page and latest entry shown on landing page.
+
+---
+
+## 12. Release Notes
+
+`src/app/docs/release-notes/page.tsx` — versioned entries, newest first.
+
+Current versions:
+- **v1.4.0** (LATEST) — Teams Architecture, CoS Project Delegation, Invite Flow, Open-Source Billing Boundary
+- **v1.3.0** — Queue Confirmation Gate, CoS Execution, Chat Queue Control, Smart Prompter v2, Onboarding Auto-Heal
+- **v1.2.0** — Federation pricing, admin marketplace expansion
+- Earlier versions...
+
+Badge styling:
+- LATEST: `bg-green-500/10 text-green-400 border-green-500/20`
+- Demoted: `opacity-80` on wrapper, `bg-white/[0.04] text-[var(--text-muted)]` badge
+- Tags: `bg-brand-500/10 text-brand-400 border-brand-500/20`
+
+---
+
+## 13. Developer Docs
+
+`src/app/docs/developers/page.tsx` — comprehensive API reference with:
+- Custom `<Section>`, `<Endpoint>`, `<InlineCode>`, `<Code>` components defined inline
+- Nav sidebar with section links
+- Sections: Authentication, Agent API Keys, Queue, Kanban, Contacts, Calendar, Email, Memory, Goals, Capabilities, Marketplace, Settings API, **Teams & Project Delegation** (NEW in v1.4.0), Behavior Signals, CoS Engine, Rate Limits
+
+The Teams section includes:
+- Schema documentation
+- 14 API endpoint entries
+- CoS Project Delegation explanation
+- Billing Boundary visual
+- Open-Source Implementation Guide (7-step)
+
+---
+
+## 14. Git Workflow
+
+**Branch strategy**: Work happens on detached HEAD (Abacus checkpoint system). Periodically merge to `main` and push.
+
+**Current state** (as of v1.4.0):
+- `main` branch at `17d0f50` (pushed to origin)
+- Working HEAD at `4f1faaf` (or later checkpoint commit)
+- 281 total commits
+
+**Merge process**:
+1. `git fetch origin main`
+2. Note current HEAD: `git rev-parse HEAD`
+3. `git checkout main`
+4. `git merge <HEAD_COMMIT> --no-ff -m "v1.X.0: description"`
+5. Resolve conflicts with `git checkout --theirs <file>` (detached HEAD is authoritative)
+6. **CRITICAL**: `git checkout HEAD -- .abacus.donotdelete` (must run from project root, not nextjs_space)
+7. Verify no secrets: `git diff origin/main..HEAD | grep -iE "password|secret|api_key|DATABASE_URL"`
+8. `git push origin main`
+9. Return to working state: `git checkout <HEAD_COMMIT>`
+
+**Common conflict files**: `.abacus.donotdelete`, `schema.prisma`, `seed.ts`, admin/marketplace components.
+
+---
+
+## 15. Build & Deploy
+
+**Build command** (handled by Abacus):
 ```bash
-# From Abacus AI deploy tool — don't run manually
-yarn run build  # with NEXT_OUTPUT_MODE=standalone
-# Packaged as .tgz, deployed to bare-bones server
+NODE_OPTIONS="--max-old-space-size=10240" yarn run build
 ```
 
----
+**Key build notes**:
+- Output: standalone mode (`NEXT_OUTPUT_MODE=standalone`)
+- TSC can OOM on large builds — skip `test_nextjs_project` if needed, use `build_and_save_nextjs_project_checkpoint` directly
+- `images: { unoptimized: true }` in next.config.js
+- ESLint ignored during builds
+- TypeScript errors NOT ignored (strict type checking)
 
-## 22. Known Constraints & Gotchas <a name="gotchas"></a>
-
-### Critical
-1. **`googleapis` OOM** — Default tsc heap is too small. Always use `--max-old-space-size=4096` for type checking, `10240` for build.
-2. **Shared dev/prod DB** — Never delete data carelessly. Use upsert in seeds.
-3. **Never `--accept-data-loss`** — Prisma db push with this flag can destroy production data. Always get explicit user confirmation.
-4. **yarn only** — Never npm or npx.
-5. **NEXTAUTH_URL** — Auto-configured. Files reading `process.env.NEXTAUTH_URL` must have `export const dynamic = "force-dynamic"`.
-6. **No sidebar** — Dashboard uses 3-column layout. Don't add a sidebar.
-
-### Important
-7. **Google OAuth redirect** — Must use `getPublicBaseUrl(req)` helper, not `req.url` (container hostname leaks otherwise)
-8. **Hydration** — Avoid non-deterministic values in SSR. Wrap browser APIs in `useEffect`.
-9. **DB connections** — Short idle timeout, max 25 concurrent, 5s statement timeout. Keep connections ephemeral.
-10. **No external system tools** — Production has no python, ffmpeg, etc. Only Node.js.
-11. **Relative paths only** — Production directory structure differs from dev.
-12. **`.abacus.donotdelete`** — Never modify this file.
-
-### Style
-13. **Builder-log tone** — Jon thinks in product terms. No corporate speak.
-14. **Individual-first messaging** — Teams are secondary.
-15. **Hero H1 is sacred** — "The last interface you'll ever need." Don't change.
+**Deployment**: Both `dividen.ai` and `sdfgasgfdsgsdg.abacusai.app` are untagged. A single `deploy_nextjs_project` call updates both.
 
 ---
 
-## 23. Credentials <a name="credentials"></a>
+## 16. Seed Script
 
-| Account | Email | Password |
-|---------|-------|----------|
-| Admin | admin@dividen.ai | DiviDenAdmin2026! |
-| Test user | john@doe.com | johndoe123 |
-| Admin page | /admin | DiviDenAdmin2026! |
+`scripts/seed.ts` — uses **upsert** (never delete) to populate:
+- Default users
+- Notification rules
+- Marketplace agents (including AmbientSurveys with Integration Kit)
 
----
-
-## 24. Open Source Site (os.dividen.ai) <a name="open-source-site"></a>
-
-**Separate site** — NOT part of this codebase. Jon maintains it independently.
-
-Audit documents live in `src/docs/`:
-- `os-dividen-ai-corrections.md` — v1 corrections
-- `os-dividen-ai-audit-v2.md` — Full copy audit (303 lines, 31 issues)
-- `os-dividen-ai-audit-v3.md` — Addendum for multi-inbox, self-hosted OAuth, Gmail API send
-
-### Key Issues (may still be unfixed on site)
-- 12→13 prompt groups, 44→53 action tags, 55→60 models
-- MCP v1.4→v1.5, Agent Card v0.3→v0.4
-- LLM keys: remove "platform provides keys automatically" — both are BYOK
-- "can be 0%" fee language needs rewording
-- "Jobs" → "Tasks" in architecture diagrams
-- Google Drive integration card missing
-- Self-hosted OAuth isolation not documented
-- Multi-inbox not documented
+**CRITICAL**: Always modify existing seed.ts, never create new. Never add delete commands (production data risk).
 
 ---
 
-## 25. Style & Design System <a name="design-system"></a>
+## 17. Key Conventions
 
-### Colors
-- **Brand:** `#4f7cff` (blue)
-- **Background:** `#050505` → `#0a0a0a` → `#111` → `#1a1a1a` (layered surfaces)
-- **Text:** `white/90` (primary) → `white/60` → `white/40` → `white/25`
-- **Borders:** `white/[0.06]` → `white/[0.08]` → `white/10`
-- **Success:** green-500 / **Warning:** amber-500 / **Danger:** red-500
+### Code Patterns
+- All API routes use `getServerSession(authOptions)` for session auth
+- v2 routes use `authenticateAgent(req)` from `api-auth.ts` for Bearer token auth
+- `export const dynamic = 'force-dynamic'` on any route reading `NEXTAUTH_URL`
+- Prisma singleton at `src/lib/prisma.ts` with telemetry batching
+- Activity logging: `logActivity({ userId, action, actor, summary })`
+- All monetary operations go through Stripe (never direct)
 
-### Typography
-- **Headings:** Space Grotesk (600-700 weight)
-- **Body:** Inter / system-ui
-- **Code:** JetBrains Mono
+### Writing Style
+- Updates wall: founder voice, casual but technical, signed "— Jon"
+- Docs: precise, technical, comprehensive
+- UI: clean, minimal, generous whitespace, dark theme
 
-### Component Patterns
-- Cards: `bg-[#111] border border-white/[0.06] rounded-xl`
-- Buttons: `bg-brand-500 hover:bg-brand-400 text-black font-medium rounded-lg`
-- Ghost buttons: `bg-white/[0.04] hover:bg-white/[0.08] text-white/60`
-- Inputs: `bg-[#0a0a0a] border-white/10`
-- Modals: Radix Dialog + `bg-[#111] border-white/[0.08]`
-- Tabs: drag-to-scroll with fade gradients
-
-### Dark Theme Only
-No light mode. Everything assumes dark background.
+### Database Rules
+- Shared between dev and production — be careful with mutations
+- Compatible schema changes only — never `--accept-data-loss` without user consent
+- Use upsert to avoid duplicates in seed
+- Short idle timeout, max 25 concurrent connections
 
 ---
 
-## 26. Feature Inventory (Complete) <a name="feature-inventory"></a>
+## 18. What's Been Built (Cumulative)
 
-### Shipped & Stable
-- [x] AI chat with 13-group system prompt + 53 action tags
-- [x] CRM (contacts, relationships, activity timelines, research)
-- [x] Calendar (events, sync with Google)
-- [x] Inbox (email, sync with Google, Gmail API send, drafts filter, inline reply)
-- [x] Recordings (transcription linking)
-- [x] Kanban board (projects, tasks, delegation, merging, artifacts)
-- [x] NOW engine (priority scoring, scored items)
-- [x] Queue (task queue with capability metadata, approve/review/skip)
-- [x] Goals (optional, enabled in settings)
-- [x] Memory & Learning (ambient patterns, user learnings)
-- [x] Capabilities (email/meetings/custom, setup wizard)
-- [x] Signals (6 built-in + custom webhook, catch-up, triage)
-- [x] Connections (find people, my connections, relays, acceptance ceremony)
-- [x] Federation (instance registry, discovery, relay, marketplace linking)
-- [x] Marketplace (list/buy/subscribe agents, password access, earnings)
-- [x] Paying Tasks (post, browse, apply, agreements, dual-project)
-- [x] Teams (create, members, billing, spending policies, agent access)
-- [x] Discover (network directory with federated instances)
-- [x] Comms (agent-to-agent relay log)
-- [x] Profile (photo upload, preview/edit modes)
-- [x] Search (global search across all entities)
-- [x] Keyboard navigation (shortcuts)
-- [x] PWA (installable, standalone mode)
-- [x] Onboarding wizard (12-step)
-- [x] Notifications (in-app notification center + email notifications)
-- [x] Admin dashboard (11 tabs, full operational visibility)
-- [x] Google OAuth (multi-inbox, self-hosted isolation, Gmail API send)
-- [x] Stripe Connect (payments, webhooks)
-- [x] Webhooks (management, learning, generic/calendar/email/transcript)
-- [x] Entity resolution (cross-surface person/company matching)
-- [x] Brief assembly (smart brief generation for cards)
-- [x] Chief of Staff mode (observer view)
-- [x] Updates page (changelog)
-- [x] Terms of Service + Privacy Policy
-- [x] Open Graph dynamic images (`/api/og`)
-- [x] Telemetry (request logging, error tracking, query buffer)
-
-### Aspirational / Not Yet Shipped
-- [ ] Public workflow sharing / forking ("Fork Reality" section on os.dividen.ai)
-- [ ] System prompt DB overrides (admin tab is read-only v1)
-- [ ] Free tier enforcement (field exists, not consumed)
-- [ ] Google Drive write access (currently read-only)
+1. **Full AI agent** (Divi) with 50+ action tags, dynamic system prompt, SSE streaming
+2. **Queue management** with confirmation gate, CoS execution, smart task optimization
+3. **Kanban board** with drag-and-drop, checklists, artifact linking, card merging
+4. **CRM** with contact enrichment, relationships, activity timelines
+5. **Calendar + Email** sync via Google OAuth
+6. **Teams** with invites, project sync, billing boundary, open-source support
+7. **Projects** with member management, context sharing, team ownership
+8. **Goals** with progress tracking and NOW engine integration
+9. **Agent Marketplace** with Integration Kits, pricing tiers, Stripe Connect payouts
+10. **Federation** protocol for instance-to-instance agent communication
+11. **Network Job Board** with matching, contracts, reviews, reputation
+12. **Memory system** with approval workflow and pattern detection
+13. **Behavior signals** and ambient learning
+14. **Webhook management** with pattern learning
+15. **Drive** (document storage via S3)
+16. **Recording management** with AI meeting notes (Gemini)
+17. **Global search** across all surfaces
+18. **Admin panel** with stats, telemetry, system prompt editor, marketplace management
+19. **Landing page** with animated flowchart, feature grid, marketplace section
+20. **Documentation** suite (developers, federation, integrations, release notes)
+21. **Updates wall** with founder-voice changelog
+22. **PWA support** with service worker and standalone mode
+23. **Notification system** with real-time feed and rules
+24. **Agent extensions** and capability marketplace
+25. **Onboarding** chat-first flow with auto-heal for stuck users
 
 ---
 
-## 27. Audit Documents <a name="audit-documents"></a>
+## 19. What's Next (Roadmap Context)
 
-All in `src/docs/`:
-
-| File | Purpose | Lines |
-|------|---------|-------|
-| `os-dividen-ai-corrections.md` | v1: Core corrections + new feature additions | ~170 |
-| `os-dividen-ai-audit-v2.md` | v2: Full copy audit of every page on os.dividen.ai | ~303 |
-| `os-dividen-ai-audit-v3.md` | v3: Multi-inbox, self-hosted OAuth, Gmail API send additions | ~140 |
-
----
-
-## Quick Reference: Common Tasks
-
-### Add a new action tag
-1. Add to `SUPPORTED_TAGS` array in `src/lib/action-tags.ts`
-2. Add `case` handler in `executeTag()` function
-3. Document in system prompt (`src/lib/system-prompt.ts`)
-4. Update count in os.dividen.ai audit docs
-
-### Add a new Prisma model
-1. Add to `prisma/schema.prisma`
-2. Run `cd nextjs_space && yarn prisma db push`
-3. Update model count in os.dividen.ai audit docs
-
-### Add a new dashboard tab
-1. Add to `CenterTab` type in `src/types/index.ts`
-2. Add tab definition in `CenterPanel.tsx`
-3. Create view component in `src/components/dashboard/`
-4. Import and render in CenterPanel's tab router
-
-### Add a new settings tab
-1. Update `SettingsTab` type in `src/app/settings/page.tsx`
-2. Add to `TABS` array
-3. Add conditional render block
-
-### Add a new admin tab
-1. Create component in `src/components/admin/`
-2. Add to tabs array in `src/app/admin/page.tsx`
-3. Create API route in `src/app/api/admin/`
-
-### Push to GitHub
-```bash
-cd /home/ubuntu/dividen_command_center/nextjs_space
-git checkout -- .abacus.donotdelete
-git add -A
-git commit -m "description"
-git pull --rebase origin main
-git push origin main
-```
+Based on the trajectory of development:
+- Federation protocol hardening (cross-instance team sync)
+- Agent marketplace monetization refinement
+- Mobile PWA polish
+- Advanced CoS strategies (multi-step orchestration)
+- Team analytics and reporting
+- Billing dashboard for team admins
 
 ---
 
-*This bible was generated from the live codebase on April 13, 2026. For the most current design decisions and patterns, also read `.project_instructions.md` in the project root.*
+## 20. Critical Warnings
+
+1. **Never modify `.abacus.donotdelete`** — system-maintained, devastating consequences
+2. **Never use npm/npx** — yarn only
+3. **Never `--accept-data-loss`** on Prisma without explicit user consent
+4. **Never set `NEXTAUTH_URL` manually** — auto-configured per environment
+5. **Seed script**: modify existing, never recreate. No deletes.
+6. **Git**: detached HEAD is normal. Merge to main periodically. Always verify no secrets before push.
+7. **Build OOM**: TSC can run out of memory on large builds. Use `--max-old-space-size=10240`.
+8. **Database**: shared dev/prod — mutations affect live users.
+9. **The system prompt is 1844 lines** — changes here affect all Divi behavior. Be surgical.
+10. **Action tags are 2495 lines** — the core action execution engine. Test changes carefully.

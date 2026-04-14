@@ -109,6 +109,82 @@ export async function GET(req: NextRequest) {
 
     console.log(`[google-callback] Created/updated ${services.length} integration accounts for ${userInfo.email}`);
 
+    // ── Auto-install capabilities for connected signals (silent — user discovers later) ──
+    const capabilityUpserts: Promise<any>[] = [];
+    if (services.includes('email')) {
+      capabilityUpserts.push(
+        prisma.agentCapability.upsert({
+          where: { userId_type: { userId, type: 'email' } },
+          create: {
+            type: 'email', name: 'Outbound Email', status: 'enabled',
+            identity: identity === 'agent' ? 'agent' : 'operator',
+            rules: JSON.stringify([
+              { rule: 'Match my tone and writing style', enabled: true },
+              { rule: 'Always get approval before sending to new contacts', enabled: true },
+            ]),
+            config: JSON.stringify({ provider: 'google', emailAddress: userInfo.email }),
+            userId,
+          },
+          update: {
+            config: JSON.stringify({ provider: 'google', emailAddress: userInfo.email }),
+            // Don't overwrite status/rules if user already configured
+          },
+        })
+      );
+    }
+    if (services.includes('calendar')) {
+      capabilityUpserts.push(
+        prisma.agentCapability.upsert({
+          where: { userId_type: { userId, type: 'meetings' } },
+          create: {
+            type: 'meetings', name: 'Meeting Scheduling', status: 'enabled',
+            identity: identity === 'agent' ? 'agent' : 'operator',
+            rules: JSON.stringify([
+              { rule: 'No meetings before 9am or after 6pm', enabled: true },
+              { rule: 'Default meeting duration is 30 minutes', enabled: true },
+              { rule: 'Always check for conflicts before scheduling', enabled: true },
+            ]),
+            config: JSON.stringify({ provider: 'google' }),
+            userId,
+          },
+          update: {
+            config: JSON.stringify({ provider: 'google' }),
+          },
+        })
+      );
+    }
+    if (capabilityUpserts.length > 0) {
+      await Promise.all(capabilityUpserts).catch((e) =>
+        console.warn('[google-callback] Capability auto-install error (non-fatal):', e.message)
+      );
+      console.log(`[google-callback] Auto-installed ${capabilityUpserts.length} capabilities`);
+    }
+
+    // ── Auto-complete "Connect Email & Calendar" checklist task if it exists ──
+    try {
+      const connectTasks = await prisma.checklistItem.findMany({
+        where: {
+          completed: false,
+          text: { contains: 'Connect' },
+          card: {
+            userId,
+            status: { in: ['active', 'in_progress', 'development'] },
+            project: { metadata: { contains: '"isSetupProject":true' } },
+          },
+        },
+        select: { id: true },
+      });
+      if (connectTasks.length > 0) {
+        await prisma.checklistItem.updateMany({
+          where: { id: { in: connectTasks.map(t => t.id) } },
+          data: { completed: true },
+        });
+        console.log(`[google-callback] Auto-completed ${connectTasks.length} setup checklist tasks`);
+      }
+    } catch (e) {
+      // Non-fatal
+    }
+
     // If returning from onboarding, redirect to dashboard (chat) instead of settings
     if (returnTo === 'onboarding') {
       return NextResponse.redirect(
