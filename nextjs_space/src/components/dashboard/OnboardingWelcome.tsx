@@ -7,6 +7,8 @@ interface OnboardingWelcomeProps {
   userName?: string;
   onStart: () => void;
   onDismiss: () => void;
+  /** If set, skip the welcome screen and open directly to the API key step */
+  initialStep?: Step;
 }
 
 type Step = 'welcome' | 'apikey';
@@ -18,8 +20,8 @@ type Provider = 'anthropic' | 'openai';
  *  Step 2 — Bring-your-own-AI key entry (Anthropic or OpenAI)
  * After the key is saved, triggers onStart to begin the chat-based onboarding with Divi.
  */
-export function OnboardingWelcome({ userName, onStart, onDismiss }: OnboardingWelcomeProps) {
-  const [step, setStep] = useState<Step>('welcome');
+export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }: OnboardingWelcomeProps) {
+  const [step, setStep] = useState<Step>(initialStep || 'welcome');
   const [provider, setProvider] = useState<Provider>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);

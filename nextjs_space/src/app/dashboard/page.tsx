@@ -29,6 +29,7 @@ export default function DashboardPage() {
   const [modeLoading, setModeLoading] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
   const [showWelcome, setShowWelcome] = useState(false);
+  const [welcomeInitialStep, setWelcomeInitialStep] = useState<'welcome' | 'apikey' | undefined>(undefined);
   const [onboardingPhase, setOnboardingPhase] = useState<number>(0);
   const [userName, setUserName] = useState<string | undefined>();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -217,6 +218,7 @@ export default function DashboardPage() {
           setUserName(d.data.user.name || undefined);
           const userPhase = d.data.user.onboardingPhase || 0;
           const hasCompleted = d.data.user.hasCompletedOnboarding;
+          const hasActiveApiKey = d.data?.apiKeys?.some((k: any) => k.isActive);
 
           // ── Detect stuck onboarding: user already completed or has real data ──
           // If hasCompletedOnboarding is true but phase < 6, fix the phase silently
@@ -228,35 +230,52 @@ export default function DashboardPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ onboardingPhase: 6 }),
             }).catch(() => {});
+
+            // Even if onboarding is "complete", if they have no API key, show the key entry
+            if (!hasActiveApiKey) {
+              setWelcomeInitialStep('apikey');
+              setTimeout(() => setShowWelcome(true), 400);
+            }
           } else if (!hasCompleted && userPhase > 0 && userPhase < 6) {
-            // Check if user has real data — if so, auto-complete onboarding
-            try {
-              const qRes = await fetch('/api/queue');
-              const qData = await qRes.json();
-              const hasRealData = qData.success && qData.data && qData.data.length > 0;
-              if (hasRealData) {
-                // User has queue items — they've been using the app, skip onboarding
+            // ── User saw walkthrough but may not have an API key yet ──
+            if (!hasActiveApiKey) {
+              // No API key — show the BYOAI key entry modal directly
+              setOnboardingPhase(userPhase);
+              setWelcomeInitialStep('apikey');
+              setTimeout(() => setShowWelcome(true), 400);
+            } else {
+              // Has API key — check for real data
+              try {
+                const qRes = await fetch('/api/queue');
+                const qData = await qRes.json();
+                const hasRealData = qData.success && qData.data && qData.data.length > 0;
+                if (hasRealData) {
+                  setOnboardingPhase(6);
+                  fetch('/api/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hasCompletedOnboarding: true, onboardingPhase: 6 }),
+                  }).catch(() => {});
+                } else {
+                  setOnboardingPhase(userPhase);
+                  setTimeout(() => resumeOnboarding(userPhase), 500);
+                }
+              } catch {
                 setOnboardingPhase(6);
-                fetch('/api/settings', {
-                  method: 'PUT',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ hasCompletedOnboarding: true, onboardingPhase: 6 }),
-                }).catch(() => {});
-              } else {
-                setOnboardingPhase(userPhase);
-                // Phases 1-5 with no data: resume chat-based onboarding
-                setTimeout(() => resumeOnboarding(userPhase), 500);
               }
-            } catch {
-              // On network error, don't block the app — assume complete
-              setOnboardingPhase(6);
             }
           } else if (!d.data.user.hasSeenWalkthrough || (!hasCompleted && userPhase === 0)) {
-            // Brand new user — show the welcome popup
+            // Brand new user — show the welcome popup from step 1
             setOnboardingPhase(userPhase);
+            setWelcomeInitialStep('welcome');
             setTimeout(() => setShowWelcome(true), 400);
           } else {
             setOnboardingPhase(userPhase);
+            // Completed onboarding but no API key — nudge them to add one
+            if (!hasActiveApiKey) {
+              setWelcomeInitialStep('apikey');
+              setTimeout(() => setShowWelcome(true), 400);
+            }
           }
           setSettingsLoaded(true);
         }
@@ -336,6 +355,7 @@ export default function DashboardPage() {
           userName={userName}
           onStart={handleWelcomeStart}
           onDismiss={handleWelcomeDismiss}
+          initialStep={welcomeInitialStep}
         />
       )}
 

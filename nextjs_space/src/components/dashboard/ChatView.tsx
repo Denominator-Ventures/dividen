@@ -969,8 +969,9 @@ function MarketplaceSuggestionCard({
   onInstall: (type: string, id: string) => void;
 }) {
   const [installingId, setInstallingId] = useState<string | null>(null);
+  const safeSuggestions = Array.isArray(suggestions) ? suggestions : [];
   const [installedIds, setInstalledIds] = useState<Set<string>>(
-    new Set(suggestions.filter(s => s.installed).map(s => s.id))
+    new Set(safeSuggestions.filter(s => s.installed).map(s => s.id))
   );
 
   const handleInstall = async (type: string, id: string) => {
@@ -1010,7 +1011,7 @@ function MarketplaceSuggestionCard({
         <p className="text-[11px] text-[var(--text-secondary)] mb-3">{message}</p>
 
         <div className="grid gap-2">
-          {suggestions.map((s) => {
+          {safeSuggestions.map((s) => {
             const isInstalled = installedIds.has(s.id);
             const colorClass = categoryColors[s.category] || categoryColors.general;
 

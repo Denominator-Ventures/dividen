@@ -21,9 +21,11 @@ export function OnboardingChatWidgets({
   onGoogleConnect,
   disabled = false,
 }: OnboardingChatWidgetsProps) {
+  const safeWidgets = Array.isArray(widgets) ? widgets : [];
+
   const [values, setValues] = useState<Record<string, any>>(() => {
     const init: Record<string, any> = {};
-    for (const w of widgets) {
+    for (const w of safeWidgets) {
       if (w.type === 'slider') init[w.id] = w.value ?? w.min ?? 1;
       if (w.type === 'toggle') init[w.id] = w.checked ?? false;
       if (w.type === 'select' || w.type === 'radio') init[w.id] = w.selectedValue ?? w.options?.[0]?.value ?? '';
@@ -86,7 +88,7 @@ export function OnboardingChatWidgets({
 
   return (
     <div className={cn('space-y-3 mt-3', isDisabled && 'opacity-60 pointer-events-none')}>
-      {widgets.map((widget) => {
+      {safeWidgets.map((widget) => {
         switch (widget.type) {
           case 'slider':
             return (
