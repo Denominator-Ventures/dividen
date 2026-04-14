@@ -209,9 +209,24 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   // ── Linked Kards: cross-user card visibility ──
   let linkedCardsMap: Record<string, import('./card-links').CardLinkInfo[]> = {};
+  let linkedCardDigestStr = '';
   try {
-    const { getLinkedCardsForUser } = await import('./card-links');
+    const { getLinkedCardsForUser, getUnseenLinkedCardChanges, markLinkedCardChangesSeen } = await import('./card-links');
     linkedCardsMap = await getLinkedCardsForUser(userId);
+
+    // Accumulated change digest — surfaces updates at conversation time, not per-change
+    const { totalChanges, cardDigests } = await getUnseenLinkedCardChanges(userId);
+    if (totalChanges > 0) {
+      const lines = cardDigests.map(d => {
+        const who = d.linkedUserName || 'unknown user';
+        const dir = d.direction === 'outbound' ? '→' : '←';
+        const changeSummary = d.changes.map(c => `${c.field}: ${c.from}→${c.to}`).join(', ');
+        return `${dir} "${d.cardTitle}" (${who}): ${changeSummary}`;
+      });
+      linkedCardDigestStr = `\n### 🔗 Linked Card Updates (${totalChanges} changes since last check)\n${lines.join('\n')}\nBring these up naturally — don't dump them all at once. Prioritize completions and escalations.\n`;
+      // Mark as seen — these won't appear in the next prompt build
+      markLinkedCardChangesSeen(userId).catch(() => {}); // fire-and-forget
+    }
   } catch (e) {
     console.error('[system-prompt] Linked Kards fetch failed:', e);
   }
@@ -415,6 +430,11 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   // Board Intelligence (Cortex digest)
   if (boardCortexDigest) {
     group2 += `\n### 🧠 Board Intelligence\n${boardCortexDigest}\n\n`;
+  }
+
+  // Linked Card Updates digest — accumulated changes surfaced at conversation time
+  if (linkedCardDigestStr) {
+    group2 += linkedCardDigestStr;
   }
 
   // Queue
@@ -1249,8 +1269,9 @@ This works during onboarding AND in regular conversation. If already connected, 
 
 ### Linked Kards (v2)
 **Auto-linking**: When a relay sends work to another user and they create a card, the link is created automatically — you don't need to pass linkedFromCardId (though you still can as a manual override).
-**Status propagation**: When a linked card changes status (moved, completed, etc.), the originator automatically receives an update relay.
+**Status accumulation (not pinging)**: When a linked card changes status, the change is silently logged on the CardLink. Updates accumulate and are delivered to you as a digest in the "🔗 Linked Card Updates" section of your board context — only when the user starts a conversation. No constant relay pings.
 **Delegation provenance**: Cards created from relays are stamped with originCardId/originUserId — visible in board context as "⬅️delegated-from:username".
+**Surfacing updates**: When the "🔗 Linked Card Updates" section appears in your context, bring them up naturally in conversation. Don't dump all updates at once — prioritize completions, escalations, and things the operator would want to act on. After this conversation, the changes are marked as seen and won't repeat.
 Manual linking is still available for ad-hoc references:
 - [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"delegation|collaboration|reference"}]]
 - [[create_card:{"title":"...","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]

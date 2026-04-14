@@ -1552,13 +1552,20 @@ model AgentRelay {
 
 # Explicitly link two existing cards
 [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"collaboration"}]]`}</Code>
-          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Status Propagation Flow</h4>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Status Accumulation Flow (Accumulate, Don&apos;t Ping)</h4>
           <Code>{`1. Sarah moves card to "completed"
-2. propagateCardStatusChange() fires:
+2. propagateCardStatusChange() fires SILENTLY:
    a. Updates CardLink.linkedStatus cache
-   b. Creates outbound relay (type:"update", intent:"share_update")
-3. Jon's Divi receives update relay in next turn
-4. Jon's board shows updated linked card status`}</Code>
+   b. Appends {"field":"status","from":"active","to":"completed"} to changeLog
+   c. NO relay sent — no pinging Jon's Divi
+3. Jon starts a conversation → system prompt builds
+   a. getUnseenLinkedCardChanges() reads accumulated changeLog
+   b. Injects "🔗 Linked Card Updates" section into Group 2
+   c. markLinkedCardChangesSeen() clears the log (fire-and-forget)
+4. Jon's Divi surfaces updates naturally in conversation`}</Code>
+          <p className="text-[var(--text-secondary)] mt-2 mb-2 text-sm">
+            Updates accumulate silently in <InlineCode>CardLink.changeLog</InlineCode> (JSON array, capped at 20 entries). They&apos;re delivered as a digest when the user starts a conversation — not as constant relay pings. The log is cleared after delivery via <InlineCode>markLinkedCardChangesSeen()</InlineCode>.
+          </p>
           <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">System Prompt Context</h4>
           <Code>{`[cardId] "My Card" (high) ⬅️delegated-from:Jon 🔗→delegation:"Their Task" (active) by Sarah ✓2/5`}</Code>
         </Section>

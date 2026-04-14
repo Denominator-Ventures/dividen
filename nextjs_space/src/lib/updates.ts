@@ -48,10 +48,11 @@ The big multi-user primitive, now with deterministic infrastructure instead of L
 - **Auto-linking**: When a relay sends work to another user and they create a card, the link forms automatically. No more hoping the LLM remembers to pass \`linkedFromCardId\` — it's infrastructure now.
 - **Delegation provenance**: Every card created from relay context gets stamped with \`originCardId\`, \`originUserId\`, \`sourceRelayId\`. The card itself knows where it came from.
 - **Relay→Card FK**: \`AgentRelay\` now has a direct \`cardId\` field instead of burying card context in JSON payload. Query-friendly, indexable.
-- **Status propagation**: When a linked card changes status (drag in Kanban, Divi updates it, auto-complete fires), the change propagates: cached status updates on CardLink, and an update relay fires back to the originator. Their Divi receives it proactively.
+- **Accumulate, don't ping**: Status changes are logged silently on the CardLink (\`changeLog\` JSON array). No constant relay spam. Updates accumulate and are delivered as a digest in the system prompt when the user next starts a conversation. After delivery, the log clears. Your Divi brings them up naturally — "Sarah completed that task you delegated" — not as interrupt-driven pings.
 - **Cross-instance prep**: CardLink now has \`externalCardId\` + \`externalInstanceUrl\` fields for FVP's federated use case.
 
 **In the system prompt**, delegated cards show: \`[cardId] "My Card" (high) ⬅️delegated-from:Jon 🔗→delegation:"Their Task" (active) by Sarah ✓2/5\`
+When there are accumulated updates, a "🔗 Linked Card Updates" section appears with a digest of changes since your last conversation.
 
 **In the Kanban UI**, delegated cards show a purple provenance badge + linked card indicators with direction, type, title, user, and checklist progress.
 

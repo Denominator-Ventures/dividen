@@ -303,8 +303,12 @@ async function stampProvenanceAndLink(
 
 /**
  * Propagate a card's status/priority change to all linked CardLink rows.
- * Updates the cached linkedStatus/linkedPriority on both directions.
- * Optionally sends update relays back to originators.
+ *
+ * Philosophy: ACCUMULATE, DON'T PING.
+ * Instead of firing a relay on every status change (spammy), we:
+ * 1. Update the cached linkedStatus/linkedPriority on the CardLink (silent DB write)
+ * 2. Append the change to the changeLog JSON array on the CardLink
+ * 3. The originator's Divi sees accumulated changes in their system prompt at conversation time
  *
  * @param cardId - The card that just changed
  * @param newStatus - The new status (or null if unchanged)
@@ -320,75 +324,175 @@ export async function propagateCardStatusChange(
 
     const now = new Date();
 
-    // Update cached status on all CardLinks where this card is the target (toCardId)
-    // These are the "outbound" links from the originator's perspective
-    if (newStatus || newPriority) {
+    // Find all CardLinks involving this card (both directions)
+    const links = await prisma.cardLink.findMany({
+      where: {
+        OR: [{ toCardId: cardId }, { fromCardId: cardId }],
+      },
+      select: { id: true, linkedStatus: true, linkedPriority: true, changeLog: true },
+    });
+
+    if (links.length === 0) return;
+
+    for (const link of links) {
       const updateData: any = { lastSyncedAt: now };
       if (newStatus) updateData.linkedStatus = newStatus;
       if (newPriority) updateData.linkedPriority = newPriority;
 
-      await prisma.cardLink.updateMany({
-        where: { toCardId: cardId },
-        data: updateData,
-      });
-
-      // Also update links where this card is the source (fromCardId)
-      // (in case someone queries from the other direction)
-      await prisma.cardLink.updateMany({
-        where: { fromCardId: cardId },
-        data: updateData,
-      });
-    }
-
-    // Send update relay back to originator if this is a delegated card
-    if (newStatus) {
-      const card = await prisma.kanbanCard.findUnique({
-        where: { id: cardId },
-        select: { id: true, title: true, status: true, originCardId: true, originUserId: true, sourceRelayId: true, userId: true },
-      });
-
-      if (card?.originUserId && card.originUserId !== card.userId) {
-        // Find the connection between these users
-        const connection = await prisma.connection.findFirst({
-          where: {
-            OR: [
-              { requesterId: card.userId, accepterId: card.originUserId },
-              { requesterId: card.originUserId, accepterId: card.userId },
-            ],
-            status: 'active',
-          },
-          select: { id: true },
+      // Append to change log — accumulate instead of relay
+      const existingLog: any[] = parseChangeLog(link.changeLog);
+      if (newStatus && newStatus !== link.linkedStatus) {
+        existingLog.push({
+          at: now.toISOString(),
+          field: 'status',
+          from: link.linkedStatus || 'unknown',
+          to: newStatus,
         });
-
-        if (connection) {
-          await prisma.agentRelay.create({
-            data: {
-              connectionId: connection.id,
-              fromUserId: card.userId,
-              toUserId: card.originUserId,
-              direction: 'outbound',
-              type: 'update',
-              intent: 'share_update',
-              subject: `Card status update: "${card.title}" → ${newStatus}`,
-              payload: JSON.stringify({
-                cardId: card.id,
-                originCardId: card.originCardId,
-                newStatus,
-                newPriority: newPriority || undefined,
-              }),
-              status: 'pending',
-              priority: 'low',
-              cardId: card.originCardId || undefined,
-              // Thread to the original relay if available
-              parentRelayId: card.sourceRelayId || undefined,
-            },
-          });
-          console.log(`[card-links] Sent status update relay to originator ${card.originUserId} for card ${cardId}`);
-        }
       }
+      if (newPriority && newPriority !== link.linkedPriority) {
+        existingLog.push({
+          at: now.toISOString(),
+          field: 'priority',
+          from: link.linkedPriority || 'unknown',
+          to: newPriority,
+        });
+      }
+      // Cap the log at 20 entries to prevent unbounded growth
+      const trimmedLog = existingLog.slice(-20);
+      updateData.changeLog = JSON.stringify(trimmedLog);
+
+      await prisma.cardLink.update({
+        where: { id: link.id },
+        data: updateData,
+      });
     }
   } catch (e) {
     console.error('[card-links] propagateCardStatusChange error:', e);
     // Non-fatal — status change already happened
+  }
+}
+
+/**
+ * Parse the changeLog JSON string from a CardLink row.
+ */
+function parseChangeLog(raw: string | null): any[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Get unseen linked card changes for a user's board.
+ * Returns a summary of all changes that happened since each link was last seen.
+ * Call this during system prompt construction.
+ */
+export async function getUnseenLinkedCardChanges(userId: string): Promise<{
+  totalChanges: number;
+  cardDigests: Array<{
+    cardId: string;
+    cardTitle: string;
+    linkedUserName: string | null;
+    direction: 'outbound' | 'inbound';
+    changes: Array<{ field: string; from: string; to: string; at: string }>;
+  }>;
+}> {
+  try {
+    const userCards = await prisma.kanbanCard.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const cardIds = userCards.map(c => c.id);
+    if (cardIds.length === 0) return { totalChanges: 0, cardDigests: [] };
+
+    // Get all links where this user's cards are involved and there are unseen changes
+    const links = await prisma.cardLink.findMany({
+      where: {
+        OR: [
+          { fromCardId: { in: cardIds } },
+          { toCardId: { in: cardIds } },
+        ],
+        changeLog: { not: null },
+      },
+      include: {
+        fromCard: { select: { id: true, title: true, userId: true, user: { select: { name: true } } } },
+        toCard: { select: { id: true, title: true, userId: true, user: { select: { name: true } } } },
+      },
+    });
+
+    const cardDigests: Array<{
+      cardId: string;
+      cardTitle: string;
+      linkedUserName: string | null;
+      direction: 'outbound' | 'inbound';
+      changes: Array<{ field: string; from: string; to: string; at: string }>;
+    }> = [];
+
+    let totalChanges = 0;
+
+    for (const link of links) {
+      const allChanges = parseChangeLog(link.changeLog);
+      if (allChanges.length === 0) continue;
+
+      // Filter to only unseen changes (after lastSeenAt)
+      const unseenChanges = link.lastSeenAt
+        ? allChanges.filter((c: any) => new Date(c.at) > link.lastSeenAt!)
+        : allChanges;
+
+      if (unseenChanges.length === 0) continue;
+
+      // Determine which card is "ours" and which is "theirs"
+      const isFromOurs = cardIds.includes(link.fromCardId);
+      const theirCard = isFromOurs ? link.toCard : link.fromCard;
+
+      cardDigests.push({
+        cardId: theirCard.id,
+        cardTitle: theirCard.title,
+        linkedUserName: theirCard.user?.name || null,
+        direction: isFromOurs ? 'outbound' : 'inbound',
+        changes: unseenChanges,
+      });
+      totalChanges += unseenChanges.length;
+    }
+
+    return { totalChanges, cardDigests };
+  } catch (e) {
+    console.error('[card-links] getUnseenLinkedCardChanges error:', e);
+    return { totalChanges: 0, cardDigests: [] };
+  }
+}
+
+/**
+ * Mark all linked card changes as seen for a user.
+ * Called after system prompt is built (so Divi has seen the digest).
+ */
+export async function markLinkedCardChangesSeen(userId: string): Promise<void> {
+  try {
+    const userCards = await prisma.kanbanCard.findMany({
+      where: { userId },
+      select: { id: true },
+    });
+    const cardIds = userCards.map(c => c.id);
+    if (cardIds.length === 0) return;
+
+    const now = new Date();
+    await prisma.cardLink.updateMany({
+      where: {
+        OR: [
+          { fromCardId: { in: cardIds } },
+          { toCardId: { in: cardIds } },
+        ],
+        changeLog: { not: null },
+      },
+      data: {
+        lastSeenAt: now,
+        changeLog: null, // Clear the log — it's been delivered
+      },
+    });
+  } catch (e) {
+    console.error('[card-links] markLinkedCardChangesSeen error:', e);
   }
 }

@@ -161,6 +161,9 @@ model CardLink {
   linkedStatus      String?    // Cached status of the "other" card (updated on change)
   linkedPriority    String?    // Cached priority
   lastSyncedAt      DateTime?  // When status was last synced
+  lastSeenAt        DateTime?  // When the owner last saw this link's updates (resets on prompt build)
+  changeLog         String?    // JSON array of accumulated changes since lastSeenAt
+                               // e.g. [{"at":"2026-04-15T...","from":"active","to":"completed","field":"status"}]
 
   // Cross-instance support (for FVP and federated DiviDen instances)
   externalCardId      String?  // Card ID on the remote instance
