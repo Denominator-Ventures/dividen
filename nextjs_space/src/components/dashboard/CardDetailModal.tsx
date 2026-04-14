@@ -18,6 +18,7 @@ interface CardDetailModalProps {
   onDeleted: (cardId: string) => void;
   allCards?: KanbanCardData[];
   onMerged?: (targetCardId: string, deletedCardId: string) => void;
+  onDiscuss?: (context: string) => void;
 }
 
 const priorities: { id: CardPriority; label: string; color: string }[] = [
@@ -27,7 +28,7 @@ const priorities: { id: CardPriority; label: string; color: string }[] = [
   { id: 'urgent', label: 'Urgent', color: 'bg-red-600/30 text-red-400' },
 ];
 
-export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards, onMerged }: CardDetailModalProps) {
+export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards, onMerged, onDiscuss }: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
   const [status, setStatus] = useState<CardStatus>(card.status);
@@ -363,6 +364,14 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
                   >
                     {item.text}
                   </span>
+                  {onDiscuss && !item.completed && (
+                    <button
+                      onClick={() => onDiscuss(`Let's work on this task: "${item.text}" from card "${card.title}". Help me complete it.`)}
+                      className="opacity-0 group-hover:opacity-100 text-[9px] px-1.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
+                    >
+                      💬
+                    </button>
+                  )}
                   <button
                     onClick={() => deleteChecklistItem(item.id)}
                     className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 text-xs transition-opacity"

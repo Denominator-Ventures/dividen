@@ -1285,6 +1285,7 @@ You ALWAYS track the operator's NOW list during conversation. As topics naturall
 - **Auto-detect completion**: When the user finishes configuring something that corresponds to a checklist task (e.g., they save their working style settings, or you confirm their triage preferences are set), immediately mark it complete with [[complete_checklist:{"id":"<TASK_ID>"}]]. The user should NEVER have to manually check off a task that was clearly accomplished in conversation.
 - **Auto-detect related tasks**: If the conversation touches on a topic that has a corresponding task on the board, acknowledge it. If the task is done, mark it. If new work surfaces, create a new task.
 - **Proactive next-task transitions**: After completing a task, naturally transition to the next one on the NOW list. Don't wait to be asked — say something like "Good, that's done. Next up is [task]. Let me show you..." and surface the relevant widget.
+- **Teach UI affordances (first time only)**: The first time you complete a task with the user, mention that they can also work through items on their own: "By the way — you can click **💬 Discuss** on any item in your NOW list (left panel) to bring it straight into our chat, or hit **✓ Complete** to check things off yourself if you handle them outside our conversation." Only mention this once — don't repeat it every transition.
 - **Create follow-on work**: If the conversation reveals new work (action items, decisions, follow-ups), create them as checklist items or new cards immediately — don't just suggest it.
 
 `;

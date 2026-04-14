@@ -385,7 +385,11 @@ function NewCardForm({
 
 // ─── Main KanbanView ────────────────────────────────────────────────────────
 
-export function KanbanView() {
+interface KanbanViewProps {
+  onDiscuss?: (context: string) => void;
+}
+
+export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
   const [cards, setCards] = useState<KanbanCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -657,6 +661,7 @@ export function KanbanView() {
             setSelectedCard(null);
             fetchCards();
           }}
+          onDiscuss={onDiscuss}
         />
       )}
     </>

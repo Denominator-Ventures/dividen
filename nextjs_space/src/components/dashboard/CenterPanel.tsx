@@ -243,7 +243,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
       {/* ── Tab Content ── */}
       <div className="flex-1 overflow-hidden relative">
         {activeTab === 'chat' && <TabErrorBoundary tabName="Chat"><ChatView key={chatRefreshKey} prefill={chatPrefill} onPrefillConsumed={onChatPrefillConsumed} /></TabErrorBoundary>}
-        {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
+        {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
         {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'inbox' && <TabErrorBoundary tabName="Email"><InboxView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
