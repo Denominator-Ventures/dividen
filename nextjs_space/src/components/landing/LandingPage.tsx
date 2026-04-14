@@ -9,6 +9,7 @@ import {
   PROTOCOL_LAYERS,
   MARKETPLACE_STATS,
 } from '@/lib/landing-data';
+import { HowItWorks } from './HowItWorks';
 
 // ─── Animated typing effect ─────────────────────────────────────────────────
 function useTypingEffect(phrases: string[], typingSpeed = 80, pauseDuration = 2000) {
@@ -217,6 +218,9 @@ export function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ── How It Works ──────────────────────────────────────────────── */}
+      <HowItWorks />
 
       {/* ── The Problem / Solution ──────────────────────────────────────── */}
       <section className="py-20 md:py-32 border-t border-white/[0.04]">

@@ -17,6 +17,96 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'queue-confirmation-gate-cos-execution-engine',
+    date: '2026-04-14',
+    time: '12:15 AM',
+    title: 'Queue Confirmation Gate & Chief of Staff Execution Engine',
+    subtitle: 'Nothing enters your queue without your approval. CoS mode now proactively executes tasks instead of just observing them.',
+    tags: ['queue', 'chief-of-staff', 'execution', 'api-v2', 'open-source', 'security', 'confirmation-gate'],
+    content: `Two foundational changes to the queue and CoS architecture that make DiviDen work the way it was always meant to.
+
+## Queue Confirmation Gate
+
+Previously, when Divi identified a task from conversation and dispatched it to the queue, it went straight in as \`ready\`. No human in the loop. That's wrong for an operating system — your queue is your execution pipeline, and nothing should enter it without your explicit approval.
+
+### How It Works Now
+
+1. **Divi identifies a task** from conversation based on installed capabilities or connected agents' task types
+2. **Task enters as \`pending_confirmation\`** — a new queue status (yellow 🟡) that sits above Ready
+3. **You see it in the Queue panel** with ✓ Approve / ✕ Reject buttons
+4. **Approve → moves to Ready** (enters the execution pipeline). **Reject → deleted** (never existed)
+
+This applies to both \`[[dispatch_queue]]\` and \`[[queue_capability_action]]\` action tags. The queue gate (capability check) still runs first — if no handler exists, Divi suggests marketplace agents. But *having* a handler no longer means auto-queue.
+
+### For Open-Source / Self-Hosted Users
+
+If you're running your own instance and want to bypass the confirmation gate (you trust your Divi's judgment, or you're building automations), set:
+
+\`\`\`
+PATCH /api/v2/settings
+{ "queueAutoApprove": true }
+\`\`\`
+
+Or toggle it via \`PUT /api/settings { "queueAutoApprove": true }\` from the dashboard. When \`queueAutoApprove\` is true, tasks go straight to \`ready\` — same behavior as before this update.
+
+**Schema change**: \`User\` model now has \`queueAutoApprove Boolean @default(false)\`. Run \`npx prisma db push\` after pulling.
+
+**New status**: \`QueueItemStatus\` now includes \`'pending_confirmation'\` as the first status in the lifecycle. The status guard prevents \`pending_confirmation → in_progress\` or \`pending_confirmation → done_today\` — items must flow through \`ready\` first.
+
+## Chief of Staff — Execution Engine
+
+CoS mode was a passive observer. It labeled itself "Away Mode — Observing" and all it did was move items from \`ready\` to \`in_progress\`. It never actually *executed* anything.
+
+### How It Works Now
+
+When CoS mode dispatches a task to \`in_progress\`, it reads the task's metadata to determine the execution strategy:
+
+**Capability tasks** (email drafts, meeting scheduling, etc.)
+→ Invokes the capability and logs it as an activity entry. The execution method and detail are stored in the queue item's metadata under \`cosExecution\`.
+
+**Agent/delegation tasks** (connected agents via comms)
+→ Creates an \`AgentRelay\` (type: \`request\`, intent: \`assign_task\`) to the corresponding connected agent. The relay includes the task description and priority. The connection's comms channel becomes the execution interface.
+
+**Generic tasks** (no specific handler)
+→ Logs that Divi is actively working on the task. Activity feed shows real-time execution status.
+
+The sequential loop: **dispatch → execute → on completion, auto-dispatch next → execute → repeat until queue empty.** One task in flight at a time.
+
+### CoS View Redesign
+
+The header now shows ⚡ with dynamic status text:
+- **"Executing Queue"** — a task is actively in_progress
+- **"Ready to Execute"** — tasks are ready but none dispatched yet
+- **"Queue Clear"** — all done
+
+New stat card: **"Awaiting Approval"** (yellow) shows when pending_confirmation items exist, so you know tasks need your sign-off before CoS can work them.
+
+Pause/Resume and Intervene still work as before.
+
+## New v2 API Endpoints
+
+### \`POST /api/v2/queue/{id}/confirm\`
+Approve or reject a \`pending_confirmation\` item programmatically. Body: \`{ "action": "approve" }\` or \`{ "action": "reject" }\`.
+
+### \`GET /api/v2/settings\`
+Read current user settings: mode, queueAutoApprove, diviName, goalsEnabled, onboarding status.
+
+### \`PATCH /api/v2/settings\`
+Update mode and queue behavior. Switching to \`chief_of_staff\` auto-dispatches. Switching to \`cockpit\` returns a briefing summary.
+
+All three endpoints use Bearer token auth (same as all v2 endpoints).
+
+## Open-Source Integration Notes
+
+Self-hosted users who skip onboarding can:
+1. Generate an API key via \`POST /api/v2/keys\`
+2. Set \`queueAutoApprove: true\` via \`PATCH /api/v2/settings\` to bypass the confirmation gate
+3. Use \`PATCH /api/v2/settings { "mode": "chief_of_staff" }\` to programmatically activate CoS mode
+4. Monitor execution via \`GET /api/v2/queue?status=in_progress\` and the SSE stream
+
+The onboarding flow is still available and recommended for new users, but every step it touches is also reachable via API.`,
+  },
+  {
     id: 'smart-tagging-kanban-ux-drag-scroll',
     date: '2026-04-13',
     time: '11:59 PM',

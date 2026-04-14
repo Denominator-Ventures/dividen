@@ -23,6 +23,7 @@ model User {
   mode          String    @default("cockpit") // "cockpit" | "chief_of_staff"
   hasSeenWalkthrough    Boolean @default(false)
   hasCompletedOnboarding Boolean @default(false)
+  onboardingPhase       Int     @default(0) // 0=api-key, 1=divi-settings, 2=email-setup, 3=connected-overview, 4=webhooks, 5=propagation, 6=complete
   acceptedTermsAt       DateTime? // null = not yet accepted
   termsVersion          String?   // e.g. "1.0" — which version they accepted
   notificationsLastSeen DateTime? // Timestamp of last notification feed view
@@ -34,6 +35,9 @@ model User {
 
   // Free tier
   isFreeUser    Boolean   @default(false) // Bypasses billing checks when true
+
+  // Queue behavior
+  queueAutoApprove  Boolean   @default(false) // When true, tasks skip pending_confirmation → go straight to ready
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -76,8 +80,9 @@ model User {
   goals                Goal[]
   agentExtensions      AgentExtension[]
   userCapabilities     UserCapability[]
-  marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
+  feedback             Feedback[]
   createdCapabilities  MarketplaceCapability[] @relation("CreatedCapabilities")
+  marketplaceAgents    MarketplaceAgent[]   @relation("MarketplaceAgentsListed")
   marketplaceSubs      MarketplaceSubscription[] @relation("MarketplaceSubscriptions")
   marketplaceExecs     MarketplaceExecution[]   @relation("MarketplaceExecutions")
   contactPlatformLinks Contact[]                @relation("ContactPlatformLinks")
@@ -1142,6 +1147,7 @@ model UserProfile {
   allowAmbientInbound Boolean  @default(true)        // Can other agents send ambient relays to this user's Divi?
   allowAmbientOutbound Boolean @default(true)        // Can this user's Divi send ambient relays to others?
   allowBroadcasts     Boolean  @default(true)        // Can this user receive broadcast relays?
+  allowAmbientSurveys Boolean  @default(true)        // Participate in AmbientSurveys (requires allowBroadcasts=true to function)
   autoRespondAmbient  Boolean  @default(false)       // Should Divi auto-respond to ambient relays without surfacing to user?
   relayQuietHours     String?  // JSON: {start:"22:00",end:"08:00",timezone:"America/Chicago"} — suppress non-urgent relays
   relayTopicFilters   String?  // JSON array of topics to opt out of: ["sales","recruiting"]
@@ -1830,6 +1836,14 @@ model MarketplaceExecution {
   developerPayout Float     @default(0) // developer's share (gross - fee)
   feePercent      Float     @default(3) // fee % applied at time of execution
 
+  // Two-phase dynamic pricing — agent returns a price quote, user approves before charge
+  pricingPhase    String    @default("immediate") // "immediate" | "quoted" | "approved" | "declined"
+  quoteAmount     Float?    // agent-determined price for this specific result
+  quoteCurrency   String?   // currency code (default USD)
+  quoteMetadata   String?   @db.Text  // JSON — agent-provided context for the price (breakdown, options, etc.)
+  quotedAt        DateTime? // when the quote was returned
+  approvedAt      DateTime? // when the user approved the quote
+
   // Stripe payment
   stripePaymentIntentId String?  // Stripe PaymentIntent ID for this execution
   stripePaymentStatus   String?  // "succeeded" | "failed" | "pending" | "requires_action"
@@ -1993,19 +2007,19 @@ model MarketplaceCapability {
   // Commands — actions users can invoke via !command syntax in chat
   commands        String?   @db.Text  // JSON array: [{"name":"summarize","description":"Summarize weekly metrics","usage":"!capslug.summarize"}]
 
-  // Publisher / developer info
-  publisherName   String    @default("DiviDen")  // display name of who published this
-  publisherType   String    @default("platform")  // "platform" | "user" | "community"
-  publisherUrl    String?   // optional link to publisher's website/profile
+  // Publisher / Attribution
+  publisherName   String    @default("DiviDen")    // who published: "DiviDen", user name, org name
+  publisherType   String    @default("platform")   // "platform" | "user" | "community"
+  publisherUrl    String?                           // optional link to publisher profile/site
 
-  // Approval workflow — user-submitted capabilities start as "pending_review"
-  approvalStatus  String    @default("approved")  // "approved" | "pending_review" | "rejected"
+  // Approval workflow (user-submitted capabilities)
+  approvalStatus  String    @default("approved")    // "approved" | "pending_review" | "rejected" | "draft"
   rejectionReason String?   @db.Text
 
-  // Agent Skills format support (agentskills.io)
-  skillFormat     Boolean   @default(false)  // true = follows Agent Skills spec
-  skillBody       String?   @db.Text         // full SKILL.md body content
-  skillSource     String?                    // e.g. "agentskills.io", "anthropics", "openai"
+  // Agent Skills compatibility
+  skillFormat     Boolean   @default(false)         // true = follows Agent Skills spec (agentskills.io)
+  skillBody       String?   @db.Text                // raw skill content (YAML/markdown)
+  skillSource     String?                           // e.g. "agentskills.io"
 
   // System-managed
   isSystemSeed    Boolean   @default(false)  // true = seeded by platform, not user-created
@@ -2058,4 +2072,24 @@ model UserCapability {
   @@index([capabilityId])
   @@index([status])
   @@map("user_capabilities")
+}
+
+model Feedback {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String   @default("general") // general, bug, feature, onboarding, ux
+  message   String   @db.Text
+  rating    Int?     // 1-5 optional satisfaction rating
+  page      String?  // which page/tab the feedback was submitted from
+  status    String   @default("new") // new, reviewed, resolved, archived
+  adminNote String?  @db.Text
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("feedback")
 }

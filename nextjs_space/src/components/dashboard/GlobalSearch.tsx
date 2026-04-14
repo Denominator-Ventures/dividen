@@ -20,7 +20,7 @@ const TYPE_LABELS: Record<string, string> = {
   document: 'Drive',
   recording: 'Recordings',
   calendar: 'Calendar',
-  email: 'Inbox',
+  email: 'Email',
   comms: 'Comms',
   queue: 'Queue',
   person: 'People',

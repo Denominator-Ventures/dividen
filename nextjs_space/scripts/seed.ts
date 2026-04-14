@@ -22,7 +22,7 @@ async function main() {
   });
 
   // Seed admin account
-  const adminPasswordHash = await bcrypt.hash('DiviDen2024!', 12);
+  const adminPasswordHash = await bcrypt.hash(process.env.ADMIN_PASSWORD || 'changeme', 12);
 
   await prisma.user.upsert({
     where: { email: 'admin@dividen.ai' },
@@ -535,266 +535,210 @@ When content work is requested:
   }
   console.log(`Seeded ${capabilities.length} marketplace capabilities.`);
 
-  // ── Agent Skills (agentskills.io format) ──────────────────────────────
+  // ── Agent Skills Capabilities (agentskills.io ecosystem) ──────────────────
   const agentSkills = [
-    {
-      slug: 'document-processing-skill',
-      name: 'Document Processing',
-      description: 'Process and extract data from PDFs, Word docs, spreadsheets, and presentations. Converts unstructured documents into structured, actionable data.',
-      longDescription: 'Based on the Agent Skills open format (agentskills.io). Handles PDF extraction, DOCX parsing, XLSX data reads, and PPTX slide analysis. Extracts text, tables, metadata, and embedded content. Returns structured JSON output for downstream processing.',
-      icon: '📄',
-      category: 'operations',
-      tags: JSON.stringify(['agent-skills', 'documents', 'pdf', 'extraction', 'agentskills.io']),
-      integrationType: 'generic',
-      pricingModel: 'free',
-      featured: false,
-      editableFields: JSON.stringify(['outputFormat', 'extractionDepth']),
-      prompt: `You have the Document Processing skill enabled (Agent Skills format).
-
-When the user shares a document or asks you to process one:
-1. Identify the document type (PDF, DOCX, XLSX, PPTX).
-2. Extract all text content, tables, and metadata.
-3. Structure the output as clean JSON with sections, headings, and data.
-4. Highlight key findings, dates, amounts, and action items.
-5. If the document contains tables, preserve their structure.
-Format: {{outputFormat}} (default: structured summary).
-Depth: {{extractionDepth}} (default: full).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Document Processing\n\nProcess PDFs, Word documents, spreadsheets, and presentations into structured data.\n\n## Instructions\n1. Accept document input (file path, URL, or pasted content)\n2. Detect document type from extension or content headers\n3. Extract text, tables, images (as descriptions), and metadata\n4. Return structured JSON output',
-    },
-    {
-      slug: 'web-research-skill',
-      name: 'Web Research & Synthesis',
-      description: 'Conduct deep web research on any topic, synthesize findings from multiple sources, and deliver structured research reports with citations.',
-      longDescription: 'Performs multi-source web research, fact-checking, and synthesis. Searches across web, news, academic sources. Returns structured reports with citations, confidence levels, and recommended next steps.',
-      icon: '🔍',
-      category: 'research',
-      tags: JSON.stringify(['agent-skills', 'research', 'web', 'synthesis', 'agentskills.io']),
-      integrationType: null,
-      pricingModel: 'free',
-      featured: true,
-      editableFields: JSON.stringify(['researchDepth', 'sourceCount', 'focusAreas']),
-      prompt: `You have the Web Research & Synthesis skill enabled (Agent Skills format).
-
-When the user asks you to research something:
-1. Break the query into sub-questions.
-2. Search across web, news, and available knowledge sources.
-3. Cross-reference and fact-check across {{sourceCount}} sources minimum.
-4. Synthesize findings into a structured report with:
-   - Executive summary
-   - Key findings with confidence levels
-   - Supporting evidence and citations
-   - Gaps in available information
-   - Recommended next steps
-Research depth: {{researchDepth}} (quick / standard / deep).
-Focus areas: {{focusAreas}} (default: all relevant).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Web Research & Synthesis\n\nConduct structured web research with multi-source synthesis.\n\n## Instructions\n1. Decompose research question into sub-queries\n2. Search multiple source types\n3. Cross-reference and validate findings\n4. Synthesize into structured report with citations',
-    },
-    {
-      slug: 'code-review-skill',
-      name: 'Code Review & Analysis',
-      description: 'Automated code review: security vulnerabilities, performance issues, best practices, and maintainability analysis across common languages.',
-      longDescription: 'Reviews code for security vulnerabilities, performance bottlenecks, code smell, and adherence to best practices. Supports JavaScript/TypeScript, Python, Go, Rust, and more. Returns actionable feedback with severity levels.',
-      icon: '🔬',
-      category: 'engineering',
-      tags: JSON.stringify(['agent-skills', 'code-review', 'security', 'engineering', 'agentskills.io']),
-      integrationType: null,
-      pricingModel: 'free',
-      featured: false,
-      editableFields: JSON.stringify(['languages', 'severityThreshold', 'focusAreas']),
-      prompt: `You have the Code Review & Analysis skill enabled (Agent Skills format).
-
-When the user shares code or asks for a review:
-1. Identify the language and framework.
-2. Scan for security vulnerabilities (injection, XSS, auth issues).
-3. Check for performance issues (N+1 queries, memory leaks, blocking ops).
-4. Evaluate code quality (naming, structure, DRY, SOLID).
-5. Provide actionable feedback with severity: critical / warning / suggestion.
-Languages: {{languages}} (default: auto-detect).
-Minimum severity: {{severityThreshold}} (default: suggestion).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Code Review & Analysis\n\nAutomated code review for security, performance, and best practices.\n\n## Instructions\n1. Detect language and framework\n2. Run security analysis\n3. Check performance patterns\n4. Evaluate maintainability\n5. Return findings with severity levels',
-    },
-    {
-      slug: 'data-analysis-skill',
-      name: 'Data Analysis & Visualization',
-      description: 'Analyze datasets, generate insights, and create chart specifications. Works with CSV, JSON, and tabular data from any source.',
-      longDescription: 'Processes structured data to find patterns, outliers, and trends. Generates statistical summaries, correlation analysis, and chart specifications (compatible with Chart.js, Recharts, D3). Handles time-series, categorical, and numerical data.',
-      icon: '📊',
-      category: 'operations',
-      tags: JSON.stringify(['agent-skills', 'data', 'analytics', 'visualization', 'agentskills.io']),
-      integrationType: null,
-      pricingModel: 'free',
-      featured: false,
-      editableFields: JSON.stringify(['chartLibrary', 'outputFormat']),
-      prompt: `You have the Data Analysis & Visualization skill enabled (Agent Skills format).
-
-When the user provides data or asks for analysis:
-1. Ingest the data (CSV, JSON, or table format).
-2. Clean and validate — report any data quality issues.
-3. Generate statistical summary (mean, median, distribution, outliers).
-4. Identify patterns, trends, and correlations.
-5. Produce chart specifications in {{chartLibrary}} format.
-6. Deliver narrative insights alongside the data.
-Chart library: {{chartLibrary}} (default: Recharts).
-Output: {{outputFormat}} (default: insights + chart specs).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Data Analysis & Visualization\n\nAnalyze datasets and generate visual chart specifications.\n\n## Instructions\n1. Parse input data format\n2. Clean and validate data\n3. Statistical analysis\n4. Pattern detection\n5. Chart specification generation',
-    },
-    {
-      slug: 'api-integration-skill',
-      name: 'API Integration Builder',
-      description: 'Design and generate API integration code. Reads API docs, generates typed clients, handles auth flows, and creates webhook handlers.',
-      longDescription: 'Automates API integration development. Reads OpenAPI/Swagger specs or API documentation, generates typed client code, handles OAuth/API key authentication, and creates webhook receiver endpoints. Supports REST, GraphQL, and gRPC.',
-      icon: '🔌',
-      category: 'engineering',
-      tags: JSON.stringify(['agent-skills', 'api', 'integration', 'webhooks', 'agentskills.io']),
-      integrationType: 'generic',
-      pricingModel: 'free',
-      featured: false,
-      editableFields: JSON.stringify(['language', 'framework', 'authType']),
-      prompt: `You have the API Integration Builder skill enabled (Agent Skills format).
-
-When the user wants to integrate with an API:
-1. Read the API documentation or OpenAPI spec.
-2. Generate a typed client in {{language}} / {{framework}}.
-3. Handle authentication: {{authType}} (auto-detect if not specified).
-4. Create request/response types.
-5. Add error handling and retry logic.
-6. Generate webhook handler if the API supports callbacks.
-Language: {{language}} (default: TypeScript).
-Framework: {{framework}} (default: Next.js API routes).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# API Integration Builder\n\nGenerate typed API clients from documentation or specs.\n\n## Instructions\n1. Parse API documentation or OpenAPI spec\n2. Generate typed client code\n3. Handle authentication\n4. Create webhook handlers\n5. Add error handling and retries',
-    },
-    {
-      slug: 'presentation-builder-skill',
-      name: 'Presentation Builder',
-      description: 'Create structured presentation outlines and slide content from any topic. Generates speaker notes, key points, and visual layout suggestions.',
-      longDescription: 'Generates presentation content from topics, research, or data. Creates slide structures with titles, bullet points, speaker notes, and visual suggestions. Outputs in formats compatible with PowerPoint, Google Slides, or Markdown.',
-      icon: '🎨',
-      category: 'creative',
-      tags: JSON.stringify(['agent-skills', 'presentations', 'slides', 'creative', 'agentskills.io']),
-      integrationType: null,
-      pricingModel: 'free',
-      featured: false,
-      editableFields: JSON.stringify(['slideCount', 'style', 'audience']),
-      prompt: `You have the Presentation Builder skill enabled (Agent Skills format).
-
-When the user wants a presentation:
-1. Understand the topic, audience, and context.
-2. Create a {{slideCount}}-slide structure.
-3. For each slide: title, 3-5 bullet points, speaker notes.
-4. Suggest visual elements (charts, images, diagrams).
-5. Include an executive summary slide and a next-steps slide.
-Style: {{style}} (default: professional).
-Audience: {{audience}} (default: general business).
-Slides: {{slideCount}} (default: 10).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Presentation Builder\n\nCreate structured presentations with slides, notes, and visuals.\n\n## Instructions\n1. Gather topic and audience context\n2. Structure slide deck\n3. Generate content per slide\n4. Add speaker notes\n5. Suggest visual elements',
-    },
-    {
-      slug: 'testing-automation-skill',
-      name: 'Test Generation & Automation',
-      description: 'Generate unit tests, integration tests, and E2E test scripts from existing code. Supports Jest, Playwright, pytest, and more.',
-      longDescription: 'Analyzes existing code and generates comprehensive test suites. Creates unit tests for functions/components, integration tests for API routes, and E2E tests for user flows. Handles mock generation, fixture setup, and assertion patterns.',
-      icon: '🧪',
-      category: 'engineering',
-      tags: JSON.stringify(['agent-skills', 'testing', 'automation', 'qa', 'agentskills.io']),
-      integrationType: null,
-      pricingModel: 'free',
-      featured: false,
-      editableFields: JSON.stringify(['testFramework', 'coverageTarget', 'testTypes']),
-      prompt: `You have the Test Generation & Automation skill enabled (Agent Skills format).
-
-When the user wants tests generated:
-1. Analyze the code structure and dependencies.
-2. Generate {{testTypes}} tests using {{testFramework}}.
-3. Create appropriate mocks and fixtures.
-4. Target {{coverageTarget}}% code coverage.
-5. Include edge cases and error paths.
-6. Add descriptive test names and comments.
-Framework: {{testFramework}} (default: Jest + Testing Library).
-Coverage: {{coverageTarget}} (default: 80).
-Types: {{testTypes}} (default: unit + integration).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Test Generation & Automation\n\nGenerate comprehensive test suites from existing code.\n\n## Instructions\n1. Analyze code structure\n2. Identify testable units\n3. Generate tests with mocks\n4. Cover edge cases\n5. Output with proper assertions',
-    },
-    {
-      slug: 'workflow-automation-skill',
-      name: 'Workflow Automation Designer',
-      description: 'Design and document automated workflows. Maps triggers, conditions, actions, and error handling into executable workflow specs.',
-      longDescription: 'Helps design automation workflows by mapping out triggers (webhooks, schedules, events), conditions (filters, routing logic), actions (API calls, notifications, data transforms), and error handling. Outputs structured workflow definitions.',
-      icon: '⚙️',
-      category: 'operations',
-      tags: JSON.stringify(['agent-skills', 'automation', 'workflows', 'agentskills.io']),
-      integrationType: 'generic',
-      pricingModel: 'free',
-      featured: true,
-      editableFields: JSON.stringify(['triggerTypes', 'outputFormat']),
-      prompt: `You have the Workflow Automation Designer skill enabled (Agent Skills format).
-
-When the user describes a workflow:
-1. Identify the trigger (webhook, schedule, event, manual).
-2. Map out the decision tree — conditions and branches.
-3. Define actions at each step (API calls, notifications, data ops).
-4. Add error handling and retry logic.
-5. Document the workflow as a structured spec.
-6. Suggest optimizations and edge cases.
-Trigger types: {{triggerTypes}} (default: all).
-Output: {{outputFormat}} (default: structured YAML + diagram description).`,
-      skillFormat: true,
-      skillSource: 'agentskills.io',
-      skillBody: '# Workflow Automation Designer\n\nDesign structured automation workflows.\n\n## Instructions\n1. Identify triggers and events\n2. Map decision logic\n3. Define actions per step\n4. Add error handling\n5. Output workflow specification',
-    },
+    { slug: 'skill-document-processing', name: 'Document Processing', icon: '📄', category: 'operations', description: 'Extract, classify, and summarize documents using structured analysis.', prompt: 'Process documents by extracting key information, classifying content type, and generating structured summaries. Handle PDFs, emails, contracts, and reports.', skillBody: 'name: document-processing\nversion: 1.0\ninstructions: Extract structured data from documents.\nresources:\n  - type: file\n    accept: pdf,docx,txt' },
+    { slug: 'skill-web-research', name: 'Web Research & Synthesis', icon: '🌐', category: 'research', description: 'Research topics across the web and synthesize findings into actionable summaries.', prompt: 'Conduct comprehensive web research on given topics. Cross-reference multiple sources, identify key findings, and produce structured research reports with citations.', skillBody: 'name: web-research\nversion: 1.0\ninstructions: Research and synthesize from multiple web sources.\noutput: structured-report' },
+    { slug: 'skill-code-review', name: 'Code Review & Analysis', icon: '🔍', category: 'engineering', description: 'Analyze code for bugs, security issues, and improvement opportunities.', prompt: 'Review code submissions for bugs, security vulnerabilities, performance issues, and style consistency. Provide actionable feedback with specific line references and suggested fixes.', skillBody: 'name: code-review\nversion: 1.0\ninstructions: Analyze code quality and provide structured feedback.\nresources:\n  - type: code\n    languages: any' },
+    { slug: 'skill-data-analysis', name: 'Data Analysis & Visualization', icon: '📊', category: 'finance', description: 'Analyze datasets and generate insights with visualization recommendations.', prompt: 'Analyze provided datasets. Identify trends, anomalies, and correlations. Generate summary statistics and recommend appropriate visualizations for key findings.', skillBody: 'name: data-analysis\nversion: 1.0\ninstructions: Analyze data and produce insights with visualization specs.\nresources:\n  - type: data\n    accept: csv,json,xlsx' },
+    { slug: 'skill-api-integration', name: 'API Integration Builder', icon: '🔌', category: 'engineering', description: 'Design and document API integrations between services.', prompt: 'Design API integration workflows between specified services. Generate OpenAPI specs, authentication flows, error handling strategies, and implementation guides.', skillBody: 'name: api-integration\nversion: 1.0\ninstructions: Design and document API integration patterns.\noutput: openapi-spec' },
+    { slug: 'skill-presentation', name: 'Presentation Builder', icon: '🎤', category: 'creative', description: 'Generate structured presentation outlines with speaker notes.', prompt: 'Create presentation outlines based on provided topics. Structure slides with clear narratives, data points, and speaker notes. Adapt tone for the target audience.', skillBody: 'name: presentation-builder\nversion: 1.0\ninstructions: Generate structured slide decks with narratives.\noutput: markdown-slides' },
+    { slug: 'skill-test-generation', name: 'Test Generation & Automation', icon: '🧪', category: 'engineering', description: 'Generate test suites and automation scripts for codebases.', prompt: 'Analyze code and generate comprehensive test suites including unit tests, integration tests, and edge cases. Support multiple testing frameworks and languages.', skillBody: 'name: test-generation\nversion: 1.0\ninstructions: Generate test suites from code analysis.\nresources:\n  - type: code\n    languages: any' },
+    { slug: 'skill-workflow-automation', name: 'Workflow Automation Designer', icon: '⚡', category: 'operations', description: 'Design automated workflows connecting tools and processes.', prompt: 'Design automated workflows that connect existing tools and processes. Generate step-by-step automation plans with trigger conditions, actions, and error handling.', skillBody: 'name: workflow-automation\nversion: 1.0\ninstructions: Design multi-step automation workflows.\noutput: workflow-spec' },
   ];
 
   for (const skill of agentSkills) {
-    const { skillFormat, skillSource, skillBody, ...rest } = skill;
     await prisma.marketplaceCapability.upsert({
       where: { slug: skill.slug },
-      update: {
-        name: skill.name,
-        description: skill.description,
-        longDescription: skill.longDescription,
-        icon: skill.icon,
-        category: skill.category,
-        tags: skill.tags,
-        pricingModel: skill.pricingModel,
-        featured: skill.featured || false,
-        editableFields: skill.editableFields,
-        prompt: skill.prompt,
-        publisherName: 'DiviDen',
-        publisherType: 'platform',
-        publisherUrl: 'https://dividen.ai',
-        approvalStatus: 'approved',
-        skillFormat: true,
-        skillSource: skill.skillSource,
-        skillBody: skill.skillBody,
-      },
+      update: { name: skill.name, description: skill.description, prompt: skill.prompt, skillBody: skill.skillBody, publisherName: 'DiviDen', approvalStatus: 'approved' },
       create: {
-        ...rest,
+        ...skill,
+        pricingModel: 'free',
         status: 'active',
         isSystemSeed: true,
+        skillFormat: true,
+        skillSource: 'agentskills.io',
         publisherName: 'DiviDen',
         publisherType: 'platform',
-        publisherUrl: 'https://dividen.ai',
         approvalStatus: 'approved',
-        skillFormat: true,
-        skillSource: skill.skillSource,
-        skillBody: skill.skillBody,
+        longDescription: `Agent Skills-compatible capability from the agentskills.io ecosystem. ${skill.description}`,
+        tags: JSON.stringify(['agent-skills', skill.category]),
       },
     });
   }
   console.log(`Seeded ${agentSkills.length} Agent Skills capabilities.`);
+
+  // ── Seed AmbientSurveys Marketplace Agent ──────────────────────────────────
+  console.log('Seeding AmbientSurveys marketplace agent...');
+
+  const adminUser = await prisma.user.findUnique({ where: { email: 'admin@dividen.ai' } });
+  if (adminUser) {
+    await prisma.marketplaceAgent.upsert({
+      where: { slug: 'ambient-surveys' },
+      update: {
+        name: 'AmbientSurveys',
+        description: 'Survey random users on the platform about anything via ambient relays. Ambient questions are woven naturally into conversations — no interruptions, no survey fatigue. Get real signal from real operators.',
+        longDescription: `# AmbientSurveys — Ambient Intelligence for Market Research
+
+AmbientSurveys leverages DiviDen's ambient relay protocol to conduct lightweight, non-intrusive surveys across the platform. Instead of blasting people with survey links, your Divi agent sends ambient questions to other users' agents, who weave them naturally into conversation.
+
+## How It Works
+1. **You define the question(s)** — what you want to learn, from how many people
+2. **AmbientSurveys distributes** — sends ambient relays to eligible, opted-in users on the platform
+3. **Recipients' agents weave naturally** — the question surfaces during relevant conversation, not as an interruption
+4. **Responses aggregate** — you get anonymized, real responses from actual operators
+5. **Insights delivered** — summary analysis with sentiment, themes, and key quotes
+
+## Why Ambient > Traditional Surveys
+- **No survey fatigue** — questions feel like natural conversation, not homework
+- **Higher quality responses** — people answer thoughtfully when it fits the flow
+- **Real operators** — not random internet panelists, but actual DiviDen users running businesses
+- **Privacy-first** — responses are anonymized; participation is opt-in with a toggle
+
+## Pricing
+$5 per person surveyed. You define the sample size, we handle distribution and collection.
+
+## Participation
+Users can opt in/out of AmbientSurveys via Settings → Relay → "Participate in AmbientSurveys" toggle. This toggle is ON by default but requires ambient broadcast participation to be active.`,
+        pricingModel: 'per_task',
+        pricePerTask: 5.0,
+        accessPassword: 'freeme',
+      },
+      create: {
+        slug: 'ambient-surveys',
+        name: 'AmbientSurveys',
+        description: 'Survey random users on the platform about anything via ambient relays. Ambient questions are woven naturally into conversations — no interruptions, no survey fatigue. Get real signal from real operators.',
+        longDescription: `# AmbientSurveys — Ambient Intelligence for Market Research
+
+AmbientSurveys leverages DiviDen's ambient relay protocol to conduct lightweight, non-intrusive surveys across the platform. Instead of blasting people with survey links, your Divi agent sends ambient questions to other users' agents, who weave them naturally into conversation.
+
+## How It Works
+1. **You define the question(s)** — what you want to learn, from how many people
+2. **AmbientSurveys distributes** — sends ambient relays to eligible, opted-in users on the platform
+3. **Recipients' agents weave naturally** — the question surfaces during relevant conversation, not as an interruption
+4. **Responses aggregate** — you get anonymized, real responses from actual operators
+5. **Insights delivered** — summary analysis with sentiment, themes, and key quotes
+
+## Why Ambient > Traditional Surveys
+- **No survey fatigue** — questions feel like natural conversation, not homework
+- **Higher quality responses** — people answer thoughtfully when it fits the flow
+- **Real operators** — not random internet panelists, but actual DiviDen users running businesses
+- **Privacy-first** — responses are anonymized; participation is opt-in with a toggle
+
+## Pricing
+$5 per person surveyed. You define the sample size, we handle distribution and collection.
+
+## Participation
+Users can opt in/out of AmbientSurveys via Settings → Relay → "Participate in AmbientSurveys" toggle. This toggle is ON by default but requires ambient broadcast participation to be active.`,
+        endpointUrl: 'https://dividen.ai/api/v2/agents/ambient-surveys/execute',
+        authMethod: 'bearer',
+        developerId: adminUser.id,
+        developerName: 'DiviDen',
+        developerUrl: 'https://dividen.ai',
+        category: 'research',
+        tags: JSON.stringify(['surveys', 'market-research', 'ambient', 'polling', 'feedback', 'user-research']),
+        inputFormat: 'json',
+        outputFormat: 'json',
+        samplePrompts: JSON.stringify([
+          'Survey 10 people: "What is the single biggest bottleneck in your workflow right now?"',
+          'Ask 25 operators: "How many AI tools do you use daily, and which one would you keep if you could only have one?"',
+          'Poll 15 users: "Would you pay for a curated weekly digest of insights from other operators in your industry?"',
+          'Survey 20 people: "What does your morning planning routine look like? Walk me through the first 30 minutes."',
+        ]),
+        pricingModel: 'per_task',
+        pricePerTask: 5.0,
+        pricingDetails: JSON.stringify({
+          model: 'per_task',
+          unit: 'per person surveyed',
+          description: '$5 per respondent. Define your sample size and pay only for completed responses.',
+          minimumSampleSize: 5,
+          maximumSampleSize: 500,
+        }),
+        status: 'active',
+        featured: true,
+        accessPassword: 'freeme',
+        supportsA2A: true,
+        supportsMCP: false,
+        version: '1.0.0',
+        changelog: JSON.stringify([{ version: '1.0.0', date: new Date().toISOString().split('T')[0], changes: ['Initial release — ambient survey distribution via relay protocol'] }]),
+        taskTypes: JSON.stringify(['survey', 'market-research', 'polling', 'user-research', 'feedback-collection']),
+        contextInstructions: `Before executing AmbientSurveys, prepare the following context:
+1. **Survey question(s)**: The exact question(s) to ask. Keep them concise and conversational.
+2. **Sample size**: How many people to survey (minimum 5, maximum 500).
+3. **Target audience** (optional): Any filters — industry, role, capacity status, etc.
+4. **Deadline** (optional): When responses should be collected by.
+5. **Context**: Brief background on why the survey is being run (helps agents weave more naturally).`,
+        requiredInputSchema: JSON.stringify({
+          type: 'object',
+          required: ['questions', 'sampleSize'],
+          properties: {
+            questions: { type: 'array', items: { type: 'string' }, description: 'List of survey questions to ask' },
+            sampleSize: { type: 'integer', minimum: 5, maximum: 500, description: 'Number of people to survey' },
+            targetAudience: { type: 'object', properties: { industry: { type: 'string' }, roles: { type: 'array', items: { type: 'string' } }, capacityStatus: { type: 'array', items: { type: 'string' } } } },
+            deadline: { type: 'string', format: 'date', description: 'ISO date for response deadline' },
+            context: { type: 'string', description: 'Background context for the survey' },
+            anonymize: { type: 'boolean', default: true, description: 'Whether to anonymize responses' },
+          },
+        }),
+        outputSchema: JSON.stringify({
+          type: 'object',
+          properties: {
+            surveyId: { type: 'string' },
+            status: { type: 'string', enum: ['distributing', 'collecting', 'completed', 'partial'] },
+            totalDistributed: { type: 'integer' },
+            totalResponses: { type: 'integer' },
+            responseRate: { type: 'number' },
+            responses: { type: 'array', items: { type: 'object', properties: { questionIndex: { type: 'integer' }, answer: { type: 'string' }, sentiment: { type: 'string' }, timestamp: { type: 'string' } } } },
+            analysis: { type: 'object', properties: { themes: { type: 'array', items: { type: 'string' } }, sentiment: { type: 'object' }, keyQuotes: { type: 'array', items: { type: 'string' } }, summary: { type: 'string' } } },
+          },
+        }),
+        usageExamples: JSON.stringify([
+          {
+            input: { questions: ['What is the biggest bottleneck in your workflow?'], sampleSize: 10 },
+            output: { surveyId: 'srv_abc123', status: 'completed', totalDistributed: 12, totalResponses: 10, responseRate: 0.83, analysis: { themes: ['context switching', 'email overload', 'meeting fatigue'], summary: '7/10 respondents cited communication overhead as their primary bottleneck.' } },
+            description: 'Simple single-question survey to 10 operators',
+          },
+        ]),
+        contextPreparation: JSON.stringify([
+          'Confirm the survey question is clear and conversational',
+          'Validate sample size is between 5–500',
+          'Check if target audience filters are specified',
+          'Verify the operator understands pricing ($5/person)',
+          'Set expectations on timeline (ambient surveys take 24–72h for full collection)',
+        ]),
+        executionNotes: `**Timing**: Ambient surveys typically take 24–72 hours for full collection because questions are woven naturally into conversations rather than blasted out. Set expectations with the operator.
+
+**Response rates**: Expect 60–85% response rate. Ambient questions have much higher engagement than traditional surveys because they feel natural.
+
+**Privacy**: All responses are anonymized by default. The operator never sees WHO answered, only WHAT was said.
+
+**Eligibility**: Only users with allowAmbientSurveys=true AND allowBroadcasts=true are eligible as respondents. The system handles filtering automatically.
+
+**Best practices**:
+- Keep questions conversational and open-ended for best results
+- 1–3 questions per survey works best; more than 5 drops response quality
+- Provide context so agents can weave more naturally
+- Allow at least 48h for collection on sample sizes > 20`,
+        installGuide: `## Getting Started with AmbientSurveys
+
+1. **Install** this agent from the marketplace
+2. **Define your survey**: Tell your Divi what you want to learn. Example: "Survey 15 people about their biggest productivity blocker"
+3. **Divi handles the rest**: Your agent uses AmbientSurveys to distribute questions via ambient relays
+4. **Review results**: Responses come back anonymized with sentiment analysis and theme extraction
+
+### Tips
+- Start small (5–10 people) to calibrate your questions
+- Use the free access password "freeme" to try it out at no cost
+- Questions that relate to work, tools, and operations get the highest engagement`,
+        commands: JSON.stringify([
+          { name: 'survey', description: 'Launch a new ambient survey', usage: '!ambient-surveys.survey "Your question here" --size=10' },
+          { name: 'status', description: 'Check status of an active survey', usage: '!ambient-surveys.status <surveyId>' },
+          { name: 'results', description: 'Get results and analysis for a completed survey', usage: '!ambient-surveys.results <surveyId>' },
+        ]),
+      },
+    });
+    console.log('Seeded AmbientSurveys marketplace agent.');
+  }
 
   console.log('Database seeded successfully.');
 }

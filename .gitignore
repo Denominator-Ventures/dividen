@@ -20,3 +20,4 @@ out
 .deploy
 .logs
 *.tsbuildinfo
+.project_instructions.md

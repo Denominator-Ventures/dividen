@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
 import type { WidgetItem, WidgetItemAction, AgentWidgetData } from './AgentWidget';
 import { emitSignal } from '@/lib/behavior-signals';
+import { OnboardingChatWidgets } from './OnboardingChatWidgets';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,10 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
                 case 'done':
                   fullCleanContent = event.content;
+                  // Capture widget metadata if present (e.g., show_settings_widget)
+                  if (event.metadata) {
+                    (window as any).__lastMsgMeta = event.metadata;
+                  }
                   break;
 
                 case 'error':
@@ -321,13 +326,15 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           }
         }
 
-        // Add assistant message to history
+        // Add assistant message to history (include widget metadata if any)
         const assistantMsg: ChatMessage = {
           id: `msg-${Date.now()}`,
           role: 'assistant',
           content: fullCleanContent || stripTagsClient(streamingContent),
           createdAt: new Date().toISOString(),
+          metadata: (window as any).__lastMsgMeta || undefined,
         };
+        delete (window as any).__lastMsgMeta;
         setMessages((prev) => [...prev, assistantMsg]);
       } catch (err: any) {
         console.error('Chat error:', err);
@@ -352,6 +359,61 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       console.error('Failed to clear chat:', err);
     }
   };
+
+  // ── Onboarding phase action handler ─────────────────────────────────
+  const handleOnboardingAction = useCallback(async (
+    action: 'submit' | 'skip' | 'google_connect',
+    phase: number,
+    data?: any
+  ) => {
+    if (action === 'google_connect') {
+      // Redirect to Google OAuth with onboarding return context
+      const identity = data?.identity || 'operator';
+      const accountIndex = data?.accountIndex ?? 0;
+      window.location.href = `/api/auth/google-connect?identity=${identity}&accountIndex=${accountIndex}&returnTo=onboarding`;
+      return;
+    }
+
+    try {
+      // Phase -1 = settings adjustment (not onboarding) — save settings via show_settings endpoint
+      if (phase === -1) {
+        await fetch('/api/onboarding/advance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'show_settings', settings: data }),
+        });
+        // Add confirmation message
+        setMessages(prev => [...prev, {
+          id: `msg-confirm-${Date.now()}`,
+          role: 'assistant',
+          content: '✅ Settings updated! Your changes are active now.',
+          createdAt: new Date().toISOString(),
+        }]);
+        return;
+      }
+
+      // Regular onboarding — advance to next phase
+      const res = await fetch('/api/onboarding/advance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: action === 'skip' ? 'skip' : 'advance',
+          settings: data,
+        }),
+      });
+      const result = await res.json();
+      if (result.success && result.data?.message) {
+        // Reload messages to show the new phase message
+        const msgRes = await fetch('/api/chat/messages?limit=50');
+        const msgData = await msgRes.json();
+        if (msgData.success && msgData.data?.messages) {
+          setMessages(msgData.data.messages);
+        }
+      }
+    } catch (err) {
+      console.error('Onboarding action failed:', err);
+    }
+  }, []);
 
   // ── Quick actions (no API key) ───────────────────────────────────────
   const quickActions = [
@@ -442,7 +504,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} />
             ))}
 
             {/* Streaming response */}
@@ -666,30 +728,29 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
 // ─── Message Bubble Component ────────────────────────────────────────────────
 
-function MessageBubble({ message, userPhoto, userName, diviName }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string }) {
+function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void }) {
   const isUser = message.role === 'user';
+  const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
   const initials = isUser
     ? (userName || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
     : (diviName || 'D')[0].toUpperCase();
 
+  // Parse onboarding metadata
+  const onboardingMeta = (() => {
+    if (!message.metadata) return null;
+    const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
+    if (meta?.isOnboarding && meta?.widgets) return meta;
+    return null;
+  })();
+
+  // Hide system-triggered messages
+  if (isSystemHidden) return null;
+
   return (
-    <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
-      {/* Avatar */}
-      {isUser && userPhoto ? (
-        <img
-          src={userPhoto}
-          alt={userName || 'You'}
-          className="w-8 h-8 rounded-full object-cover flex-shrink-0"
-        />
-      ) : (
-        <div
-          className={cn(
-            'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0',
-            isUser
-              ? 'bg-[var(--bg-surface)] text-[var(--text-secondary)]'
-              : 'bg-[var(--brand-primary)] text-white'
-          )}
-        >
+    <div className={cn('flex gap-3 items-start', isUser ? 'justify-end' : 'justify-start')}>
+      {/* Avatar — Divi on left */}
+      {!isUser && (
+        <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-[var(--brand-primary)] text-white">
           {initials}
         </div>
       )}
@@ -697,15 +758,15 @@ function MessageBubble({ message, userPhoto, userName, diviName }: { message: Ch
       {/* Content */}
       <div
         className={cn(
-          'flex-1 rounded-lg p-3 max-w-[80%]',
+          'rounded-xl px-4 py-3 max-w-[80%]',
           isUser
-            ? 'bg-[var(--brand-primary)]/10 ml-auto'
-            : 'bg-[var(--bg-surface)]'
+            ? 'bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20'
+            : 'bg-[var(--bg-surface)] border border-[var(--border-color)]'
         )}
       >
-        <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
-          {message.content}
-        </p>
+        <div className="text-sm text-[var(--text-primary)] leading-relaxed">
+          {renderMarkdownLite(message.content)}
+        </div>
         {/* Agent Widget rendering */}
         {(() => {
           const widgetPayload = parseWidgetPayload(message.metadata);
@@ -713,21 +774,152 @@ function MessageBubble({ message, userPhoto, userName, diviName }: { message: Ch
           return (
             <AgentWidgetContainer
               payload={widgetPayload}
-              onAction={(item: WidgetItem, action: WidgetItemAction, widget: AgentWidgetData) => {
+              onAction={async (item: WidgetItem, action: WidgetItemAction, widget: AgentWidgetData) => {
                 console.log('[AgentWidget] Action:', { item: item.id, action: action.action, widget: widget.title });
+
+                // Handle dynamic pricing checkout
+                if ((action.action === 'purchase' || action.action === 'custom') && action.payload?.executionId && action.payload?.agentId) {
+                  const { executionId, agentId } = action.payload;
+                  const approveAction = action.payload.action || (action.action === 'purchase' ? 'approve' : 'decline');
+
+                  try {
+                    const res = await fetch(`/api/marketplace/${agentId}/execute/${executionId}`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ action: approveAction }),
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      // Add a system message confirming the action
+                      const confirmMsg = approveAction === 'approve'
+                        ? `✅ Payment approved. ${data.message || ''}`
+                        : `❌ Quote declined. No charge applied.`;
+                      onAddMessage?.({
+                        id: `sys-${Date.now()}`,
+                        role: 'assistant',
+                        content: confirmMsg,
+                        createdAt: new Date().toISOString(),
+                      });
+                    } else {
+                      console.error('Quote action failed:', data.error);
+                    }
+                  } catch (err) {
+                    console.error('Failed to process quote action:', err);
+                  }
+                }
+
+                // Handle URL opening
+                if (action.action === 'open_url' && action.url) {
+                  window.open(action.url, '_blank');
+                }
               }}
             />
           );
         })()}
-        <p className="text-[10px] text-[var(--text-muted)] mt-1">
+        {/* Onboarding interactive widgets */}
+        {onboardingMeta && onboardingMeta.widgets?.length > 0 && (
+          <OnboardingChatWidgets
+            widgets={onboardingMeta.widgets}
+            phase={onboardingMeta.onboardingPhase}
+            onSubmit={(phase, settings) => onOnboardingAction?.('submit', phase, settings)}
+            onSkip={(phase) => onOnboardingAction?.('skip', phase)}
+            onGoogleConnect={(identity, accountIndex) => onOnboardingAction?.('google_connect', onboardingMeta.onboardingPhase, { identity, accountIndex })}
+          />
+        )}
+        <p className="text-[10px] text-[var(--text-muted)] mt-1.5 opacity-60">
           {formatTime(message.createdAt)}
         </p>
       </div>
+
+      {/* Avatar — User on right */}
+      {isUser && (
+        userPhoto ? (
+          <img
+            src={userPhoto}
+            alt={userName || 'You'}
+            className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 bg-[var(--bg-surface)] text-[var(--text-secondary)]">
+            {initials}
+          </div>
+        )
+      )}
     </div>
   );
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Markdown-lite renderer — handles bold, inline code, bullets, headers. Safe with special chars. */
+function renderMarkdownLite(text: string): React.ReactNode {
+  if (!text) return null;
+
+  // Process line by line for structure (headers, bullets), then inline for bold/code
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  for (let li = 0; li < lines.length; li++) {
+    const line = lines[li];
+
+    // Empty line → spacer
+    if (!line.trim()) {
+      elements.push(<br key={`br-${li}`} />);
+      continue;
+    }
+
+    // Heading lines (### heading)
+    const headingMatch = line.match(/^(#{1,4})\s+(.+)$/);
+    if (headingMatch) {
+      const level = headingMatch[1].length;
+      const content = renderInline(headingMatch[2], `h-${li}`);
+      const cls = level <= 2 ? 'font-bold text-base mt-2 mb-1' : 'font-semibold text-sm mt-1.5 mb-0.5';
+      elements.push(<div key={`h-${li}`} className={cls}>{content}</div>);
+      continue;
+    }
+
+    // Bullet lines (• or - or * at start)
+    const bulletMatch = line.match(/^(\s*)[•\-\*]\s+(.+)$/);
+    if (bulletMatch) {
+      const indent = bulletMatch[1].length > 0;
+      const content = renderInline(bulletMatch[2], `b-${li}`);
+      elements.push(
+        <div key={`b-${li}`} className={`flex gap-1.5 ${indent ? 'ml-4' : ''}`}>
+          <span className="text-[var(--text-muted)] flex-shrink-0 select-none">{'\u2022'}</span>
+          <span>{content}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // Regular line
+    elements.push(<span key={`l-${li}`}>{renderInline(line, `l-${li}`)}</span>);
+    if (li < lines.length - 1 && lines[li + 1]?.trim()) {
+      elements.push(<br key={`lbr-${li}`} />);
+    }
+  }
+
+  return <>{elements}</>;
+}
+
+/** Render inline formatting: **bold**, `code`, and preserve special characters */
+function renderInline(text: string, keyPrefix: string): React.ReactNode {
+  // Split on **bold** and `code` patterns
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={`${keyPrefix}-${i}`} className="font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return (
+        <code key={`${keyPrefix}-${i}`} className="px-1 py-0.5 rounded text-[11px] font-mono bg-white/[0.06]">
+          {part.slice(1, -1)}
+        </code>
+      );
+    }
+    return <span key={`${keyPrefix}-${i}`}>{part}</span>;
+  });
+}
 
 /** Client-side tag stripping for streaming display */
 function stripTagsClient(text: string): string {

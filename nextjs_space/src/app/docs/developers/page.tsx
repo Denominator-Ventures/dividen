@@ -72,7 +72,9 @@ const TOC = [
   { id: 'marketplace', label: 'Agent Marketplace API' },
   { id: 'federation', label: 'Cross-Instance API' },
   { id: 'integration-kit', label: 'Integration Kit' },
-  { id: 'queue-gating', label: 'Queue Gating' },
+  { id: 'queue-gating', label: 'Queue Gating & Confirmation' },
+  { id: 'cos-engine', label: 'CoS Execution Engine' },
+  { id: 'settings-api', label: 'Settings API (v2)' },
   { id: 'behavior-signals', label: 'Behavior Signals API' },
   { id: 'learnings-api', label: 'Learnings API' },
   { id: 'smart-tagging', label: 'Smart Tagging' },
@@ -518,14 +520,17 @@ Content-Type: application/json`}</Code>
           </p>
         </Section>
 
-        {/* ── Queue Gating ──────────────────────────────────── */}
-        <Section id="queue-gating" title="Queue Gating">
+        {/* ── Queue Gating & Confirmation ──────────────────────── */}
+        <Section id="queue-gating" title="Queue Gating & Confirmation Gate">
           <p className="text-[var(--text-secondary)] mb-4">
-            When Divi dispatches a task to the queue (via <InlineCode>{'[[dispatch_queue:...]]'}</InlineCode>), the system first checks
-            if the user has a handler capable of processing it. This prevents unactionable tasks from entering the queue.
+            When Divi dispatches a task to the queue, two layers of protection activate:
+            <strong> capability gating</strong> (does a handler exist?) and <strong>user confirmation</strong> (does the user approve?).
           </p>
 
-          <h3 className="text-lg font-bold mb-3">Gate Check Order</h3>
+          <h3 className="text-lg font-bold mb-3">Layer 1: Capability Gate</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            Before any queue item is created, the system checks if the user has a handler for the task type:
+          </p>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
             <div className="space-y-2 text-sm text-[var(--text-secondary)]">
               <div className="flex items-center gap-3">
@@ -543,17 +548,197 @@ Content-Type: application/json`}</Code>
             </div>
           </div>
 
-          <h3 className="text-lg font-bold mb-3">When No Handler Found</h3>
-          <p className="text-[var(--text-secondary)] text-sm mb-4">
-            The task is blocked and Divi uses <InlineCode>{'[[suggest_marketplace:{"search":"..."}]]'}</InlineCode> to surface
-            relevant capabilities from the marketplace. Suggestion cards render inline in chat with an Install button.
+          <h3 className="text-lg font-bold mb-3">Layer 2: Confirmation Gate</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            If a handler exists, the item is created with status <InlineCode>pending_confirmation</InlineCode> — it does NOT enter the active queue automatically.
+            The user sees it in the Queue panel with Approve / Reject buttons.
           </p>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <div className="flex items-center gap-3">
+                <span className="text-yellow-400 font-bold">🟡</span>
+                <span><InlineCode>pending_confirmation</InlineCode> → User sees Approve / Reject in Queue panel</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-green-400 font-bold">✓</span>
+                <span>Approve → status moves to <InlineCode>ready</InlineCode> (enters execution pipeline)</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-red-400 font-bold">✕</span>
+                <span>Reject → item is deleted (never existed)</span>
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Queue Item Status Lifecycle</h3>
+          <Code>{`pending_confirmation → ready → in_progress → done_today
+                                    ↘ blocked (if stuck)
+                                    ↘ later (deferred)
+
+Status guards:
+  - pending_confirmation cannot skip to in_progress or done_today
+  - done_today cannot revert to ready or in_progress`}</Code>
+
+          <h3 className="text-lg font-bold mb-3">Bypassing the Confirmation Gate</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            Open-source self-hosted users who want tasks to enter the queue without manual approval can set <InlineCode>queueAutoApprove: true</InlineCode>:
+          </p>
+          <Code>{`// Via v2 API
+PATCH /api/v2/settings
+Authorization: Bearer dvd_your_key
+{ "queueAutoApprove": true }
+
+// Via session API
+PUT /api/settings
+{ "queueAutoApprove": true }`}</Code>
+
+          <h3 className="text-lg font-bold mb-3">API: Confirm / Reject</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="POST" path="/api/v2/queue/{id}/confirm" description='Approve or reject. Body: { "action": "approve" | "reject" }. Only works on pending_confirmation items.' auth="Bearer" />
+            <Endpoint method="POST" path="/api/queue/confirm" description='Session-based confirm. Body: { "id": "...", "action": "approve" | "reject" }' auth="Session" />
+          </div>
 
           <h3 className="text-lg font-bold mb-3">Action Tags</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4">
-            <Endpoint method="TAG" path='[[dispatch_queue:{"task":"..."}]]' description="Now queue-gated — fails if no handler, triggers marketplace suggestions" />
-            <Endpoint method="TAG" path='[[suggest_marketplace:{"search":"...","category":"..."}]]' description="Surfaces matching capabilities as inline chat cards" />
+            <Endpoint method="TAG" path='[[dispatch_queue:{"title":"...","type":"task"}]]' description="Creates as pending_confirmation (or ready if queueAutoApprove). Gated by capability check." />
+            <Endpoint method="TAG" path='[[queue_capability_action:{"capabilityType":"email","action":"compose"}]]' description="Creates capability action as pending_confirmation. Same auto-approve logic." />
+            <Endpoint method="TAG" path='[[suggest_marketplace:{"search":"...","category":"..."}]]' description="Surfaces matching capabilities when no handler found (gate failure)" />
           </div>
+
+          <h3 className="text-lg font-bold mb-3">Schema Change</h3>
+          <Code>{`// User model — new field
+queueAutoApprove  Boolean  @default(false)
+
+// QueueItem.status now includes:
+// "pending_confirmation" | "ready" | "in_progress" | "done_today" | "blocked" | "later"`}</Code>
+        </Section>
+
+        {/* ── CoS Execution Engine ───────────────────────────── */}
+        <Section id="cos-engine" title="Chief of Staff Execution Engine">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Chief of Staff (CoS) mode transforms Divi from reactive (waiting for you in chat) to proactive (executing queue tasks sequentially).
+            When activated, Divi picks the highest-priority ready item, moves it to <InlineCode>in_progress</InlineCode>, <strong>executes it</strong>, and when done,
+            auto-dispatches the next item.
+          </p>
+
+          <h3 className="text-lg font-bold mb-3">Execution Strategies</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <div className="space-y-3 text-sm text-[var(--text-secondary)]">
+              <div>
+                <span className="font-bold text-blue-400">Capability Tasks</span>
+                <span className="text-[var(--text-muted)]"> — metadata contains <InlineCode>capabilityType</InlineCode></span>
+                <p className="mt-1 pl-4">Invokes the capability (email, meetings, etc.) and logs as activity. Execution detail stored in <InlineCode>metadata.cosExecution</InlineCode>.</p>
+              </div>
+              <div>
+                <span className="font-bold text-purple-400">Agent Delegation</span>
+                <span className="text-[var(--text-muted)]"> — metadata contains <InlineCode>handler.connectionId</InlineCode></span>
+                <p className="mt-1 pl-4">Creates an <InlineCode>AgentRelay</InlineCode> (intent: <InlineCode>assign_task</InlineCode>) to the connected agent via comms channel.</p>
+              </div>
+              <div>
+                <span className="font-bold text-green-400">Generic Tasks</span>
+                <span className="text-[var(--text-muted)]"> — no specific handler in metadata</span>
+                <p className="mt-1 pl-4">Divi works on the task directly. Activity feed shows execution status.</p>
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Sequential Dispatch Contract</h3>
+          <Code>{`// One task in flight at a time
+// Priority: urgent > high > medium > low, then oldest first
+
+1. User activates CoS → onEnterCoSMode(userId)
+   → Dispatches top READY item to in_progress
+   → Executes it (capability / relay / generic)
+
+2. Task completes → onTaskComplete(userId, itemId)
+   → Auto-dispatches next READY item
+   → Executes it
+   → Repeat until queue empty
+
+3. User switches back to Cockpit
+   → Returns briefing: { completedToday, stillReady, blocked }`}</Code>
+
+          <h3 className="text-lg font-bold mb-3">Activating via API</h3>
+          <Code>{`// Switch to CoS mode (auto-dispatches if queue has ready items)
+PATCH /api/v2/settings
+Authorization: Bearer dvd_your_key
+{ "mode": "chief_of_staff" }
+
+// Response includes auto-dispatched item:
+{
+  "success": true,
+  "data": {
+    "mode": "chief_of_staff",
+    "autoDispatched": { "id": "clx...", "title": "Review proposal", "status": "in_progress" }
+  }
+}
+
+// Switch back to Cockpit (returns briefing)
+PATCH /api/v2/settings
+{ "mode": "cockpit" }
+// → { "briefing": { "completedToday": 3, "stillReady": 1, "blocked": 0 } }`}</Code>
+
+          <h3 className="text-lg font-bold mb-3">Execution Metadata</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            After CoS executes a task, the queue item&apos;s metadata is enriched with:
+          </p>
+          <Code>{`{
+  "cosExecution": {
+    "method": "capability" | "relay" | "generic",
+    "detail": "email:compose" | "Delegated to Sarah" | "Divi is executing",
+    "startedAt": "2026-04-14T00:15:00.000Z"
+  }
+}`}</Code>
+        </Section>
+
+        {/* ── Settings API ───────────────────────────────────── */}
+        <Section id="settings-api" title="Settings API (v2)">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Programmatic access to user settings — mode switching, queue behavior, and onboarding status.
+            Useful for open-source integrations, automation scripts, and custom dashboards.
+          </p>
+
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] divide-y divide-white/[0.04] mb-6">
+            <Endpoint method="GET" path="/api/v2/settings" description="Read current settings: mode, queueAutoApprove, diviName, goalsEnabled, onboarding status" auth="Bearer" />
+            <Endpoint method="PATCH" path="/api/v2/settings" description='Update settings. Body: { "mode": "chief_of_staff", "queueAutoApprove": true }' auth="Bearer" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Available Fields</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4">
+            <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+              <div className="flex items-start gap-3">
+                <InlineCode>mode</InlineCode>
+                <span><InlineCode>{'"cockpit"'}</InlineCode> | <InlineCode>{'"chief_of_staff"'}</InlineCode> — Operating mode. Switching to CoS auto-dispatches.</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <InlineCode>queueAutoApprove</InlineCode>
+                <span><InlineCode>boolean</InlineCode> — When true, tasks skip <InlineCode>pending_confirmation</InlineCode> and go straight to <InlineCode>ready</InlineCode>.</span>
+              </div>
+            </div>
+          </div>
+
+          <h3 className="text-lg font-bold mt-6 mb-3">Open-Source Quick Start</h3>
+          <p className="text-[var(--text-secondary)] text-sm mb-3">
+            If you&apos;re self-hosting and want to skip the onboarding UI entirely:
+          </p>
+          <Code>{`# 1. Create account via /api/setup
+curl -X POST /api/setup \\
+  -d '{"email":"you@domain.com","password":"...","name":"You","acceptedTerms":true}'
+
+# 2. Generate API key via /api/v2/keys
+curl -X POST /api/v2/keys \\
+  -H "Authorization: Bearer <session>" \\
+  -d '{"label":"my-integration","scopes":["queue","chat"]}'
+
+# 3. Configure for automation
+curl -X PATCH /api/v2/settings \\
+  -H "Authorization: Bearer dvd_your_key" \\
+  -d '{"queueAutoApprove": true}'
+
+# 4. Activate CoS mode
+curl -X PATCH /api/v2/settings \\
+  -H "Authorization: Bearer dvd_your_key" \\
+  -d '{"mode": "chief_of_staff"}'`}</Code>
         </Section>
 
         {/* ── Behavior Signals API ────────────────────────────── */}

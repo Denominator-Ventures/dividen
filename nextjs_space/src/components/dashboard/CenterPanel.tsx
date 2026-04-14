@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState, useEffect } from 'react';
 import type { CenterTab } from '@/types';
 import { cn } from '@/lib/utils';
 import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
@@ -46,7 +46,7 @@ const primaryTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'chat', label: 'Chat', icon: '💬' },
   { id: 'crm', label: 'CRM', icon: '👥' },
   { id: 'calendar', label: 'Calendar', icon: '📅' },
-  { id: 'inbox', label: 'Inbox', icon: '📧' },
+  { id: 'inbox', label: 'Email', icon: '📧' },
   { id: 'recordings', label: 'Recordings', icon: '🎙️' },
 ];
 
@@ -66,6 +66,31 @@ const networkTabIds = new Set(networkTabs.map((t) => t.id));
 
 export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMarketplacePrefillConsumed, chatPrefill, onChatPrefillConsumed, onTriage, onChatWithPrefill, onOpenCatchUpSettings }: CenterPanelProps) {
   const isNetworkActive = networkTabIds.has(activeTab);
+
+  // ── Tab badge counts ──────────────────────────────────────────────
+  const [badges, setBadges] = useState<Record<string, number>>({});
+  useEffect(() => {
+    const fetchBadges = async () => {
+      try {
+        // Fetch inbox unread count
+        const inboxRes = await fetch('/api/inbox?limit=1').then(r => r.json()).catch(() => null);
+        const unreadEmails = inboxRes?.data?.unreadCount ?? inboxRes?.data?.total ?? 0;
+
+        // Fetch calendar events remaining today
+        const calRes = await fetch('/api/calendar?view=day').then(r => r.json()).catch(() => null);
+        const eventsToday = calRes?.data?.length ?? 0;
+
+        // Fetch drive file count
+        const driveRes = await fetch('/api/drive?limit=1').then(r => r.json()).catch(() => null);
+        const driveFiles = driveRes?.data?.total ?? driveRes?.data?.length ?? 0;
+
+        setBadges({ inbox: unreadEmails, calendar: eventsToday, drive: driveFiles });
+      } catch { /* non-critical */ }
+    };
+    fetchBadges();
+    const interval = setInterval(fetchBadges, 60000);
+    return () => clearInterval(interval);
+  }, []);
   const hasSubRow = isNetworkActive;
   const activeSubTabs = isNetworkActive ? networkTabs : [];
 
@@ -131,11 +156,19 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
           {/* Core tabs */}
-          {primaryTabs.map((tab) => (
-            <button key={tab.id} onClick={() => onTabChange(tab.id)} className={tabClass(activeTab === tab.id)}>
-              {tab.icon} {tab.label}
-            </button>
-          ))}
+          {primaryTabs.map((tab) => {
+            const badge = badges[tab.id] ?? 0;
+            return (
+              <button key={tab.id} onClick={() => onTabChange(tab.id)} className={cn(tabClass(activeTab === tab.id), 'relative')}>
+                {tab.icon} {tab.label}
+                {badge > 0 && (
+                  <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-[var(--brand-primary)] text-white">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
 
           {/* Divider */}
           <div className="w-px h-4 bg-[var(--border-color)] mx-1 flex-shrink-0" />
@@ -152,8 +185,13 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
           <div className="w-px h-4 bg-[var(--border-color)] mx-1 flex-shrink-0" />
 
           {/* Drive — standalone */}
-          <button onClick={() => onTabChange('drive')} className={tabClass(activeTab === 'drive')}>
+          <button onClick={() => onTabChange('drive')} className={cn(tabClass(activeTab === 'drive'), 'relative')}>
             📁 Drive
+            {(badges.drive ?? 0) > 0 && (
+              <span className="ml-1 inline-flex items-center justify-center min-w-[16px] h-4 px-1 text-[9px] font-bold rounded-full bg-[var(--brand-primary)] text-white">
+                {badges.drive > 99 ? '99+' : badges.drive}
+              </span>
+            )}
           </button>
         </div>
         </div>
@@ -207,7 +245,7 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'kanban' && <TabErrorBoundary tabName="Board"><KanbanView /></TabErrorBoundary>}
         {activeTab === 'crm' && <TabErrorBoundary tabName="CRM"><CrmView /></TabErrorBoundary>}
         {activeTab === 'calendar' && <TabErrorBoundary tabName="Calendar"><CalendarView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
-        {activeTab === 'inbox' && <TabErrorBoundary tabName="Inbox"><InboxView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
+        {activeTab === 'inbox' && <TabErrorBoundary tabName="Email"><InboxView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'recordings' && <TabErrorBoundary tabName="Recordings"><RecordingsView /></TabErrorBoundary>}
         {activeTab === 'drive' && <TabErrorBoundary tabName="Drive"><DriveView onDiscuss={onChatWithPrefill} /></TabErrorBoundary>}
         {activeTab === 'discover' && <TabErrorBoundary tabName="Discover"><DiscoverView /></TabErrorBoundary>}

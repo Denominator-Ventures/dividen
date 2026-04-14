@@ -31,7 +31,7 @@ export async function GET() {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, name: true, email: true, username: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true },
+    select: { id: true, name: true, email: true, username: true, mode: true, role: true, hasSeenWalkthrough: true, hasCompletedOnboarding: true, onboardingPhase: true, diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, profilePhotoUrl: true, queueAutoApprove: true },
   });
 
   const apiKeys = await prisma.agentApiKey.findMany({
@@ -150,10 +150,13 @@ export async function PUT(request: NextRequest) {
   }
 
   // Update onboarding status
-  if (typeof body.hasCompletedOnboarding === 'boolean') {
+  if (typeof body.hasCompletedOnboarding === 'boolean' || typeof body.onboardingPhase === 'number') {
+    const onboardingData: any = {};
+    if (typeof body.hasCompletedOnboarding === 'boolean') onboardingData.hasCompletedOnboarding = body.hasCompletedOnboarding;
+    if (typeof body.onboardingPhase === 'number') onboardingData.onboardingPhase = body.onboardingPhase;
     await prisma.user.update({
       where: { id: userId },
-      data: { hasCompletedOnboarding: body.hasCompletedOnboarding },
+      data: onboardingData,
     });
   }
 
@@ -170,6 +173,14 @@ export async function PUT(request: NextRequest) {
     } else if (clean.length === 0) {
       await prisma.user.update({ where: { id: userId }, data: { username: null } });
     }
+  }
+
+  // Update queue auto-approve setting
+  if (typeof body.queueAutoApprove === 'boolean') {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { queueAutoApprove: body.queueAutoApprove },
+    });
   }
 
   // Update Divi personalization settings

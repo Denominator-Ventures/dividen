@@ -28,6 +28,38 @@ const config: Config = {
         heading: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
+      keyframes: {
+        'flow-right': {
+          '0%': { left: '0%', opacity: '0' },
+          '10%': { opacity: '1' },
+          '90%': { opacity: '1' },
+          '100%': { left: '100%', opacity: '0' },
+        },
+        'flow-down': {
+          '0%': { top: '0%', opacity: '0' },
+          '10%': { opacity: '1' },
+          '90%': { opacity: '1' },
+          '100%': { top: '100%', opacity: '0' },
+        },
+        'flow-left': {
+          '0%': { right: '0%', opacity: '0' },
+          '10%': { opacity: '1' },
+          '90%': { opacity: '1' },
+          '100%': { right: '100%', opacity: '0' },
+        },
+        'flow-up': {
+          '0%': { bottom: '0%', opacity: '0' },
+          '10%': { opacity: '1' },
+          '90%': { opacity: '1' },
+          '100%': { bottom: '100%', opacity: '0' },
+        },
+      },
+      animation: {
+        'flow-right': 'flow-right 2s ease-in-out infinite',
+        'flow-down': 'flow-down 2s ease-in-out infinite',
+        'flow-left': 'flow-left 2s ease-in-out infinite',
+        'flow-up': 'flow-up 2s ease-in-out infinite',
+      },
     },
   },
   plugins: [],

@@ -69,11 +69,12 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Build System Prompt (13 layers) ───────────────────────────────────
+  // ── Build System Prompt (dynamic — loads only relevant groups) ────────
   const systemPrompt = await buildSystemPrompt({
     userId: user.id,
     mode: user.mode,
     userName: user.name,
+    currentMessage: message.trim(),
   });
 
   // ── Build Message History ─────────────────────────────────────────────
@@ -142,24 +143,44 @@ export async function POST(request: Request) {
                 controller.enqueue(encoder.encode(`data: ${tagData}\n\n`));
               }
 
+              // Check if any tag result is a settings widget — merge widget data into metadata
+              const settingsTag = tagResults.find((r: any) => r.data?.isSettingsWidget);
+              let msgMetadata: any = tags.length > 0 ? { tags: tagResults } : null;
+              if (settingsTag?.data) {
+                msgMetadata = {
+                  ...msgMetadata,
+                  isOnboarding: true, // reuse the widget renderer
+                  onboardingPhase: -1,
+                  widgets: settingsTag.data.widgets,
+                  settingsGroup: settingsTag.data.settingsGroup,
+                };
+              }
+
               // Save assistant message (with raw content including tags for context)
               await prisma.chatMessage.create({
                 data: {
                   role: 'assistant',
                   content: fullText,
                   userId,
-                  metadata: tags.length > 0
-                    ? JSON.stringify({ tags: tagResults })
-                    : null,
+                  metadata: msgMetadata ? JSON.stringify(msgMetadata) : null,
                 },
               });
 
-              // Send done event with clean text
-              const doneData = JSON.stringify({
+              // Send done event with clean text (include widget metadata if present)
+              const donePayload: any = {
                 type: 'done',
                 content: cleanText,
                 tagsExecuted: tagResults.length,
-              });
+              };
+              if (settingsTag?.data) {
+                donePayload.metadata = {
+                  isOnboarding: true,
+                  onboardingPhase: -1,
+                  widgets: settingsTag.data.widgets,
+                  settingsGroup: settingsTag.data.settingsGroup,
+                };
+              }
+              const doneData = JSON.stringify(donePayload);
               controller.enqueue(encoder.encode(`data: ${doneData}\n\n`));
               controller.close();
             } catch (error: any) {

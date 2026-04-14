@@ -140,32 +140,42 @@ function SettingsPageInner() {
     if (res.ok) setLearnings(prev => prev.filter(l => l.id !== id));
   };
 
-  useEffect(() => {
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success) setData(res.data);
-      })
-      .finally(() => setLoading(false));
+  const [fetchError, setFetchError] = useState(false);
 
-    // Fetch memory stats
-    fetch('/api/memory')
-      .then((res) => res.json())
-      .then((res) => {
-        if (res.success) {
-          const items = res.data || [];
-          setMemoryStats({
-            total: items.length,
-            tier1: items.filter((i: any) => i.tier === 1).length,
-            tier2: items.filter((i: any) => i.tier === 2).length,
-            tier3: items.filter((i: any) => i.tier === 3).length,
-            pinned: items.filter((i: any) => i.pinned).length,
-            approved: items.filter((i: any) => i.approved === true).length,
-            pending: items.filter((i: any) => i.tier === 3 && i.approved === null).length,
-          });
-        }
-      });
+  const loadSettings = useCallback(async (retries = 2) => {
+    setLoading(true);
+    setFetchError(false);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const res = await fetch('/api/settings');
+        const json = await res.json();
+        if (json.success) { setData(json.data); setLoading(false); break; }
+        if (i === retries) { setFetchError(true); setLoading(false); }
+      } catch {
+        if (i === retries) { setFetchError(true); setLoading(false); }
+        else await new Promise(r => setTimeout(r, 1000));
+      }
+    }
+    // Fetch memory stats (non-critical, no retry needed)
+    try {
+      const memRes = await fetch('/api/memory');
+      const memJson = await memRes.json();
+      if (memJson.success) {
+        const items = memJson.data || [];
+        setMemoryStats({
+          total: items.length,
+          tier1: items.filter((i: any) => i.tier === 1).length,
+          tier2: items.filter((i: any) => i.tier === 2).length,
+          tier3: items.filter((i: any) => i.tier === 3).length,
+          pinned: items.filter((i: any) => i.pinned).length,
+          approved: items.filter((i: any) => i.approved === true).length,
+          pending: items.filter((i: any) => i.tier === 3 && i.approved === null).length,
+        });
+      }
+    } catch { /* non-critical */ }
   }, []);
+
+  useEffect(() => { loadSettings(); }, [loadSettings]);
 
   const handleClearOldMemories = async () => {
     if (!confirm('This will delete all Tier 3 patterns with confidence below 0.3. Continue?')) return;
@@ -207,6 +217,16 @@ function SettingsPageInner() {
     return (
       <div className="p-6">
         <div className="animate-pulse text-[var(--text-secondary)]">Loading settings...</div>
+      </div>
+    );
+  }
+
+  if (fetchError && !data) {
+    return (
+      <div className="p-6 text-center space-y-3">
+        <div className="text-3xl opacity-40">⚠️</div>
+        <p className="text-sm text-[var(--text-secondary)]">Failed to load settings. This may be a temporary connection issue.</p>
+        <button onClick={() => loadSettings()} className="btn-primary text-sm px-4 py-2">Retry</button>
       </div>
     );
   }
@@ -533,7 +553,7 @@ function SettingsPageInner() {
               <div>
                 <h2 className="font-semibold">🌐 Federation</h2>
                 <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                  Configure cross-instance connections. Allow users from other DiviDen deployments to connect with yours.
+                  Network connection and cross-instance settings. DiviDen.ai is the primary hub — logged-in users are automatically connected. Federation is only needed for external open-source instances.
                   <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 ml-1">Read the Federation Guide →</a>
                 </p>
               </div>

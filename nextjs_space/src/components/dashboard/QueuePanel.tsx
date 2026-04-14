@@ -55,17 +55,95 @@ function QueueItemCard({
   onDelete,
   onSendToComms,
   onDiscuss,
+  onEdit,
 }: {
   item: QueueItemData;
   onStatusChange: (id: string, status: QueueItemStatus) => void;
   onDelete: (id: string) => void;
   onSendToComms?: (id: string, title: string) => void;
   onDiscuss?: (context: string) => void;
+  onEdit?: (id: string, data: { title?: string; description?: string; priority?: string }) => Promise<void>;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(item.title);
+  const [editDesc, setEditDesc] = useState(item.description || '');
+  const [editPriority, setEditPriority] = useState(item.priority);
+  const [saving, setSaving] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
   const capMeta = parseCapabilityMeta(item.metadata);
   const isCapabilityAction = !!capMeta?.capabilityType;
   const capIcon = capMeta ? (capabilityIcons[capMeta.capabilityType || ''] || '⚡') : '';
+
+  // Parse smart prompter metadata
+  const parsedMeta = (() => {
+    if (!item.metadata) return null;
+    try { return JSON.parse(item.metadata); } catch { return null; }
+  })();
+  const displaySummary: string | null = parsedMeta?.displaySummary || null;
+  const hasOptimizedPayload = !!parsedMeta?.optimizedPayload;
+  const optimizedForAgent: string | null = parsedMeta?._optimizedForAgent || null;
+
+  async function handleSaveEdit() {
+    if (!onEdit) return;
+    setSaving(true);
+    const changes: any = {};
+    if (editTitle !== item.title) changes.title = editTitle;
+    if (editDesc !== (item.description || '')) changes.description = editDesc;
+    if (editPriority !== item.priority) changes.priority = editPriority;
+    if (Object.keys(changes).length === 0) { setEditing(false); setSaving(false); return; }
+    await onEdit(item.id, changes);
+    setSaving(false);
+    setEditing(false);
+    // Trigger smart optimization in background
+    setOptimizing(true);
+    fetch(`/api/queue/${item.id}/optimize`, { method: 'POST' })
+      .then(r => r.json())
+      .then(() => setOptimizing(false))
+      .catch(() => setOptimizing(false));
+  }
+
+  // If editing, show inline edit form
+  if (editing) {
+    return (
+      <div className="bg-[var(--bg-secondary)] border border-[var(--brand-primary)]/30 rounded-lg p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-[var(--brand-primary)] uppercase tracking-wider">Edit Task</span>
+          <button onClick={() => { setEditing(false); setEditTitle(item.title); setEditDesc(item.description || ''); setEditPriority(item.priority); }} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Cancel</button>
+        </div>
+        <input
+          value={editTitle}
+          onChange={e => setEditTitle(e.target.value)}
+          className="w-full text-sm bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2 py-1.5 text-[var(--text-primary)] focus:border-[var(--brand-primary)]/50 outline-none"
+          placeholder="Task title"
+        />
+        <textarea
+          value={editDesc}
+          onChange={e => setEditDesc(e.target.value)}
+          className="w-full text-xs bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2 py-1.5 text-[var(--text-secondary)] resize-none focus:border-[var(--brand-primary)]/50 outline-none"
+          rows={2}
+          placeholder="Description (optional)"
+        />
+        <div className="flex items-center gap-2">
+          <select value={editPriority} onChange={e => setEditPriority(e.target.value as CardPriority)} className="text-[11px] bg-[var(--bg-surface)] border border-[var(--border-color)] rounded px-2 py-1 text-[var(--text-secondary)]">
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="urgent">Urgent</option>
+          </select>
+          <div className="flex-1" />
+          <button
+            onClick={handleSaveEdit}
+            disabled={saving || !editTitle.trim()}
+            className="text-[11px] px-3 py-1 rounded-md bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] border border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/25 font-medium disabled:opacity-50"
+          >
+            {saving ? 'Saving...' : 'Save & Optimize'}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={cn(
@@ -79,12 +157,20 @@ function QueueItemCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             {isCapabilityAction && <span className="text-sm">{capIcon}</span>}
-            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight">
-              {item.title}
+            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight" title={item.title}>
+              {displaySummary || item.title}
             </h4>
+            {optimizing && <span className="text-[9px] text-[var(--brand-primary)] animate-pulse">✨ optimizing...</span>}
+            {hasOptimizedPayload && !optimizing && <span className="text-[9px] text-green-400" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
           </div>
+          {/* Show full title if summary is truncated */}
+          {displaySummary && displaySummary !== item.title && (
+            <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 mt-0.5 leading-tight">
+              {item.title}
+            </p>
+          )}
           {item.description && (
-            <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-1">
+            <p className="text-xs text-[var(--text-muted)] line-clamp-2 mt-1">
               {item.description}
             </p>
           )}
@@ -186,6 +272,16 @@ function QueueItemCard({
               ↩
             </button>
           )}
+          {/* Edit button */}
+          {onEdit && (
+            <button
+              onClick={() => setEditing(true)}
+              className="text-[10px] px-1.5 py-0.5 rounded bg-amber-600/15 text-amber-400 hover:bg-amber-600/25"
+              title="Edit task"
+            >
+              ✏️
+            </button>
+          )}
           {onDiscuss && (
             <button
               onClick={() => onDiscuss(`Let's discuss this task: "${item.title}". ${item.description ? `Description: ${item.description}` : ''} Status: ${item.status}, Priority: ${item.priority}. Help me work through this.`)}
@@ -217,55 +313,237 @@ function QueueItemCard({
   );
 }
 
-// ─── New Item Form ──────────────────────────────────────────────────────────
+// ─── Smart Task Assembly ────────────────────────────────────────────────────
 
-function NewQueueItemForm({
+type AssemblyStep = 'type' | 'details' | 'context' | 'review';
+
+const TASK_TYPE_OPTIONS: Array<{ id: string; label: string; icon: string }> = [
+  { id: 'research', label: 'Research', icon: '🔍' },
+  { id: 'review', label: 'Review & Feedback', icon: '📝' },
+  { id: 'technical', label: 'Technical', icon: '⚙️' },
+  { id: 'creative', label: 'Creative', icon: '🎨' },
+  { id: 'strategy', label: 'Strategy', icon: '♟️' },
+  { id: 'operations', label: 'Operations', icon: '📋' },
+  { id: 'sales', label: 'Sales & BD', icon: '💼' },
+  { id: 'finance', label: 'Finance', icon: '📊' },
+  { id: 'introductions', label: 'Introductions', icon: '🤝' },
+  { id: 'mentoring', label: 'Mentoring', icon: '🌱' },
+  { id: 'custom', label: 'Other', icon: '✨' },
+];
+
+const PRIORITY_OPTIONS: Array<{ id: CardPriority; label: string; icon: string; color: string }> = [
+  { id: 'low', label: 'Low', icon: '○', color: 'text-gray-400' },
+  { id: 'medium', label: 'Medium', icon: '◐', color: 'text-blue-400' },
+  { id: 'high', label: 'High', icon: '●', color: 'text-orange-400' },
+  { id: 'urgent', label: 'Urgent', icon: '⚠', color: 'text-red-400' },
+];
+
+interface TaskDraft {
+  taskType: string;
+  objective: string;
+  context: string;
+  expectedOutcome: string;
+  priority: CardPriority;
+}
+
+function SmartTaskAssembly({
   onAdd,
   onCancel,
 }: {
-  onAdd: (title: string, priority: CardPriority) => void;
+  onAdd: (title: string, priority: CardPriority, metadata?: Record<string, any>) => void;
   onCancel: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [priority, setPriority] = useState<CardPriority>('medium');
+  const [step, setStep] = useState<AssemblyStep>('type');
+  const [draft, setDraft] = useState<TaskDraft>({
+    taskType: '',
+    objective: '',
+    context: '',
+    expectedOutcome: '',
+    priority: 'medium',
+  });
+
+  const selectedType = TASK_TYPE_OPTIONS.find(t => t.id === draft.taskType);
+
+  const canProceedFromType = draft.taskType !== '';
+  const canProceedFromDetails = draft.objective.trim().length >= 5;
+  const canSubmit = canProceedFromType && canProceedFromDetails;
+
+  function handleSubmit() {
+    const title = draft.objective.trim();
+    const metadata: Record<string, any> = {
+      taskType: draft.taskType,
+      assembledTask: true,
+    };
+    if (draft.context.trim()) metadata.context = draft.context.trim();
+    if (draft.expectedOutcome.trim()) metadata.expectedOutcome = draft.expectedOutcome.trim();
+    onAdd(title, draft.priority, metadata);
+  }
 
   return (
-    <div className="bg-[var(--bg-surface)] rounded-lg p-3 space-y-2">
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="New queue item..."
-        className="input-field text-sm py-1.5"
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' && title.trim()) onAdd(title.trim(), priority);
-          if (e.key === 'Escape') onCancel();
-        }}
-      />
-      <div className="flex items-center justify-between">
-        <select
-          value={priority}
-          onChange={(e) => setPriority(e.target.value as CardPriority)}
-          className="text-xs bg-[var(--bg-secondary)] border border-[var(--border-color)] rounded px-2 py-1 text-[var(--text-secondary)]"
-        >
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-        <div className="flex gap-1">
-          <button onClick={onCancel} className="text-xs text-[var(--text-muted)] px-2 py-1">
-            Cancel
-          </button>
-          <button
-            onClick={() => title.trim() && onAdd(title.trim(), priority)}
-            disabled={!title.trim()}
-            className="text-xs btn-primary px-2 py-1"
-          >
-            Add
-          </button>
+    <div className="bg-[var(--bg-surface)] rounded-lg border border-[var(--brand-primary)]/20 overflow-hidden">
+      {/* Header */}
+      <div className="px-3 py-2 bg-[var(--brand-primary)]/10 border-b border-[var(--brand-primary)]/20 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="text-xs">🧩</span>
+          <span className="text-[11px] font-semibold text-[var(--brand-primary)]">Smart Task Assembly</span>
         </div>
+        <div className="flex items-center gap-1">
+          {(['type', 'details', 'context', 'review'] as AssemblyStep[]).map((s, i) => (
+            <div key={s} className={cn(
+              'w-1.5 h-1.5 rounded-full transition-colors',
+              step === s ? 'bg-[var(--brand-primary)]' :
+              (['type', 'details', 'context', 'review'].indexOf(step) > i) ? 'bg-[var(--brand-primary)]/50' : 'bg-[var(--text-muted)]/30'
+            )} />
+          ))}
+        </div>
+      </div>
+
+      <div className="p-3 space-y-3">
+        {/* Step 1: Task Type */}
+        {step === 'type' && (
+          <div className="space-y-2">
+            <label className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">What kind of task?</label>
+            <div className="grid grid-cols-3 gap-1.5">
+              {TASK_TYPE_OPTIONS.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => { setDraft(d => ({ ...d, taskType: t.id })); setStep('details'); }}
+                  className={cn(
+                    'px-2 py-2 rounded-md text-[11px] font-medium transition-all text-center border',
+                    draft.taskType === t.id
+                      ? 'bg-[var(--brand-primary)]/15 border-[var(--brand-primary)]/40 text-[var(--brand-primary)]'
+                      : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--brand-primary)]/30 hover:bg-[var(--bg-surface-hover)]'
+                  )}
+                >
+                  <div className="text-base mb-0.5">{t.icon}</div>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: Objective + Priority */}
+        {step === 'details' && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm">{selectedType?.icon}</span>
+              <span className="text-[11px] font-semibold text-[var(--text-primary)]">{selectedType?.label}</span>
+              <button onClick={() => setStep('type')} className="text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">← change</button>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">Objective <span className="text-red-400">*</span></label>
+              <textarea
+                value={draft.objective}
+                onChange={e => setDraft(d => ({ ...d, objective: e.target.value }))}
+                placeholder="What needs to be accomplished? Be specific about the desired result..."
+                className="input-field text-sm py-1.5 mt-1 resize-none"
+                rows={2}
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Escape') onCancel(); }}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">Priority</label>
+              <div className="flex gap-1 mt-1">
+                {PRIORITY_OPTIONS.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => setDraft(d => ({ ...d, priority: p.id }))}
+                    className={cn(
+                      'flex-1 px-2 py-1.5 rounded text-[11px] font-medium transition-all border text-center',
+                      draft.priority === p.id
+                        ? 'bg-[var(--brand-primary)]/15 border-[var(--brand-primary)]/40 text-[var(--brand-primary)]'
+                        : 'border-[var(--border-color)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
+                    )}
+                  >
+                    <span className={p.color}>{p.icon}</span> {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-between pt-1">
+              <button onClick={() => setStep('type')} className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">← Back</button>
+              <button
+                onClick={() => setStep('context')}
+                disabled={!canProceedFromDetails}
+                className="text-[11px] btn-primary px-3 py-1 disabled:opacity-40"
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Context & Expected Outcome (optional) */}
+        {step === 'context' && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm">{selectedType?.icon}</span>
+              <span className="text-[11px] text-[var(--text-muted)] truncate">{draft.objective}</span>
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">Context <span className="text-[var(--text-muted)]">(optional)</span></label>
+              <textarea
+                value={draft.context}
+                onChange={e => setDraft(d => ({ ...d, context: e.target.value }))}
+                placeholder="Background info, links, constraints, dependencies..."
+                className="input-field text-sm py-1.5 mt-1 resize-none"
+                rows={2}
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">Expected Outcome <span className="text-[var(--text-muted)]">(optional)</span></label>
+              <textarea
+                value={draft.expectedOutcome}
+                onChange={e => setDraft(d => ({ ...d, expectedOutcome: e.target.value }))}
+                placeholder="What does 'done' look like? Deliverables, format, success criteria..."
+                className="input-field text-sm py-1.5 mt-1 resize-none"
+                rows={2}
+              />
+            </div>
+            <div className="flex justify-between pt-1">
+              <button onClick={() => setStep('details')} className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">← Back</button>
+              <button onClick={() => setStep('review')} className="text-[11px] btn-primary px-3 py-1">Review →</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Review & Submit */}
+        {step === 'review' && (
+          <div className="space-y-2">
+            <label className="text-[11px] font-medium text-[var(--text-secondary)] uppercase tracking-wider">Task Summary</label>
+            <div className="bg-[var(--bg-secondary)] rounded-md p-2.5 space-y-1.5 text-[12px]">
+              <div className="flex items-center gap-2">
+                <span>{selectedType?.icon}</span>
+                <span className="font-medium text-[var(--text-primary)]">{selectedType?.label}</span>
+                <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full',
+                  draft.priority === 'urgent' ? 'bg-red-500/20 text-red-400' :
+                  draft.priority === 'high' ? 'bg-orange-500/20 text-orange-400' :
+                  draft.priority === 'medium' ? 'bg-blue-500/20 text-blue-400' :
+                  'bg-gray-500/20 text-gray-400'
+                )}>{draft.priority}</span>
+              </div>
+              <p className="text-[var(--text-primary)] font-medium">{draft.objective}</p>
+              {draft.context && <p className="text-[var(--text-muted)] text-[11px]">📎 {draft.context}</p>}
+              {draft.expectedOutcome && <p className="text-[var(--text-muted)] text-[11px]">🎯 {draft.expectedOutcome}</p>}
+            </div>
+            <div className="flex justify-between pt-1">
+              <button onClick={() => setStep('context')} className="text-[11px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]">← Edit</button>
+              <div className="flex gap-1.5">
+                <button onClick={onCancel} className="text-[11px] text-[var(--text-muted)] px-2 py-1">Cancel</button>
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  className="text-[11px] btn-primary px-3 py-1 disabled:opacity-40"
+                >
+                  ✓ Add to Queue
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -312,12 +590,12 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
 
   // ─── Actions ──────────────────────────────────────────────────────────
 
-  async function handleAdd(title: string, priority: CardPriority) {
+  async function handleAdd(title: string, priority: CardPriority, metadata?: Record<string, any>) {
     try {
       const res = await fetch('/api/queue', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, priority }),
+        body: JSON.stringify({ title, priority, type: metadata?.taskType ? 'task' : 'task', metadata }),
       });
       const data = await res.json();
       if (data.success) {
@@ -346,11 +624,51 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
     }
   }
 
+  async function handleConfirmAction(id: string, action: 'approve' | 'reject') {
+    try {
+      const res = await fetch('/api/queue/confirm', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (action === 'approve') {
+          // Item moves to ready
+          setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status: 'ready' as QueueItemStatus } : i)));
+        } else {
+          // Item removed
+          setItems((prev) => prev.filter((i) => i.id !== id));
+        }
+        emitSignal(`queue_${action}`, { itemId: id });
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   async function handleDelete(id: string) {
     try {
       await fetch(`/api/queue/${id}`, { method: 'DELETE' });
       setItems((prev) => prev.filter((i) => i.id !== id));
       emitSignal('queue_delete', { itemId: id });
+    } catch {
+      // ignore
+    }
+  }
+
+  async function handleEdit(id: string, data: { title?: string; description?: string; priority?: string }) {
+    try {
+      const res = await fetch(`/api/queue/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await res.json();
+      if (result.success) {
+        setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...result.data } : i)));
+        emitSignal('queue_edit', { itemId: id, changes: data });
+      }
     } catch {
       // ignore
     }
@@ -409,6 +727,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
           <button
             onClick={() => setShowAddForm(true)}
             className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface-hover)] transition-colors"
+            title="Assemble new task"
           >
             +
           </button>
@@ -477,17 +796,61 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                   onClick={() => setShowAddForm(true)}
                   className="btn-primary text-xs px-3 py-1.5"
                 >
-                  + Add Item
+                  🧩 Assemble Task
                 </button>
               </div>
             ) : (
               <>
                 {showAddForm && (
-                  <NewQueueItemForm onAdd={handleAdd} onCancel={() => setShowAddForm(false)} />
+                  <SmartTaskAssembly onAdd={handleAdd} onCancel={() => setShowAddForm(false)} />
                 )}
                 {QUEUE_SECTIONS.map((section) => {
                   const sectionItems = grouped[section.id] || [];
                   if (sectionItems.length === 0) return null;
+
+                  // Special rendering for pending_confirmation items
+                  if (section.id === 'pending_confirmation') {
+                    return (
+                      <div key={section.id}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-sm">{section.icon}</span>
+                          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
+                          <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {sectionItems.map((item) => (
+                            <div key={item.id} className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="text-sm font-medium text-[var(--text-primary)] truncate">{item.title}</h4>
+                                  {item.description && <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{item.description}</p>}
+                                </div>
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 flex-shrink-0">
+                                  {item.priority}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-yellow-400/80 mb-2">Divi suggests adding this to your queue. Approve?</p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleConfirmAction(item.id, 'approve')}
+                                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-colors"
+                                >
+                                  ✓ Approve
+                                </button>
+                                <button
+                                  onClick={() => handleConfirmAction(item.id, 'reject')}
+                                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                >
+                                  ✕ Reject
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={section.id}>
                       <div className="flex items-center gap-2 mb-2">
@@ -497,7 +860,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                       </div>
                       <div className="space-y-2">
                         {sectionItems.map((item) => (
-                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} />
+                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} onEdit={handleEdit} />
                         ))}
                       </div>
                     </div>
@@ -511,7 +874,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
           <div className="border-t border-[var(--border-color)] p-3">
             <div className="flex gap-2 text-xs">
               <span className="text-[var(--text-muted)]">
-                {readyCount} ready · {grouped.in_progress?.length ?? 0} active · {grouped.done_today?.length ?? 0} done · {grouped.blocked?.length ?? 0} blocked
+                {(grouped.pending_confirmation?.length ?? 0) > 0 ? `${grouped.pending_confirmation.length} pending · ` : ''}{readyCount} ready · {grouped.in_progress?.length ?? 0} active · {grouped.done_today?.length ?? 0} done · {grouped.blocked?.length ?? 0} blocked
               </span>
             </div>
           </div>

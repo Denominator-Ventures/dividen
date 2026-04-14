@@ -10,6 +10,7 @@ import { deduplicatedQueueCreate } from './queue-dedup';
 import { pushRelayStateChanged } from './webhook-push';
 import { getPlatformFeePercent } from './marketplace-config';
 import { checkQueueGate, searchMarketplaceSuggestions } from './queue-gate';
+import { optimizeTaskForAgent } from './smart-task-prompter';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,14 @@ export const SUPPORTED_TAGS = [
   'merge_cards',       // merge two project cards into one (combines tasks, contacts, artifacts)
   // ── Integration Sync ──
   'sync_signal',       // trigger a sync for a connected service (email, calendar, drive, or all)
+  // ── Meeting Notes (Gemini) ──
+  'generate_meeting_notes', // generate AI meeting notes for a calendar event using Gemini
+  // ── Settings Widget (Onboarding / Anytime) ──
+  'show_settings_widget', // show an interactive settings widget in chat (group: working_style | triage | goals | identity | all)
+  // ── Queue Management (chat-based) ──
+  'confirm_queue_item',  // approve a pending_confirmation item → ready
+  'remove_queue_item',   // delete a queue item by id
+  'edit_queue_item',     // update title/description/priority of a queue item (triggers smart re-optimization)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -493,6 +502,10 @@ async function executeTag(
         const taskDesc = params.description || null;
         const taskType = params.type || 'task';
 
+        // Check user's auto-approve preference (open-source users can opt out of confirmation gate)
+        const queueUser = await prisma.user.findUnique({ where: { id: userId }, select: { queueAutoApprove: true } });
+        const queueStatus = queueUser?.queueAutoApprove ? 'ready' : 'pending_confirmation';
+
         // Queue gating: check if user has a handler for this task
         const gateResult = await checkQueueGate(userId, taskTitle, taskDesc, taskType);
 
@@ -512,7 +525,7 @@ async function executeTag(
           };
         }
 
-        // Handler found — proceed with queue creation
+        // Handler found — create with user's preferred gating status
         const dedupResult = await deduplicatedQueueCreate({
           type: taskType,
           title: taskTitle,
@@ -521,6 +534,7 @@ async function executeTag(
           source: 'agent',
           userId,
           metadata: gateResult.handler ? JSON.stringify({ handler: gateResult.handler }) : null,
+          status: queueStatus,
         });
         return {
           tag: name,
@@ -530,6 +544,7 @@ async function executeTag(
             title: dedupResult.item.title,
             handler: gateResult.handler,
             deduplicated: !dedupResult.created,
+            pending_confirmation: queueStatus === 'pending_confirmation',
             ...(dedupResult.reason ? { reason: dedupResult.reason } : {}),
           },
         };
@@ -537,6 +552,9 @@ async function executeTag(
 
       // ── Capability Actions (outbound email, meeting scheduling) ──────
       case 'queue_capability_action': {
+        const capUser = await prisma.user.findUnique({ where: { id: userId }, select: { queueAutoApprove: true } });
+        const capQueueStatus = capUser?.queueAutoApprove ? 'ready' : 'pending_confirmation';
+
         const capType = params.capabilityType || 'email';
         const action = params.action || 'outbound';
         const titleMap: Record<string, string> = {
@@ -564,7 +582,7 @@ async function executeTag(
             title: capTitle,
             description: params.subject || params.draft?.substring(0, 100) || `${capType} action`,
             priority: params.priority || 'high',
-            status: 'ready',
+            status: capQueueStatus,
             source: 'agent',
             metadata: capMeta,
             userId,
@@ -574,8 +592,47 @@ async function executeTag(
         return {
           tag: name,
           success: true,
-          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action },
+          data: { id: capItem.id, title: capItem.title, capabilityType: capType, action, pending_confirmation: capQueueStatus === 'pending_confirmation' },
         };
+      }
+
+      // ── Queue Management (chat-based) ───────────────────────────────
+      case 'confirm_queue_item': {
+        const qId = params.id;
+        if (!qId) return { tag: name, success: false, error: 'Missing queue item id' };
+        const qItem = await prisma.queueItem.findFirst({ where: { id: qId, userId } });
+        if (!qItem) return { tag: name, success: false, error: 'Queue item not found' };
+        if (qItem.status !== 'pending_confirmation') {
+          return { tag: name, success: false, error: `Item is already "${qItem.status}", not pending_confirmation` };
+        }
+        const confirmed = await prisma.queueItem.update({ where: { id: qId }, data: { status: 'ready' } });
+        return { tag: name, success: true, data: { id: confirmed.id, title: confirmed.title, status: 'ready' } };
+      }
+
+      case 'remove_queue_item': {
+        const rId = params.id;
+        if (!rId) return { tag: name, success: false, error: 'Missing queue item id' };
+        const rItem = await prisma.queueItem.findFirst({ where: { id: rId, userId } });
+        if (!rItem) return { tag: name, success: false, error: 'Queue item not found' };
+        await prisma.queueItem.delete({ where: { id: rId } });
+        return { tag: name, success: true, data: { id: rId, title: rItem.title, removed: true } };
+      }
+
+      case 'edit_queue_item': {
+        const eId = params.id;
+        if (!eId) return { tag: name, success: false, error: 'Missing queue item id' };
+        const eItem = await prisma.queueItem.findFirst({ where: { id: eId, userId } });
+        if (!eItem) return { tag: name, success: false, error: 'Queue item not found' };
+        const editData: any = {};
+        if (params.title !== undefined) editData.title = params.title;
+        if (params.description !== undefined) editData.description = params.description;
+        if (params.priority !== undefined) editData.priority = params.priority;
+        const updated = await prisma.queueItem.update({ where: { id: eId }, data: editData });
+
+        // Fire-and-forget: smart re-optimize the task description for the target agent type
+        optimizeTaskForAgent(updated.id, userId).catch((err: any) => console.error('[smart-prompter] optimization failed:', err));
+
+        return { tag: name, success: true, data: { id: updated.id, title: updated.title, description: updated.description, priority: updated.priority, optimizing: true } };
       }
 
       // ── Calendar & Reminders ─────────────────────────────────────────
@@ -2360,6 +2417,55 @@ async function executeTag(
           data: { lastSyncAt: new Date() },
         });
         return { tag: name, success: true, data: { service: syncService, synced } };
+      }
+
+      case 'generate_meeting_notes': {
+        // params: { eventId, recordingId? }
+        if (!params.eventId) {
+          return { tag: name, success: false, error: 'eventId is required.' };
+        }
+        if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'REPLACE_WITH_YOUR_GEMINI_API_KEY') {
+          return { tag: name, success: false, error: 'GEMINI_API_KEY is not configured. The operator needs to add their Gemini API key.' };
+        }
+        const { generateAndSaveMeetingNotes } = await import('@/lib/gemini-meeting-notes');
+        const result = await generateAndSaveMeetingNotes(userId, params.eventId, params.recordingId);
+        return {
+          tag: name,
+          success: true,
+          data: {
+            documentId: result.documentId,
+            summary: result.notes.summary,
+            actionItems: result.notes.actionItems,
+            topics: result.notes.topics,
+            sentiment: result.notes.sentiment,
+          },
+        };
+      }
+
+      case 'show_settings_widget': {
+        // params: { group: 'working_style' | 'triage' | 'goals' | 'identity' | 'all' }
+        const group = params.group || 'all';
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { workingStyle: true, triageSettings: true, goalsEnabled: true, diviName: true },
+        });
+        if (!user) return { tag: name, success: false, error: 'User not found' };
+
+        const { getSettingsWidgets } = await import('@/lib/onboarding-phases');
+        const ws = user.workingStyle ? JSON.parse(String(user.workingStyle)) : null;
+        const ts = user.triageSettings ? JSON.parse(String(user.triageSettings)) : null;
+        const widgets = getSettingsWidgets(group, ws, ts, user.goalsEnabled, user.diviName || 'Divi');
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            isSettingsWidget: true,
+            widgets,
+            settingsGroup: group,
+            onboardingPhase: -1,
+          },
+        };
       }
 
       default:

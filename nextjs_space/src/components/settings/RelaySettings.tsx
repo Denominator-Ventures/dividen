@@ -13,6 +13,7 @@ interface RelayPreferences {
   allowAmbientInbound: boolean;
   allowAmbientOutbound: boolean;
   allowBroadcasts: boolean;
+  allowAmbientSurveys: boolean;
   autoRespondAmbient: boolean;
   relayQuietHours: { start: string; end: string; timezone: string } | null;
   relayTopicFilters: string[];
@@ -82,29 +83,38 @@ export default function RelaySettings() {
   const [saveMessage, setSaveMessage] = useState('');
   const [newTopicFilter, setNewTopicFilter] = useState('');
 
-  const fetchPrefs = useCallback(async () => {
-    try {
-      const res = await fetch('/api/profile');
-      const data = await res.json();
-      if (data.success) {
-        const p = data.profile;
-        setPrefs({
-          relayMode: p.relayMode || 'full',
-          allowAmbientInbound: p.allowAmbientInbound ?? true,
-          allowAmbientOutbound: p.allowAmbientOutbound ?? true,
-          allowBroadcasts: p.allowBroadcasts ?? true,
-          autoRespondAmbient: p.autoRespondAmbient ?? false,
-          relayQuietHours: p.relayQuietHours || null,
-          relayTopicFilters: p.relayTopicFilters || [],
-          briefVisibility: p.briefVisibility || 'self',
-          showBriefOnRelay: p.showBriefOnRelay ?? true,
-        });
+  const [fetchError, setFetchError] = useState(false);
+
+  const fetchPrefs = useCallback(async (retries = 2) => {
+    setFetchError(false);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        const res = await fetch('/api/profile');
+        const data = await res.json();
+        if (data.success) {
+          const p = data.profile;
+          setPrefs({
+            relayMode: p.relayMode || 'full',
+            allowAmbientInbound: p.allowAmbientInbound ?? true,
+            allowAmbientOutbound: p.allowAmbientOutbound ?? true,
+            allowBroadcasts: p.allowBroadcasts ?? true,
+            allowAmbientSurveys: p.allowAmbientSurveys ?? true,
+            autoRespondAmbient: p.autoRespondAmbient ?? false,
+            relayQuietHours: p.relayQuietHours || null,
+            relayTopicFilters: p.relayTopicFilters || [],
+            briefVisibility: p.briefVisibility || 'self',
+            showBriefOnRelay: p.showBriefOnRelay ?? true,
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (e) {
+        if (i < retries) await new Promise(r => setTimeout(r, 1000));
+        else console.error('Failed to load relay preferences:', e);
       }
-    } catch (e) {
-      console.error('Failed to load relay preferences:', e);
-    } finally {
-      setLoading(false);
     }
+    setFetchError(true);
+    setLoading(false);
   }, []);
 
   useEffect(() => { fetchPrefs(); }, [fetchPrefs]);
@@ -151,6 +161,15 @@ export default function RelaySettings() {
     if (!prefs) return;
     update('relayTopicFilters', prefs.relayTopicFilters.filter(t => t !== topic));
   };
+
+  if (fetchError && !prefs) {
+    return (
+      <div className="text-center py-8 space-y-2">
+        <p className="text-sm text-[var(--text-secondary)]">Failed to load relay preferences.</p>
+        <button onClick={() => fetchPrefs()} className="btn-primary text-xs px-3 py-1.5">Retry</button>
+      </div>
+    );
+  }
 
   if (loading || !prefs) {
     return <div className="animate-pulse text-[var(--text-secondary)] py-8">Loading relay preferences...</div>;
@@ -308,9 +327,38 @@ export default function RelaySettings() {
               label="Receive broadcast relays"
               description="Connections can send team-wide questions that your Divi will surface when relevant. Turning this off means your agent won't participate in broadcasts."
               checked={prefs.allowBroadcasts}
-              onChange={(v) => update('allowBroadcasts', v)}
+              onChange={(v) => {
+                update('allowBroadcasts', v);
+                // If turning off broadcasts, also turn off ambient surveys since it depends on it
+                if (!v) update('allowAmbientSurveys', false);
+              }}
               disabled={isMinimal}
             />
+          </div>
+
+          {/* AmbientSurveys Participation */}
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-1 flex items-center gap-2">
+              📊 AmbientSurveys
+            </h3>
+            <p className="text-xs text-[var(--text-muted)] mb-4">
+              Allow marketplace agents to include you in anonymous ambient surveys. Questions are woven naturally into your conversations — no interruptions.
+            </p>
+            <ToggleRow
+              label="Participate in AmbientSurveys"
+              description={!prefs.allowBroadcasts 
+                ? "Requires broadcast participation to be enabled. Turn on broadcast relays above to participate."
+                : "When on, your Divi may be asked ambient survey questions by marketplace research agents. Responses are anonymized. You can turn this off at any time."
+              }
+              checked={prefs.allowAmbientSurveys && prefs.allowBroadcasts}
+              onChange={(v) => update('allowAmbientSurveys', v)}
+              disabled={isMinimal || !prefs.allowBroadcasts}
+            />
+            {!prefs.allowBroadcasts && prefs.relayMode !== 'minimal' && prefs.relayMode !== 'off' && (
+              <p className="text-xs text-amber-400/70 mt-2 ml-1">
+                ⚠️ AmbientSurveys requires broadcast participation to be enabled.
+              </p>
+            )}
           </div>
         </div>
       )}

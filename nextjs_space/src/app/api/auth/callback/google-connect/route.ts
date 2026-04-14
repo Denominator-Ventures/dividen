@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Decode state
-    let state: { userId: string; identity: string; accountIndex?: number };
+    let state: { userId: string; identity: string; accountIndex?: number; returnTo?: string };
     try {
       state = JSON.parse(Buffer.from(stateStr, 'base64url').toString());
     } catch {
@@ -48,6 +48,7 @@ export async function GET(req: NextRequest) {
 
     const { userId, identity } = state;
     const accountIndex = state.accountIndex ?? 0;
+    const returnTo = state.returnTo || '';
 
     // Build redirect URI (must match exactly what was sent to Google)
     const redirectUri = `${baseUrl}/api/auth/callback/google-connect`;
@@ -107,6 +108,13 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(`[google-callback] Created/updated ${services.length} integration accounts for ${userInfo.email}`);
+
+    // If returning from onboarding, redirect to dashboard (chat) instead of settings
+    if (returnTo === 'onboarding') {
+      return NextResponse.redirect(
+        new URL('/dashboard?google=connected', baseUrl)
+      );
+    }
 
     return NextResponse.redirect(
       new URL('/settings?tab=integrations&google=connected', baseUrl)

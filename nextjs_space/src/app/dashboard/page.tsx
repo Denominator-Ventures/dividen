@@ -8,12 +8,12 @@ import { NowPanel } from '@/components/dashboard/NowPanel';
 import { CenterPanel } from '@/components/dashboard/CenterPanel';
 import { QueuePanel } from '@/components/dashboard/QueuePanel';
 import { ChiefOfStaffView } from '@/components/dashboard/ChiefOfStaffView';
-import { Walkthrough } from '@/components/dashboard/Walkthrough';
 import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
-import { OnboardingWizard } from '@/components/dashboard/OnboardingWizard';
+import { FeedbackTab } from '@/components/dashboard/FeedbackTab';
+import { OnboardingWelcome } from '@/components/dashboard/OnboardingWelcome';
 import { KeyboardNav } from '@/components/dashboard/KeyboardNav';
 import { CatchUpSettings } from '@/components/dashboard/CatchUpSettings';
 import { CatchUpQuickMenu } from '@/components/dashboard/CatchUpQuickMenu';
@@ -28,8 +28,8 @@ export default function DashboardPage() {
   const [mode, setMode] = useState<'cockpit' | 'chief_of_staff'>('cockpit');
   const [modeLoading, setModeLoading] = useState(false);
   const [showBanner, setShowBanner] = useState(true);
-  const [showWalkthrough, setShowWalkthrough] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [onboardingPhase, setOnboardingPhase] = useState<number>(0);
   const [userName, setUserName] = useState<string | undefined>();
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
@@ -97,38 +97,102 @@ export default function DashboardPage() {
     setMobilePanel('center');
   }, []);
 
-  // Handle onboarding completion — trigger Divi's intro conversation
-  const handleOnboardingComplete = useCallback(async (options?: { triggerDiviIntro?: boolean }) => {
-    setShowOnboarding(false);
+  // Handle welcome popup "Start Chat" — transition directly to chat with Divi intro
+  const handleWelcomeStart = useCallback(async () => {
+    setShowWelcome(false);
     setActiveTab('chat');
+    setMobilePanel('center');
 
-    if (options?.triggerDiviIntro) {
-      // Send a hidden system message that triggers Divi's self-introduction
-      try {
-        await fetch('/api/chat/send', {
+    try {
+      // Mark walkthrough as seen so we don't show welcome again
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasSeenWalkthrough: true }),
+      });
+    } catch {}
+
+    // Initialize onboarding (creates project + sets phase 0)
+    try {
+      await fetch('/api/onboarding/init', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentName: 'Divi' }),
+      });
+    } catch {}
+
+    // Advance to phase 1 — Divi intro message appears in chat
+    try {
+      await fetch('/api/onboarding/advance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'advance' }),
+      });
+      setOnboardingPhase(1);
+    } catch {}
+  }, []);
+
+  const handleWelcomeDismiss = useCallback(async () => {
+    setShowWelcome(false);
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ hasSeenWalkthrough: true, hasCompletedOnboarding: true, onboardingPhase: 6 }),
+      });
+    } catch {}
+  }, []);
+
+  // Resume onboarding on login if user is in mid-phase (1-5)
+  const resumeOnboarding = useCallback(async (phase: number) => {
+    if (phase < 1 || phase >= 6) return;
+    setActiveTab('chat');
+    // Check if there's already an onboarding message for this phase
+    try {
+      const msgRes = await fetch('/api/chat/messages?limit=50');
+      const msgData = await msgRes.json();
+      const hasPhaseMsg = msgData.data?.messages?.some((m: any) => {
+        try {
+          const meta = typeof m.metadata === 'string' ? JSON.parse(m.metadata) : m.metadata;
+          return meta?.isOnboarding && meta?.onboardingPhase === phase;
+        } catch { return false; }
+      });
+      if (!hasPhaseMsg) {
+        // Generate the message for current phase (init = don't advance, just generate)
+        await fetch('/api/onboarding/advance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            message: '[SYSTEM: User just completed onboarding setup. Introduce yourself warmly. Explain what you can do across all your capabilities (task management, CRM, email, calendar, marketplace, goals, connections). Then enthusiastically encourage them to connect their email — explain that this is the #1 way to see your value immediately. Offer to help them do it step-by-step. Frame it as: "Let me show you what I can do — connect your email and I\'ll read through everything, tell you what needs attention right now, and draft responses for the urgent ones. It\'s the fastest way to see the impact." Be direct, builder-log tone, not salesy. Keep it concise but compelling.]',
-          }),
+          body: JSON.stringify({ action: 'init' }),
         });
-        // The chat view will auto-scroll to show Divi's response
-        setChatPrefill(null);
-      } catch {
-        // Silent — chat will still work normally
       }
-    }
+    } catch {}
   }, []);
 
   // Check for tab navigation from Comms/Extensions/Connections pages or URL params
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Check URL query param first
       const urlParams = new URLSearchParams(window.location.search);
       const tabParam = urlParams.get('tab');
       if (tabParam) {
         setActiveTab(tabParam as CenterTab);
-        // Clean up URL
+      }
+      // Handle returning from Google OAuth during onboarding
+      const googleStatus = urlParams.get('google');
+      if (googleStatus === 'connected') {
+        setActiveTab('chat');
+        // Refresh the onboarding phase 2 widgets by re-generating the message
+        (async () => {
+          try {
+            await fetch('/api/onboarding/advance', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'init' }),
+            });
+          } catch {}
+        })();
+      }
+      // Clean URL params
+      if (tabParam || googleStatus) {
         window.history.replaceState({}, '', window.location.pathname);
       }
       const openTab = sessionStorage.getItem('openTab');
@@ -147,14 +211,52 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch('/api/settings')
       .then((r) => r.json())
-      .then((d) => {
+      .then(async (d) => {
         if (d.success) {
           setMode(d.data.user.mode);
           setUserName(d.data.user.name || undefined);
-          if (!d.data.user.hasSeenWalkthrough) {
-            setTimeout(() => setShowWalkthrough(true), 600);
-          } else if (!d.data.user.hasCompletedOnboarding) {
-            setTimeout(() => setShowOnboarding(true), 400);
+          const userPhase = d.data.user.onboardingPhase || 0;
+          const hasCompleted = d.data.user.hasCompletedOnboarding;
+
+          // ── Detect stuck onboarding: user already completed or has real data ──
+          // If hasCompletedOnboarding is true but phase < 6, fix the phase silently
+          if (hasCompleted && userPhase < 6) {
+            setOnboardingPhase(6);
+            // Fire-and-forget DB fix
+            fetch('/api/settings', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ onboardingPhase: 6 }),
+            }).catch(() => {});
+          } else if (!hasCompleted && userPhase > 0 && userPhase < 6) {
+            // Check if user has real data — if so, auto-complete onboarding
+            try {
+              const qRes = await fetch('/api/queue');
+              const qData = await qRes.json();
+              const hasRealData = qData.success && qData.data && qData.data.length > 0;
+              if (hasRealData) {
+                // User has queue items — they've been using the app, skip onboarding
+                setOnboardingPhase(6);
+                fetch('/api/settings', {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ hasCompletedOnboarding: true, onboardingPhase: 6 }),
+                }).catch(() => {});
+              } else {
+                setOnboardingPhase(userPhase);
+                // Phases 1-5 with no data: resume chat-based onboarding
+                setTimeout(() => resumeOnboarding(userPhase), 500);
+              }
+            } catch {
+              // On network error, don't block the app — assume complete
+              setOnboardingPhase(6);
+            }
+          } else if (!d.data.user.hasSeenWalkthrough || (!hasCompleted && userPhase === 0)) {
+            // Brand new user — show the welcome popup
+            setOnboardingPhase(userPhase);
+            setTimeout(() => setShowWelcome(true), 400);
+          } else {
+            setOnboardingPhase(userPhase);
           }
           setSettingsLoaded(true);
         }
@@ -207,28 +309,35 @@ export default function DashboardPage() {
     }
   }, [mode, sendNotification]);
 
-  const handleWalkthroughComplete = useCallback(async () => {
-    setShowWalkthrough(false);
-    try {
-      await fetch('/api/settings', {
-        method: 'PUT',
+  // Track when user navigates away from chat during onboarding
+  const prevTabRef = useRef<CenterTab>('chat');
+  useEffect(() => {
+    if (onboardingPhase > 0 && onboardingPhase < 6 && prevTabRef.current === 'chat' && activeTab !== 'chat') {
+      // User left chat during onboarding — create a notification for resume
+      fetch('/api/notifications', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ hasSeenWalkthrough: true }),
-      });
-      // Show onboarding after walkthrough completes
-      setTimeout(() => setShowOnboarding(true), 300);
-    } catch {
-      // silent
+        body: JSON.stringify({
+          type: 'system',
+          title: 'Continue setup with Divi',
+          message: `You left off at step ${onboardingPhase} of setup. Click to pick up where you left off.`,
+          actionUrl: '/dashboard?tab=chat',
+        }),
+      }).catch(() => {});
     }
-  }, []);
+    prevTabRef.current = activeTab;
+  }, [activeTab, onboardingPhase]);
 
   return (
     <div className="h-full flex flex-col">
-      {/* Walkthrough overlay */}
-      {showWalkthrough && <Walkthrough onComplete={handleWalkthroughComplete} />}
-
-      {/* Onboarding wizard — fires after walkthrough or if walkthrough was already seen */}
-      {/* Now renders inline in the layout below, not as a modal */}
+      {/* Welcome popup — shown to new users, opens chat with Divi */}
+      {showWelcome && (
+        <OnboardingWelcome
+          userName={userName}
+          onStart={handleWelcomeStart}
+          onDismiss={handleWelcomeDismiss}
+        />
+      )}
 
       {/* Keyboard navigation (global hotkeys + ? overlay) */}
       <KeyboardNav
@@ -388,51 +497,37 @@ export default function DashboardPage() {
           {/* ── Cockpit Notification Banners ── */}
           <CockpitBanners mode={mode} />
 
-          {/* ── Desktop: 3-column layout (or onboarding center) ── */}
-          {showOnboarding && !showWalkthrough ? (
-            <div className="hidden md:flex flex-1 items-center justify-center p-6 min-h-0">
-              <OnboardingWizard userName={userName} onComplete={handleOnboardingComplete} />
+          {/* ── Desktop: 3-column layout ── */}
+          <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
+            <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
+              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} />
             </div>
-          ) : (
-            <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
-              <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-                <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} />
-              </div>
-              <div className="flex-1 min-w-0" data-walkthrough="center-panel">
-                <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
-              </div>
-              <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-                <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
-              </div>
+            <div className="flex-1 min-w-0" data-walkthrough="center-panel">
+              <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
             </div>
-          )}
+            <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
+              <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
+            </div>
+          </div>
 
           {/* ── Mobile: Single panel + bottom nav ── */}
           <div className="flex md:hidden flex-1 flex-col min-h-0">
             {/* Active panel */}
             <div className="flex-1 min-h-0 p-1 flex flex-col">
-              {showOnboarding && !showWalkthrough ? (
-                <div className="flex-1 min-h-0 flex items-center justify-center p-4">
-                  <OnboardingWizard userName={userName} onComplete={handleOnboardingComplete} />
+              {mobilePanel === 'now' && (
+                <div className="flex-1 min-h-0" data-walkthrough="now-panel">
+                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
                 </div>
-              ) : (
-                <>
-                  {mobilePanel === 'now' && (
-                    <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                      <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
-                    </div>
-                  )}
-                  {mobilePanel === 'center' && (
-                    <div className="flex-1 min-h-0" data-walkthrough="center-panel">
-                      <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
-                    </div>
-                  )}
-                  {mobilePanel === 'queue' && (
-                    <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                      <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
-                    </div>
-                  )}
-                </>
+              )}
+              {mobilePanel === 'center' && (
+                <div className="flex-1 min-h-0" data-walkthrough="center-panel">
+                  <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} />
+                </div>
+              )}
+              {mobilePanel === 'queue' && (
+                <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
+                  <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
+                </div>
               )}
             </div>
 
@@ -473,6 +568,9 @@ export default function DashboardPage() {
           </div>
         </>
       )}
+
+      {/* Floating feedback tab */}
+      <FeedbackTab />
     </div>
   );
 }

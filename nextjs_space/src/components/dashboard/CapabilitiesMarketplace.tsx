@@ -33,13 +33,13 @@ interface MarketplaceCapability {
   installedAt?: string;
   lastUsedAt?: string | null;
   hasAccessPassword?: boolean;
-  accessPassword?: string | null;
-  isOwner?: boolean;
   publisherName?: string;
   publisherType?: string;
-  publisherUrl?: string | null;
+  publisherUrl?: string;
   skillFormat?: boolean;
-  skillSource?: string | null;
+  skillSource?: string;
+  accessPassword?: string | null;
+  isOwner?: boolean;
 }
 
 interface EditableField {
@@ -310,6 +310,9 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
                 {cap.featured && (
                   <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/25">⭐ Featured</span>
                 )}
+                {cap.skillFormat && (
+                  <span className="text-[9px] font-medium px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 border border-purple-500/25">🧩 Agent Skill</span>
+                )}
               </div>
             </div>
           </div>
@@ -325,10 +328,10 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
         <p className="text-xs text-white/50 mt-2 line-clamp-2">{cap.description}</p>
 
         <div className="flex items-center gap-3 mt-3 text-[10px] text-white/30">
-          {cap.publisherName && <span className="text-brand-400/70 font-medium">by {cap.publisherName}</span>}
-          {cap.skillFormat && <span className="text-purple-400/70">🧩 Agent Skill</span>}
+          {cap.publisherName && <span>{cap.publisherType === 'platform' ? '🏢' : '👤'} by {cap.publisherName}</span>}
           <span>📦 {cap.totalPurchases} installs</span>
           {fields.length > 0 && <span>🔧 {fields.length} customizable</span>}
+          {!needsIntegration && <span>🌐 Broad</span>}
         </div>
 
         {tags.length > 0 && (
