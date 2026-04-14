@@ -126,8 +126,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   const triageSettings = (userSettings?.triageSettings as Record<string, any> | null) || {};
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
 
-  // Force-include setup group during active onboarding (so Divi always has context)
-  // But only if user hasn't already been using the app (has queue items, cards, etc.)
+  // Force-include setup group during active onboarding or active setup project
   const userPhase = userSettings?.onboardingPhase ?? 0;
   if (userPhase > 0 && userPhase < 6) {
     // Check if user has real data — if so, they've moved past onboarding even if phase is stuck
@@ -137,6 +136,21 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     }
   } else if (userPhase === 0) {
     relevantGroups.add('setup');
+  }
+
+  // Also force-include setup if there's an active setup project (project-based onboarding)
+  if (userPhase === 6) {
+    const hasActiveSetupProject = await prisma.project.count({
+      where: {
+        createdById: userId,
+        metadata: { contains: '"isSetupProject":true' },
+        status: { not: 'archived' },
+        kanbanCards: { some: { status: { not: 'completed' } } },
+      },
+    }).catch(() => 0);
+    if (hasActiveSetupProject > 0) {
+      relevantGroups.add('setup');
+    }
   }
 
   // ── Batch 1: Pre-fetch shared data (always needed) ──
@@ -1129,11 +1143,29 @@ async function buildSetupLayer_conditional(
   connectionCount: number,
   onboardingPhase: number = 6,
 ): Promise<string> {
-  const [apiKeys, webhooks, docCount, profile] = await Promise.all([
+  const [apiKeys, webhooks, docCount, profile, setupProject] = await Promise.all([
     prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
     prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true } }),
     prisma.document.count({ where: { userId } }),
     prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, capacity: true } }),
+    // Fetch active setup project + its kanban cards
+    prisma.project.findFirst({
+      where: {
+        createdById: userId,
+        metadata: { contains: '"isSetupProject":true' },
+        status: { not: 'archived' },
+      },
+      select: {
+        id: true,
+        name: true,
+        status: true,
+        metadata: true,
+        kanbanCards: {
+          orderBy: { order: 'asc' },
+          select: { id: true, title: true, status: true, priority: true, description: true },
+        },
+      },
+    }),
   ]);
 
   const hasApiKey = apiKeys.length > 0;
@@ -1142,9 +1174,48 @@ async function buildSetupLayer_conditional(
   const hasContacts = contactCount > 0;
   const hasConnections = connectionCount > 0;
 
-  // ── Onboarding awareness (lean — only when in progress) ─────────────
+  // ── Active Setup Project awareness ─────────────────────────────────
+  // This is a real project with real kanban cards. Divi treats it like any project.
+  let setupProjectBlock = '';
+  if (setupProject && setupProject.kanbanCards.length > 0) {
+    const meta = typeof setupProject.metadata === 'string'
+      ? JSON.parse(setupProject.metadata) : (setupProject.metadata || {});
+    const mode = meta.setupMode || 'together';
+    const pendingCards = setupProject.kanbanCards.filter((c: any) => c.status !== 'completed');
+    const completedCards = setupProject.kanbanCards.filter((c: any) => c.status === 'completed');
+
+    if (pendingCards.length > 0) {
+      // Active setup project — guide the user through it
+      const nextCard = pendingCards[0];
+      setupProjectBlock = `### Active Project: ${setupProject.name}
+Mode: ${mode === 'together' ? 'Walking through together (guide each step conversationally)' : 'Self-paced (check in, offer help)'}
+Progress: ${completedCards.length}/${setupProject.kanbanCards.length} tasks done
+
+**Remaining tasks (in order):**
+${pendingCards.map((c: any, i: number) => `${i + 1}. [${c.status}] "${c.title}" (id: ${c.id}) — ${c.description}`).join('\n')}
+
+**Next up:** "${nextCard.title}" (id: ${nextCard.id})
+${nextCard.description}
+
+**CRITICAL RULES for this project:**
+- This is a regular project. Treat each task like any kanban card.
+${mode === 'together' ? `- The user chose "walk me through it" — guide them step by step. Start with the next incomplete task.
+- When the user completes a task (or you help them complete it), move the card to completed: [[update_card:{"id":"${nextCard.id}","status":"completed"}]]
+- Then naturally transition to the next task.` : `- The user chose "I'll explore on my own" — check in periodically, offer help if they ask.
+- When the user confirms a task is done, move the card: [[update_card:{"id":"<card_id>","status":"completed"}]]`}
+- When ALL tasks are completed, the project is done. Acknowledge it naturally ("Nice — your setup project is all wrapped up. Your command center is ready.") and move on. Do NOT display a special "Setup Complete" screen or list of features.
+- NEVER skip ahead or declare setup "complete" while tasks remain incomplete.
+
+`;
+    } else {
+      // All tasks done — project is complete, no special handling needed
+      setupProjectBlock = '';
+    }
+  }
+
+  // ── Legacy onboarding awareness (only for old-flow users, phase < 6) ──
   let onboardingBlock = '';
-  if (onboardingPhase < 6) {
+  if (onboardingPhase < 6 && !setupProject) {
     const phaseDescriptions: Record<number, string> = {
       0: 'Not started — waiting for user to begin',
       1: 'Personalizing — configuring working style, triage, goals, agent name',
@@ -1174,7 +1245,7 @@ This shows an interactive settings widget inline in chat. The user adjusts and s
     return `## Platform Status
 API: ${apiKeys.map((k: any) => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
 
-${onboardingBlock}${settingsHint}### Navigation Reference (for guiding users)
+${setupProjectBlock}${onboardingBlock}${settingsHint}### Navigation Reference (for guiding users)
 - **Primary**: Chat, Board (Kanban), CRM, Calendar
 - **Network**: Discover, Connections, Teams, Tasks, Marketplace (includes Earnings)
 - **Messages**: Inbox, Recordings
@@ -1192,6 +1263,7 @@ If user asks "where is X?" → reference the navigation above.`;
   text += 'Help the user complete their setup. Use action tags to do things directly when possible.\n\n';
   text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
 
+  text += setupProjectBlock;
   text += onboardingBlock;
   text += settingsHint;
 
