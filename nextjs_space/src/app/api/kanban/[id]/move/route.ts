@@ -70,7 +70,7 @@ export async function POST(
     },
   });
 
-  logActivity({ userId, action: 'card_moved', summary: `Moved "${updated.title}" from ${card.status} → ${status}`, metadata: { cardId: updated.id, from: card.status, to: status } });
+  logActivity({ userId, action: 'card_moved', summary: `Moved "${updated.title}" from ${card.status} → ${status}`, metadata: { cardId: updated.id, from: card.status, to: status }, cardId: updated.id });
 
   return NextResponse.json({ success: true, data: updated });
 }

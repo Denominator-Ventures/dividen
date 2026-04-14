@@ -87,7 +87,7 @@ export async function PATCH(
   });
 
   const changes = Object.keys(updateData).join(', ');
-  logActivity({ userId, action: 'card_updated', summary: `Updated card "${card.title}" (${changes})`, metadata: { cardId: card.id, changes: updateData } });
+  logActivity({ userId, action: 'card_updated', summary: `Updated card "${card.title}" (${changes})`, metadata: { cardId: card.id, changes: updateData }, cardId: card.id });
 
   // v2: Propagate status/priority changes to linked cards
   if (status !== undefined || priority !== undefined) {
@@ -115,7 +115,7 @@ export async function DELETE(
   }
   await prisma.kanbanCard.delete({ where: { id: params.id } });
 
-  logActivity({ userId, action: 'card_deleted', summary: `Deleted card "${existing.title}"`, metadata: { cardId: params.id } });
+  logActivity({ userId, action: 'card_deleted', summary: `Deleted card "${existing.title}"`, metadata: { cardId: params.id }, cardId: params.id });
 
   return NextResponse.json({ success: true });
 }

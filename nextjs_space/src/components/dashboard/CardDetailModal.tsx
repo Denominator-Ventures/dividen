@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import {
   KANBAN_COLUMNS,
@@ -42,6 +42,34 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
   const [merging, setMerging] = useState(false);
   const [mergeConfirm, setMergeConfirm] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // ─── Activity feed state ───────────────────────────────────────────────
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [activityEntries, setActivityEntries] = useState<any[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityLoaded, setActivityLoaded] = useState(false);
+
+  const fetchActivity = useCallback(async () => {
+    if (activityLoaded) return;
+    setActivityLoading(true);
+    try {
+      const res = await fetch(`/api/kanban/${card.id}/activity?limit=30`);
+      const data = await res.json();
+      if (data.success) {
+        setActivityEntries(data.data || []);
+      }
+    } catch {
+      // ignore
+    }
+    setActivityLoading(false);
+    setActivityLoaded(true);
+  }, [card.id, activityLoaded]);
+
+  useEffect(() => {
+    if (activityOpen && !activityLoaded) {
+      fetchActivity();
+    }
+  }, [activityOpen, activityLoaded, fetchActivity]);
 
   // Available merge targets (other cards)
   const mergeTargets = (allCards || []).filter(c => c.id !== card.id);
@@ -167,6 +195,20 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
   const completedCount = checklist.filter((c) => c.completed).length;
   const totalCount = checklist.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+  function formatRelative(dateStr: string): string {
+    const now = Date.now();
+    const d = new Date(dateStr).getTime();
+    const diff = Math.max(0, now - d);
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days < 7) return `${days}d ago`;
+    return new Date(dateStr).toLocaleDateString();
+  }
 
   return (
     <div
@@ -391,6 +433,59 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
           <div className="text-xs text-[var(--text-muted)] flex gap-4">
             <span>Created: {new Date(card.createdAt).toLocaleDateString()}</span>
             <span>Updated: {new Date(card.updatedAt).toLocaleDateString()}</span>
+          </div>
+
+          {/* Activity Feed (collapsible) */}
+          <div>
+            <button
+              onClick={() => setActivityOpen(!activityOpen)}
+              className="flex items-center gap-2 w-full text-left"
+            >
+              <svg
+                className={cn('w-3 h-3 text-[var(--text-muted)] transition-transform', activityOpen && 'rotate-90')}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+              <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider cursor-pointer">
+                Activity
+              </label>
+              {activityEntries.length > 0 && (
+                <span className="text-xs text-[var(--text-muted)]">({activityEntries.length})</span>
+              )}
+            </button>
+
+            {activityOpen && (
+              <div className="mt-3 space-y-2 max-h-60 overflow-y-auto">
+                {activityLoading && (
+                  <div className="text-xs text-[var(--text-muted)] animate-pulse">Loading activity…</div>
+                )}
+                {!activityLoading && activityEntries.length === 0 && (
+                  <div className="text-xs text-[var(--text-muted)]">No activity yet</div>
+                )}
+                {activityEntries.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      'flex items-start gap-2 text-xs py-1.5 px-2 rounded-md',
+                      entry.isCrossUser
+                        ? 'bg-brand-500/5 border border-brand-500/10'
+                        : 'bg-[var(--bg-surface)]'
+                    )}
+                  >
+                    <span className="shrink-0 mt-0.5">
+                      {entry.isCrossUser ? '🔗' : entry.actor === 'divi' ? '🤖' : '👤'}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[var(--text-secondary)]">{entry.summary}</span>
+                    </div>
+                    <span className="text-[var(--text-muted)] shrink-0 whitespace-nowrap">
+                      {formatRelative(entry.createdAt)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

@@ -704,10 +704,16 @@ model ActivityLog {
   userId    String?
   createdAt DateTime @default(now())
 
+  // Card-scoped activity — enables per-card activity feeds
+  cardId    String?  // FK to KanbanCard (null = user-level, not card-specific)
+  // Cross-user flag: true when this entry was mirrored from a linked card's activity
+  isCrossUser Boolean @default(false)
+
   @@index([userId])
   @@index([createdAt])
   @@index([userId, createdAt]) // Composite: notification feed, activity timeline
   @@index([userId, action])    // Composite: category-filtered activity queries
+  @@index([cardId, createdAt]) // Composite: card-scoped activity feed
   @@map("activity_logs")
 }
 

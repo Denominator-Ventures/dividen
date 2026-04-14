@@ -71,6 +71,7 @@ export async function checkAndAutoCompleteCard(
       action: 'card_auto_completed',
       actor: 'system',
       summary: `Card "${card.title}" auto-completed — all ${card.checklist.length} checklist items done`,
+      cardId: cardId,
     }).catch(() => {});
 
     return true;

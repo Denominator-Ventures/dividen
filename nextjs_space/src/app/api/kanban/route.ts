@@ -124,7 +124,7 @@ export async function POST(request: Request) {
     },
   });
 
-  logActivity({ userId, action: 'card_created', summary: `Created card "${card.title}" in ${status}`, metadata: { cardId: card.id, status } });
+  logActivity({ userId, action: 'card_created', summary: `Created card "${card.title}" in ${status}`, metadata: { cardId: card.id, status }, cardId: card.id });
 
   return NextResponse.json({ success: true, data: card }, { status: 201 });
 }

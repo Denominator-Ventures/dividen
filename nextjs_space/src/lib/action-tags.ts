@@ -438,6 +438,7 @@ async function executeTag(
             summary: `Completed task: "${item.text}" on card "${(item as any).card?.title || 'unknown'}"`,
             metadata: JSON.stringify({ checklistId: item.id, cardId: (item as any).card?.id }),
             userId,
+            cardId: (item as any).card?.id || null,
           },
         }).catch(() => {});
         // Auto-complete the card if all checklist items are now done
@@ -1753,6 +1754,7 @@ async function executeTag(
                 summary: `Routed task "${title}" to ${targetMatch.userName || targetMatch.userEmail} via ${routeMode} relay`,
                 metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId, matchScore: targetMatch.score }),
                 userId,
+                cardId: cardId || null,
               },
             });
 
@@ -1779,6 +1781,7 @@ async function executeTag(
                 summary: `Decomposed task "${title}" from card "${context.card.title}" — no matching connection found`,
                 metadata: JSON.stringify({ briefId: brief.id, cardId, availableMatches: matches.length }),
                 userId,
+                cardId: cardId || null,
               },
             });
 
