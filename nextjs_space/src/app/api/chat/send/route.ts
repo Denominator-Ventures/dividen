@@ -145,6 +145,7 @@ export async function POST(request: Request) {
 
               // Check if any tag result is a settings widget — merge widget data into metadata
               const settingsTag = tagResults.find((r: any) => r.data?.isSettingsWidget);
+              const googleConnectTag = tagResults.find((r: any) => r.data?.widgetType === 'google_connect');
               let msgMetadata: any = tags.length > 0 ? { tags: tagResults } : null;
               if (settingsTag?.data) {
                 msgMetadata = {
@@ -153,6 +154,28 @@ export async function POST(request: Request) {
                   onboardingPhase: -1,
                   widgets: settingsTag.data.widgets,
                   settingsGroup: settingsTag.data.settingsGroup,
+                };
+              }
+              // Google Connect widget — reuse onboarding widget renderer with google_connect type
+              if (googleConnectTag?.data) {
+                const gcWidgets = [{
+                  type: 'google_connect' as const,
+                  id: `google_connect_chat_${Date.now()}`,
+                  label: googleConnectTag.data.label,
+                  description: googleConnectTag.data.description,
+                  identity: googleConnectTag.data.identity,
+                  accountIndex: googleConnectTag.data.accountIndex,
+                  connected: googleConnectTag.data.connected,
+                  connectedEmail: googleConnectTag.data.connectedEmail,
+                }];
+                msgMetadata = {
+                  ...msgMetadata,
+                  isOnboarding: true,
+                  onboardingPhase: -1,
+                  widgets: [
+                    ...(msgMetadata?.widgets || []),
+                    ...gcWidgets,
+                  ],
                 };
               }
 
@@ -172,13 +195,8 @@ export async function POST(request: Request) {
                 content: cleanText,
                 tagsExecuted: tagResults.length,
               };
-              if (settingsTag?.data) {
-                donePayload.metadata = {
-                  isOnboarding: true,
-                  onboardingPhase: -1,
-                  widgets: settingsTag.data.widgets,
-                  settingsGroup: settingsTag.data.settingsGroup,
-                };
+              if (settingsTag?.data || googleConnectTag?.data) {
+                donePayload.metadata = msgMetadata;
               }
               const doneData = JSON.stringify(donePayload);
               controller.enqueue(encoder.encode(`data: ${doneData}\n\n`));

@@ -207,6 +207,15 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const inProgressCards = kanbanCards.filter((c: any) => c.status === 'in_progress');
 
+  // ── Linked Kards: cross-user card visibility ──
+  let linkedCardsMap: Record<string, import('./card-links').CardLinkInfo[]> = {};
+  try {
+    const { getLinkedCardsForUser } = await import('./card-links');
+    linkedCardsMap = await getLinkedCardsForUser(userId);
+  } catch (e) {
+    console.error('[system-prompt] Linked Kards fetch failed:', e);
+  }
+
   // ── Board Cortex: pre-digested intelligence layer ──
   let boardCortexDigest = '';
   try {
@@ -381,7 +390,14 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
         if (relatedCount > 0) peopleParts.push(`related:${relatedCount}`);
         const peopleStr = peopleParts.length > 0 ? ` 👥${peopleParts.join(' ')}` : '';
         const proj = c.project?.name ? ` proj:"${c.project.name}"` : '';
-        return `[${c.id}] "${c.title}" (${c.priority})${proj}${due}${checks}${taskStr}${peopleStr}${artStr}`;
+        // Linked Kards: show cross-user linked cards
+        const cardLinks = linkedCardsMap[c.id];
+        let linkStr = '';
+        if (cardLinks && cardLinks.length > 0) {
+          const { formatLinkedCardsForPrompt } = require('./card-links');
+          linkStr = ` 🔗${formatLinkedCardsForPrompt(cardLinks)}`;
+        }
+        return `[${c.id}] "${c.title}" (${c.priority})${proj}${due}${checks}${taskStr}${peopleStr}${artStr}${linkStr}`;
       }).join(' | ') + '\n';
     }
   } else {
@@ -1213,9 +1229,24 @@ This renders the actual interactive settings UI inline in chat. The user adjusts
 **CRITICAL for setup tasks**: When working through a setup checklist task, ALWAYS show the relevant widget:
 - "Configure Divi's Working Style" → [[show_settings_widget:{"group":"working_style"}]]
 - "Set Triage Preferences" → [[show_settings_widget:{"group":"triage"}]]
-- "Connect Email & Calendar" → Guide user to connect Google (provide the link/button)
+- "Connect Email & Calendar" → [[show_google_connect:{"identity":"operator"}]]
 - "Review What's Connected" → Summarize what's connected and show status
 - "Set Up Custom Signals" → Guide through webhook/signal setup
+
+### Google Connect Widget
+When the user needs to connect their Google account (for Gmail, Calendar, Drive access), render the interactive button:
+- [[show_google_connect:{"identity":"operator"}]] — connect user's own Gmail/Calendar
+- [[show_google_connect:{"identity":"agent","label":"🤖 Connect Divi's Gmail"}]] — connect Divi's separate account
+This works during onboarding AND in regular conversation. If already connected, it shows the connected state.
+
+### Linked Kards
+When you know two cards across users are related (e.g., a delegated task), link them:
+- [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"delegation|collaboration|reference"}]]
+Cards created via create_card can include linkedFromCardId to auto-link:
+- [[create_card:{"title":"...","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
+Linked cards appear in your board context with 🔗 prefix showing the other user's card status.
+
+**More setup task mappings**:
 - "Run Your First Catch-Up" → Initiate a catch-up/triage run
 
 ### Continuous Task Awareness

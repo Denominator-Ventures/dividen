@@ -133,9 +133,30 @@ model KanbanCard {
   commsMessages  CommsMessage[]
   emailMessages  EmailMessage[]
   artifacts      CardArtifact[]    // Generic artifacts from any signal type
+  linksFrom      CardLink[]   @relation("CardLinkFrom")   // Links where THIS card is the source
+  linksTo        CardLink[]   @relation("CardLinkTo")     // Links where THIS card is the target
 
   @@index([projectId])
   @@map("kanban_cards")
+}
+
+// ── Linked Kards: cross-user card visibility ────────────────────────────────
+// When a relay creates work on another user's board, both cards link together.
+// Both users' Divis see the linked card's status/progress in their context.
+model CardLink {
+  id            String     @id @default(cuid())
+  fromCardId    String     // Source card (the originator)
+  toCardId      String     // Target card (created on another user's board)
+  relayId       String?    // The relay that created this link (optional, for traceability)
+  linkType      String     @default("delegation") // "delegation" | "collaboration" | "reference"
+  createdAt     DateTime   @default(now())
+
+  fromCard      KanbanCard @relation("CardLinkFrom", fields: [fromCardId], references: [id], onDelete: Cascade)
+  toCard        KanbanCard @relation("CardLinkTo", fields: [toCardId], references: [id], onDelete: Cascade)
+
+  @@unique([fromCardId, toCardId])
+  @@index([toCardId])
+  @@map("card_links")
 }
 
 model ChecklistItem {

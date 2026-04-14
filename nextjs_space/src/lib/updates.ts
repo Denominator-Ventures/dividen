@@ -17,6 +17,65 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'cortex-daemon-linked-kards-google-connect-v1-6',
+    date: '2026-04-14',
+    time: '11:45 PM',
+    title: 'Cortex Daemon, Linked Kards & Google Connect Widget',
+    subtitle: 'Your board now cleans itself on autopilot. Cards link across users. And connecting Google is now a one-click button in chat.',
+    tags: ['cortex', 'daemon', 'linked-kards', 'google-connect', 'multi-user', 'cross-user'],
+    content: `Sprint 2 shipped. Three features that each make DiviDen feel less like a tool and more like something that runs itself.
+
+## Scheduled Board Cortex Daemon
+
+Board Cortex already ran when you chatted — detecting stale cards, duplicates, deadline escalations, archivable work. But it only fired during conversation. If you didn't talk to Divi for a day, your board intelligence went cold.
+
+Now there's a **background daemon that runs every 6 hours** across ALL users. It hits \`POST /api/cron/cortex-scan\`, which:
+- Iterates every active user with kanban cards
+- Runs \`runBoardScan()\` per user — all 6 detection functions
+- Auto-escalates deadline-approaching cards
+- Persists BoardInsight records
+- Logs activity entries for notable findings
+
+Auth is admin-password-gated. Each DiviDen instance runs its own daemon — no centralized dependency.
+
+Your board now cleans itself even when you're not looking.
+
+## Linked Kards — Cross-User Card Visibility
+
+This is the big multi-user primitive. When a relay creates work on another user's board (via \`task_route\` delegation or direct card creation), the originator's card and the new card now **link together**.
+
+How it works:
+- New \`CardLink\` model — bidirectional, stores fromCard → toCard with link type (\`delegation\`, \`collaboration\`, \`reference\`)
+- \`[[create_card]]\` now accepts \`linkedFromCardId\` to auto-link on creation
+- \`[[link_cards]]\` — new action tag for explicit linking (e.g., when Divi discovers two cards are related)
+- \`[[task_route]]\` results now include \`sourceCardId\` so the receiving Divi can link back
+
+**In the system prompt**, each card's Board context now shows 🔗 linked cards:
+\`[cardId] "My Card" (high) 🔗→delegation:"Their Task" (in_progress) by Sarah ✓2/5\`
+
+**In the Kanban UI**, linked cards show a visual indicator below the card with direction arrows, link type, target card title, and user name.
+
+Both users' Divis see the linked card's progress. When Sarah completes her delegated task, your Divi knows immediately — no manual sync, no checking in.
+
+## Google Connect Button Widget
+
+Previously, connecting Google (Gmail, Calendar, Drive) required either the onboarding flow or manually navigating to settings. Now Divi can surface an interactive **Google Connect button directly in chat** anytime.
+
+- \`[[show_google_connect:{"identity":"operator"}]]\` — renders a one-click Google OAuth button in the chat
+- Works during onboarding AND regular conversation
+- Shows connected state if already linked
+- Supports both operator and agent identity accounts
+
+The setup task "Connect Email & Calendar" in the onboarding checklist now maps directly to this widget instead of generic guidance.
+
+## What's Next
+
+Cross-instance Linked Kards (FVP team integration), Board Cortex pattern recognition improvements, and the inbox zero automation layer.
+
+— Jon
+`,
+  },
+  {
     id: 'auto-complete-cards-federation-approval-v1-5-1',
     date: '2026-04-14',
     time: '10:30 PM',

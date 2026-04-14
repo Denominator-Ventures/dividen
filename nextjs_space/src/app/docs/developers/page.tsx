@@ -85,6 +85,9 @@ const TOC = [
   { id: 'cockpit-mode', label: 'Cockpit Mode & Work Partner' },
   { id: 'auto-patterns', label: 'Auto-Discuss / Auto-Complete' },
   { id: 'now-engine', label: 'NOW Engine Correlation' },
+  { id: 'cortex-daemon', label: 'Cortex Daemon (Scheduled Scan)' },
+  { id: 'linked-kards', label: 'Linked Kards (Cross-User)' },
+  { id: 'google-connect-widget', label: 'Google Connect Widget' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
 
@@ -1462,6 +1465,124 @@ useEffect(() => {
             <li>Add data fetching alongside the existing calendar fetch in <InlineCode>computeNow()</InlineCode></li>
             <li>Create a new correlation block following the same pattern: extract keywords → match against queue items → boost score</li>
             <li>Adjust boost values relative to the existing +25 for calendar (e.g., email mentions might warrant +15)</li>
+          </ul>
+        </Section>
+
+        {/* ── Cortex Daemon (Scheduled Scan) ────────────────────── */}
+        <Section id="cortex-daemon" title="Cortex Daemon (Scheduled Scan)">
+          <p className="text-[var(--text-secondary)] mb-4">
+            The Board Cortex Daemon is a background scheduled task that runs every 6 hours, scanning all active users&apos; boards for insights.
+          </p>
+          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">Endpoint</h4>
+          <Code>{`POST /api/cron/cortex-scan
+
+# Headers
+Authorization: Bearer <ADMIN_PASSWORD>
+# OR
+x-cron-secret: <ADMIN_PASSWORD>
+
+# Optional query params
+?userId=<id>  # Scan a single user (for testing)
+
+# Response
+{
+  "success": true,
+  "scanned": 5,
+  "results": [
+    {
+      "userId": "...",
+      "userName": "Jon",
+      "cardCount": 12,
+      "insightsFound": 3,
+      "details": { "stale": 1, "duplicate": 0, "escalated": 2, ... }
+    }
+  ]
+}`}</Code>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">What It Does Per User</h4>
+          <ul className="list-disc pl-5 space-y-1 text-[var(--text-secondary)]">
+            <li>Runs <InlineCode>runBoardScan()</InlineCode> — all 6 detection functions (stale, duplicate, deadline, archivable, escalation, correlation)</li>
+            <li>Auto-escalates deadline-approaching cards</li>
+            <li>Persists <InlineCode>BoardInsight</InlineCode> records</li>
+            <li>Logs activity entries for notable findings</li>
+          </ul>
+          <p className="text-[var(--text-muted)] mt-3 text-sm">
+            Each DiviDen instance runs its own daemon — no centralized dependency. The daemon is scheduled via background task infrastructure and authenticates with the admin password.
+          </p>
+        </Section>
+
+        {/* ── Linked Kards (Cross-User) ─────────────────────────── */}
+        <Section id="linked-kards" title="Linked Kards (Cross-User Visibility)">
+          <p className="text-[var(--text-secondary)] mb-4">
+            When a relay creates work on another user&apos;s board, both cards link together. Both users&apos; Divis see the linked card&apos;s status and progress.
+          </p>
+          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">Schema: CardLink</h4>
+          <Code>{`model CardLink {
+  id            String     @id @default(cuid())
+  fromCardId    String     // Source card (originator)
+  toCardId      String     // Target card (on another user's board)
+  relayId       String?    // Relay that created this link
+  linkType      String     @default("delegation")
+                           // "delegation" | "collaboration" | "reference"
+  createdAt     DateTime   @default(now())
+  @@unique([fromCardId, toCardId])
+}`}</Code>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Action Tags</h4>
+          <Code>{`# Create a card with auto-linking to source
+[[create_card:{"title":"Research Report","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
+
+# Explicitly link two existing cards
+[[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"collaboration"}]]`}</Code>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">System Prompt Context</h4>
+          <p className="text-[var(--text-secondary)] mb-2">
+            In each user&apos;s board context (Group 2), linked cards appear with a 🔗 prefix:
+          </p>
+          <Code>{`[cardId] "My Card" (high) 🔗→delegation:"Their Task" (in_progress) by Sarah ✓2/5`}</Code>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">API: Kanban Response</h4>
+          <p className="text-[var(--text-secondary)] mb-2">
+            The <InlineCode>GET /api/kanban</InlineCode> response now includes <InlineCode>linkedCards</InlineCode> on each card:
+          </p>
+          <Code>{`{
+  "id": "...",
+  "title": "My Card",
+  "linkedCards": [
+    {
+      "linkId": "...",
+      "linkedCardId": "...",
+      "linkedCardTitle": "Their Task",
+      "linkedCardStatus": "in_progress",
+      "linkedUserName": "Sarah",
+      "direction": "outbound",  // "outbound" = I delegated TO them
+      "linkType": "delegation"
+    }
+  ]
+}`}</Code>
+        </Section>
+
+        {/* ── Google Connect Widget ──────────────────────────────── */}
+        <Section id="google-connect-widget" title="Google Connect Widget">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Interactive Google Connect button that can be rendered in chat anytime — not just during onboarding.
+          </p>
+          <h4 className="text-md font-semibold mb-2 text-[var(--text-primary)]">Action Tag</h4>
+          <Code>{`# Connect user's own Gmail/Calendar
+[[show_google_connect:{"identity":"operator"}]]
+
+# Connect Divi's separate account
+[[show_google_connect:{"identity":"agent","label":"🤖 Connect Divi's Gmail"}]]
+
+# Custom label and description
+[[show_google_connect:{
+  "identity":"operator",
+  "label":"🔗 Connect Email",
+  "description":"Let Divi read your inbox to auto-triage."
+}]]`}</Code>
+          <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Behavior</h4>
+          <ul className="list-disc pl-5 space-y-1 text-[var(--text-secondary)]">
+            <li>Checks if already connected — shows connected state with email address if so</li>
+            <li>Renders as an interactive button in the chat message (reuses onboarding widget renderer)</li>
+            <li>Clicking redirects to <InlineCode>/api/auth/google-connect</InlineCode> OAuth flow</li>
+            <li>Works both during onboarding and in regular conversation</li>
+            <li>Maps to the &quot;Connect Email &amp; Calendar&quot; setup checklist task</li>
           </ul>
         </Section>
 

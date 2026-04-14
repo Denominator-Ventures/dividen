@@ -46,6 +46,16 @@ export interface KanbanCardData {
       connection: { id: string; peerUserName: string | null; peerUserEmail: string | null } | null;
     }>;
   } | null;
+  // Linked Kards: cross-user visibility
+  linkedCards?: Array<{
+    linkId: string;
+    linkedCardId: string;
+    linkedCardTitle: string;
+    linkedCardStatus: string;
+    linkedUserName: string | null;
+    direction: 'outbound' | 'inbound';
+    linkType: string;
+  }>;
 }
 
 export interface ChecklistItemData {

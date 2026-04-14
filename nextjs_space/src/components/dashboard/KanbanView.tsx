@@ -206,6 +206,30 @@ function KanbanCard({
           <span>{card.contacts.length} contact{card.contacts.length > 1 ? 's' : ''}</span>
         </div>
       )}
+
+      {/* Linked Kards indicator */}
+      {card.linkedCards && card.linkedCards.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
+          {card.linkedCards.map((link) => (
+            <div key={link.linkId} className="flex items-center gap-1.5 text-[10px] mb-0.5">
+              <span className={cn(
+                'px-1 py-0.5 rounded font-medium',
+                link.direction === 'outbound'
+                  ? 'bg-brand-500/15 text-brand-400'
+                  : 'bg-purple-500/15 text-purple-400'
+              )}>
+                {link.direction === 'outbound' ? '→' : '←'} {link.linkType}
+              </span>
+              <span className="text-[var(--text-secondary)] truncate flex-1" title={link.linkedCardTitle}>
+                {link.linkedCardTitle}
+              </span>
+              <span className="text-[var(--text-muted)] shrink-0">
+                {link.linkedUserName || '?'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

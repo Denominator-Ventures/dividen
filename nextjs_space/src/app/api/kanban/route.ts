@@ -50,7 +50,27 @@ export async function GET() {
     take: 200,
   });
 
-  return NextResponse.json({ success: true, data: cards });
+  // Linked Kards: batch fetch all linked cards for this user's board
+  try {
+    const { getLinkedCardsForUser } = await import('@/lib/card-links');
+    const linkedMap = await getLinkedCardsForUser(userId);
+    const enriched = cards.map((card: any) => ({
+      ...card,
+      linkedCards: (linkedMap[card.id] || []).map((l: any) => ({
+        linkId: l.linkId,
+        linkedCardId: l.linkedCardId,
+        linkedCardTitle: l.linkedCardTitle,
+        linkedCardStatus: l.linkedCardStatus,
+        linkedUserName: l.linkedUserName,
+        direction: l.direction,
+        linkType: l.linkType,
+      })),
+    }));
+    return NextResponse.json({ success: true, data: enriched });
+  } catch (e) {
+    // Fallback: return cards without linked info
+    return NextResponse.json({ success: true, data: cards });
+  }
 }
 
 export async function POST(request: Request) {

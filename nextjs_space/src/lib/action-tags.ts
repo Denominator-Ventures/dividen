@@ -95,6 +95,10 @@ export const SUPPORTED_TAGS = [
   'confirm_queue_item',  // approve a pending_confirmation item → ready
   'remove_queue_item',   // delete a queue item by id
   'edit_queue_item',     // update title/description/priority of a queue item (triggers smart re-optimization)
+  // ── Linked Kards ──
+  'link_cards',          // explicitly link two kanban cards (cross-user or same-user)
+  // ── Interactive Widgets ──
+  'show_google_connect', // render Google Connect button widget in chat (works outside onboarding too)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -185,6 +189,14 @@ async function executeTag(
             userId,
           },
         });
+        // Linked Kards: if this card was created from another card, link them
+        if (params.linkedFromCardId) {
+          const { linkCards } = await import('./card-links');
+          await linkCards(params.linkedFromCardId, card.id, {
+            relayId: params.relayId || undefined,
+            linkType: params.linkType || 'delegation',
+          });
+        }
         return { tag: name, success: true, data: { id: card.id, title: card.title } };
       }
 
@@ -1728,6 +1740,10 @@ async function executeTag(
               },
             });
 
+            // Embed source card ID in relay for Linked Kards — receiving Divi
+            // will read cardContext.id from the relay payload when it creates a
+            // card on the target user's board, enabling bidirectional linking.
+
             results.push({
               task: title,
               routedTo: targetMatch.userName || targetMatch.userEmail,
@@ -1736,6 +1752,7 @@ async function executeTag(
               reasoning: targetMatch.reasoning,
               briefId: brief.id,
               relayId: relay.id,
+              sourceCardId: cardId,
             });
           } else {
             // No match — log as suggestion
@@ -2498,6 +2515,58 @@ async function executeTag(
             widgets,
             settingsGroup: group,
             onboardingPhase: -1,
+          },
+        };
+      }
+
+      // ── Linked Kards: explicit link action ────────────────────────────
+      case 'link_cards': {
+        const { fromCardId, toCardId, linkType } = params;
+        if (!fromCardId || !toCardId) {
+          return { tag: name, success: false, error: 'link_cards requires fromCardId and toCardId' };
+        }
+        // Verify at least one card belongs to this user
+        const [fromCard, toCard] = await Promise.all([
+          prisma.kanbanCard.findFirst({ where: { id: fromCardId }, select: { id: true, userId: true, title: true } }),
+          prisma.kanbanCard.findFirst({ where: { id: toCardId }, select: { id: true, userId: true, title: true } }),
+        ]);
+        if (!fromCard || !toCard) {
+          return { tag: name, success: false, error: 'One or both cards not found' };
+        }
+        if (fromCard.userId !== userId && toCard.userId !== userId) {
+          return { tag: name, success: false, error: 'At least one card must belong to the current user' };
+        }
+        const { linkCards: linkCardsFn } = await import('./card-links');
+        const link = await linkCardsFn(fromCardId, toCardId, { linkType: linkType || 'collaboration' });
+        return { tag: name, success: !!link, data: link ? { linkId: link.id, from: fromCard.title, to: toCard.title } : undefined };
+      }
+
+      // ── Google Connect Button Widget ──────────────────────────────────
+      case 'show_google_connect': {
+        // Returns metadata that ChatView renders as an interactive Google Connect button.
+        // Works both during onboarding and in regular chat.
+        const identity = params.identity || 'operator';
+        const accountIndex = params.accountIndex ?? 0;
+        const label = params.label || (identity === 'agent' ? '🤖 Connect Divi\'s Gmail' : '🔗 Connect Gmail & Calendar');
+        const description = params.description || 'Grant access to read your email and calendar so Divi can help you manage them.';
+
+        // Check if already connected
+        const existingAccount = await prisma.integrationAccount.findFirst({
+          where: { userId, identity, service: 'email', isActive: true },
+          select: { emailAddress: true },
+        });
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            widgetType: 'google_connect',
+            identity,
+            accountIndex,
+            label,
+            description,
+            connected: !!existingAccount,
+            connectedEmail: existingAccount?.emailAddress || null,
           },
         };
       }
