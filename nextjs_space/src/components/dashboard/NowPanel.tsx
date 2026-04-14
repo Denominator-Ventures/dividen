@@ -74,9 +74,6 @@ const TYPE_ICONS: Record<string, string> = {
 export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings, onDiscuss }: NowPanelProps) {
   const [data, setData] = useState<NowData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showNewTask, setShowNewTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState('');
-  const [creating, setCreating] = useState(false);
   const [onboardingActions, setOnboardingActions] = useState<OnboardingActionState>({});
   const [activityExpanded, setActivityExpanded] = useState(false);
   const [earnings, setEarnings] = useState<EarningsData>({ jobEarnings: 0, agentEarnings: 0, visible: false });
@@ -110,36 +107,6 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
     const interval = setInterval(fetchNow, 120000);
     return () => clearInterval(interval);
   }, [fetchNow, fetchEarnings]);
-
-  const handleNewTask = async () => {
-    if (!newTaskTitle?.trim()) return;
-    setCreating(true);
-    try {
-      // Create a kanban card (operator-assigned) so it appears in Now Panel
-      const res = await fetch('/api/kanban', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTaskTitle.trim(),
-          priority: 'medium',
-          status: 'active',
-          assignee: 'human',
-          dueDate: new Date().toISOString(),
-        }),
-      });
-      const json = await res.json();
-      if (json?.success) {
-        setNewTaskTitle('');
-        setShowNewTask(false);
-        fetchNow();
-        onNewTask?.();
-      }
-    } catch (e) {
-      console.error('Failed to create task:', e);
-    } finally {
-      setCreating(false);
-    }
-  };
 
   const handleMarkComplete = useCallback(async (item: NowItem) => {
     setOnboardingActions((prev) => ({ ...prev, [item.sourceId]: 'completing' }));
@@ -245,52 +212,11 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
             ))}
           </div>
 
-          {/* Calendar Gap Indicator */}
-          {nextGap && nextGap.minutes > 0 && (
-            <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
-              <span className="text-[10px]">🕐</span>
-              <span className="text-[10px] text-[var(--text-secondary)]">
-                {nextGap.minutes >= 60
-                  ? `${Math.round(nextGap.minutes / 60)}h ${nextGap.minutes % 60}min available`
-                  : `${nextGap.minutes}min gap`}
-              </span>
-            </div>
-          )}
-
-          {/* Quick Actions */}
-          <div className="space-y-1.5 mb-3">
-            {showNewTask ? (
-              <div className="space-y-1.5">
-                <input
-                  type="text"
-                  className="input-field text-sm"
-                  placeholder="Task title..."
-                  value={newTaskTitle}
-                  onChange={(e) => setNewTaskTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleNewTask()}
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <button onClick={handleNewTask} disabled={creating || !newTaskTitle.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
-                    {creating ? 'Creating...' : 'Add'}
-                  </button>
-                  <button onClick={() => { setShowNewTask(false); setNewTaskTitle(''); }} className="btn-secondary text-sm px-3">✕</button>
-                </div>
-              </div>
-            ) : (
-              <div className="flex gap-1.5">
-                <button onClick={() => setShowNewTask(true)} className="flex-1 btn-secondary text-xs text-left py-1.5">+ Task</button>
-                <button onClick={() => onQuickChat?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">💬 Chat</button>
-                <button onClick={() => onOpenBoard?.()} className="flex-1 btn-secondary text-xs text-left py-1.5">📋 Board</button>
-              </div>
-            )}
-          </div>
-
-          {/* Ranked Items */}
+          {/* Priority Stack — directly under stats */}
           {loading ? (
             <div className="text-center text-[var(--text-muted)] text-xs py-8">Scoring priorities...</div>
           ) : items.length === 0 ? (
-            <div className="text-center text-[var(--text-muted)] text-xs py-8">Clear slate. Add a task or set a goal.</div>
+            <div className="text-center text-[var(--text-muted)] text-xs py-8">Clear slate. Set a goal or open the board.</div>
           ) : (
             <div className="space-y-1 mb-3">
               <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Priority Stack</h4>
@@ -362,6 +288,27 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
               )}
             </div>
           )}
+
+          {/* Calendar Gap — under priority stack */}
+          {nextGap && nextGap.minutes > 0 && (
+            <div className="flex items-center gap-2 mb-3 px-2.5 py-1.5 rounded-md bg-[var(--bg-surface)] border border-[var(--border-color)]">
+              <span className="text-[10px]">🕐</span>
+              <span className="text-[10px] text-[var(--text-secondary)]">
+                {nextGap.minutes >= 60
+                  ? `${Math.round(nextGap.minutes / 60)}h ${nextGap.minutes % 60}min available`
+                  : `${nextGap.minutes}min gap`}
+              </span>
+            </div>
+          )}
+
+          {/* Board Access */}
+          <button
+            onClick={() => onOpenBoard?.()}
+            className="w-full mb-3 py-2 px-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/5 transition-colors text-xs font-medium text-[var(--text-secondary)] flex items-center justify-center gap-2"
+          >
+            <span>📋</span>
+            <span>Open Board</span>
+          </button>
 
           {/* Done Today */}
           {doneItems.length > 0 && (

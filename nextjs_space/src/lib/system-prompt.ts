@@ -7,6 +7,7 @@
  */
 
 import { prisma } from './prisma';
+import { buildContextDigest as buildContextDigestFn } from './board-cortex';
 
 interface PromptContext {
   userId: string;
@@ -206,6 +207,17 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
 
   const inProgressCards = kanbanCards.filter((c: any) => c.status === 'in_progress');
 
+  // ── Board Cortex: pre-digested intelligence layer ──
+  let boardCortexDigest = '';
+  try {
+    const cortexNow = new Date();
+    const digest = await buildContextDigestFn(userId, kanbanCards as any, cortexNow);
+    boardCortexDigest = digest.fullDigest;
+  } catch (e) {
+    // Non-critical — fall back to raw card display
+    console.error('[system-prompt] Board Cortex digest failed:', e);
+  }
+
   // ── Group 1: Identity, Rules & Time (merged old 1+2+9) ──
   const now = new Date();
   const timeStr = `${now.toISOString()} (${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })})`;
@@ -374,6 +386,11 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
     }
   } else {
     group2 += 'No project cards on the board yet.\n';
+  }
+
+  // Board Intelligence (Cortex digest)
+  if (boardCortexDigest) {
+    group2 += `\n### 🧠 Board Intelligence\n${boardCortexDigest}\n\n`;
   }
 
   // Queue
