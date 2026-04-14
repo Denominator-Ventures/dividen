@@ -75,6 +75,7 @@ const TOC = [
   { id: 'queue-gating', label: 'Queue Gating & Confirmation' },
   { id: 'cos-engine', label: 'CoS Execution Engine' },
   { id: 'settings-api', label: 'Settings API (v2)' },
+  { id: 'teams-api', label: 'Teams & Project Delegation' },
   { id: 'behavior-signals', label: 'Behavior Signals API' },
   { id: 'learnings-api', label: 'Learnings API' },
   { id: 'smart-tagging', label: 'Smart Tagging' },
@@ -795,6 +796,83 @@ curl -X PATCH /api/v2/settings \\
 curl -X PATCH /api/v2/settings \\
   -H "Authorization: Bearer dvd_your_key" \\
   -d '{"mode": "chief_of_staff"}'`}</Code>
+        </Section>
+
+        {/* ── Teams & Project Delegation ─────────────────────── */}
+        <Section id="teams-api" title="Teams & Project Delegation">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Teams are persistent groups that span projects. Assign a team to a project to auto-sync all members as contributors.
+            CoS mode delegates qualifying tasks to project contributors via relay.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-3">Schema</h4>
+          <p className="text-[var(--text-secondary)] mb-2 text-sm">
+            <InlineCode>Team</InlineCode> now has <InlineCode>originInstanceUrl</InlineCode> (nullable — null means dividen.ai platform) and <InlineCode>isSelfHosted</InlineCode> (boolean, default false).
+            Self-hosted teams bypass all subscription and billing gates.
+          </p>
+          <p className="text-[var(--text-secondary)] mb-4 text-sm">
+            <InlineCode>TeamInvite</InlineCode> is a new model with token-based deep links, role assignment, optional message, 7-day expiry, and support for email, userId, or connectionId targets.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-3">API Endpoints</h4>
+          <div className="space-y-2 mb-6">
+            <Endpoint method="POST" path="/api/teams" description="Create team. Pass originInstanceUrl for self-hosted." auth="Session" />
+            <Endpoint method="GET" path="/api/teams" description="List teams you own or belong to" auth="Session" />
+            <Endpoint method="GET" path="/api/teams/:id" description="Team detail with members, projects, subscription" auth="Session (member)" />
+            <Endpoint method="PUT" path="/api/teams/:id" description="Update team (owner/admin)" auth="Session (owner/admin)" />
+            <Endpoint method="DELETE" path="/api/teams/:id" description="Delete team (owner only)" auth="Session (owner)" />
+            <Endpoint method="POST" path="/api/teams/:id/members" description="Add member by email or connectionId" auth="Session (owner/admin)" />
+            <Endpoint method="DELETE" path="/api/teams/:id/members?memberId=x" description="Remove member" auth="Session (owner/admin)" />
+            <Endpoint method="POST" path="/api/teams/:id/invites" description="Create invite (email, userId, or connectionId)" auth="Session (owner/admin)" />
+            <Endpoint method="GET" path="/api/teams/:id/invites" description="List pending invites" auth="Session (member)" />
+            <Endpoint method="GET" path="/api/teams/invite/:token" description="Preview invite details" auth="Public" />
+            <Endpoint method="POST" path="/api/teams/invite/:token" description="Accept or decline: {'{ action: &quot;accept&quot; | &quot;decline&quot; }'}" auth="Session" />
+            <Endpoint method="POST" path="/api/teams/:id/projects" description="Assign team to project (syncs all members)" auth="Session (owner/admin)" />
+            <Endpoint method="GET" path="/api/teams/:id/projects" description="List projects assigned to team" auth="Session (member)" />
+            <Endpoint method="DELETE" path="/api/teams/:id/projects?projectId=x" description="Unassign team from project" auth="Session (owner/admin)" />
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-3">CoS Project Delegation</h4>
+          <p className="text-[var(--text-secondary)] mb-2 text-sm">
+            When CoS dispatches a generic task (no explicit capability or relay handler), it checks if the task belongs to a project
+            with <InlineCode>lead</InlineCode> or <InlineCode>contributor</InlineCode> members. If a qualifying member has an active connection, CoS creates an
+            <InlineCode>AgentRelay</InlineCode> (type: <InlineCode>request</InlineCode>, intent: <InlineCode>assign_task</InlineCode>) with the project context.
+          </p>
+          <p className="text-[var(--text-secondary)] mb-4 text-sm">
+            Strategy priority: <strong className="text-white">capability → explicit relay → project contributor → generic</strong>.
+            Teams add members as a bundled unit — delegation operates at the <InlineCode>ProjectMember</InlineCode> level regardless of how the member was added.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-3">Billing Boundary</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 text-sm mb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-2 rounded bg-brand-500/5 border border-brand-500/10">
+                <p className="font-bold text-brand-400 text-xs mb-1">Platform (dividen.ai)</p>
+                <p className="text-[var(--text-muted)] text-xs">Subscription required. Starter $29/mo (5 seats) or Pro $79/mo (10 + $9/seat).</p>
+              </div>
+              <div className="p-2 rounded bg-emerald-500/5 border border-emerald-500/10">
+                <p className="font-bold text-emerald-400 text-xs mb-1">Self-Hosted (open-source)</p>
+                <p className="text-[var(--text-muted)] text-xs">Free. All gates bypassed. Unlimited seats, projects, features.</p>
+              </div>
+            </div>
+            <p className="text-[var(--text-muted)] text-xs mt-3">Billing follows team <strong className="text-white">origin</strong>, not member origin. A platform user joining a self-hosted team is free.</p>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-3">Open-Source Implementation Guide</h4>
+          <p className="text-[var(--text-secondary)] mb-2 text-sm">If you&apos;re running your own instance and want to enable teams:</p>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] text-sm space-y-2 mb-4">
+            <li><strong className="text-white">Pull the latest schema.</strong> <InlineCode>Team</InlineCode> has new fields: <InlineCode>originInstanceUrl</InlineCode>, <InlineCode>isSelfHosted</InlineCode>. <InlineCode>TeamInvite</InlineCode> is a new model. Run <InlineCode>npx prisma db push</InlineCode>.</li>
+            <li><strong className="text-white">Set your instance URL.</strong> Add <InlineCode>DIVIDEN_INSTANCE_URL</InlineCode> to your <InlineCode>.env</InlineCode>. Pass it as <InlineCode>originInstanceUrl</InlineCode> when creating teams. The API sets <InlineCode>isSelfHosted = !!originInstanceUrl</InlineCode>.</li>
+            <li><strong className="text-white">Feature gates auto-bypass.</strong> <InlineCode>feature-gates.ts</InlineCode> returns a synthetic unlimited subscription for any team where <InlineCode>isSelfHosted: true</InlineCode>. No code changes required.</li>
+            <li><strong className="text-white">Team invites work locally.</strong> Same token-based flow — generate at <InlineCode>/api/teams/:id/invites</InlineCode>, share the link, accept at <InlineCode>/team/invite/:token</InlineCode>.</li>
+            <li><strong className="text-white">Cross-instance invites</strong> require a <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">federation connection</a> between instances first. The invite links to a <InlineCode>connectionId</InlineCode> and membership flows through the relay system.</li>
+            <li><strong className="text-white">CoS delegation works automatically</strong> once members are synced to projects. No additional configuration.</li>
+            <li><strong className="text-white">Profiles work the same way.</strong> User profiles at <InlineCode>/profile/:userId</InlineCode> and team profiles at <InlineCode>/team/:id</InlineCode> are public by default. Set <InlineCode>visibility</InlineCode> to <InlineCode>private</InlineCode> or <InlineCode>network</InlineCode> to restrict access.</li>
+          </ol>
+          <p className="text-[var(--text-secondary)] text-sm">
+            See the <a href="/open-source" className="text-brand-400 hover:text-brand-300">open-source guide</a> for general self-hosting setup,
+            and the <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">federation docs</a> for cross-instance connectivity.
+          </p>
         </Section>
 
         {/* ── Behavior Signals API ────────────────────────────── */}
