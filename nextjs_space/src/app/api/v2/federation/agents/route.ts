@@ -137,7 +137,8 @@ export async function POST(req: NextRequest) {
           subscriptionPrice: agent.subscriptionPrice ?? null,
           taskLimit: agent.taskLimit ?? null,
           pricingDetails,
-          status: 'active',
+          // Trusted instances get auto-approved; others go to pending_review
+          status: instance.isTrusted ? 'active' : 'pending_review',
           supportsA2A: agent.supportsA2A ?? true,
           supportsMCP: agent.supportsMCP ?? false,
           agentCardUrl: agent.agentCardUrl || null,
@@ -160,11 +161,13 @@ export async function POST(req: NextRequest) {
         };
 
         if (existing) {
-          await prisma.marketplaceAgent.update({ where: { id: existing.id }, data });
-          results.push({ remoteId: agent.id, name: agent.name, status: 'updated', marketplaceId: existing.id });
+          // Preserve existing approval status on updates — don't downgrade active agents
+          const { status: _omitStatus, ...updateData } = data;
+          await prisma.marketplaceAgent.update({ where: { id: existing.id }, data: updateData });
+          results.push({ remoteId: agent.id, name: agent.name, status: 'updated', marketplaceId: existing.id, approvalStatus: existing.status });
         } else {
           const created = await prisma.marketplaceAgent.create({ data });
-          results.push({ remoteId: agent.id, name: agent.name, status: 'created', marketplaceId: created.id });
+          results.push({ remoteId: agent.id, name: agent.name, status: 'created', marketplaceId: created.id, approvalStatus: data.status });
         }
       } catch (err: any) {
         if (err.code === 'P2002' && err.meta?.target?.includes('slug')) {
@@ -182,7 +185,7 @@ export async function POST(req: NextRequest) {
                 developerUrl: instance.baseUrl,
                 category: agent.category || 'general',
                 pricingModel: agent.pricingModel || 'free',
-                status: 'active',
+                status: instance.isTrusted ? 'active' : 'pending_review',
                 supportsA2A: true,
                 sourceInstanceId: instance.id,
                 remoteAgentId: agent.id,

@@ -7,6 +7,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
+import { checkAndAutoCompleteCard } from '@/lib/card-auto-complete';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +37,13 @@ export async function PATCH(
     data: updateData,
   });
 
-  return NextResponse.json({ success: true, data: item });
+  // Auto-complete the card if all checklist items are now done
+  let cardAutoCompleted = false;
+  if (body.completed === true) {
+    cardAutoCompleted = await checkAndAutoCompleteCard(params.id, userId);
+  }
+
+  return NextResponse.json({ success: true, data: item, cardAutoCompleted });
 }
 
 export async function DELETE(

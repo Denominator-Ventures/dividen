@@ -11,6 +11,7 @@ import { pushRelayStateChanged } from './webhook-push';
 import { getPlatformFeePercent } from './marketplace-config';
 import { checkQueueGate, searchMarketplaceSuggestions } from './queue-gate';
 import { optimizeTaskForAgent } from './smart-task-prompter';
+import { checkAndAutoCompleteCard } from './card-auto-complete';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -413,7 +414,9 @@ async function executeTag(
             userId,
           },
         }).catch(() => {});
-        return { tag: name, success: true, data: { id: item.id, completed: item.completed } };
+        // Auto-complete the card if all checklist items are now done
+        const cardAutoCompleted = await checkAndAutoCompleteCard(item.cardId, userId);
+        return { tag: name, success: true, data: { id: item.id, completed: item.completed, cardAutoCompleted } };
       }
 
       // ── Contacts ─────────────────────────────────────────────────────

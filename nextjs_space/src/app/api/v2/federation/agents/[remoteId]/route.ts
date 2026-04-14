@@ -94,7 +94,8 @@ export async function PUT(
       subscriptionPrice: agent.subscriptionPrice ?? null,
       taskLimit: agent.taskLimit ?? null,
       pricingDetails,
-      status: agent.status || 'active',
+      // Trusted instances get auto-approved; others go to pending_review for new agents
+      status: instance.isTrusted ? (agent.status || 'active') : 'pending_review',
       supportsA2A: agent.supportsA2A ?? true,
       supportsMCP: agent.supportsMCP ?? false,
       agentCardUrl: agent.agentCardUrl || null,
@@ -118,13 +119,16 @@ export async function PUT(
 
     let result;
     if (existing) {
-      result = await prisma.marketplaceAgent.update({ where: { id: existing.id }, data });
+      // Preserve existing approval status on updates — don't downgrade active agents
+      const { status: _omitStatus, ...updateData } = data;
+      result = await prisma.marketplaceAgent.update({ where: { id: existing.id }, data: updateData });
       return NextResponse.json({
         success: true,
         action: 'updated',
         marketplaceId: result.id,
         remoteId,
         slug: result.slug,
+        approvalStatus: existing.status,
       });
     } else {
       result = await prisma.marketplaceAgent.create({ data });
@@ -134,6 +138,7 @@ export async function PUT(
         marketplaceId: result.id,
         remoteId,
         slug: result.slug,
+        approvalStatus: result.status,
       }, { status: 201 });
     }
   } catch (error: any) {

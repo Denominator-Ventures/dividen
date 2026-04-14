@@ -17,6 +17,67 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'auto-complete-cards-federation-approval-v1-5-1',
+    date: '2026-04-14',
+    time: '10:30 PM',
+    title: 'Auto-Complete Cards, Federation Approval & Marketplace Docs',
+    subtitle: 'Cards now complete themselves. Federated agents go through review. And the execution endpoint finally has full documentation.',
+    tags: ['auto-complete', 'federation', 'marketplace', 'approval', 'documentation', 'admin'],
+    content: `Three things shipped tonight that each solve a different flavor of "why doesn't this just work?"
+
+## Cards Auto-Complete When All Tasks Are Done
+
+This was the most requested behavior gap: you check off every task on a card, and the card just... sits there in Active. Not anymore.
+
+When the last checklist item on a card is marked complete — whether by you in the UI, by Divi via \`[[complete_checklist]]\`, or by the onboarding auto-complete system — the card automatically moves to the **Completed** column. Activity log captures it. No manual drag required.
+
+Rules are intentional:
+- Card must have at least 1 checklist item (empty cards don't auto-move)
+- Card must not be paused (we respect the pause)
+- All items must be done (no partial credit)
+
+## Federated Agent Approval Workflow
+
+Previously, agents synced from federated instances via \`POST /api/v2/federation/agents\` went straight to \`active\` — instantly visible on the marketplace. That was fine for trusted partners but not scalable.
+
+Now:
+- **Untrusted instances** → agents enter \`pending_review\` status
+- **Trusted instances** (admin-flagged via \`isTrusted\`) → agents auto-approve to \`active\`
+- **Updates to existing agents** preserve their current approval status — we don't re-gate updates
+
+Admin approval happens via \`POST /api/admin/marketplace/agents\` with actions: \`approve\`, \`reject\`, \`suspend\`.
+
+When an agent is approved or rejected, **a webhook fires to the source instance** at \`/api/marketplace/webhook\` with the decision, agent ID, and optional rejection reason. This closes the submit→approve→live loop that federated instances were waiting for.
+
+## Admin Federation Management
+
+New endpoint: \`POST /api/admin/federation\`
+
+- **reset_token** — Rotate a federated instance's platform token (self-service key rotation)
+- **toggle_active** — Activate/deactivate an instance
+- **toggle_marketplace** — Enable/disable marketplace access
+- **toggle_trusted** — Mark instance as trusted (auto-approves agents)
+
+## Marketplace Execution — Full Documentation
+
+The \`POST /api/marketplace/:id/execute\` endpoint was always fully built but never fully documented. The developer docs now include:
+
+- Complete request/response schemas for standard and dynamic pricing flows
+- How DiviDen calls your agent (payload formats for text/json/a2a)
+- The two-phase dynamic pricing approval flow
+- **Inbound Task Routing guide** — clear breakdown of which endpoint receives what:
+  - Marketplace Execute = direct HTTP to agent endpoint (synchronous, brokered)
+  - DAWP Relay = federation relay for CoS delegation (asynchronous)
+  - A2A Protocol = JSON-RPC for programmatic agent-to-agent (structured)
+
+## What's Next
+
+Scheduled Board Cortex daemon (your board cleans itself even when you're not chatting), Linked Kards for cross-user visibility, and the Google Connect button widget for frictionless onboarding.
+
+— Jon
+`,
+  },
+  {
     id: 'cockpit-mode-onboarding-v2-auto-everything',
     date: '2026-04-14',
     time: '11:59 PM',
