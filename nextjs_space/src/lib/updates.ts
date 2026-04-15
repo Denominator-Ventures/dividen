@@ -17,6 +17,77 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'widget-library-comms-pipeline-v1-9-2',
+    date: '2026-04-15',
+    time: '1:30 PM',
+    title: 'Widget Library, Comms→Widget Pipeline & Approval Notifications',
+    subtitle: 'Every interactive widget is now theme-agnostic and reusable. Tasks from comms render interactive widgets inline. Federation agents get real-time approval status.',
+    tags: ['widgets', 'comms', 'federation', 'onboarding', 'v1.9.2'],
+    content: `Three pieces of infrastructure that were overdue. v1.9.2.
+
+## Widget Library — Theme-Agnostic Primitives
+
+Previously, every widget component was hardcoded with DiviDen's brand colors. Sliders had \`bg-brand-500\`, toggles had \`from-brand-500\`, text inputs had \`border-brand-500/30\`. This meant any external instance running a different theme — or anyone building on top of DiviDen's open-source widget system — had to fork and rewrite colors.
+
+Now there's a proper widget library at \`src/components/widgets/\`:
+
+- **WidgetSlider** — Range input with CSS custom properties for all colors
+- **WidgetToggle** — Boolean toggle, themed via \`--widget-accent\`
+- **WidgetRadio** — Radio group with accent ring
+- **WidgetSelect** — Dropdown with themed border/focus states
+- **WidgetTextInput** — Text input with themed placeholder
+- **WidgetInfo** — Read-only info display
+- **WidgetGoogleConnect** — OAuth button (themed independently)
+- **WidgetWebhookSetup** — Webhook creation flow
+- **WidgetSubmitButton / WidgetSkipButton** — Action buttons
+- **AgentWidget** — Agent cards/lists/grids for marketplace and chat
+
+Everything is driven by 18 CSS custom properties defined in \`widget-theme.css\`. Override \`--widget-bg\`, \`--widget-accent\`, \`--widget-text\`, etc., and the entire widget set follows. No class name hunting.
+
+Onboarding dropped from 552 lines to 190 by delegating to the library. Same UX, zero brand coupling.
+
+## Comms → Task → Widget Interactivity Pipeline
+
+This is the wiring that was missing. Before: an inbound relay could create a task, but tasks had no mechanism to carry interactive widgets. The user saw a text description in their queue and had to figure out what to do.
+
+Now:
+
+1. **A2A \`tasks/send\`** accepts \`metadata.widgets\` — a remote agent can send an array of \`AgentWidgetData\` definitions with a task
+2. **Relay payload** carries the widget definitions, and when linked to a queue item, widgets propagate to the queue item's \`metadata\`
+3. **QueuePanel** already rendered widgets from metadata — now it also wires comm-sourced widget actions back to the originating relay via \`/api/relays/widget-response\`
+4. **Comms detail page** renders interactive widgets inline in relay thread view
+5. **Widget responses** update the relay's \`responsePayload\`, sync the linked queue item, and optionally forward to a \`widgetResponseUrl\` the sender specified
+
+The response flow is: user clicks widget action → \`/api/relays/widget-response\` → relay updated → queue item synced → webhook pushed → optional callback to sender.
+
+Terminal actions (approve, decline, submit, confirm, reject) auto-complete both the relay and the linked queue item. Non-terminal actions (select, toggle, input) move the relay to \`user_review\` status so the conversation continues.
+
+This is what makes cross-agent capabilities actually interactive. An agent can send a task with choice cards, approval prompts, or configuration widgets — the user responds directly in comms or queue, and the originating agent gets the structured response back.
+
+## Approval Status Notifications
+
+Federated instances now get real-time notification when:
+
+- Their agent is activated or deactivated (instance_status webhook event)
+- Their capability is approved, rejected, or has its approval status changed (capability_approval webhook event)
+
+Both fire to the registered \`webhookUrl\` on the source instance record, following the same pattern as existing marketplace webhooks: 10s timeout, \`X-DiviDen-Event\` header, fire-and-forget.
+
+The receiving instance handles these in their \`/api/marketplace/webhook\` handler — two new cases: \`handleCapabilityApproval()\` and \`handleInstanceStatus()\`.
+
+## BYOAI Onboarding — 3-Tile Provider Selection
+
+Small but visible change. The API key onboarding step now presents three tiles:
+
+- **Anthropic** — Direct API key, recommended
+- **OpenAI** — Direct API key
+- **ChatGPT Plus** — Reverse proxy, cheapest
+
+Each tile shows the provider-specific placeholder, setup link, and instructions. Tile selection is instant — no page reload, no modal. Skip button still works for users who want to add keys later.
+
+- Jon`,
+  },
+  {
     id: 'realtime-catchup-activity-v1-9',
     date: '2026-04-15',
     time: '11:59 PM',
