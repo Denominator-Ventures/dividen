@@ -188,7 +188,7 @@ export async function GET(req: NextRequest) {
           subscriptionPrice: true, tags: true, avgRating: true,
           totalRatings: true, totalExecutions: true, avgResponseTime: true,
           successRate: true, featured: true, developerName: true, developerId: true,
-          supportsA2A: true, supportsMCP: true,
+          supportsA2A: true, supportsMCP: true, sourceInstanceId: true, sourceInstanceUrl: true,
         },
       });
 
@@ -213,6 +213,7 @@ export async function GET(req: NextRequest) {
             avgResponseTime: a.avgResponseTime, successRate: a.successRate,
             featured: a.featured, developerName: a.developerName, developerId: a.developerId,
             supportsA2A: a.supportsA2A, supportsMCP: a.supportsMCP,
+            isFederated: !!a.sourceInstanceId, sourceInstanceUrl: a.sourceInstanceUrl,
             isInstalled: sub?.installed || false,
             isSubscribed: sub?.status === 'active',
           };

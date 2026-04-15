@@ -2142,10 +2142,16 @@ model MarketplaceCapability {
   skillSource     String?                           // e.g. "agentskills.io"
 
   // ── CapabilityModule (Phase 2) — Signal-based prompt loading ──
+  promptGroup     String?             // logical grouping for prompt assembly, e.g. "email", "calendar", "research"
   signalPatterns  String?   @db.Text  // JSON array of regex strings for relevance engine, e.g. ["email.*draft","send.*email","compose"]
   tokenEstimate   Int?                // estimated token count of the resolved prompt
   alwaysLoad      Boolean   @default(false) // if true, bypass relevance scoring — always inject into prompt
   moduleVersion   String    @default("1.0") // version of the module spec this capability targets
+
+  // ── Federation — capabilities synced from self-hosted instances ──
+  sourceInstanceId  String?  // InstanceRegistry.id if synced from a federated instance
+  sourceInstanceUrl String?  // Cached URL for display
+  remoteCapabilityId String? // Original capability ID on the remote instance
 
   // ── Revenue tracking ──
   totalGrossRevenue     Float   @default(0) // total sales revenue
@@ -2168,6 +2174,7 @@ model MarketplaceCapability {
   @@index([featured])
   @@index([approvalStatus])
   @@index([publisherType])
+  @@index([sourceInstanceId])
   @@map("marketplace_capabilities")
 }
 

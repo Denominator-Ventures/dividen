@@ -209,8 +209,11 @@ export async function GET(request: NextRequest) {
           ],
         },
         take: perType, orderBy: { totalExecutions: 'desc' },
-        select: { id: true, name: true, description: true, category: true, pricingModel: true, avgRating: true, totalExecutions: true },
+        select: { id: true, name: true, slug: true, description: true, category: true, pricingModel: true, avgRating: true, totalExecutions: true, sourceInstanceId: true, sourceInstanceUrl: true, developerName: true },
       });
+
+      // Track federated developers we've seen to add as people results
+      const seenFederatedDevs = new Set<string>();
 
       for (const a of agents) {
         const ag = a as any;
@@ -220,6 +223,21 @@ export async function GET(request: NextRequest) {
           subtitle: `${ag.category} · ${ag.pricingModel}${rating} · ${ag.totalExecutions} runs`,
           icon: '🤖', section: 'network',
         });
+
+        // Add federated developers as people results (deduplicated)
+        if (ag.sourceInstanceId && ag.developerName) {
+          const devKey = `${ag.developerName}::${ag.sourceInstanceId}`;
+          if (!seenFederatedDevs.has(devKey)) {
+            seenFederatedDevs.add(devKey);
+            const hostname = ag.sourceInstanceUrl ? (() => { try { return new URL(ag.sourceInstanceUrl).hostname; } catch { return 'Federated'; } })() : 'Federated';
+            results.push({
+              id: `feddev-${ag.slug}`, type: 'person' as any, title: ag.developerName,
+              subtitle: `🌐 Federated developer via ${hostname}`,
+              icon: '🌐', section: 'network',
+              url: `/developer/${ag.slug}`,
+            });
+          }
+        }
       }
 
       // Jobs — open network-visible

@@ -617,19 +617,28 @@ export function ConnectionsView() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-start gap-3 min-w-0 flex-1">
                           <button
-                            onClick={() => u.source !== 'federated' && setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus })}
+                            onClick={() => {
+                              if (u.source === 'federated_developer' && u.profileUrl) { window.open(u.profileUrl, '_blank'); return; }
+                              if (u.source !== 'federated') setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus });
+                            }}
                             disabled={u.source === 'federated'}
-                            className={cn('w-9 h-9 rounded-full bg-[var(--brand-primary)]/15 flex items-center justify-center text-[var(--brand-primary)] text-sm font-medium shrink-0', u.source !== 'federated' && 'hover:ring-2 hover:ring-[var(--brand-primary)]/30 cursor-pointer transition-all')}
+                            className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium shrink-0', u.source === 'federated_developer' ? 'bg-purple-500/15 text-purple-400 hover:ring-2 hover:ring-purple-500/30 cursor-pointer transition-all' : u.source === 'federated' ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]' : 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:ring-2 hover:ring-[var(--brand-primary)]/30 cursor-pointer transition-all')}
                           >
                             {(u.name || u.email || '?').charAt(0).toUpperCase()}
                           </button>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <button
-                                onClick={() => u.source !== 'federated' && setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus })}
+                                onClick={() => {
+                                  if (u.source === 'federated_developer' && u.profileUrl) { window.open(u.profileUrl, '_blank'); return; }
+                                  if (u.source !== 'federated') setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus });
+                                }}
                                 disabled={u.source === 'federated'}
-                                className={cn('text-sm font-medium text-[var(--text-primary)] truncate', u.source !== 'federated' && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
+                                className={cn('text-sm font-medium text-[var(--text-primary)] truncate', (u.source !== 'federated') && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
                               >{u.name || 'Anonymous'}</button>
+                              {u.source === 'federated_developer' && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium shrink-0">🌐 federated dev</span>
+                              )}
                               {u.source === 'federated' && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium shrink-0">self-hosted</span>
                               )}
@@ -679,6 +688,13 @@ export function ConnectionsView() {
                             <span className="text-[10px] px-2.5 py-1 rounded-md bg-green-500/15 text-green-400 font-medium">✓ Connected</span>
                           ) : isPending ? (
                             <span className="text-[10px] px-2.5 py-1 rounded-md bg-yellow-500/15 text-yellow-400 font-medium">Pending</span>
+                          ) : u.source === 'federated_developer' ? (
+                            <a
+                              href={u.profileUrl || '#'}
+                              target="_blank"
+                              rel="noopener"
+                              className="text-[10px] px-2.5 py-1 rounded-md bg-purple-500/15 text-purple-400 font-medium hover:bg-purple-500/25 transition-colors"
+                            >View Profile →</a>
                           ) : u.source === 'federated' ? (
                             <button
                               onClick={() => {

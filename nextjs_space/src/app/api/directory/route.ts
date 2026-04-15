@@ -178,7 +178,39 @@ export async function GET(req: NextRequest) {
       console.warn('Failed to fetch federated instances for directory:', e);
     }
 
-    const allResults = [...results, ...federatedEntries];
+    // Also show federated developers (distinct developerName+sourceInstanceId from marketplace agents)
+    let federatedDevelopers: any[] = [];
+    try {
+      const fedAgents = await prisma.marketplaceAgent.findMany({
+        where: {
+          sourceInstanceId: { not: null },
+          status: 'active',
+          ...(q ? { developerName: { contains: q, mode: 'insensitive' as const } } : {}),
+        },
+        select: { developerName: true, developerUrl: true, slug: true, sourceInstanceId: true, sourceInstanceUrl: true },
+        distinct: ['developerName', 'sourceInstanceId'],
+        take: 20,
+      });
+
+      federatedDevelopers = fedAgents.map((a: any) => {
+        const hostname = a.sourceInstanceUrl ? (() => { try { return new URL(a.sourceInstanceUrl).hostname; } catch { return 'Federated'; } })() : 'Federated';
+        return {
+          id: `feddev_${a.slug}`,
+          name: a.developerName,
+          email: null,
+          source: 'federated_developer',
+          instanceUrl: a.sourceInstanceUrl,
+          profileUrl: `/developer/${a.slug}`,
+          connectionStatus: null,
+          hasProfile: true,
+          headline: `🌐 Federated developer via ${hostname}`,
+        };
+      });
+    } catch (e) {
+      console.warn('Failed to fetch federated developers for directory:', e);
+    }
+
+    const allResults = [...results, ...federatedDevelopers, ...federatedEntries];
 
     return NextResponse.json({
       users: allResults,
