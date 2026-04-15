@@ -38,15 +38,163 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 15, 2026 — v1.6.0 MODULAR CAPABILITY SYSTEM PROMPT          */}
+        {/* APRIL 14, 2026 — v1.8.1 FEDERATION CAPABILITIES + DEV PROFILES    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.8.1</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Federation v2</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Developer Profiles</span>
+            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 font-heading">Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul & Approval Hardening</h2>
+          <p className="text-sm text-[var(--text-muted)] mb-6">Covers v1.6.1 → v1.6.2 → v1.7.0 → v1.8.0 → v1.8.1</p>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+
+            {/* ── v1.8.0 / v1.8.1 — Federation Capabilities + Dev Profiles ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🌐 Federation Capabilities Endpoint (v1.8.0)</h3>
+              <p className="mb-2">
+                Federated instances can now sync <strong className="text-white">capabilities</strong> to DiviDen&apos;s managed marketplace — not just agents.
+              </p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">POST /api/v2/federation/capabilities</code> — sync capabilities from a federated instance (max 50 per call). Accepts <code className="code-inline">promptGroup</code>, <code className="code-inline">signalPatterns</code>, <code className="code-inline">tokenEstimate</code>, <code className="code-inline">alwaysLoad</code>.</li>
+                <li><code className="code-inline">GET /api/v2/federation/capabilities</code> — list capabilities currently synced from your instance.</li>
+                <li>Schema: added <code className="code-inline">promptGroup</code>, <code className="code-inline">sourceInstanceId</code>, <code className="code-inline">sourceInstanceUrl</code>, <code className="code-inline">remoteCapabilityId</code> to <code className="code-inline">MarketplaceCapability</code>.</li>
+                <li>All capability submissions enter <code className="code-inline">pending_review</code> — no auto-approve, even for trusted instances.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">👤 Federated Developer Profiles (v1.8.0)</h3>
+              <p className="mb-2">
+                Federated developers (people who build agents on other DiviDen instances) now have a presence on the managed platform.
+              </p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>New page: <code className="code-inline">/developer/{'{slug}'}</code> — shows developer name, purple <span className="text-purple-400">🌐 Federated via {'{instance}'}</span> badge, all their agents and capabilities on DiviDen.</li>
+                <li>Developer name links: <strong className="text-purple-400">federated agents → /developer/{'{slug}'}</strong> (purple), <strong className="text-brand-400">platform agents → /profile/{'{userId}'}</strong> (brand).</li>
+                <li>Applied across Marketplace browse, Marketplace detail, Discover agents, Global Search, Directory, and Connections.</li>
+                <li>Federated developers appear as <code className="code-inline">person</code> results in search and as <code className="code-inline">federated_developer</code> entries in the directory.</li>
+                <li>Connections view shows &quot;View Profile →&quot; instead of &quot;Connect&quot; for federated developers.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔧 Price &amp; Access Password Fix (v1.8.1)</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Federation agent sync now accepts price from <code className="code-inline">pricePerTask</code>, <code className="code-inline">pricingAmount</code>, or <code className="code-inline">price</code> — with string→float coercion.</li>
+                <li><code className="code-inline">accessPassword</code> now passes through federation agent sync (was silently dropped before). Users on DiviDen can unlock agents using developer-shared passwords.</li>
+                <li>Sync response echoes back <code className="code-inline">pricePerTask</code> and <code className="code-inline">pricingModel</code> for debugging.</li>
+              </ul>
+            </div>
+
+            {/* ── v1.7.0 — FVP Spec Federation Alignment ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🤝 Federation Naming Alignment (v1.7.0)</h3>
+              <p className="mb-2">
+                Canonical naming conventions established for the federation protocol — instances sending agents and capabilities should use these values:
+              </p>
+              <div className="bg-black/20 rounded-lg border border-white/[0.06] overflow-hidden mb-3">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      <th className="text-left p-3 text-white font-bold">Legacy / Alias</th>
+                      <th className="text-left p-3 text-white font-bold">DiviDen Canonical</th>
+                      <th className="text-left p-3 text-white font-bold">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    <tr>
+                      <td className="p-3"><code className="code-inline">per_execution</code></td>
+                      <td className="p-3 text-brand-400"><code className="code-inline">per_task</code></td>
+                      <td className="p-3">Both accepted, stored as per_task</td>
+                    </tr>
+                    <tr>
+                      <td className="p-3"><code className="code-inline">pending_approval</code></td>
+                      <td className="p-3 text-brand-400"><code className="code-inline">pending_review</code></td>
+                      <td className="p-3">Canonical status for all submissions</td>
+                    </tr>
+                    <tr>
+                      <td className="p-3"><code className="code-inline">pricingAmount</code></td>
+                      <td className="p-3 text-brand-400"><code className="code-inline">pricePerTask</code></td>
+                      <td className="p-3">Alias accepted and mapped automatically</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">currency</code> field supported (ISO 4217, default <code className="code-inline">USD</code>).</li>
+                <li>Top-level <code className="code-inline">status: &apos;pending_review&apos;</code> added to federation sync response.</li>
+                <li>Trusted-instance auto-approve <strong className="text-red-400">removed</strong> — all submissions always enter <code className="code-inline">pending_review</code>.</li>
+                <li>Developer attribution: just <code className="code-inline">developerName</code> + <code className="code-inline">developerUrl</code>. No bio, title, company, or industry fields.</li>
+                <li>Nested <code className="code-inline">capabilities</code> object parsed on agent submissions (<code className="code-inline">identity</code>, <code className="code-inline">taskTypes</code>, <code className="code-inline">contextInstructions</code>).</li>
+              </ul>
+            </div>
+
+            {/* ── v1.6.2 — Review & Approval Hardening ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">✅ Review &amp; Approval Hardening (v1.6.2)</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Agent approval now records <code className="code-inline">reviewedAt</code>, <code className="code-inline">reviewedById</code>, <code className="code-inline">reviewNotes</code> in the database — full audit trail.</li>
+                <li>Admin notification via <code className="code-inline">ActivityLog</code> when marketplace agents or capabilities are submitted for review.</li>
+                <li>Developer notification via <code className="code-inline">ActivityLog</code> on approval, rejection, or suspension.</li>
+                <li>Schema additions: <code className="code-inline">reviewedAt</code>, <code className="code-inline">reviewedById</code>, <code className="code-inline">reviewNotes</code> on both <code className="code-inline">MarketplaceAgent</code> and <code className="code-inline">MarketplaceCapability</code>.</li>
+              </ul>
+            </div>
+
+            {/* ── v1.6.1 — CapabilityModule Phase 2 ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🧩 CapabilityModule Phase 2 (v1.6.1)</h3>
+              <p className="mb-2">
+                Phase 2 of the modular capability system — marketplace capabilities are now data-driven modules that integrate with the relevance engine.
+              </p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Formal <code className="code-inline">CapabilityModule</code> interface in <code className="code-inline">src/lib/capability-module.ts</code> — scoring, loading, prompt injection.</li>
+                <li><code className="code-inline">scoreCapabilityModule()</code> uses same weights as static groups — message match (+0.6), context match (+0.3), baseline (+0.05), threshold (0.3).</li>
+                <li><code className="code-inline">loadRelevantCapabilityModules(userId, message, context)</code> fetches installed caps, scores them, returns only those above threshold.</li>
+                <li>System prompt: dynamic capability modules injected as Group 14 — each module scored independently.</li>
+                <li>Schema: <code className="code-inline">signalPatterns</code>, <code className="code-inline">tokenEstimate</code>, <code className="code-inline">alwaysLoad</code>, <code className="code-inline">moduleVersion</code>, revenue tracking fields on <code className="code-inline">MarketplaceCapability</code>.</li>
+                <li><strong className="text-brand-400">97/3 revenue split</strong> on paid capability purchases (same as agents) via <code className="code-inline">calculateRevenueSplit()</code>.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📡 New APIs (v1.6.1)</h3>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><code className="code-inline">GET /api/v2/prompt-groups</code> — exposes all 17 static prompt groups, signal patterns, scoring params, and the CapabilityModule spec. For federation alignment.</li>
+                <li><code className="code-inline">POST /api/marketplace/webhook</code> — receives <code className="code-inline">agent_approval</code> events from the managed marketplace. Validates <code className="code-inline">X-Federation-Token</code>.</li>
+              </ul>
+            </div>
+
+            {/* ── Onboarding Overhaul (across v1.6.1–v1.7.0) ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🎓 Onboarding Overhaul</h3>
+              <p className="mb-2">
+                Complete rewrite of how new users get set up — project-based, conversational, and non-blocking.
+              </p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Onboarding project (&quot;DiviDen Setup&quot;) now created at <strong className="text-white">signup time</strong>, not after first chat message.</li>
+                <li>Setup tasks appear in the NOW panel immediately — no due dates, just a checklist.</li>
+                <li>Divi walks through setup <strong className="text-white">conversationally</strong>: completes a task → asks &quot;Next up is X. Want to knock that out now?&quot; → user confirms → renders the appropriate widget.</li>
+                <li>Legacy onboarding phases (0-5) fully removed from system prompt. <code className="code-inline">onboardingPhase</code> field still exists but is no longer read.</li>
+                <li>Manual &quot;Cortex Scan&quot; button added to kanban board for on-demand board analysis.</li>
+              </ul>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 15, 2026 — v1.6.0 MODULAR CAPABILITY SYSTEM PROMPT          */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
           <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 15, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.6.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Modular Capabilities</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Token Optimization</span>
-            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Modular Capability System — Divi Gets a Lighter Brain</h2>
 
@@ -146,10 +294,10 @@ export default function ReleaseNotesPage() {
 
             {/* Phase 2 */}
             <div>
-              <h3 className="text-base font-bold text-white mb-2">🔮 Phase 2</h3>
+              <h3 className="text-base font-bold text-white mb-2">🔮 Phase 2 — Shipped in v1.6.1</h3>
               <p>
-                This is Phase 1 (sub-groups with signal-based loading). Phase 2: a formal <code className="code-inline">CapabilityModule</code> interface
-                where modules are data-driven and per-user installable — your Divi literally ships with only the capabilities you need.
+                Phase 2 is now live: a formal <code className="code-inline">CapabilityModule</code> interface where marketplace capabilities are data-driven,
+                per-user installable modules that integrate with the relevance engine. See <strong className="text-brand-400">v1.8.1 release notes</strong> above for details.
               </p>
             </div>
 

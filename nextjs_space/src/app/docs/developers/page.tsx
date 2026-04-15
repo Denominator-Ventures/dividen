@@ -315,15 +315,24 @@ Content-Type: application/json
 
           <h3 className="text-lg font-bold mb-3">Instance Registration & Lifecycle</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → returns platformToken. New instances start as pending_approval." auth="None" />
+            <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → returns platformToken. New instances start as pending_review." auth="None" />
             <Endpoint method="POST" path="/api/v2/federation/heartbeat" description="Report instance health, version, user/agent counts (send every 1-12h)" auth="Platform Token" />
             <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable marketplace participation for instance" auth="Platform Token" />
           </div>
 
           <h3 className="text-lg font-bold mb-3">Agent Sync</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50 per call)" auth="Platform Token" />
+            <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50 per call). Accepts pricePerTask/pricingAmount/price, accessPassword, currency, nested capabilities." auth="Platform Token" />
             <Endpoint method="GET" path="/api/v2/federation/agents" description="List agents currently synced from your instance" auth="Platform Token" />
+            <Endpoint method="PUT" path="/api/v2/federation/agents/:remoteId" description="Register or update a single agent (upsert)" auth="Platform Token" />
+            <Endpoint method="GET" path="/api/v2/federation/agents/:remoteId" description="Retrieve agent details + revenue stats" auth="Platform Token" />
+            <Endpoint method="DELETE" path="/api/v2/federation/agents/:remoteId" description="Remove agent, cascade-delete subscriptions and executions" auth="Platform Token" />
+          </div>
+
+          <h3 className="text-lg font-bold mb-3">Capability Sync</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="POST" path="/api/v2/federation/capabilities" description="Sync capabilities to managed marketplace (max 50 per call). Accepts promptGroup, signalPatterns, tokenEstimate, alwaysLoad." auth="Platform Token" />
+            <Endpoint method="GET" path="/api/v2/federation/capabilities" description="List capabilities currently synced from your instance" auth="Platform Token" />
           </div>
 
           <h3 className="text-lg font-bold mb-3">Payment Validation</h3>
@@ -334,7 +343,8 @@ Content-Type: application/json
           <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
             <h4 className="text-sm font-bold text-amber-400 mb-1">Instance Lifecycle</h4>
             <p className="text-sm text-[var(--text-secondary)]">
-              New registrations start as <strong className="text-amber-400">pending_approval</strong>. Admin approval is required before the instance is active on the network.
+              New registrations start as <strong className="text-amber-400">pending_review</strong>. Admin approval is required before the instance is active on the network.
+              All agent and capability submissions always enter <strong className="text-amber-400">pending_review</strong> — no auto-approve, even for trusted instances.
               Deactivating an instance cascade-suspends all its marketplace agents. Re-activating restores them.
             </p>
           </div>
@@ -550,9 +560,8 @@ X-DiviDen-Source: marketplace`}</Code>
 
           <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Federated Agent Approval</h4>
           <p className="text-[var(--text-secondary)] text-sm mb-2">
-            Agents synced from federated instances via <InlineCode>POST /api/v2/federation/agents</InlineCode> now enter <InlineCode>pending_review</InlineCode> status by default.
-            Trusted instances (admin-approved) get auto-approved to <InlineCode>active</InlineCode>.
-            When an agent is approved or rejected, a webhook fires to the source instance at <InlineCode>/api/marketplace/webhook</InlineCode>:
+            All agents and capabilities synced from federated instances enter <InlineCode>pending_review</InlineCode> status — no auto-approve, even for trusted instances.
+            Admin reviews each submission in the DiviDen admin panel. When an agent is approved or rejected, a webhook fires to the source instance at <InlineCode>/api/marketplace/webhook</InlineCode>:
           </p>
           <Code>{`// Webhook payload
 {

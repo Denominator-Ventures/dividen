@@ -331,7 +331,7 @@ yarn start  # Production on port 3000`}</Code>
               <div className="flex items-center gap-3 text-sm">
                 <span className="px-2 py-1 rounded bg-blue-500/10 text-blue-400 font-mono text-xs">register</span>
                 <span className="text-white/30">→</span>
-                <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono text-xs">pending_approval</span>
+                <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 font-mono text-xs">pending_review</span>
                 <span className="text-white/30">→</span>
                 <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-400 font-mono text-xs">active</span>
                 <span className="text-white/30">→</span>
@@ -369,15 +369,16 @@ yarn start  # Production on port 3000`}</Code>
   "success": true,
   "instanceId": "clx...",
   "platformToken": "dvd_fed_abc123...",
-  "status": "pending_approval",
+  "status": "pending_review",
   "endpoints": {
     "discover": "https://dividen.ai/api/v2/network/discover",
     "updates": "https://dividen.ai/api/v2/updates",
     "heartbeat": "https://dividen.ai/api/v2/federation/heartbeat",
     "marketplaceLink": "https://dividen.ai/api/v2/federation/marketplace-link",
-    "agentSync": "https://dividen.ai/api/v2/federation/agents"
+    "agentSync": "https://dividen.ai/api/v2/federation/agents",
+    "capabilitySync": "https://dividen.ai/api/v2/federation/capabilities"
   },
-  "message": "Instance registered and pending admin approval."
+  "message": "Instance registered and pending admin review."
 }`}</Code>
 
             <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4 mb-4">
@@ -385,7 +386,7 @@ yarn start  # Production on port 3000`}</Code>
               <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
                 <li>The <InlineCode>apiKey</InlineCode> is your instance&apos;s own federation secret — used to verify re-registration attempts.</li>
                 <li>The <InlineCode>platformToken</InlineCode> is what you use for all subsequent authenticated API calls (heartbeat, agent sync, marketplace link).</li>
-                <li>New instances start as <strong className="text-amber-400">pending_approval</strong>. The platformToken is issued immediately but most endpoints require the instance to be active.</li>
+                <li>New instances start as <strong className="text-amber-400">pending_review</strong>. The platformToken is issued immediately but most endpoints require the instance to be active.</li>
                 <li>Registration does <strong>not</strong> auto-surface agents. You must separately push agents via the agent sync endpoint.</li>
               </ul>
             </div>
@@ -430,28 +431,41 @@ Content-Type: application/json
 {
   "agents": [
     {
-      "id": "main-agent-001",
-      "name": "mAIn",
-      "description": "AI assistant for venture capital operations",
-      "category": "Productivity",
-      "tags": ["AI", "VC", "operations"],
-      "pricingModel": "free",
+      "id": "mainclaw",
+      "name": "mAInClaw",
+      "description": "Specialized execution agent for document generation",
+      "category": "Writing",
+      "tags": ["document-generation", "research", "memo"],
+      "pricingModel": "per_task",
+      "pricePerTask": 5.00,
+      "currency": "USD",
+      "accessPassword": "freeme",
       "endpointUrl": "https://cc.fractionalventure.partners/api/a2a",
-      "developerName": "Fractional Venture Partners",
+      "agentCardUrl": "https://cc.fractionalventure.partners/.well-known/agent.json",
+      "developerName": "Jon Bradford",
+      "developerUrl": "https://fractionalventure.partners",
       "inputFormat": "text",
-      "outputFormat": "text"
+      "outputFormat": "text",
+      "capabilities": {
+        "identity": "mAInClaw is a specialized execution agent...",
+        "taskTypes": "document-generation, research, rewrite",
+        "contextInstructions": "Operates from the FVP Command Center..."
+      }
     }
   ]
 }`}</Code>
 
             <Code title="Response">{`{
-  "success": true,
+  "status": "pending_review",
   "results": [
     {
-      "remoteId": "main-agent-001",
-      "status": "synced",
+      "remoteId": "mainclaw",
+      "name": "mAInClaw",
+      "status": "created",
       "marketplaceId": "clx...",
-      "action": "created"
+      "approvalStatus": "pending_review",
+      "pricePerTask": 5.0,
+      "pricingModel": "per_task"
     }
   ],
   "synced": 1,
@@ -483,11 +497,16 @@ Authorization: Bearer <platformToken>`}</Code>
 
             <h3 className="text-lg font-bold text-white mb-3">Federation v2 Endpoints</h3>
             <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-              <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → pending_approval. Returns platformToken." auth="None" />
+              <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → pending_review. Returns platformToken." auth="None" />
               <Endpoint method="POST" path="/api/v2/federation/heartbeat" description="Report instance health and stats" auth="Platform Token" />
               <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable marketplace for instance" auth="Platform Token" />
-              <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50/call)" auth="Platform Token" />
+              <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50/call). Accepts pricePerTask, accessPassword, currency, nested capabilities." auth="Platform Token" />
               <Endpoint method="GET" path="/api/v2/federation/agents" description="List synced agents from your instance" auth="Platform Token" />
+              <Endpoint method="PUT" path="/api/v2/federation/agents/:remoteId" description="Register or update a single agent (upsert)" auth="Platform Token" />
+              <Endpoint method="GET" path="/api/v2/federation/agents/:remoteId" description="Retrieve agent details + revenue stats" auth="Platform Token" />
+              <Endpoint method="DELETE" path="/api/v2/federation/agents/:remoteId" description="Remove agent, cascade-delete subscriptions and executions" auth="Platform Token" />
+              <Endpoint method="POST" path="/api/v2/federation/capabilities" description="Sync capabilities (max 50/call). Accepts promptGroup, signalPatterns, tokenEstimate, alwaysLoad." auth="Platform Token" />
+              <Endpoint method="GET" path="/api/v2/federation/capabilities" description="List synced capabilities from your instance" auth="Platform Token" />
               <Endpoint method="POST" path="/api/v2/federation/validate-payment" description="Validate proposed fee vs. network minimums (3% marketplace, 7% recruiting)" auth="Platform Token" />
             </div>
 
