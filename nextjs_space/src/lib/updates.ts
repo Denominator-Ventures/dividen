@@ -17,6 +17,73 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'realtime-catchup-activity-v1-9',
+    date: '2026-04-15',
+    time: '11:59 PM',
+    title: 'Realtime Dashboard, Catch-Up Rewrite & Activity Feed v2',
+    subtitle: 'Every panel refreshes in realtime. Catch-up briefings actually brief. Activity feed now filterable with 10 categories. Three bug fixes that were invisible until you used the product for more than five minutes.',
+    tags: ['realtime', 'catch-up', 'activity', 'bug-fixes', 'v1.9'],
+    content: `Three rounds of work in one session. v1.9.0 → v1.9.1. Here's everything.
+
+## Realtime Dashboard — v1.9.1
+
+Every dashboard panel now refreshes instantly when something changes. Before this, you'd do something in chat — complete a task, save settings, run a sync — and the board, queue, comms, and NOW panel would sit there stale until the next poll.
+
+Now there's a lightweight custom event system:
+
+- \`dividen:now-refresh\` — universal trigger, every panel listens
+- \`dividen:board-refresh\` — kanban board
+- \`dividen:queue-refresh\` — queue panel
+- \`dividen:comms-refresh\` — comms tab
+- \`dividen:activity-refresh\` — activity stream
+
+When ChatView completes an action — settings save, chat response, setup task advance — it dispatches the relevant events. Panels pick them up and re-fetch. No WebSockets, no SSE for this. Just DOM events on window. Simple, zero-infra, works.
+
+NOW panel poll interval also dropped from 120s to 60s as a backstop.
+
+## Catch-Up Briefing Rewrite — v1.9.1
+
+The old catch-up prompt was broken by design. It was written as a task router: "look at inbox, create cards, dispatch queue items." Operational work that should happen later, not in a briefing.
+
+Rewrote \`getCatchUpPrompt()\` in \`signals.ts\` to produce a proper FVP-style phased briefing:
+
+- **Phase 1: Board & Queue Progress** — what moved, what's stuck, what completed
+- **Phase 2: Inbox Triage** — unread count, notable threads, what needs replies
+- **Phase 3: Calendar & Signals** — upcoming events, deadlines, anything time-sensitive
+- **Phase 4: Recommended Focus** — Divi's opinion on what to tackle first
+
+The catch-up action tag is now a two-step client-side flow: fire \`sync_signal\` in the background (so the LLM has fresh data), wait 1.5s, then send the briefing prompt. Before, \`sync_signal\` just pulled data without analyzing it. Users got a sync confirmation instead of a briefing.
+
+The onboarding "Run Your First Catch-Up" task now uses the \`catch_up\` tag instead of \`sync_signal\`. First-time users actually see a useful briefing instead of "✅ sync complete."
+
+## Activity Feed v2 — v1.9.1
+
+The activity feed was tabs. Three of them: All, Board, Queue. Now it's a dropdown checkbox filter with ten categories:
+
+Queue · Board · CRM · Calendar · Goals · Comms · Connections · Drive · Settings · Sync
+
+Each category maps to specific action types. Select multiple categories at once. The dropdown shows a count badge when filters are active. The stream also listens for \`dividen:activity-refresh\` events for instant updates.
+
+New activity logging was added across the codebase:
+- Settings changes (mode switches, onboarding, diviSettings)
+- Google account connections
+- Action tag executions from chat
+- Google sync completions
+- Checklist item completions and unchecks
+
+## Bug Fixes — v1.9.0 → v1.9.1
+
+Three bugs that shipped in v1.9.0:
+
+**NOW panel didn't refresh after chat actions.** You'd tell Divi to create a card with a due date, and the NOW panel would keep showing the old state. Fixed with the \`dividen:now-refresh\` event system and \`refreshKey\` prop.
+
+**Catch-up execution did nothing useful.** The onboarding catch-up task was wired to \`sync_signal\`, which just synced data without producing output. Changed to \`catch_up\` which syncs then briefs.
+
+**\`/api/inbox\` and \`/api/drive\` returned 404.** Badge count endpoints for the sidebar were missing entirely. Added both — they query EmailMessage and Document respectively.
+
+— Jon`,
+  },
+  {
     id: 'federation-hardening-docs-overhaul-v1-8',
     date: '2026-04-15',
     time: '11:30 PM',

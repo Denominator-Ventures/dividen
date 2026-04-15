@@ -89,6 +89,9 @@ const TOC = [
   { id: 'cockpit-mode', label: 'Cockpit Mode & Work Partner' },
   { id: 'auto-patterns', label: 'Auto-Discuss / Auto-Complete' },
   { id: 'now-engine', label: 'NOW Engine Correlation' },
+  { id: 'realtime-events', label: 'Realtime Event System' },
+  { id: 'catch-up', label: 'Catch-Up Briefing' },
+  { id: 'activity-api', label: 'Activity Feed API' },
   { id: 'cortex-daemon', label: 'Cortex Daemon (Scheduled Scan)' },
   { id: 'linked-kards', label: 'Linked Kards (Cross-User)' },
   { id: 'card-activity-feeds', label: 'Card Activity Feeds' },
@@ -1594,6 +1597,142 @@ useEffect(() => {
             <li>Create a new correlation block following the same pattern: extract keywords → match against queue items → boost score</li>
             <li>Adjust boost values relative to the existing +25 for calendar (e.g., email mentions might warrant +15)</li>
           </ul>
+        </Section>
+
+        {/* ── Realtime Event System ────────────────────────────── */}
+        <Section id="realtime-events" title="Realtime Event System" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Dashboard panels refresh instantly via lightweight custom DOM events on <InlineCode>window</InlineCode>. No WebSockets or SSE —
+            just <InlineCode>window.dispatchEvent(new Event(name))</InlineCode> from <InlineCode>ChatView.tsx</InlineCode> when actions complete.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Event Catalog</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[var(--text-muted)]">
+                  <th className="pb-2 pr-4">Event</th>
+                  <th className="pb-2 pr-4">Listeners</th>
+                  <th className="pb-2">Dispatched After</th>
+                </tr>
+              </thead>
+              <tbody className="text-[var(--text-secondary)]">
+                <tr className="border-t border-white/[0.04]">
+                  <td className="py-2 pr-4"><InlineCode>dividen:now-refresh</InlineCode></td>
+                  <td className="py-2 pr-4">NowPanel, KanbanView, QueuePanel, CommsTab, dashboard/page</td>
+                  <td className="py-2">Settings save, chat completion, setup next/skip, any board/queue mutation</td>
+                </tr>
+                <tr className="border-t border-white/[0.04]">
+                  <td className="py-2 pr-4"><InlineCode>dividen:board-refresh</InlineCode></td>
+                  <td className="py-2 pr-4">KanbanView</td>
+                  <td className="py-2">Card create/move/delete via chat</td>
+                </tr>
+                <tr className="border-t border-white/[0.04]">
+                  <td className="py-2 pr-4"><InlineCode>dividen:queue-refresh</InlineCode></td>
+                  <td className="py-2 pr-4">QueuePanel</td>
+                  <td className="py-2">Queue dispatch/mutation via chat</td>
+                </tr>
+                <tr className="border-t border-white/[0.04]">
+                  <td className="py-2 pr-4"><InlineCode>dividen:comms-refresh</InlineCode></td>
+                  <td className="py-2 pr-4">CommsTab</td>
+                  <td className="py-2">Relay/comms actions via chat</td>
+                </tr>
+                <tr className="border-t border-white/[0.04]">
+                  <td className="py-2 pr-4"><InlineCode>dividen:activity-refresh</InlineCode></td>
+                  <td className="py-2 pr-4">ActivityStream</td>
+                  <td className="py-2">Any action that also dispatches <InlineCode>now-refresh</InlineCode></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">Adding a New Event</h4>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>Define a name: <InlineCode>dividen:your-panel-refresh</InlineCode></li>
+            <li>Dispatch from <InlineCode>ChatView.tsx</InlineCode> at the relevant action point: <InlineCode>window.dispatchEvent(new Event(&apos;dividen:your-panel-refresh&apos;))</InlineCode></li>
+            <li>Listen in your panel&apos;s <InlineCode>useEffect</InlineCode>: add/remove listener, trigger re-fetch on event</li>
+          </ol>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The NOW panel also polls every <strong className="text-white">60 seconds</strong> as a backstop. Other panels rely on events only.
+          </p>
+        </Section>
+
+        {/* ── Catch-Up Briefing ──────────────────────────────────── */}
+        <Section id="catch-up" title="Catch-Up Briefing" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The catch-up briefing is Divi&apos;s phased status report. It runs when the user triggers the <InlineCode>catch_up</InlineCode> action tag
+            (e.g., from onboarding or manually). The prompt is defined in <InlineCode>getCatchUpPrompt()</InlineCode> in <InlineCode>src/lib/signals.ts</InlineCode>.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Architecture</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            <InlineCode>catch_up</InlineCode> is <strong className="text-white">not</strong> a server-side action tag in <InlineCode>ALLOWED_TAGS</InlineCode> — it&apos;s
+            handled entirely client-side in <InlineCode>ChatView.tsx</InlineCode>:
+          </p>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+            <li>Show &quot;Syncing your data...&quot; assistant message</li>
+            <li>Fire <InlineCode>sync_signal</InlineCode> via <InlineCode>POST /api/chat/execute-tag</InlineCode> in background (pulls fresh Google data)</li>
+            <li>Wait 1.5s for data freshness</li>
+            <li>Send the full catch-up prompt to the LLM via <InlineCode>sendMessage()</InlineCode></li>
+          </ol>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The LLM has all required data in its system prompt context: board state (Group 2), queue items (Group 2), unread emails (Group 6),
+            calendar events. The catch-up prompt instructs a four-phase briefing:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-1">
+            <li><strong className="text-white">Phase 1:</strong> Board &amp; Queue Progress</li>
+            <li><strong className="text-white">Phase 2:</strong> Inbox Triage</li>
+            <li><strong className="text-white">Phase 3:</strong> Calendar &amp; Signals</li>
+            <li><strong className="text-white">Phase 4:</strong> Recommended Focus</li>
+          </ul>
+
+          <h4 className="text-base font-bold text-white mb-2">Quality Tuning</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            To improve catch-up quality, edit <InlineCode>getCatchUpPrompt()</InlineCode> in <InlineCode>src/lib/signals.ts</InlineCode>.
+            The prompt is the single source of truth — the LLM&apos;s briefing quality is entirely a function of how well
+            the prompt shapes the system-prompt data into a narrative.
+          </p>
+        </Section>
+
+        {/* ── Activity Feed API ──────────────────────────────────── */}
+        <Section id="activity-api" title="Activity Feed API" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The global activity stream at <InlineCode>GET /api/activity</InlineCode> supports filtering by category.
+            The UI renders a dropdown checkbox filter with 10 categories.
+          </p>
+
+          <Endpoint method="GET" path="/api/activity" description="User-scoped activity feed. Supports ?category=board or ?categories=board,queue,sync (comma-separated multi-filter)." auth="Session" />
+
+          <h4 className="text-base font-bold text-white mt-6 mb-2">Categories</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[var(--text-muted)]">
+                  <th className="pb-2 pr-4">Category</th>
+                  <th className="pb-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="text-[var(--text-secondary)]">
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">queue</td><td className="py-1.5 text-xs">queue_added, queue_updated, queue_status_changed, queue_deleted, queue_dispatched, task_dispatched</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">board</td><td className="py-1.5 text-xs">card_created, card_updated, card_moved, card_deleted, checklist_completed, checklist_unchecked</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">crm</td><td className="py-1.5 text-xs">contact_added, contact_updated, contact_deleted</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">calendar</td><td className="py-1.5 text-xs">event_created, event_updated, event_deleted</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">goals</td><td className="py-1.5 text-xs">goal_created, goal_updated, goal_deleted</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">comms</td><td className="py-1.5 text-xs">comms_replied, comms_created, relay_sent, relay_responded, relay_broadcast</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">connections</td><td className="py-1.5 text-xs">connection_created, connection_accepted, connection_removed, google_connected</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">drive</td><td className="py-1.5 text-xs">document_created, recording_created, recording_processed</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">settings</td><td className="py-1.5 text-xs">settings_updated, onboarding_progress, onboarding_completed, setup_action</td></tr>
+                <tr className="border-t border-white/[0.04]"><td className="py-1.5 pr-4 font-mono text-xs">sync</td><td className="py-1.5 text-xs">sync_completed</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">Logging Activity</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Use <InlineCode>logActivity()</InlineCode> from <InlineCode>src/lib/activity.ts</InlineCode> (or direct <InlineCode>prisma.activityLog.create()</InlineCode>).
+            Include <InlineCode>action</InlineCode> (must match a category mapping above), <InlineCode>userId</InlineCode>, and optional <InlineCode>metadata</InlineCode> JSON.
+            For card-related actions, include <InlineCode>cardId</InlineCode> for card-scoped feeds.
+          </p>
         </Section>
 
         {/* ── Cortex Daemon (Scheduled Scan) ────────────────────── */}

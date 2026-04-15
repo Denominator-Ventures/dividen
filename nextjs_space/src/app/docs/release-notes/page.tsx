@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — Federation Capabilities, Developer Profiles, Onboarding, and more.',
+  description: 'DiviDen release notes — Realtime Dashboard, Catch-Up Rewrite, Activity Feed v2, Federation, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul, and more.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=Federation+%2B+Developer+Profiles&tag=release', width: 1200, height: 630 }],
+    description: 'Realtime Dashboard, Catch-Up Briefing Rewrite, Activity Feed v2, Federation Capabilities, and more.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v1.9.1+Realtime+%2B+Catch-Up&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul, and more.',
-    images: ['/api/og?title=Release+Notes&subtitle=Federation+%2B+Developer+Profiles&tag=release'],
+    description: 'Realtime Dashboard, Catch-Up Briefing Rewrite, Activity Feed v2, Federation Capabilities, and more.',
+    images: ['/api/og?title=Release+Notes&subtitle=v1.9.1+Realtime+%2B+Catch-Up&tag=release'],
   },
 };
 
@@ -38,6 +38,85 @@ export default function ReleaseNotesPage() {
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 15, 2026 — v1.9.1 REALTIME DASHBOARD + CATCH-UP + ACTIVITY  */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v1.9.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.9.1</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">April 15, 2026</span>
+              <DocDownloadButton containerId="release-v1.9.1" filename="dividen-release-v1.9.1" variant="icon" />
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-6">Covers v1.9.0 → v1.9.1 — Realtime Dashboard, Catch-Up Rewrite, Activity Feed v2</p>
+
+          <div className="space-y-8 text-sm text-[var(--text-secondary)] leading-relaxed">
+
+            {/* ── Realtime Dashboard ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚡ Realtime Dashboard Refresh</h3>
+              <p className="mb-2">
+                Every dashboard panel now refreshes instantly when a related action completes in chat. Lightweight custom DOM event system — no WebSockets or SSE required.
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-[var(--text-muted)]">
+                <li><code className="code-inline">dividen:now-refresh</code> — universal trigger, all panels listen</li>
+                <li><code className="code-inline">dividen:board-refresh</code> — kanban board re-fetch</li>
+                <li><code className="code-inline">dividen:queue-refresh</code> — queue panel re-fetch</li>
+                <li><code className="code-inline">dividen:comms-refresh</code> — comms tab re-fetch</li>
+                <li><code className="code-inline">dividen:activity-refresh</code> — activity stream re-fetch</li>
+              </ul>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                ChatView dispatches relevant events after settings saves, chat completions, setup task advances. NOW panel poll interval reduced from 120s to 60s as a backstop.
+              </p>
+            </div>
+
+            {/* ── Catch-Up Briefing ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📋 Catch-Up Briefing Rewrite</h3>
+              <p className="mb-2">
+                <code className="code-inline">getCatchUpPrompt()</code> in <code className="code-inline">signals.ts</code> completely rewritten. The old prompt was a task router — it told the LLM to create cards and dispatch queue items. The new prompt produces a FVP-style phased status briefing:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-xs text-[var(--text-muted)]">
+                <li><strong className="text-white">Phase 1:</strong> Board &amp; Queue Progress — what moved, stuck, or completed</li>
+                <li><strong className="text-white">Phase 2:</strong> Inbox Triage — unread count, notable threads, replies needed</li>
+                <li><strong className="text-white">Phase 3:</strong> Calendar &amp; Signals — upcoming events, deadlines, time-sensitive items</li>
+                <li><strong className="text-white">Phase 4:</strong> Recommended Focus — Divi&apos;s opinion on what to tackle first</li>
+              </ul>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                The <code className="code-inline">catch_up</code> action tag is now handled client-side: fires <code className="code-inline">sync_signal</code> in the background, waits 1.5s for data freshness, then sends the briefing prompt to the LLM. Onboarding &quot;Run Your First Catch-Up&quot; now uses <code className="code-inline">catch_up</code> instead of <code className="code-inline">sync_signal</code>.
+              </p>
+            </div>
+
+            {/* ── Activity Feed v2 ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📊 Activity Feed v2</h3>
+              <p className="mb-2">
+                Activity stream replaced static tabs with a dropdown checkbox filter supporting 10 categories:
+              </p>
+              <p className="text-xs text-[var(--text-muted)] mb-2">
+                Queue · Board · CRM · Calendar · Goals · Comms · Connections · Drive · Settings · Sync
+              </p>
+              <p className="text-xs text-[var(--text-muted)]">
+                Multiple categories can be selected simultaneously. Badge count shows active filter count. New activity logging added for: settings changes, Google connections, action tag executions, sync completions, checklist completions/unchecks.
+              </p>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                API: <code className="code-inline">GET /api/activity?categories=board,queue,sync</code> — comma-separated category filter parameter.
+              </p>
+            </div>
+
+            {/* ── Bug Fixes ── */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🐛 Bug Fixes (v1.9.0 → v1.9.1)</h3>
+              <ul className="list-disc pl-5 space-y-2 text-xs text-[var(--text-muted)]">
+                <li><strong className="text-white">NOW panel stale after chat actions</strong> — fixed with <code className="code-inline">dividen:now-refresh</code> event + <code className="code-inline">refreshKey</code> prop</li>
+                <li><strong className="text-white">Catch-up execution produced no output</strong> — was wired to <code className="code-inline">sync_signal</code> (sync only), now uses two-step <code className="code-inline">catch_up</code> flow (sync + brief)</li>
+                <li><strong className="text-white"><code className="code-inline">/api/inbox</code> and <code className="code-inline">/api/drive</code> 404s</strong> — badge count endpoints were missing entirely. Added both — query EmailMessage and Document respectively</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
