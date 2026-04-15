@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
         commands: commands ? JSON.stringify(commands) : null,
         version: version || '1.0.0',
         changelog: JSON.stringify([{ version: version || '1.0.0', date: new Date().toISOString(), changes: 'Initial release' }]),
-        status: 'active', // auto-approve for Phase 1
+        status: 'pending_review', // requires admin approval before listing
       },
     });
 
@@ -202,7 +202,23 @@ export async function POST(req: NextRequest) {
       console.error('Auto-install own agent failed (non-critical):', autoInstallErr);
     }
 
-    return NextResponse.json(agent, { status: 201 });
+    // Notify admin about new submission (fire-and-forget)
+    prisma.user.findFirst({ where: { role: 'admin' }, select: { id: true } }).then((admin) => {
+      const adminId = admin?.id || userId;
+      prisma.activityLog.create({
+        data: {
+          userId: adminId,
+          action: 'marketplace_submission',
+          summary: `🤖 New agent "${agent.name}" submitted for review by ${agent.developerName}`,
+          metadata: JSON.stringify({ agentId: agent.id, agentName: agent.name, submittedBy: userId, type: 'agent' }),
+        },
+      }).catch(() => {});
+    }).catch(() => {});
+
+    return NextResponse.json({
+      ...agent,
+      message: 'Agent submitted for review. It will appear in the marketplace once approved.',
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Marketplace registration error:', error);
     return NextResponse.json({ error: 'Failed to register agent' }, { status: 500 });

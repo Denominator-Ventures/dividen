@@ -1831,6 +1831,11 @@ model MarketplaceAgent {
   // Commands — actions users can invoke via !command syntax in chat
   commands            String?   @db.Text  // JSON array: [{"name":"research","description":"Deep research on a topic","usage":"!agentslug.research <query>"}]
 
+  // Review / approval audit trail
+  reviewedById    String?   // userId of admin who reviewed
+  reviewedAt      DateTime? // when reviewed
+  reviewNotes     String?   @db.Text  // internal admin notes about the review decision
+
   // Federation — agents synced from self-hosted instances
   sourceInstanceId  String?  // InstanceRegistry.id if agent was synced from a federated instance
   remoteAgentId     String?  // The agent's original ID on the remote instance
@@ -2126,6 +2131,9 @@ model MarketplaceCapability {
   // Approval workflow (user-submitted capabilities)
   approvalStatus  String    @default("approved")    // "approved" | "pending_review" | "rejected" | "draft"
   rejectionReason String?   @db.Text
+  reviewedById    String?   // userId of admin who reviewed
+  reviewedAt      DateTime? // when the review decision was made
+  reviewNotes     String?   @db.Text  // internal admin notes
 
   // Agent Skills compatibility
   skillFormat     Boolean   @default(false)         // true = follows Agent Skills spec (agentskills.io)

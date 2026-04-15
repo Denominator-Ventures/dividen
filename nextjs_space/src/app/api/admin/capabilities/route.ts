@@ -93,13 +93,37 @@ export async function PATCH(req: NextRequest) {
   const { id, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
-  const allowedFields = ['name', 'description', 'longDescription', 'icon', 'category', 'prompt', 'pricingModel', 'price', 'editableFields', 'tags', 'integrationType', 'status', 'featured', 'approvalStatus', 'rejectionReason', 'publisherName', 'publisherType', 'publisherUrl', 'skillFormat', 'skillBody', 'skillSource'];
+  const allowedFields = ['name', 'description', 'longDescription', 'icon', 'category', 'prompt', 'pricingModel', 'price', 'editableFields', 'tags', 'integrationType', 'status', 'featured', 'approvalStatus', 'rejectionReason', 'reviewedById', 'reviewedAt', 'reviewNotes', 'publisherName', 'publisherType', 'publisherUrl', 'skillFormat', 'skillBody', 'skillSource'];
   const data: Record<string, any> = {};
   for (const key of allowedFields) {
     if (updates[key] !== undefined) data[key] = updates[key];
   }
 
+  // Auto-set audit trail when approvalStatus changes
+  if (updates.approvalStatus) {
+    data.reviewedAt = new Date();
+  }
+
+  // Fetch the capability before update so we can notify the submitter
+  const existing = updates.approvalStatus
+    ? await prisma.marketplaceCapability.findUnique({ where: { id }, select: { createdByUserId: true, name: true } })
+    : null;
+
   const updated = await prisma.marketplaceCapability.update({ where: { id }, data });
+
+  // Notify submitter when approval status changes
+  if (updates.approvalStatus && existing?.createdByUserId) {
+    const statusLabel = updates.approvalStatus === 'approved' ? 'approved' : updates.approvalStatus === 'rejected' ? 'rejected' : updates.approvalStatus;
+    await prisma.activityLog.create({
+      data: {
+        userId: existing.createdByUserId,
+        action: 'marketplace_capability_reviewed',
+        actor: 'system',
+        summary: `Your capability "${existing.name}" has been ${statusLabel}.${updates.rejectionReason ? ` Reason: ${updates.rejectionReason}` : ''}`,
+      },
+    });
+  }
+
   return NextResponse.json({ success: true, data: updated });
 }
 

@@ -21,6 +21,7 @@ interface CapabilityRow {
   integrationType: string | null; editableFields: string | null;
   publisherName: string; publisherType: string; publisherUrl: string | null;
   approvalStatus: string; rejectionReason: string | null;
+  reviewedAt: string | null; reviewNotes: string | null; reviewedById: string | null;
   skillFormat: boolean; skillBody: string | null; skillSource: string | null;
   installCount: number; createdAt: string; updatedAt: string;
   createdByUser: { id: string; name: string; email: string } | null;
@@ -151,7 +152,7 @@ function AgentsSubTab({ token, adminFetch, users }: { token: string; adminFetch:
 
       {/* Filters */}
       <div className="flex items-center gap-2 flex-wrap">
-        {['all', 'pending', 'active', 'featured', 'disabled', 'suspended'].map((f) => {
+        {['all', 'pending_review', 'active', 'featured', 'disabled', 'suspended'].map((f) => {
           const count = f === 'all' ? agents.length : f === 'featured' ? agents.filter(a => a.featured).length : agents.filter(a => a.status === f).length;
           return (
             <button key={f} onClick={() => setFilter(f)}
@@ -188,7 +189,7 @@ function AgentsSubTab({ token, adminFetch, users }: { token: string; adminFetch:
                     </div>
                   </div>
                   <div className="flex gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-                    {agent.status === 'pending' && (
+                    {(agent.status === 'pending' || agent.status === 'pending_review') && (
                       <>
                         <button onClick={() => updateAgent(agent.id, { status: 'active' })} disabled={actionLoading === agent.id}
                           className="px-2.5 py-1.5 rounded-lg text-[10px] font-medium bg-emerald-400/10 text-emerald-400 hover:bg-emerald-400/20 transition-colors">✅ Approve</button>
@@ -261,6 +262,7 @@ function CapabilitiesSubTab({ token, adminFetch }: { token: string; adminFetch: 
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [reviewNotes, setReviewNotes] = useState('');
 
   const fetchCapabilities = useCallback(async () => {
     try {
@@ -293,9 +295,10 @@ function CapabilitiesSubTab({ token, adminFetch }: { token: string; adminFetch: 
 
   const handleReject = async () => {
     if (!rejectId) return;
-    await updateCap(rejectId, { approvalStatus: 'rejected', rejectionReason: rejectReason || 'Rejected by admin' });
+    await updateCap(rejectId, { approvalStatus: 'rejected', rejectionReason: rejectReason || 'Rejected by admin', ...(reviewNotes ? { reviewNotes } : {}) });
     setRejectId(null);
     setRejectReason('');
+    setReviewNotes('');
   };
 
   if (loading) return <div className="text-center text-[var(--text-secondary)] py-8">Loading capabilities…</div>;
@@ -347,12 +350,15 @@ function CapabilitiesSubTab({ token, adminFetch }: { token: string; adminFetch: 
         <div className="bg-red-400/5 border border-red-400/20 rounded-xl p-4 space-y-3">
           <div className="text-sm font-medium text-red-400">Reject Capability</div>
           <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)}
-            placeholder="Reason for rejection (optional)…"
+            placeholder="Reason for rejection (shown to submitter)…"
             className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg p-3 text-sm text-white placeholder:text-[var(--text-secondary)] resize-none h-20" />
+          <textarea value={reviewNotes} onChange={(e) => setReviewNotes(e.target.value)}
+            placeholder="Internal review notes (admin-only, not shown to submitter)…"
+            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-lg p-3 text-sm text-white placeholder:text-[var(--text-secondary)] resize-none h-16" />
           <div className="flex gap-2">
             <button onClick={handleReject}
               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-red-400/20 text-red-400 hover:bg-red-400/30 transition-colors">Confirm Reject</button>
-            <button onClick={() => { setRejectId(null); setRejectReason(''); }}
+            <button onClick={() => { setRejectId(null); setRejectReason(''); setReviewNotes(''); }}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--text-secondary)] hover:bg-white/[0.04]">Cancel</button>
           </div>
         </div>
@@ -454,6 +460,19 @@ function CapabilitiesSubTab({ token, adminFetch }: { token: string; adminFetch: 
                     <div>
                       <div className="label-mono text-[9px] text-[var(--text-secondary)] mb-1">Long Description</div>
                       <div className="text-[11px] text-[var(--text-secondary)]">{cap.longDescription}</div>
+                    </div>
+                  )}
+                  {cap.prompt && (
+                    <div>
+                      <div className="label-mono text-[9px] text-[var(--text-secondary)] mb-1">Prompt</div>
+                      <pre className="text-[10px] text-[var(--text-secondary)] bg-white/[0.02] rounded p-2 overflow-auto max-h-40 font-mono whitespace-pre-wrap">{cap.prompt}</pre>
+                    </div>
+                  )}
+                  {(cap.reviewedAt || cap.reviewNotes) && (
+                    <div className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-2">
+                      <div className="label-mono text-[9px] text-[var(--text-secondary)] mb-1">Review Audit</div>
+                      {cap.reviewedAt && <div className="text-[10px] text-[var(--text-secondary)]">Reviewed: {timeAgo(cap.reviewedAt)}</div>}
+                      {cap.reviewNotes && <div className="text-[10px] text-[var(--text-secondary)] mt-1">Notes: {cap.reviewNotes}</div>}
                     </div>
                   )}
                   <div className="flex gap-3 text-[10px] text-[var(--text-secondary)]">

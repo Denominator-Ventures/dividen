@@ -89,10 +89,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
     }
 
+    const { reviewNotes } = body;
+
     await prisma.marketplaceAgent.update({
       where: { id: agentId },
-      data: { status: newStatus },
+      data: {
+        status: newStatus,
+        reviewedAt: new Date(),
+        reviewNotes: reviewNotes || reason || null,
+      },
     });
+
+    // Notify the developer about the decision (fire-and-forget)
+    const decisionLabel = action === 'approve' ? '\u2705 Approved' : action === 'reject' ? '\u274C Rejected' : '\u26A0\uFE0F Suspended';
+    prisma.activityLog.create({
+      data: {
+        userId: agent.developerId,
+        action: 'marketplace_review_decision',
+        summary: `${decisionLabel}: Your agent "${agent.name}" has been ${newStatus === 'active' ? 'approved and is now live' : newStatus === 'disabled' ? 'suspended' : newStatus}.${reason ? ` Reason: ${reason}` : ''}`,
+        metadata: JSON.stringify({ agentId: agent.id, decision: action, newStatus, reason }),
+      },
+    }).catch(() => {});
 
     // Fire webhook to source instance if this is a federated agent
     let webhookResult: any = null;

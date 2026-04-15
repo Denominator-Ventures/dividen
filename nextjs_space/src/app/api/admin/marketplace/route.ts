@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     });
 
     const active = agents.filter((a) => a.status === 'active').length;
-    const pending = agents.filter((a) => a.status === 'pending').length;
+    const pending = agents.filter((a) => a.status === 'pending' || a.status === 'pending_review').length;
     const featured = agents.filter((a) => a.featured).length;
     const totalExecutions = agents.reduce((sum, a) => sum + a.totalExecutions, 0);
     const totalRevenue = agents.reduce((sum, a) => sum + a.totalGrossRevenue, 0);

@@ -383,6 +383,19 @@ export async function PUT(req: NextRequest) {
     },
   });
 
+  // Notify admin about new submission (fire-and-forget)
+  prisma.user.findFirst({ where: { role: 'admin' }, select: { id: true } }).then((admin) => {
+    const adminId = admin?.id || userId;
+    prisma.activityLog.create({
+      data: {
+        userId: adminId,
+        action: 'marketplace_submission',
+        summary: `⚡ New capability "${capability.name}" submitted for review by ${user.name || user.email}`,
+        metadata: JSON.stringify({ capabilityId: capability.id, capabilityName: capability.name, submittedBy: userId, type: 'capability' }),
+      },
+    }).catch(() => {});
+  }).catch(() => {});
+
   return NextResponse.json({
     success: true,
     data: capability,
