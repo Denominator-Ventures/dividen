@@ -52,6 +52,7 @@ interface NowPanelProps {
   onOpenBoard?: () => void;
   onOpenEarnings?: () => void;
   onDiscuss?: (context: string) => void;
+  refreshKey?: number;
 }
 
 const URGENCY_COLORS: Record<string, { dot: string; text: string; bg: string }> = {
@@ -71,7 +72,7 @@ const TYPE_ICONS: Record<string, string> = {
   goal_check: '⚡',
 };
 
-export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings, onDiscuss }: NowPanelProps) {
+export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onOpenEarnings, onDiscuss, refreshKey }: NowPanelProps) {
   const [data, setData] = useState<NowData | null>(null);
   const [loading, setLoading] = useState(true);
   const [onboardingActions, setOnboardingActions] = useState<OnboardingActionState>({});
@@ -103,10 +104,18 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
   useEffect(() => {
     fetchNow();
     fetchEarnings();
-    // Refresh every 2 minutes
-    const interval = setInterval(fetchNow, 120000);
-    return () => clearInterval(interval);
+    // Refresh every 60 seconds
+    const interval = setInterval(fetchNow, 60000);
+    // Listen for custom refresh events from chat actions, onboarding, etc.
+    const handleRefresh = () => fetchNow();
+    window.addEventListener('dividen:now-refresh', handleRefresh);
+    return () => { clearInterval(interval); window.removeEventListener('dividen:now-refresh', handleRefresh); };
   }, [fetchNow, fetchEarnings]);
+
+  // Re-fetch when parent signals a refresh via key change
+  useEffect(() => {
+    if (refreshKey) fetchNow();
+  }, [refreshKey, fetchNow]);
 
   const handleMarkComplete = useCallback(async (item: NowItem) => {
     setOnboardingActions((prev) => ({ ...prev, [item.sourceId]: 'completing' }));

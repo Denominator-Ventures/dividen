@@ -61,7 +61,8 @@ export const SETUP_TASK_ACTIONS: SetupTaskAction[] = [
   },
   {
     taskText: 'Run Your First Catch-Up',
-    agentPrompt: "The user wants to run their first catch-up. Initiate a catch-up/triage run — process their connected signals, analyze what's there, and populate their board with what you find.",
+    actionTag: 'sync_signal',
+    actionParams: { service: 'all' },
     description: 'Process all connected signals and populate the board.',
   },
 ];

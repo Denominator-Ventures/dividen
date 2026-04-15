@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (!tag) return NextResponse.json({ error: 'Missing tag name' }, { status: 400 });
 
     // Only allow widget-rendering tags from this endpoint (security)
-    const ALLOWED_TAGS = ['show_settings_widget', 'show_google_connect'];
+    const ALLOWED_TAGS = ['show_settings_widget', 'show_google_connect', 'sync_signal'];
     if (!ALLOWED_TAGS.includes(tag)) {
       return NextResponse.json({ error: `Tag "${tag}" is not allowed via this endpoint` }, { status: 403 });
     }

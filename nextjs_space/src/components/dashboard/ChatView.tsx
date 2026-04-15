@@ -347,6 +347,8 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         };
         delete (window as any).__lastMsgMeta;
         setMessages((prev) => [...prev, assistantMsg]);
+        // Signal NOW panel to refresh after any agent response (may have executed action tags)
+        window.dispatchEvent(new Event('dividen:now-refresh'));
       } catch (err: any) {
         console.error('Chat error:', err);
         setError(err.message || 'Failed to send message');
@@ -399,6 +401,26 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         });
         const tagResult = await tagRes.json();
 
+        // Handle sync_signal failure (e.g., no Google account connected)
+        if (tagName === 'sync_signal' && !tagResult?.success) {
+          const errorContent = tagResult?.error
+            ? `⚠️ **Catch-Up couldn't run**: ${tagResult.error}\n\nMake sure you've connected your Google account first, then try again.`
+            : '⚠️ **Catch-Up couldn\'t run**. Make sure you\'ve connected your Google account first.';
+          const errMsg: ChatMessage = {
+            id: `msg-sync-err-${Date.now()}`,
+            role: 'assistant',
+            content: errorContent,
+            createdAt: new Date().toISOString(),
+          };
+          fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'assistant', content: errMsg.content }),
+          }).catch(() => {});
+          setMessages(prev => [...prev, errMsg]);
+          return;
+        }
+
         if (tagResult?.success && tagResult?.data) {
           // Build widget message metadata
           let msgMetadata: any = null;
@@ -426,6 +448,41 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             };
           }
 
+          // Handle sync_signal results (not a widget — show as a message)
+          if (tagName === 'sync_signal') {
+            const syncData = tagResult.data;
+            let syncSummary = '🔄 **Catch-Up Complete!**\n\n';
+            if (syncData && typeof syncData === 'object') {
+              const parts: string[] = [];
+              if (syncData.email !== undefined) parts.push(`📧 **Email**: ${syncData.email} new messages synced`);
+              if (syncData.calendar !== undefined) parts.push(`📅 **Calendar**: ${syncData.calendar} events synced`);
+              if (syncData.drive !== undefined) parts.push(`📁 **Drive**: ${syncData.drive} files synced`);
+              if (syncData.synced !== undefined) parts.push(`Synced ${syncData.synced} items from ${syncData.service || 'all services'}`);
+              if (parts.length > 0) {
+                syncSummary += parts.join('\n');
+              } else {
+                syncSummary += 'All connected signals have been processed.';
+              }
+            } else {
+              syncSummary += 'All connected signals have been processed.';
+            }
+            syncSummary += '\n\nYour board has been updated with what I found. Check the **NOW** panel for new items.';
+            const syncMsg: ChatMessage = {
+              id: `msg-sync-${Date.now()}`,
+              role: 'assistant',
+              content: syncSummary,
+              createdAt: new Date().toISOString(),
+            };
+            fetch('/api/chat/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'assistant', content: syncMsg.content }),
+            }).catch(() => {});
+            setMessages(prev => [...prev, syncMsg]);
+            window.dispatchEvent(new Event('dividen:now-refresh'));
+            return;
+          }
+
           if (msgMetadata) {
             const widgetMsg: ChatMessage = {
               id: `msg-widget-${Date.now()}`,
@@ -441,6 +498,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
               body: JSON.stringify({ role: 'assistant', content: widgetMsg.content, metadata: JSON.stringify(msgMetadata) }),
             }).catch(() => {});
             setMessages(prev => [...prev, widgetMsg]);
+            window.dispatchEvent(new Event('dividen:now-refresh'));
             return;
           }
         }
@@ -453,6 +511,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         // Fallback
         sendMessage(`Let's do "${taskText}" now.`);
       }
+      window.dispatchEvent(new Event('dividen:now-refresh'));
     } catch (err) {
       console.error('[handleSetupNextTask] Error:', err);
       sendMessage(`Let's do "${taskText}" now.`);
@@ -473,6 +532,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       body: JSON.stringify({ role: 'assistant', content: skipMsg.content }),
     }).catch(() => {});
     setMessages(prev => [...prev, skipMsg]);
+    window.dispatchEvent(new Event('dividen:now-refresh'));
   }, []);
 
   // ── Onboarding phase action handler ─────────────────────────────────
@@ -505,6 +565,9 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         const { tasksCompleted, nextTaskText, nextTaskAction, allTasksComplete } = settingsResult?.data || {};
 
         // Acknowledge the completed task and ask about the next one
+        // Signal NOW panel to refresh after settings change
+        window.dispatchEvent(new Event('dividen:now-refresh'));
+
         let confirmContent = '✅ Settings saved.';
         let confirmMetadata: any = null;
         if (tasksCompleted && nextTaskText) {

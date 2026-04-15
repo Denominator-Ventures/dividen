@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>('center');
   const [commsUnread, setCommsUnread] = useState(0);
   const [chatRefreshKey, setChatRefreshKey] = useState(0);
+  const [nowRefreshKey, setNowRefreshKey] = useState(0);
   const [searchOpen, setSearchOpen] = useState(false);
   const [catchUpSettingsOpen, setCatchUpSettingsOpen] = useState(false);
   const [catchUpQuickOpen, setCatchUpQuickOpen] = useState(false);
@@ -281,6 +282,13 @@ export default function DashboardPage() {
     return () => window.removeEventListener('keydown', handler);
   }, []);
 
+  // Listen for custom event to refresh NOW panel
+  useEffect(() => {
+    const handler = () => setNowRefreshKey(k => k + 1);
+    window.addEventListener('dividen:now-refresh', handler);
+    return () => window.removeEventListener('dividen:now-refresh', handler);
+  }, []);
+
   const toggleMode = useCallback(async () => {
     const newMode = mode === 'cockpit' ? 'chief_of_staff' : 'cockpit';
     setModeLoading(true);
@@ -500,7 +508,7 @@ export default function DashboardPage() {
           {/* ── Desktop: 3-column layout ── */}
           <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
             <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} />
+              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} refreshKey={nowRefreshKey} />
             </div>
             <div className="flex-1 min-w-0" data-walkthrough="center-panel">
               <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} chatRefreshKey={chatRefreshKey} />
@@ -516,7 +524,7 @@ export default function DashboardPage() {
             <div className="flex-1 min-h-0 p-1 flex flex-col">
               {mobilePanel === 'now' && (
                 <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} />
+                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} refreshKey={nowRefreshKey} />
                 </div>
               )}
               {mobilePanel === 'center' && (
