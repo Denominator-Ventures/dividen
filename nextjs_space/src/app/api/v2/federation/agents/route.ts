@@ -35,6 +35,7 @@ import type { PricingConfig } from '@/lib/pricing-types';
  *   subscriptionPrice — $ per month (for subscription model)
  *   taskLimit     — monthly task limit
  *   pricingConfig — full PricingConfig object (tiers, dynamic config, etc.)
+ *   accessPassword — plain-text password for free access (optional)
  *
  *   === Agent Integration Kit (flat or nested under `capabilities`) ===
  *   taskTypes | capabilities.taskTypes
@@ -130,8 +131,11 @@ export async function POST(req: NextRequest) {
           return typeof v === 'string' ? v : JSON.stringify(v);
         };
 
-        // Accept pricing amount from either field name (pricingAmount is the FVP spec name)
-        const resolvedPricePerTask = agent.pricePerTask ?? agent.pricingAmount ?? null;
+        // Accept pricing amount from any common field name and coerce to number
+        const rawPrice = agent.pricePerTask ?? agent.pricingAmount ?? agent.price ?? null;
+        const resolvedPricePerTask = rawPrice !== null && rawPrice !== undefined
+          ? (typeof rawPrice === 'string' ? parseFloat(rawPrice) || null : Number(rawPrice) || null)
+          : null;
 
         // Accept capabilities nested OR flat — FVP spec nests under `capabilities` object
         const caps = agent.capabilities || {};
@@ -160,6 +164,7 @@ export async function POST(req: NextRequest) {
           taskLimit: agent.taskLimit ?? null,
           pricingDetails,
           currency: agent.currency || 'USD',
+          accessPassword: agent.accessPassword || null,
           // ALL agents go to pending_review — never auto-approve, even for trusted instances
           status: 'pending_review',
           supportsA2A: agent.supportsA2A ?? true,
@@ -187,10 +192,10 @@ export async function POST(req: NextRequest) {
           // Preserve existing approval status on updates — don't downgrade active agents
           const { status: _omitStatus, ...updateData } = data;
           await prisma.marketplaceAgent.update({ where: { id: existing.id }, data: updateData });
-          results.push({ remoteId: agent.id, name: agent.name, status: 'updated', marketplaceId: existing.id, approvalStatus: existing.status });
+          results.push({ remoteId: agent.id, name: agent.name, status: 'updated', marketplaceId: existing.id, approvalStatus: existing.status, pricePerTask: resolvedPricePerTask, pricingModel: data.pricingModel });
         } else {
           const created = await prisma.marketplaceAgent.create({ data });
-          results.push({ remoteId: agent.id, name: agent.name, status: 'created', marketplaceId: created.id, approvalStatus: data.status });
+          results.push({ remoteId: agent.id, name: agent.name, status: 'created', marketplaceId: created.id, approvalStatus: data.status, pricePerTask: resolvedPricePerTask, pricingModel: data.pricingModel });
         }
       } catch (err: any) {
         if (err.code === 'P2002' && err.meta?.target?.includes('slug')) {
@@ -208,8 +213,9 @@ export async function POST(req: NextRequest) {
                 developerUrl: agent.developerUrl || agent.developerWebsite || instance.baseUrl,
                 category: agent.category || 'general',
                 pricingModel: normalizePricingModel(agent.pricingModel),
-                pricePerTask: agent.pricePerTask ?? agent.pricingAmount ?? null,
+                pricePerTask: (() => { const r = agent.pricePerTask ?? agent.pricingAmount ?? agent.price ?? null; return r !== null && r !== undefined ? (typeof r === 'string' ? parseFloat(r) || null : Number(r) || null) : null; })(),
                 currency: agent.currency || 'USD',
+                accessPassword: agent.accessPassword || null,
                 status: 'pending_review',
                 supportsA2A: true,
                 sourceInstanceId: instance.id,
