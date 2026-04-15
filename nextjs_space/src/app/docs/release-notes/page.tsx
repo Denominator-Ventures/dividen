@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — Federation Pricing, Admin Marketplace, Tiered & Dynamic Pricing, and more.',
+  description: 'DiviDen release notes — Modular Capabilities, Token Optimization, Card Activity Feeds, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'Federation Pricing, Admin Marketplace, Tiered & Dynamic Pricing, Smart Task Assembly, and more.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=Federation+Pricing+%2B+Admin+Marketplace&tag=release', width: 1200, height: 630 }],
+    description: 'Modular Capabilities, Token Optimization, Card Activity Feeds, Cross-User Mirroring, and more.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=Modular+Capabilities+%2B+Token+Optimization&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'Federation Pricing, Admin Marketplace, Tiered & Dynamic Pricing, Smart Task Assembly, and more.',
-    images: ['/api/og?title=Release+Notes&subtitle=Federation+Pricing+%2B+Admin+Marketplace&tag=release'],
+    description: 'Modular Capabilities, Token Optimization, Card Activity Feeds, Cross-User Mirroring, and more.',
+    images: ['/api/og?title=Release+Notes&subtitle=Modular+Capabilities+%2B+Token+Optimization&tag=release'],
   },
 };
 
@@ -38,15 +38,133 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 14, 2026 — v1.5.0 CARD ACTIVITY FEEDS, CROSS-USER MIRRORING */}
+        {/* APRIL 15, 2026 — v1.6.0 MODULAR CAPABILITY SYSTEM PROMPT          */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 15, 2026</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.6.0</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Modular Capabilities</span>
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Token Optimization</span>
+            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+          </div>
+          <h2 className="text-2xl font-bold mb-4 font-heading">Modular Capability System — Divi Gets a Lighter Brain</h2>
+
+          <div className="space-y-6 text-sm text-[var(--text-secondary)]">
+
+            {/* Problem */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🧠 The Problem</h3>
+              <p>
+                The monolithic <code className="code-inline">buildCapabilitiesAndSyntax()</code> function dumped 7,219 tokens into every
+                single message — triage protocol, routing logic, federation commands, marketplace operations — regardless of what the user
+                actually asked. &quot;Good morning&quot; got the same payload as &quot;run my triage catch-up.&quot;
+              </p>
+            </div>
+
+            {/* Architecture */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📦 Capabilities as Installed Modules</h3>
+              <p className="mb-3">
+                The monolith is now split into 5 purpose-built functions. Only <code className="code-inline">capabilities_core</code> loads
+                on every message. The rest load on-demand based on relevance scoring:
+              </p>
+              <div className="bg-black/20 rounded-lg border border-white/[0.06] overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-white/[0.06]">
+                      <th className="text-left p-3 text-white font-bold">Module</th>
+                      <th className="text-right p-3 text-white font-bold">Tokens</th>
+                      <th className="text-left p-3 text-white font-bold">Loads When</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    <tr>
+                      <td className="p-3"><code className="code-inline">capabilities_core</code></td>
+                      <td className="p-3 text-right text-brand-400 font-mono">~3,200</td>
+                      <td className="p-3">Always — Card CRUD, checklists, people, queue, goals, widgets, Linked Kards, task awareness</td>
+                    </tr>
+                    <tr>
+                      <td className="p-3"><code className="code-inline">capabilities_triage</code></td>
+                      <td className="p-3 text-right font-mono">~1,200</td>
+                      <td className="p-3">Triage, catch-up, morning briefing, signal processing</td>
+                    </tr>
+                    <tr>
+                      <td className="p-3"><code className="code-inline">capabilities_routing</code></td>
+                      <td className="p-3 text-right font-mono">~800</td>
+                      <td className="p-3">Task routing, delegation, relay, connection handling</td>
+                    </tr>
+                    <tr>
+                      <td className="p-3"><code className="code-inline">capabilities_federation</code></td>
+                      <td className="p-3 text-right font-mono">~200</td>
+                      <td className="p-3">Cross-instance resolution, serendipity, network briefing</td>
+                    </tr>
+                    <tr>
+                      <td className="p-3"><code className="code-inline">capabilities_marketplace</code></td>
+                      <td className="p-3 text-right font-mono">~200</td>
+                      <td className="p-3">Agent listing, install/uninstall, subscribe, execute</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Relevance Engine */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🎯 Relevance Engine</h3>
+              <p className="mb-2">
+                <code className="code-inline">selectRelevantGroups()</code> now manages 17 prompt groups (up from 13).
+                Each group has regex signal patterns in <code className="code-inline">SIGNAL_PATTERNS</code>. The engine scores
+                each module against the current message + recent context. Groups with empty patterns
+                (like <code className="code-inline">capabilities_core</code>) always score 1.0.
+              </p>
+              <p>
+                Assembly wires modules as groups 7 (core), 7b (triage), 7c (routing), 7d (federation), 7e (marketplace).
+              </p>
+            </div>
+
+            {/* Cleanup */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🗑️ What Got Killed</h3>
+              <ul className="space-y-2 list-disc list-inside">
+                <li><strong className="text-white">Legacy onboarding phases 0-5</strong> — removed entirely from system prompt. Project-based onboarding is the only path.</li>
+                <li><strong className="text-white">Duplicate Federation Intelligence</strong> — same block was injected twice. Fixed.</li>
+                <li><strong className="text-white">Dead <code className="code-inline">layer16_platformSetupAssistant_optimized</code></strong> — 130-line function defined but never called. Gone.</li>
+                <li><strong className="text-white">Settings hint bloat</strong> — ~1,200 tokens on both setup paths. Now: widget syntax in core, setup-complete is ~200 tokens.</li>
+              </ul>
+            </div>
+
+            {/* Impact */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📉 Token Savings</h3>
+              <p>
+                <strong className="text-brand-400">~5,000-6,000 tokens saved per typical message</strong> (non-triage, non-routing).
+                That&apos;s roughly 30% of the old always-on payload. Triage messages still get the full protocol — loaded on-demand
+                instead of wasting context window when you&apos;re talking about something else.
+              </p>
+            </div>
+
+            {/* Phase 2 */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔮 Phase 2</h3>
+              <p>
+                This is Phase 1 (sub-groups with signal-based loading). Phase 2: a formal <code className="code-inline">CapabilityModule</code> interface
+                where modules are data-driven and per-user installable — your Divi literally ships with only the capabilities you need.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 14, 2026 — v1.5.0 CARD ACTIVITY FEEDS, CROSS-USER MIRRORING */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
           <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.5.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Card Activity Feeds</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Cross-User Mirroring</span>
-            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Card-Scoped Activity Feeds &amp; Cross-User Activity Mirroring</h2>
 

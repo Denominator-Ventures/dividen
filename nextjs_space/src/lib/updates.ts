@@ -17,6 +17,48 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'modular-capability-system-prompt-v1-8',
+    date: '2026-04-15',
+    time: '3:00 AM',
+    title: 'Modular Capability System — Divi Gets a Lighter Brain',
+    subtitle: 'The system prompt is now modular. Core capabilities always load. Triage, routing, federation, and marketplace modules load on-demand by relevance. ~5K tokens saved per message.',
+    tags: ['system-prompt', 'modular-capabilities', 'performance', 'relevance-engine', 'token-optimization'],
+    content: `The system prompt was getting fat. One monolithic function — \`buildCapabilitiesAndSyntax\` — dumped 7,219 tokens into every single message, whether the user asked about triage or just said "good morning." That's over.
+
+## Capabilities as Installed Modules
+
+Every Divi now ships with a core module and loads optional modules on-demand:
+
+| Module | Tokens | When |
+|--------|--------|------|
+| \`capabilities_core\` | ~3,200 | **Always** — Card CRUD, checklists, people, artifacts, queue, goals, profile/memory/setup tags, interactive widgets, Linked Kards, continuous task awareness |
+| \`capabilities_triage\` | ~1,200 | Triage, catch-up, morning briefing, signal processing |
+| \`capabilities_routing\` | ~800 | Task routing, delegation, relay, connection handling |
+| \`capabilities_federation\` | ~200 | Cross-instance entity resolution, serendipity, network briefing |
+| \`capabilities_marketplace\` | ~200 | Agent listing, install/uninstall, subscribe, execute |
+
+The relevance engine scores each module against the current message + recent context using regex signal patterns. Only modules that score above threshold get included.
+
+## What Got Killed
+
+- **Legacy onboarding phases 0-5** — completely removed from the system prompt. Old-flow users figure it out; project-based onboarding is the only path now.
+- **Duplicate Federation Intelligence section** — the same block was being injected twice. Fixed.
+- **Dead \`layer16_platformSetupAssistant_optimized\`** — a 130-line function that was defined but never called. Gone.
+- **Settings hint bloat** — \`settingsHint\` was ~1,200 tokens included on both the "configured" AND "incomplete" setup paths. Now: widget syntax lives in core, setup-incomplete path gets only task→widget mappings, setup-complete path gets a single status line (~200 tokens).
+
+## Net Impact
+
+**~5,000-6,000 tokens saved per typical message** (non-triage, non-routing). That's roughly 30% of the old always-on payload. Triage messages still get the full protocol — just loaded on-demand instead of wasting context window when you're talking about something else.
+
+## Architecture
+
+The relevance engine (\`selectRelevantGroups\`) now manages 17 prompt groups (up from 13). Each group has signal patterns in \`SIGNAL_PATTERNS\`. Groups with empty patterns (like \`capabilities_core\`) always score 1.0 and always load. The assembly section wires modules into the final prompt as groups 7 (core), 7b (triage), 7c (routing), 7d (federation), and 7e (marketplace).
+
+This is Phase 1. Phase 2 is a formal \`CapabilityModule\` interface where modules are data-driven and per-user installable.
+
+— Jon`,
+  },
+  {
     id: 'card-activity-feeds-cross-user-mirroring-v1-7',
     date: '2026-04-14',
     time: '11:59 PM',

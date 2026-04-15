@@ -81,6 +81,7 @@ const TOC = [
   { id: 'smart-tagging', label: 'Smart Tagging' },
   { id: 'drag-scroll', label: 'DragScrollContainer' },
   { id: 'board-cortex', label: 'Board Cortex Intelligence' },
+  { id: 'system-prompt', label: 'System Prompt Architecture' },
   { id: 'onboarding-v2', label: 'Project-Based Onboarding' },
   { id: 'cockpit-mode', label: 'Cockpit Mode & Work Partner' },
   { id: 'auto-patterns', label: 'Auto-Discuss / Auto-Complete' },
@@ -1275,6 +1276,114 @@ if (isOnCard) return; // Let dnd-kit handle card drag
           </ul>
         </Section>
 
+        {/* ── System Prompt Architecture ──────────────────────── */}
+        <Section id="system-prompt" title="System Prompt Architecture (Modular Capabilities)">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Divi&apos;s system prompt is dynamically assembled per-message from modular groups.
+            A relevance engine scores each group against the current conversation context and only loads what&apos;s needed.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Capability Modules</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            The old monolithic <InlineCode>buildCapabilitiesAndSyntax()</InlineCode> (7,219 tokens, always loaded) has been
+            split into 5 purpose-built functions:
+          </p>
+          <div className="bg-black/20 rounded-lg border border-white/[0.06] overflow-hidden mb-4">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  <th className="text-left p-3 text-white font-bold">Function</th>
+                  <th className="text-right p-3 text-white font-bold">~Tokens</th>
+                  <th className="text-left p-3 text-white font-bold">Group</th>
+                  <th className="text-left p-3 text-white font-bold">Loading</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/[0.04] text-[var(--text-secondary)]">
+                <tr>
+                  <td className="p-3"><InlineCode>buildCapabilitiesCore()</InlineCode></td>
+                  <td className="p-3 text-right font-mono text-brand-400">3,200</td>
+                  <td className="p-3"><InlineCode>capabilities_core</InlineCode></td>
+                  <td className="p-3">Always</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><InlineCode>buildTriageCapabilities()</InlineCode></td>
+                  <td className="p-3 text-right font-mono">1,200</td>
+                  <td className="p-3"><InlineCode>capabilities_triage</InlineCode></td>
+                  <td className="p-3">On-demand</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><InlineCode>buildRoutingCapabilities()</InlineCode></td>
+                  <td className="p-3 text-right font-mono">800</td>
+                  <td className="p-3"><InlineCode>capabilities_routing</InlineCode></td>
+                  <td className="p-3">On-demand</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><InlineCode>buildFederationCapabilities()</InlineCode></td>
+                  <td className="p-3 text-right font-mono">200</td>
+                  <td className="p-3"><InlineCode>capabilities_federation</InlineCode></td>
+                  <td className="p-3">On-demand</td>
+                </tr>
+                <tr>
+                  <td className="p-3"><InlineCode>buildMarketplaceCapabilities()</InlineCode></td>
+                  <td className="p-3 text-right font-mono">200</td>
+                  <td className="p-3"><InlineCode>capabilities_marketplace</InlineCode></td>
+                  <td className="p-3">On-demand</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">Relevance Engine</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            <InlineCode>selectRelevantGroups(currentMessage, recentContext)</InlineCode> manages 17 prompt groups.
+            Each group has regex signal patterns in <InlineCode>SIGNAL_PATTERNS</InlineCode>. The engine:
+          </p>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] mb-4 space-y-1 text-sm">
+            <li>Scores each group against current message + last 3 messages</li>
+            <li>Groups with empty patterns (like <InlineCode>capabilities_core</InlineCode>) always score 1.0</li>
+            <li>Groups above the relevance threshold are included</li>
+            <li><InlineCode>setup</InlineCode> is always force-added (lightweight status line)</li>
+          </ol>
+
+          <h4 className="text-base font-bold text-white mb-2">All 17 Prompt Groups</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-[var(--text-secondary)]">
+              <span>1. <InlineCode>identity</InlineCode></span>
+              <span>2. <InlineCode>active_state</InlineCode></span>
+              <span>3. <InlineCode>comms</InlineCode></span>
+              <span>4. <InlineCode>connections</InlineCode></span>
+              <span>5. <InlineCode>goals</InlineCode></span>
+              <span>6. <InlineCode>memory</InlineCode></span>
+              <span>7. <InlineCode>capabilities_core</InlineCode> ★</span>
+              <span>7b. <InlineCode>capabilities_triage</InlineCode></span>
+              <span>7c. <InlineCode>capabilities_routing</InlineCode></span>
+              <span>7d. <InlineCode>capabilities_federation</InlineCode></span>
+              <span>7e. <InlineCode>capabilities_marketplace</InlineCode></span>
+              <span>8. <InlineCode>setup</InlineCode></span>
+              <span>9. <InlineCode>federation</InlineCode></span>
+              <span>10. <InlineCode>triage</InlineCode></span>
+              <span>11. <InlineCode>marketplace</InlineCode></span>
+              <span>12. <InlineCode>queue</InlineCode></span>
+              <span>13. <InlineCode>now</InlineCode></span>
+            </div>
+            <p className="text-[10px] text-[var(--text-muted)] mt-2">★ = always loaded</p>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">Setup Layer</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            <InlineCode>buildSetupLayer_conditional()</InlineCode> has two paths: <strong className="text-white">complete</strong> (returns
+            a ~200-token status line + nav reference) and <strong className="text-white">incomplete</strong> (returns widget→task mappings
+            so Divi can guide setup). Widget syntax and Linked Kards docs are now in <InlineCode>capabilities_core</InlineCode>, not setup.
+            Legacy onboarding phases 0-5 have been removed entirely — project-based onboarding is the only path.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">File</h4>
+          <p className="text-[var(--text-secondary)] mb-4">
+            <InlineCode>src/lib/system-prompt.ts</InlineCode> — single file, ~1,200 lines. The admin route at <InlineCode>/api/admin/system-prompt</InlineCode> renders
+            the full prompt for inspection.
+          </p>
+        </Section>
+
         {/* ── Project-Based Onboarding ────────────────────────── */}
         <Section id="onboarding-v2" title="Project-Based Onboarding (v2)">
           <p className="text-[var(--text-secondary)] mb-4">
@@ -1315,8 +1424,10 @@ if (isOnCard) return; // Let dnd-kit handle card drag
 
           <h4 className="text-base font-bold text-white mb-2">Legacy Compatibility</h4>
           <p className="text-[var(--text-secondary)] mb-4">
-            The old <InlineCode>onboardingPhase</InlineCode> field still works for pre-v2 users. New users get phase set to 6 immediately
-            after <InlineCode>/api/onboarding/intro</InlineCode>. The <InlineCode>/api/onboarding/advance</InlineCode> endpoint still works for legacy flows.
+            The <InlineCode>onboardingPhase</InlineCode> DB field still exists but is <strong className="text-white">no longer read by the system prompt</strong>.
+            Legacy onboarding phases 0-5 have been removed from <InlineCode>system-prompt.ts</InlineCode> entirely.
+            New users get phase set to 6 immediately after <InlineCode>/api/onboarding/intro</InlineCode>.
+            The <InlineCode>/api/onboarding/advance</InlineCode> endpoint still works for settings-save flows but is not used for phase progression.
           </p>
         </Section>
 
