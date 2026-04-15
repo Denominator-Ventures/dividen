@@ -17,6 +17,94 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'federation-hardening-docs-overhaul-v1-8',
+    date: '2026-04-15',
+    time: '11:30 PM',
+    title: 'Federation Hardening, Docs Overhaul & Downloadable Documentation',
+    subtitle: 'Federation pricing and access passwords fixed. Full docs audit shipped. Every documentation page is now downloadable as .md. Big thanks to the FVP team and Jaron for their help stress-testing and spec-writing today.',
+    tags: ['federation', 'documentation', 'downloads', 'approval-hardening', 'onboarding', 'release-notes'],
+    content: `Massive session. Ten versions shipped since the last update (v1.6.2 through v1.8.3). Here's everything that happened and why.
+
+## Federation Fixes — v1.8.1
+
+Two critical bugs found during live sync testing with the FVP Command Center instance:
+
+**Price not coming through.** When FVP synced mAInClaw with \`pricingAmount: 5.00\`, DiviDen stored \`pricePerTask: null\`. Root cause: the federation agents endpoint only accepted \`pricePerTask\` as the field name. Now it accepts three aliases — \`pricePerTask\`, \`pricingAmount\`, and \`price\` — with string-to-float coercion. The sync response echoes back what was stored so the submitting instance can verify.
+
+**Access password silently dropped.** FVP was sending \`accessPassword: "freeme"\` in the agent sync payload, but the federation endpoint never included it in the data object. The field simply wasn't there. Users on DiviDen couldn't unlock mAInClaw for free access because the password was never stored. Fixed — \`accessPassword\` now passes through on both the create and update paths.
+
+Both bugs were invisible — no errors, no 400s. The endpoint accepted the payload and silently lost data. That's the worst kind of bug.
+
+## Approval Hardening — v1.6.2
+
+The approval flow got serious. Every submission now enters \`pending_review\` — no auto-approve, even for trusted instances. This was a conscious decision: marketplace trust is earned per-agent, not per-instance.
+
+- All federated agent submissions → \`pending_review\`
+- Admin review required for every agent before it goes live
+- Rejection includes a reason field in the response
+- Webhook fires to the source instance on approval/rejection
+- Audit trail: every approval action logged with admin ID and timestamp
+
+If you were relying on trusted-instance auto-approve, that's gone. Every agent gets reviewed.
+
+## Onboarding Overhaul — v1.6.2 → v1.7.0
+
+The setup flow went from wizard to conversation:
+
+- **Onboarding project created at signup** — no more waiting for the first chat message. "DiviDen Setup" project, card, and checklist exist the moment your account does.
+- **Now panel shows setup tasks** — onboarding checklist items without due dates were being filtered out. Fixed with a parallel query.
+- **Settings flow is conversational** — when you complete a setup task, Divi now tells you what's next and asks "Want to knock that out now?" Instead of auto-sending user messages, it injects assistant messages that feel natural.
+- **settingsGroup bug fixed** — the settings group was never being passed through the widget, so auto-completion of setup tasks silently failed. Fixed end-to-end.
+
+## Federation Capabilities & Developer Profiles — v1.8.0
+
+The P3 federation milestone:
+
+- **\`POST /api/v2/federation/capabilities\`** — New endpoint. Federated instances can now sync capabilities (not just agents) to the DiviDen marketplace. Accepts \`promptGroup\`, \`signalPatterns\`, \`tokenEstimate\`, \`alwaysLoad\`.
+- **\`GET /api/v2/federation/capabilities\`** — List your synced capabilities.
+- **Federated developer profiles** at \`/developer/{slug}\` — shows developer name, instance origin with a purple 🌐 badge, and all their agents + capabilities on DiviDen.
+- **Developer links everywhere** — federated agents link to \`/developer/{slug}\` (purple), platform agents link to \`/profile/{userId}\` (brand). Applied across Marketplace, Discover, Search, Directory, and Connections.
+- **Single-agent management** — \`PUT\`, \`GET\`, \`DELETE\` on \`/api/v2/federation/agents/{remoteId}\` for per-agent operations.
+
+## Documentation Audit — v1.8.2
+
+Full pass across three documentation pages:
+
+- **\`/docs/developers\`** — Federation endpoints section rewritten. Added capability sync endpoints, single-agent CRUD, updated agent sync to document \`pricePerTask\`/\`pricingAmount\`/\`price\` aliases, \`accessPassword\`, \`currency\`, nested capabilities. Removed stale "auto-approve for trusted instances" claim.
+- **\`/documentation\`** — Lifecycle flow diagram fixed (\`pending_approval\` → \`pending_review\`). Agent sync examples completely rewritten with real mAInClaw data. API reference table updated with all new v2 endpoints.
+- **\`/docs/release-notes\`** — New mega release notes block covering v1.6.1 → v1.8.1. Five versions documented in one coherent entry organized by theme.
+
+## Downloadable Documentation — v1.8.3
+
+Every documentation page now has a **"Download as .md"** button at the bottom. Click it and you get a clean markdown file extracted directly from the page DOM — always matches the live content.
+
+- \`/docs/developers\` → \`dividen-developer-docs.md\`
+- \`/documentation\` → \`dividen-documentation.md\`
+- \`/docs/federation\` → \`dividen-federation-guide.md\`
+- \`/docs/integrations\` → \`dividen-integration-docs.md\`
+- \`/docs/release-notes\` → \`dividen-release-notes-all.md\`
+
+**Per-version release note downloads** — each version block in the release notes has a small download icon in its tag row. Download just that version's notes.
+
+**"UPDATED" badges** — sections that changed in the docs audit now show amber badges on their headers so you know what's new.
+
+## FVP Spec v1.3 — Full Alignment
+
+The FVP team sent back their updated spec today (v1.3). We audited it against our implementation: **zero discrepancies**. Everything they documented matches what we shipped. The naming conventions, the payload shapes, the approval flow, the access password model, the developer attribution — all aligned.
+
+Specific confirmations:
+- \`pending_review\` is the canonical status (they updated from \`pending_approval\`)
+- \`accessPassword\` is DiviDen-side validation (they corrected their earlier claim that it was instance-side only)
+- No \`/api/v2/federation/profiles\` endpoint (they removed the reference)
+- \`hasAccessPassword\` derived from \`!!accessPassword\` at query time (not stored separately)
+
+## Thank You
+
+Big thanks to the **FVP Command Center team** and **Jaron** specifically for their help today. The live sync testing, spec writing, and back-and-forth on the access password model caught real bugs and made the federation protocol materially better. This is what building in the open looks like — two instances finding the seams and fixing them together.
+
+— Jon`,
+  },
+  {
     id: 'capability-module-phase-2',
     date: '2026-04-15',
     time: '8:00 AM',
