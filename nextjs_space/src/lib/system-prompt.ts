@@ -1183,11 +1183,14 @@ ${navRef}`;
   text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
 
   // Setup task mappings — only for incomplete setup
-  text += `**Setup task → widget mappings**:
+  text += `**Setup task → widget mappings** (use these action tags to show the appropriate UI when the user is working through setup):
 - "Configure Working Style" → [[show_settings_widget:{"group":"working_style"}]]
 - "Set Triage Preferences" → [[show_settings_widget:{"group":"triage"}]]
 - "Connect Email & Calendar" → [[show_google_connect:{"identity":"operator"}]]
-- "Run Your First Catch-Up" → Initiate a catch-up/triage run\n\n`;
+- "Set Up Custom Signals" → Guide user to Settings → Signals
+- "Run Your First Catch-Up" → Initiate a catch-up/triage run
+
+**IMPORTANT: When the user says they want to do the next setup task, or references a specific task name from the list above, immediately show the corresponding widget using the action tag. Don't just describe the step — render the interactive widget so they can configure it right in chat. Keep the conversation flowing naturally through the setup checklist.**\n\n`;
 
   if (!hasApiKey) text += '- **API Key needed** — Ask user for their OpenAI/Anthropic key, save with [[save_api_key:...]]\n';
   if (!hasProfile) text += '- **Profile not set** — Suggest filling out profile in Settings → 👤 Profile\n';

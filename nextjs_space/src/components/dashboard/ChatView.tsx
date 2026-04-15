@@ -400,10 +400,14 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     try {
       // Phase -1 = settings adjustment (not onboarding) — save settings via show_settings endpoint
       if (phase === -1) {
+        const settingsGroup = data?._settingsGroup || undefined;
+        const cleanData = data ? { ...data } : {};
+        delete cleanData._settingsGroup;
+
         const settingsRes = await fetch('/api/onboarding/advance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'show_settings', settings: data }),
+          body: JSON.stringify({ action: 'show_settings', settings: cleanData, settingsGroup }),
         });
         const settingsResult = await settingsRes.json();
         const { tasksCompleted, nextTaskText, allTasksComplete } = settingsResult?.data || {};
@@ -422,7 +426,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             if (allTasksComplete) {
               sendMessage('All my setup tasks are done! What should I focus on now?');
             } else if (nextTaskText) {
-              sendMessage(`That's saved. I'm ready — what's next on my setup list?`);
+              sendMessage(`Great, that's saved. Next on my setup list is: "${nextTaskText}". Let's do that one now.`);
             }
           }, 600);
         }
@@ -921,7 +925,7 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
           <OnboardingChatWidgets
             widgets={onboardingMeta.widgets}
             phase={onboardingMeta.onboardingPhase}
-            onSubmit={(phase, settings) => onOnboardingAction?.('submit', phase, settings)}
+            onSubmit={(phase, settings) => onOnboardingAction?.('submit', phase, { ...settings, _settingsGroup: onboardingMeta.settingsGroup })}
             onSkip={(phase) => onOnboardingAction?.('skip', phase)}
             onGoogleConnect={(identity, accountIndex) => onOnboardingAction?.('google_connect', onboardingMeta.onboardingPhase, { identity, accountIndex })}
           />
