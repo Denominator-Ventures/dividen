@@ -8,6 +8,7 @@
 
 import { prisma } from './prisma';
 import { buildContextDigest as buildContextDigestFn } from './board-cortex';
+import { loadRelevantCapabilityModules, buildCapabilityModulePrompt } from './capability-module';
 
 interface PromptContext {
   userId: string;
@@ -552,16 +553,22 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   // ── Group 13: Active Capabilities (conditional — only if capabilities configured) ──
   const group13 = relevantGroups.has('active_caps') ? await buildActiveCapabilitiesContext(userId) : '';
 
+  // ── Group 14: Dynamic Capability Modules (Phase 2 — signal-scored per-module) ──
+  const scoredModules = await loadRelevantCapabilityModules(userId, currentMessage, recentContext);
+  const group14 = buildCapabilityModulePrompt(scoredModules);
+
   // ── Dynamic context indicator — tell the LLM which layers are loaded ──
   const capModules = ['capabilities_triage', 'capabilities_routing', 'capabilities_federation', 'capabilities_marketplace']
     .filter(g => relevantGroups.has(g as PromptGroup))
     .map(g => g.replace('capabilities_', ''));
+  const moduleNames = scoredModules.map(m => m.module.slug);
   const loadedGroups = Array.from(relevantGroups)
     .filter(g => !g.startsWith('capabilities_') || g === 'capabilities_core')
-    .join(', ') + (capModules.length > 0 ? ` + cap_modules:[${capModules.join(',')}]` : '');
-  const totalGroups = 17; // total possible groups
-  const contextNote = relevantGroups.size < totalGroups
-    ? `\n\n> **Dynamic context**: Loaded ${relevantGroups.size}/${totalGroups} groups (${loadedGroups}). Unloaded capability modules load automatically when relevant keywords appear.`
+    .join(', ') + (capModules.length > 0 ? ` + cap_modules:[${capModules.join(',')}]` : '')
+    + (moduleNames.length > 0 ? ` + dynamic_modules:[${moduleNames.join(',')}]` : '');
+  const totalGroups = 17; // total static groups
+  const contextNote = (relevantGroups.size < totalGroups || scoredModules.length > 0)
+    ? `\n\n> **Dynamic context**: Loaded ${relevantGroups.size}/${totalGroups} static groups + ${scoredModules.length} capability module(s) (${loadedGroups}). Unloaded modules load automatically when relevant keywords appear.`
     : '';
 
   // ── Assemble ──
@@ -583,6 +590,7 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
     group11,  // Business Operations (conditional)
     group12,  // Team Agent Context (conditional)
     group13,  // Active Capabilities (conditional)
+    group14,  // Dynamic Capability Modules (signal-scored)
   ].filter(Boolean);
 
   return layers.join('\n\n---\n\n') + contextNote;

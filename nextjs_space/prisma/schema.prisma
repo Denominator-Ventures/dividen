@@ -2132,6 +2132,17 @@ model MarketplaceCapability {
   skillBody       String?   @db.Text                // raw skill content (YAML/markdown)
   skillSource     String?                           // e.g. "agentskills.io"
 
+  // ── CapabilityModule (Phase 2) — Signal-based prompt loading ──
+  signalPatterns  String?   @db.Text  // JSON array of regex strings for relevance engine, e.g. ["email.*draft","send.*email","compose"]
+  tokenEstimate   Int?                // estimated token count of the resolved prompt
+  alwaysLoad      Boolean   @default(false) // if true, bypass relevance scoring — always inject into prompt
+  moduleVersion   String    @default("1.0") // version of the module spec this capability targets
+
+  // ── Revenue tracking ──
+  totalGrossRevenue     Float   @default(0) // total sales revenue
+  totalPlatformFees     Float   @default(0) // DiviDen's cut (3% network floor)
+  totalDeveloperPayout  Float   @default(0) // developer's cut (97%)
+
   // System-managed
   isSystemSeed    Boolean   @default(false)  // true = seeded by platform, not user-created
   createdByUserId String?   // userId of the developer who created it

@@ -17,6 +17,57 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'capability-module-phase-2',
+    date: '2026-04-15',
+    time: '8:00 AM',
+    title: 'CapabilityModule Phase 2 — Your Capabilities, Your Signals',
+    subtitle: 'Marketplace capabilities now define their own signal patterns. The relevance engine scores them independently. Plus: webhook receiver, 97/3 on capabilities, and the prompt groups API.',
+    tags: ['capability-module', 'relevance-engine', 'marketplace', 'federation', 'webhooks', 'revenue'],
+    content: `Phase 2 of the modular capability system is live. Four changes shipped together.
+
+## 1. CapabilityModule Interface
+
+Marketplace capabilities are now full prompt modules. Each capability can declare:
+
+- **\`signalPatterns\`** — Array of regex strings. The relevance engine scores these against the current message + recent context, exactly like the 17 static groups.
+- **\`tokenEstimate\`** — Declared token count for budget management.
+- **\`alwaysLoad\`** — Bypass scoring, always inject into the prompt.
+- **\`moduleVersion\`** — Version of the spec the capability targets (currently "1.0").
+
+When a user installs a capability with signal patterns, it gets scored independently in the relevance engine. No more dumping all capabilities under the generic \`active_caps\` group — each module competes on its own terms.
+
+Scoring uses the same weights: message match (+0.6), context match (+0.3), baseline (+0.05), threshold (0.3).
+
+## 2. Relevance Engine API
+
+\`GET /api/v2/prompt-groups\` — Now exposed for federation alignment. Returns:
+- All 17 static groups with their signal patterns
+- Scoring parameters (weights, thresholds, context window)
+- The full CapabilityModule spec
+- Dynamic module metadata
+
+Other DiviDen instances can call this to sync their signal patterns with ours. This is how we keep relevance scoring aligned across the federation.
+
+## 3. Marketplace Webhook Receiver
+
+\`POST /api/marketplace/webhook\` — The missing half of agent approval webhooks. The admin side was already sending approval/rejection webhooks to federated instances, but there was no receiver. Now there is:
+- Validates \`X-Federation-Token\` header
+- Accepts \`agent_approval\` events
+- Updates local agent status based on managed marketplace decisions
+- Logs everything
+
+## 4. 97/3 Revenue Split on Capabilities
+
+The same revenue model that applies to marketplace agent executions now applies to paid capability purchases. When someone buys a capability:
+- 97% goes to the developer
+- 3% platform routing fee (network floor enforced)
+- Revenue tracked on the MarketplaceCapability model: \`totalGrossRevenue\`, \`totalPlatformFees\`, \`totalDeveloperPayout\`
+
+Password-bypassed installs and free capabilities: $0 tracked, no split.
+
+— Jon`,
+  },
+  {
     id: 'modular-capability-system-prompt-v1-8',
     date: '2026-04-15',
     time: '3:00 AM',

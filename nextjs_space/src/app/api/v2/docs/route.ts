@@ -763,6 +763,84 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         },
       },
     },
+    '/api/v2/prompt-groups': {
+      get: {
+        tags: ['Federation'],
+        summary: 'Get relevance engine prompt groups and CapabilityModule spec',
+        description: 'Returns the complete prompt group registry (17 static groups), signal patterns, scoring parameters, and the CapabilityModule interface spec. Designed for federation alignment — other instances can sync their signal patterns.',
+        security: [{ bearerAuth: [] }],
+        responses: {
+          '200': {
+            description: 'Prompt groups, scoring config, and CapabilityModule spec',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    version: { type: 'string' },
+                    totalGroups: { type: 'integer' },
+                    groups: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        properties: {
+                          index: { type: 'integer' },
+                          name: { type: 'string' },
+                          alwaysLoaded: { type: 'boolean' },
+                          signalPatterns: { type: 'array', items: { type: 'string' } },
+                          description: { type: 'string' },
+                        },
+                      },
+                    },
+                    scoring: { type: 'object' },
+                    capabilityModuleSpec: { type: 'object' },
+                    dynamicModules: { type: 'object' },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'Invalid bearer token' },
+        },
+      },
+    },
+    '/api/marketplace/webhook': {
+      post: {
+        tags: ['Marketplace'],
+        summary: 'Receive marketplace webhooks (agent approval, etc.)',
+        description: 'Webhook receiver for events from the managed marketplace. Currently supports agent_approval events fired when a federated agent is approved/rejected.',
+        parameters: [
+          { name: 'X-Federation-Token', in: 'header', required: true, schema: { type: 'string' }, description: 'Federation API key for authentication' },
+          { name: 'X-DiviDen-Event', in: 'header', required: false, schema: { type: 'string' }, description: 'Event type hint' },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['event'],
+                properties: {
+                  event: { type: 'string', enum: ['agent_approval'] },
+                  agentId: { type: 'string', description: 'Remote agent ID (your local agent ID)' },
+                  marketplaceId: { type: 'string', description: 'ID on the managed marketplace' },
+                  name: { type: 'string' },
+                  slug: { type: 'string' },
+                  status: { type: 'string', enum: ['active', 'rejected', 'disabled'] },
+                  reason: { type: 'string', nullable: true },
+                  timestamp: { type: 'string', format: 'date-time' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Webhook received and processed' },
+          '401': { description: 'Invalid federation token' },
+          '400': { description: 'Missing required fields' },
+        },
+      },
+    },
   },
 };
 

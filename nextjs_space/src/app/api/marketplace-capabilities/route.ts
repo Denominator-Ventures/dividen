@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { calculateRevenueSplit } from '@/lib/marketplace-config';
 
 /**
  * GET /api/marketplace-capabilities — Browse available capabilities
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
             category: true, tags: true, integrationType: true,
             editableFields: true, prompt: true, promptVersion: true,
             pricingModel: true, price: true,
+            signalPatterns: true, tokenEstimate: true, alwaysLoad: true, moduleVersion: true,
           },
         },
       },
@@ -52,6 +54,10 @@ export async function GET(req: NextRequest) {
         prompt: uc.capability.prompt, // visible because purchased
         customizations: uc.customizations,
         resolvedPrompt: uc.resolvedPrompt,
+        signalPatterns: uc.capability.signalPatterns,
+        tokenEstimate: uc.capability.tokenEstimate,
+        alwaysLoad: uc.capability.alwaysLoad,
+        moduleVersion: uc.capability.moduleVersion,
         status: uc.status,
         installedAt: uc.installedAt.toISOString(),
         lastUsedAt: uc.lastUsedAt?.toISOString() || null,
@@ -88,6 +94,11 @@ export async function GET(req: NextRequest) {
         publisherUrl: true,
         skillFormat: true,
         skillSource: true,
+        // CapabilityModule Phase 2 fields
+        signalPatterns: true,
+        tokenEstimate: true,
+        alwaysLoad: true,
+        moduleVersion: true,
         // NOTE: prompt is NOT included — hidden until purchased
       },
     }),
@@ -150,7 +161,7 @@ export async function POST(req: NextRequest) {
 
   // ── Branch: Create a custom capability ───────────────────────────────────
   if (body.action === 'create') {
-    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields, accessPassword, commands } = body;
+    const { name, description, icon, category, tags, integrationType, pricingModel, price, prompt, editableFields, accessPassword, commands, signalPatterns, tokenEstimate, alwaysLoad } = body;
     if (!name || !description || !prompt) {
       return NextResponse.json({ error: 'name, description, and prompt are required' }, { status: 400 });
     }
@@ -178,6 +189,10 @@ export async function POST(req: NextRequest) {
         editableFields: editableFields || '[]',
         accessPassword: accessPassword || null,
         commands: commands ? (typeof commands === 'string' ? commands : JSON.stringify(commands)) : null,
+        // CapabilityModule Phase 2 fields
+        signalPatterns: signalPatterns ? (typeof signalPatterns === 'string' ? signalPatterns : JSON.stringify(signalPatterns)) : null,
+        tokenEstimate: typeof tokenEstimate === 'number' ? tokenEstimate : null,
+        alwaysLoad: alwaysLoad === true,
         createdByUserId: userId,
         status: 'active',
         isSystemSeed: false,
@@ -282,10 +297,22 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  // Increment purchase count
+  // Increment purchase count + track revenue (97/3 split applies to paid capabilities)
+  const grossAmount = isPaid && !passwordGranted ? (capability.price || 0) : 0;
+  const revSplit = grossAmount > 0
+    ? calculateRevenueSplit(grossAmount, true) // network transaction — 3% floor enforced
+    : { grossAmount: 0, platformFee: 0, developerPayout: 0, feePercent: 0 };
+
   await prisma.marketplaceCapability.update({
     where: { id: capabilityId },
-    data: { totalPurchases: { increment: 1 } },
+    data: {
+      totalPurchases: { increment: 1 },
+      ...(grossAmount > 0 ? {
+        totalGrossRevenue: { increment: revSplit.grossAmount },
+        totalPlatformFees: { increment: revSplit.platformFee },
+        totalDeveloperPayout: { increment: revSplit.developerPayout },
+      } : {}),
+    },
   });
 
   return NextResponse.json({
@@ -296,7 +323,16 @@ export async function POST(req: NextRequest) {
       name: capability.name,
       prompt: capability.prompt, // Now visible
       editableFields: capability.editableFields,
+      signalPatterns: capability.signalPatterns,
     },
+    ...(grossAmount > 0 ? {
+      revenue: {
+        gross: revSplit.grossAmount,
+        developerPayout: revSplit.developerPayout,
+        platformFee: revSplit.platformFee,
+        feePercent: revSplit.feePercent,
+      },
+    } : {}),
   }, { status: 201 });
 }
 
@@ -310,7 +346,7 @@ export async function PUT(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 });
 
   const body = await req.json();
-  const { name, slug, description, longDescription, icon, category, prompt, tags, integrationType, editableFields } = body;
+  const { name, slug, description, longDescription, icon, category, prompt, tags, integrationType, editableFields, signalPatterns, tokenEstimate, alwaysLoad } = body;
 
   if (!name || !slug || !description || !prompt) {
     return NextResponse.json({ error: 'name, slug, description, and prompt are required' }, { status: 400 });
@@ -334,6 +370,10 @@ export async function PUT(req: NextRequest) {
       tags: tags || null,
       integrationType: integrationType || null,
       editableFields: editableFields || null,
+      // CapabilityModule Phase 2 fields
+      signalPatterns: signalPatterns ? (typeof signalPatterns === 'string' ? signalPatterns : JSON.stringify(signalPatterns)) : null,
+      tokenEstimate: typeof tokenEstimate === 'number' ? tokenEstimate : null,
+      alwaysLoad: alwaysLoad === true,
       pricingModel: 'free',
       status: 'active',
       approvalStatus: 'pending_review',
