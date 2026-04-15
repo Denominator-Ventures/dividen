@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — Modular Capabilities, Token Optimization, Card Activity Feeds, and more.',
+  description: 'DiviDen release notes — Federation Capabilities, Developer Profiles, Onboarding, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'Modular Capabilities, Token Optimization, Card Activity Feeds, Cross-User Mirroring, and more.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=Modular+Capabilities+%2B+Token+Optimization&tag=release', width: 1200, height: 630 }],
+    description: 'Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul, and more.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=Federation+%2B+Developer+Profiles&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'Modular Capabilities, Token Optimization, Card Activity Feeds, Cross-User Mirroring, and more.',
-    images: ['/api/og?title=Release+Notes&subtitle=Modular+Capabilities+%2B+Token+Optimization&tag=release'],
+    description: 'Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul, and more.',
+    images: ['/api/og?title=Release+Notes&subtitle=Federation+%2B+Developer+Profiles&tag=release'],
   },
 };
 
