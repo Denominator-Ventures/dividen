@@ -106,6 +106,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
   // ── Pending auto-send message (set by prefill, consumed after sendMessage is ready) ──
   const pendingAutoSend = useRef<string | null>(null);
+  const autoSendConsumed = useRef(false);
 
   // ── Handle prefill from NOW panel click / auto-send from onboarding ──
   useEffect(() => {
@@ -113,6 +114,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       // Check if this is an auto-send prefill (starts with __AUTOSEND__)
       if (prefill.startsWith('__AUTOSEND__')) {
         pendingAutoSend.current = prefill.replace('__AUTOSEND__', '');
+        autoSendConsumed.current = false;
         onPrefillConsumed?.();
         return;
       }
@@ -359,13 +361,15 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
   // ── Consume pending auto-send once sendMessage is available + messages loaded ──
   useEffect(() => {
-    if (pendingAutoSend.current && !isStreaming && !isLoading && messages.length > 0) {
+    if (pendingAutoSend.current && !autoSendConsumed.current && !isStreaming && !isLoading && messages.length > 0) {
       const msg = pendingAutoSend.current;
       pendingAutoSend.current = null;
+      autoSendConsumed.current = true;
       const timer = setTimeout(() => sendMessage(msg), 300);
       return () => clearTimeout(timer);
     }
-  }, [isStreaming, isLoading, messages.length, sendMessage]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, isLoading, messages.length]);
 
   // ── Clear chat ────────────────────────────────────────────────────────
   const clearChat = async () => {
@@ -425,13 +429,14 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         return;
       }
 
-      // ── Legacy: Setup choice (together/solo) — kept for old onboarding messages in DB ──
+      // ── Setup choice (together/solo) — sets due dates on the pre-created project ──
       if (phase === 0 && data?.setupMode) {
-        await fetch('/api/onboarding/setup-project', {
+        const spRes = await fetch('/api/onboarding/setup-project', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: data.setupMode }),
         });
+        const spResult = await spRes.json();
 
         if (data.setupMode === 'solo') {
           setMessages(prev => [...prev, {
@@ -440,6 +445,12 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             content: `No problem — your setup tasks are due in a week. Take your time exploring.\n\nI'll check in if anything's still open. You can always ask me for help with any of them.`,
             createdAt: new Date().toISOString(),
           }]);
+        } else {
+          // "together" — auto-start discussing the first task
+          const firstTask = spResult?.data?.firstTask?.text || "Configure Divi's Working Style";
+          setTimeout(() => {
+            sendMessage(`Let's do this. Starting with: "${firstTask}". Walk me through it.`);
+          }, 400);
         }
         return;
       }
@@ -780,6 +791,36 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
 // ─── Message Bubble Component ────────────────────────────────────────────────
 
+/** Now / Later buttons rendered below the setup intro message */
+function SetupNowLaterButtons({ onChoice }: { onChoice: (mode: 'together' | 'solo') => void }) {
+  const [chosen, setChosen] = useState<'together' | 'solo' | null>(null);
+
+  if (chosen) {
+    return (
+      <div className="mt-3 text-xs text-[var(--text-muted)] italic">
+        {chosen === 'together' ? '⚡ Let\u2019s go — tasks due today.' : '📅 No rush — tasks due in a week.'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex gap-2">
+      <button
+        onClick={() => { setChosen('together'); onChoice('together'); }}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--brand-primary)] text-white hover:opacity-90 transition-opacity"
+      >
+        ⚡ Let&apos;s do it now
+      </button>
+      <button
+        onClick={() => { setChosen('solo'); onChoice('solo'); }}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+      >
+        📅 I&apos;ll do it later
+      </button>
+    </div>
+  );
+}
+
 function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void }) {
   const isUser = message.role === 'user';
   const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
@@ -793,6 +834,13 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
     const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
     if (meta?.isOnboarding && meta?.widgets) return meta;
     return null;
+  })();
+
+  // Detect setup intro message for now/later buttons
+  const isSetupIntro = (() => {
+    if (!message.metadata) return false;
+    const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
+    return meta?.isSetupIntro === true;
   })();
 
   // Hide system-triggered messages
@@ -877,6 +925,10 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
             onSkip={(phase) => onOnboardingAction?.('skip', phase)}
             onGoogleConnect={(identity, accountIndex) => onOnboardingAction?.('google_connect', onboardingMeta.onboardingPhase, { identity, accountIndex })}
           />
+        )}
+        {/* Setup intro: now/later buttons */}
+        {isSetupIntro && (
+          <SetupNowLaterButtons onChoice={(mode) => onOnboardingAction?.('submit', 0, { setupMode: mode })} />
         )}
         <p className="text-[10px] text-[var(--text-muted)] mt-1.5 opacity-60">
           {formatTime(message.createdAt)}

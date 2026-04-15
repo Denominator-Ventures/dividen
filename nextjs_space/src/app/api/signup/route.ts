@@ -53,9 +53,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Fire-and-forget: link any CRM contacts that match this new user's email
+    // Fire-and-forget: link CRM contacts + create onboarding project
     import('@/lib/contact-platform-bridge').then(({ linkContactsByEmail }) => {
       linkContactsByEmail(user.id, user.email).catch(() => {});
+    });
+    import('@/lib/onboarding-project').then(({ createOnboardingProject }) => {
+      createOnboardingProject(prisma, user.id).catch((e) => console.error('Onboarding project creation:', e));
     });
 
     return NextResponse.json({
