@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ActivityStream } from './ActivityStream';
 
 interface NowItem {
@@ -77,6 +77,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
   const [loading, setLoading] = useState(true);
   const [onboardingActions, setOnboardingActions] = useState<OnboardingActionState>({});
   const [activityExpanded, setActivityExpanded] = useState(false);
+  const [activityCount, setActivityCount] = useState(0);
   const [earnings, setEarnings] = useState<EarningsData>({ jobEarnings: 0, agentEarnings: 0, visible: false });
 
   const fetchNow = useCallback(async () => {
@@ -229,7 +230,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
           ) : (
             <div className="space-y-1 mb-3">
               <h4 className="label-mono mb-1" style={{ fontSize: '10px' }}>Priority Stack</h4>
-              {items.slice(0, 10).map((item, idx) => {
+              {items.slice(0, activityCount > 3 ? 5 : 10).map((item, idx) => {
                 const colors = URGENCY_COLORS[item.urgency] || URGENCY_COLORS.low;
                 const isOnboarding = item.meta?.onboarding === true;
                 const actionInProgress = onboardingActions[item.sourceId];
@@ -290,9 +291,9 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
                   </div>
                 );
               })}
-              {items.length > 10 && (
+              {items.length > (activityCount > 3 ? 5 : 10) && (
                 <div className="text-center text-[9px] text-[var(--text-muted)] py-1">
-                  +{items.length - 10} more items
+                  +{items.length - (activityCount > 3 ? 5 : 10)} more items
                 </div>
               )}
             </div>
@@ -310,15 +311,6 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
             </div>
           )}
 
-          {/* Board Access */}
-          <button
-            onClick={() => onOpenBoard?.()}
-            className="w-full mb-3 py-2 px-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/5 transition-colors text-xs font-medium text-[var(--text-secondary)] flex items-center justify-center gap-2"
-          >
-            <span>📋</span>
-            <span>Open Board</span>
-          </button>
-
           {/* Done Today */}
           {doneItems.length > 0 && (
             <div className="mt-auto pt-3">
@@ -329,11 +321,24 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
         </div>
       )}
 
+      {/* Board Access — pinned above activity stream, never scrolls behind it */}
+      {!activityExpanded && (
+        <div className="flex-shrink-0 px-3 pb-2">
+          <button
+            onClick={() => onOpenBoard?.()}
+            className="w-full py-2 px-3 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 hover:bg-[var(--brand-primary)]/5 transition-colors text-xs font-medium text-[var(--text-secondary)] flex items-center justify-center gap-2"
+          >
+            <span>📋</span>
+            <span>Open Board</span>
+          </button>
+        </div>
+      )}
+
       {/* Earnings Widget — only visible if user has marketplace agents or is listed for jobs */}
       {earnings.visible && !activityExpanded && (
         <button
           onClick={() => onOpenEarnings?.()}
-          className="mx-3 mb-2 px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 transition-colors cursor-pointer flex items-center justify-between group"
+          className="flex-shrink-0 mx-3 mb-2 px-3 py-2 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] hover:border-[var(--brand-primary)]/30 transition-colors cursor-pointer flex items-center justify-between group"
         >
           <span className="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">💰 Earnings</span>
           <div className="flex gap-3 text-xs">
@@ -352,6 +357,7 @@ export function NowPanel({ onNewTask, onQuickChat, onItemClick, onOpenBoard, onO
       <ActivityStream
         expanded={activityExpanded}
         onToggleExpand={() => setActivityExpanded(prev => !prev)}
+        onActivityCountChange={setActivityCount}
       />
     </div>
   );

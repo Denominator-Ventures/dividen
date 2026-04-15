@@ -15,6 +15,7 @@ interface Activity {
 interface ActivityStreamProps {
   expanded: boolean;
   onToggleExpand: () => void;
+  onActivityCountChange?: (count: number) => void;
 }
 
 const ACTOR_ICONS: Record<string, string> = { user: '👤', divi: '🤖', system: '⚙️' };
@@ -46,7 +47,7 @@ const ACTIVITY_CATEGORIES = [
   { id: 'sync', label: 'Sync', icon: '🔄' },
 ];
 
-export function ActivityStream({ expanded, onToggleExpand }: ActivityStreamProps) {
+export function ActivityStream({ expanded, onToggleExpand, onActivityCountChange }: ActivityStreamProps) {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
   const [enabledCategories, setEnabledCategories] = useState<Set<string>>(new Set(ACTIVITY_CATEGORIES.map(c => c.id)));
@@ -57,20 +58,23 @@ export function ActivityStream({ expanded, onToggleExpand }: ActivityStreamProps
   const fetchActivities = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ limit: expanded ? '100' : '10' });
+      const params = new URLSearchParams({ limit: expanded ? '100' : '10', _t: String(Date.now()) });
       // If not all categories are selected, pass the filter
       if (enabledCategories.size < ACTIVITY_CATEGORIES.length && enabledCategories.size > 0) {
         params.set('categories', Array.from(enabledCategories).join(','));
       }
       const res = await fetch(`/api/activity?${params}`);
       const data = await res.json();
-      if (data.success) setActivities(data.data);
+      if (data.success) {
+        setActivities(data.data);
+        onActivityCountChange?.(data.data.length);
+      }
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [enabledCategories, expanded]);
+  }, [enabledCategories, expanded, onActivityCountChange]);
 
   useEffect(() => {
     fetchActivities();
@@ -229,7 +233,7 @@ export function ActivityStream({ expanded, onToggleExpand }: ActivityStreamProps
       {/* Activity items */}
       <div className={cn(
         'overflow-y-auto px-2',
-        expanded ? 'flex-1' : 'max-h-[180px]'
+        expanded ? 'flex-1' : 'max-h-[140px]'
       )}>
         {loading && activities.length === 0 ? (
           <div className="text-center text-[10px] text-[var(--text-muted)] py-3">Loading...</div>
