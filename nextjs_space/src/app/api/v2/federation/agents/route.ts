@@ -21,6 +21,7 @@ import type { PricingConfig } from '@/lib/pricing-types';
  *   description   — required
  *   endpointUrl   — agent's A2A/MCP endpoint
  *   developerName — display name for attribution
+ *   developerUrl  — developer website / github (optional)
  *   category      — "research" | "coding" | "writing" | "analysis" | "operations" | "creative" | "general"
  *   tags          — comma-separated or JSON array
  *   inputFormat   — "text" | "json" | "a2a"
@@ -28,15 +29,17 @@ import type { PricingConfig } from '@/lib/pricing-types';
  *   longDescription — rich markdown
  *
  *   === Pricing ===
- *   pricingModel  — "free" | "per_task" | "tiered" | "dynamic"
- *   pricePerTask  — $ per execution (for per_task model)
+ *   pricingModel  — "free" | "per_task" | "per_execution" (alias) | "tiered" | "dynamic"
+ *   pricePerTask | pricingAmount — $ per execution (for per_task model)
+ *   currency      — ISO 4217 currency code (default "USD")
  *   subscriptionPrice — $ per month (for subscription model)
  *   taskLimit     — monthly task limit
  *   pricingConfig — full PricingConfig object (tiers, dynamic config, etc.)
  *
- *   === Agent Integration Kit ===
- *   taskTypes          — JSON array of what this agent handles
- *   contextInstructions — how to prepare context before calling
+ *   === Agent Integration Kit (flat or nested under `capabilities`) ===
+ *   taskTypes | capabilities.taskTypes
+ *   contextInstructions | capabilities.contextInstructions
+ *   capabilities.identity — additional identity metadata
  *   requiredInputSchema — JSON schema for structured input
  *   outputSchema       — JSON schema for structured output
  *   usageExamples      — [{input, output, description}]
@@ -52,8 +55,17 @@ import type { PricingConfig } from '@/lib/pricing-types';
  *   supportsMCP   — boolean
  *   agentCardUrl  — .well-known/agent-card.json URL
  *
+ * Approval: ALL agents go to pending_review regardless of instance trust level.
+ *
  * GET /api/v2/federation/agents — List agents synced from this instance.
  */
+
+/** Normalize pricing model aliases: per_execution → per_task */
+function normalizePricingModel(model: string | undefined): string {
+  if (!model) return 'free';
+  if (model === 'per_execution') return 'per_task';
+  return model;
+}
 
 async function verifyFederatedInstance(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
@@ -118,6 +130,14 @@ export async function POST(req: NextRequest) {
           return typeof v === 'string' ? v : JSON.stringify(v);
         };
 
+        // Accept pricing amount from either field name (pricingAmount is the FVP spec name)
+        const resolvedPricePerTask = agent.pricePerTask ?? agent.pricingAmount ?? null;
+
+        // Accept capabilities nested OR flat — FVP spec nests under `capabilities` object
+        const caps = agent.capabilities || {};
+        const resolvedTaskTypes = agent.taskTypes || caps.taskTypes || null;
+        const resolvedContextInstructions = agent.contextInstructions || caps.contextInstructions || null;
+
         const data: any = {
           name: agent.name,
           slug,
@@ -127,18 +147,21 @@ export async function POST(req: NextRequest) {
           authMethod: 'bearer' as const,
           developerId: adminUser.id,
           developerName: agent.developerName || instance.name,
-          developerUrl: instance.baseUrl,
+          // Use submitted developerUrl/developerWebsite, fall back to instance base URL
+          developerUrl: agent.developerUrl || agent.developerWebsite || instance.baseUrl,
           category: agent.category || 'general',
           tags: stringifyIfNeeded(agent.tags),
           inputFormat: agent.inputFormat || 'text',
           outputFormat: agent.outputFormat || 'text',
-          pricingModel: agent.pricingModel || 'free',
-          pricePerTask: agent.pricePerTask ?? null,
+          // Normalize per_execution → per_task
+          pricingModel: normalizePricingModel(agent.pricingModel),
+          pricePerTask: resolvedPricePerTask,
           subscriptionPrice: agent.subscriptionPrice ?? null,
           taskLimit: agent.taskLimit ?? null,
           pricingDetails,
-          // Trusted instances get auto-approved; others go to pending_review
-          status: instance.isTrusted ? 'active' : 'pending_review',
+          currency: agent.currency || 'USD',
+          // ALL agents go to pending_review — never auto-approve, even for trusted instances
+          status: 'pending_review',
           supportsA2A: agent.supportsA2A ?? true,
           supportsMCP: agent.supportsMCP ?? false,
           agentCardUrl: agent.agentCardUrl || null,
@@ -146,9 +169,9 @@ export async function POST(req: NextRequest) {
           sourceInstanceId: instance.id,
           remoteAgentId: agent.id,
           sourceInstanceUrl: instance.baseUrl,
-          // Agent Integration Kit
-          taskTypes: stringifyIfNeeded(agent.taskTypes),
-          contextInstructions: agent.contextInstructions || null,
+          // Agent Integration Kit — accept flat or nested under capabilities
+          taskTypes: stringifyIfNeeded(resolvedTaskTypes),
+          contextInstructions: resolvedContextInstructions || null,
           requiredInputSchema: stringifyIfNeeded(agent.requiredInputSchema),
           outputSchema: stringifyIfNeeded(agent.outputSchema),
           usageExamples: stringifyIfNeeded(agent.usageExamples),
@@ -182,10 +205,12 @@ export async function POST(req: NextRequest) {
                 authMethod: 'bearer',
                 developerId: adminUser.id,
                 developerName: agent.developerName || instance.name,
-                developerUrl: instance.baseUrl,
+                developerUrl: agent.developerUrl || agent.developerWebsite || instance.baseUrl,
                 category: agent.category || 'general',
-                pricingModel: agent.pricingModel || 'free',
-                status: instance.isTrusted ? 'active' : 'pending_review',
+                pricingModel: normalizePricingModel(agent.pricingModel),
+                pricePerTask: agent.pricePerTask ?? agent.pricingAmount ?? null,
+                currency: agent.currency || 'USD',
+                status: 'pending_review',
                 supportsA2A: true,
                 sourceInstanceId: instance.id,
                 remoteAgentId: agent.id,
@@ -213,6 +238,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      status: 'pending_review',  // top-level: all submissions enter review
       instanceId: instance.id,
       synced: results.filter(r => r.status === 'created' || r.status === 'updated').length,
       total: results.length,

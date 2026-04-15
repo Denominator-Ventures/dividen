@@ -26,7 +26,7 @@ interface AgentItem {
   category: string; pricingModel: string; pricePerTask?: number;
   subscriptionPrice?: number; tags: string[]; avgRating: number;
   totalRatings: number; totalExecutions: number; avgResponseTime?: number;
-  successRate?: number; featured: boolean; developerName: string;
+  successRate?: number; featured: boolean; developerName: string; developerId?: string;
   supportsA2A: boolean; supportsMCP: boolean;
   isInstalled: boolean; isSubscribed: boolean;
 }
@@ -270,7 +270,9 @@ export default function DiscoverView() {
           {a.avgRating > 0 && <span className="text-amber-400">\u2605 {a.avgRating.toFixed(1)}</span>}
           <span>{a.totalExecutions.toLocaleString()} runs</span>
         </div>
-        <span className="text-[var(--text-muted)]">{a.developerName}</span>
+        <span className="text-[var(--text-muted)]">{a.developerId
+          ? <a href={`/profile/${a.developerId}`} target="_blank" rel="noopener" className="text-brand-400 hover:underline" onClick={e => e.stopPropagation()}>{a.developerName}</a>
+          : a.developerName}</span>
       </div>
     </div>
   );

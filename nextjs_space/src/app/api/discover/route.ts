@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
           category: true, pricingModel: true, pricePerTask: true,
           subscriptionPrice: true, tags: true, avgRating: true,
           totalRatings: true, totalExecutions: true, avgResponseTime: true,
-          successRate: true, featured: true, developerName: true,
+          successRate: true, featured: true, developerName: true, developerId: true,
           supportsA2A: true, supportsMCP: true,
         },
       });
@@ -211,7 +211,7 @@ export async function GET(req: NextRequest) {
             tags: parseJson(a.tags), avgRating: a.avgRating,
             totalRatings: a.totalRatings, totalExecutions: a.totalExecutions,
             avgResponseTime: a.avgResponseTime, successRate: a.successRate,
-            featured: a.featured, developerName: a.developerName,
+            featured: a.featured, developerName: a.developerName, developerId: a.developerId,
             supportsA2A: a.supportsA2A, supportsMCP: a.supportsMCP,
             isInstalled: sub?.installed || false,
             isSubscribed: sub?.status === 'active',

@@ -602,7 +602,9 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                     {agent.featured && <span className="text-xs">⭐</span>}
                   </div>
                   <div className="text-xs text-white/40 mt-0.5 flex items-center gap-1.5">
-                    <span>by {agent.developerName}</span>
+                    <span>by {agent.developerId
+                      ? <a href={`/profile/${agent.developerId}`} target="_blank" rel="noopener" className="text-brand-400 hover:underline" onClick={e => e.stopPropagation()}>{agent.developerName}</a>
+                      : agent.developerName}</span>
                     {(agent as any).isFederated && (
                       <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 text-[9px] font-medium border border-purple-500/20">🌐 Federated</span>
                     )}
@@ -708,7 +710,9 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                 )}
               </div>
               <div className="text-xs text-white/40 mt-1 flex items-center gap-1.5">
-                <span>by {a.developerUrl ? <a href={a.developerUrl} target="_blank" rel="noopener" className="text-brand-400 hover:underline">{a.developerName}</a> : a.developerName}</span>
+                <span>by {a.developerId
+                  ? <a href={`/profile/${a.developerId}`} target="_blank" rel="noopener" className="text-brand-400 hover:underline">{a.developerName}</a>
+                  : a.developerName}</span>
                 {(a as any).isFederated && (
                   <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 text-[9px] font-medium border border-purple-500/20">🌐 {(a as any).sourceInstanceUrl ? new URL((a as any).sourceInstanceUrl).hostname : 'Federated'}</span>
                 )}

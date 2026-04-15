@@ -1788,6 +1788,7 @@ model MarketplaceAgent {
   subscriptionPrice Float?  // $ per month (if subscription)
   taskLimit       Int?      // monthly task limit for subscription tier (null = unlimited)
   pricingDetails  String?   @db.Text  // JSON for complex tiered pricing
+  currency        String    @default("USD") // ISO 4217 currency code
 
   // Revenue tracking
   totalGrossRevenue   Float   @default(0) // total gross $ earned

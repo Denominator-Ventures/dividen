@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
           pricePerTask: true, subscriptionPrice: true, taskLimit: true,
           status: true, featured: true, totalExecutions: true,
           avgRating: true, totalRatings: true, avgResponseTime: true,
-          successRate: true, developerName: true, developerUrl: true,
+          successRate: true, developerName: true, developerUrl: true, developerId: true,
           supportsA2A: true, supportsMCP: true,
           inputFormat: true, outputFormat: true,
           taskTypes: true, contextInstructions: true,
