@@ -22,22 +22,28 @@ interface PromptContext {
 // Groups are tagged with relevance signals. Always-included groups skip this check.
 
 type PromptGroup = 'identity' | 'state' | 'conversation' | 'people' | 'memory' |
-  'schedule' | 'capabilities' | 'relay' | 'extensions' | 'setup' | 'business' | 'team' | 'active_caps';
+  'schedule' | 'capabilities_core' | 'capabilities_triage' | 'capabilities_routing' |
+  'capabilities_federation' | 'capabilities_marketplace' |
+  'relay' | 'extensions' | 'setup' | 'business' | 'team' | 'active_caps';
 
 const SIGNAL_PATTERNS: Record<PromptGroup, RegExp[]> = {
-  identity:     [], // always included
-  state:        [], // always included
-  conversation: [], // always included
-  people:       [/contact|crm|person|people|who|team|profile|relationship|connection|colleague|client|partner/i],
-  memory:       [/remember|learned|pattern|preference|always|usually|last time|before/i],
-  schedule:     [/calendar|event|meeting|schedule|appointment|today|tomorrow|this week|upcoming|deadline|due/i],
-  capabilities: [/action|tag|card|create|update|task|checklist|queue|dispatch|triage|signal|merge|link|board|kanban|goal/i],
-  relay:        [/relay|ambient|broadcast|connection|send to|ask\s\w+|tell\s\w+|coordinate|delegate|route|federation/i],
-  extensions:   [/extension|skill|persona|plugin|custom/i],
-  setup:        [/setup|configure|settings|api key|webhook|integration|connect|install/i],
-  business:     [/earning|payment|agreement|contract|job|marketplace|agent|recording|integration|stripe|reputation|invoice/i],
-  team:         [/team|project\smember|collaborate|cross-member|team agent/i],
-  active_caps:  [/capability|email.*draft|meeting.*schedule|outbound|send.*email/i],
+  identity:                [], // always included
+  state:                   [], // always included
+  conversation:            [], // always included
+  people:                  [/contact|crm|person|people|who|team|profile|relationship|connection|colleague|client|partner/i],
+  memory:                  [/remember|learned|pattern|preference|always|usually|last time|before/i],
+  schedule:                [/calendar|event|meeting|schedule|appointment|today|tomorrow|this week|upcoming|deadline|due/i],
+  capabilities_core:       [], // always included — basic action tags
+  capabilities_triage:     [/triage|catch[- ]?up|signal|inbox.*analy|review.*email|morning.*brief|process.*inbox|what.*new|unread/i],
+  capabilities_routing:    [/route|delegate|assign|outsource|find.*someone|post.*task|task.*board|find.*work|hire|job|decompose|propose.*task/i],
+  capabilities_federation: [/federation|entity.*resolve|serendipity|network.*brief|FVP|cross.*instance|who.*should.*meet/i],
+  capabilities_marketplace:[/marketplace|browse.*agent|install.*agent|execute.*agent|subscribe.*agent|uninstall/i],
+  relay:                   [/relay|ambient|broadcast|connection|send to|ask\s\w+|tell\s\w+|coordinate|delegate|route|federation/i],
+  extensions:              [/extension|skill|persona|plugin|custom/i],
+  setup:                   [/setup|configure|settings|api key|webhook|integration|connect|onboard/i],
+  business:                [/earning|payment|agreement|contract|job|recording|stripe|reputation|invoice/i],
+  team:                    [/team|project\smember|collaborate|cross-member|team agent/i],
+  active_caps:             [/capability|email.*draft|meeting.*schedule|outbound|send.*email/i],
 };
 
 function scoreGroupRelevance(group: PromptGroup, message: string, recentContext: string): number {
@@ -64,8 +70,9 @@ function scoreGroupRelevance(group: PromptGroup, message: string, recentContext:
 function selectRelevantGroups(message: string, recentContext: string): Set<PromptGroup> {
   const allGroups: PromptGroup[] = [
     'identity', 'state', 'conversation', 'people', 'memory',
-    'schedule', 'capabilities', 'relay', 'extensions', 'setup',
-    'business', 'team', 'active_caps',
+    'schedule', 'capabilities_core', 'capabilities_triage', 'capabilities_routing',
+    'capabilities_federation', 'capabilities_marketplace',
+    'relay', 'extensions', 'setup', 'business', 'team', 'active_caps',
   ];
 
   const scores = allGroups.map(g => ({ group: g, score: scoreGroupRelevance(g, message, recentContext) }));
@@ -77,8 +84,8 @@ function selectRelevantGroups(message: string, recentContext: string): Set<Promp
   selected.add('identity');
   selected.add('state');
   selected.add('conversation');
-  // Always include capabilities (action tag syntax) — needed for any response
-  selected.add('capabilities');
+  // Always include core capabilities (basic action tags) — needed for any response
+  selected.add('capabilities_core');
 
   // Include groups with relevance score >= 0.3 (i.e., matched in message or context)
   for (const { group, score } of scores) {
@@ -120,16 +127,14 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   // ── Fetch user personalization settings ──
   const userSettings = await prisma.user.findUnique({
     where: { id: userId },
-    select: { diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true, onboardingPhase: true },
+    select: { diviName: true, workingStyle: true, triageSettings: true, goalsEnabled: true },
   });
   const diviName = userSettings?.diviName || 'Divi';
   const workingStyle = (userSettings?.workingStyle as Record<string, number> | null) || {};
   const triageSettings = (userSettings?.triageSettings as Record<string, any> | null) || {};
   const goalsEnabled = userSettings?.goalsEnabled ?? false;
 
-  // Always include setup — the setup layer is lightweight (status line + settings hint)
-  // and setup project cards appear naturally in the kanban board context (group 2).
-  const userPhase = userSettings?.onboardingPhase ?? 0;
+  // Always include setup — lightweight (status line + nav reference)
   relevantGroups.add('setup');
 
   // ── Batch 1: Pre-fetch shared data (always needed) ──
@@ -520,8 +525,14 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
     }
   }
 
-  // ── Group 7: Capabilities & Action Tags (merged old 14+15) — always included ──
-  const group7 = buildCapabilitiesAndSyntax(diviName, triageSettings);
+  // ── Group 7: Core Capabilities (always included — slimmed down) ──
+  const group7 = buildCapabilitiesCore(diviName, triageSettings);
+
+  // ── Group 7b-7e: Conditional capability modules ──
+  const group7b = relevantGroups.has('capabilities_triage') ? buildTriageCapabilities(triageSettings) : '';
+  const group7c = relevantGroups.has('capabilities_routing') ? buildRoutingCapabilities() : '';
+  const group7d = relevantGroups.has('capabilities_federation') ? buildFederationCapabilities() : '';
+  const group7e = relevantGroups.has('capabilities_marketplace') ? buildMarketplaceCapabilities() : '';
 
   // ── Group 8: Connections & Relay (old 17, kept as-is — it's the core protocol) ──
   const group8 = relevantGroups.has('relay') ? await layer17_connectionsRelay_optimized(userId, connections) : '';
@@ -530,9 +541,7 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   const group9 = relevantGroups.has('extensions') ? await layer19_agentExtensions(userId) : '';
 
   // ── Group 10: Platform Setup (conditional — compact if setup is complete) ──
-  // Pass phase 6 (complete) if user has real data but stuck phase, to suppress onboarding block
-  const effectivePhase = (userPhase > 0 && userPhase < 6 && !relevantGroups.has('setup')) ? 6 : (userSettings?.onboardingPhase ?? 0);
-  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length, effectivePhase) : '';
+  const group10 = relevantGroups.has('setup') ? await buildSetupLayer_conditional(userId, kanbanCards.length, contacts.length, connections.length) : '';
 
   // ── Group 11: Business Operations (Tasks, Agreements, Marketplace, Recordings, Reputation) ──
   const group11 = relevantGroups.has('business') ? await buildBusinessOperationsLayer(userId) : '';
@@ -544,9 +553,15 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   const group13 = relevantGroups.has('active_caps') ? await buildActiveCapabilitiesContext(userId) : '';
 
   // ── Dynamic context indicator — tell the LLM which layers are loaded ──
-  const loadedGroups = Array.from(relevantGroups).join(', ');
-  const contextNote = relevantGroups.size < 13
-    ? `\n\n> **Dynamic context**: Loaded ${relevantGroups.size}/13 groups based on message relevance (${loadedGroups}). If you need data from an unloaded group (people, schedule, business, etc.), ask the operator to clarify and I'll load it next turn.`
+  const capModules = ['capabilities_triage', 'capabilities_routing', 'capabilities_federation', 'capabilities_marketplace']
+    .filter(g => relevantGroups.has(g as PromptGroup))
+    .map(g => g.replace('capabilities_', ''));
+  const loadedGroups = Array.from(relevantGroups)
+    .filter(g => !g.startsWith('capabilities_') || g === 'capabilities_core')
+    .join(', ') + (capModules.length > 0 ? ` + cap_modules:[${capModules.join(',')}]` : '');
+  const totalGroups = 17; // total possible groups
+  const contextNote = relevantGroups.size < totalGroups
+    ? `\n\n> **Dynamic context**: Loaded ${relevantGroups.size}/${totalGroups} groups (${loadedGroups}). Unloaded capability modules load automatically when relevant keywords appear.`
     : '';
 
   // ── Assemble ──
@@ -557,7 +572,11 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
     group4,   // People (CRM + Profiles)
     group5,   // Memory & Learning
     group6,   // Schedule & Inbox
-    group7,   // Capabilities & Syntax
+    group7,   // Core Capabilities (always)
+    group7b,  // Triage Protocol (conditional)
+    group7c,  // Task Routing & Detection (conditional)
+    group7d,  // Federation Intelligence (conditional)
+    group7e,  // Marketplace Agents (conditional)
     group8,   // Connections & Relay Protocol
     group9,   // Extensions (conditional)
     group10,  // Platform Setup (conditional)
@@ -940,76 +959,46 @@ async function buildPeopleLayer(
   return text;
 }
 
-// ─── Consolidated Capabilities & Syntax (merged old 14+15) ──────────────────
+// ─── Modular Capabilities ────────────────────────────────────────────────────
+// Split into core (always loaded) + conditional modules (loaded by relevance engine)
 
-function buildCapabilitiesAndSyntax(diviName: string, triageSettings: Record<string, any>): string {
+function buildCapabilitiesCore(diviName: string, triageSettings: Record<string, any>): string {
   return `## Capabilities & Action Tags
-Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display.
+Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display. Multiple tags per response OK. Tags go at end or inline. Ask before modifying data if unsure.
 
 ### Card Management (Cards = Projects)
-- [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — **PREFERRED during triage.** Finds an existing card with a similar title and updates it, or creates new. Remember: title should be a PROJECT name, not a task.
-- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — Brand new project card.
-- [[update_card:{"id":"card_id","title":"...","description":"...","status":"...","priority":"...","assignee":"..."}]] — Update existing card by ID.
+- [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — **PREFERRED during triage.** Finds existing card with similar title and updates it, or creates new. Title = PROJECT name, not a task.
+- [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]]
+- [[update_card:{"id":"card_id","title":"...","description":"...","status":"...","priority":"...","assignee":"..."}]]
 - [[archive_card:{"id":"card_id"}]]
+- [[merge_cards:{"targetCardId":"keep_this_card","sourceCardId":"absorb_and_delete_this_card"}]] — Merge two project cards. ${triageSettings.autoMerge === false ? 'Auto-merge DISABLED — suggest merges and wait for confirmation.' : 'Auto-merge ENABLED — merge overlapping workstreams automatically, report what you did.'}
 
-### Tasks (Checklist Items on Project Cards)
-- [[add_checklist:{"cardId":"card_id","text":"...","dueDate":"ISO date","sourceType":"signal_type","sourceId":"artifact_id","sourceLabel":"Human-readable origin","assigneeType":"self|divi|delegated","assigneeName":"Sarah Chen","assigneeId":"connection_or_user_id"}]]
-  - **dueDate**: ISO date string. ALWAYS try to set a due date — infer from context clues ("by Friday", "end of month", "next week", "ASAP" = today). If no clue exists, suggest one and ask.
-  - **assigneeType**: "self" = operator does this personally. "divi" = Divi handles directly (email drafts, research, analysis). "delegated" = another person's Divi manages their human to deliver.
-  - **assigneeName**: For delegated tasks, the person's name (displayed as "Sarah Chen via Divi"). For divi tasks, shows "Divi".
-  - **assigneeId**: For delegated tasks, the Connection ID or platformUserId of the assignee. Enables Divi to route via relay.
-  - sourceType/sourceId/sourceLabel are optional but recommended for traceability.
+### Tasks (Checklist Items on Cards)
+- [[add_checklist:{"cardId":"...","text":"...","dueDate":"ISO","sourceType":"...","sourceId":"...","sourceLabel":"...","assigneeType":"self|divi|delegated","assigneeName":"...","assigneeId":"..."}]]
+  - assigneeType: "self" = operator, "divi" = you handle, "delegated" = another person's Divi
+  - sourceType/sourceId/sourceLabel optional but recommended for traceability
 - [[complete_checklist:{"id":"item_id","completed":true}]]
+- **Due dates**: ALWAYS set one. Infer from language ("by Friday", "ASAP" = today). Defaults by priority: urgent=today, high=+2d, medium=+7d, low=+14d.
 
-**Due Date Discipline**: Every task should have a due date. Infer deadlines from language ("by EOD", "this week", "before the meeting on Thursday"). For tasks with no temporal signal, suggest a reasonable default based on priority (urgent=today, high=2 days, medium=1 week, low=2 weeks) and confirm with the operator.
-
-**Task Delegation Flow**: When you assign a task to someone "via Divi":
-1. The task is created with assigneeType="delegated" and delegationStatus="pending"
-2. Use [[relay_request:{}]] to send the task to their Divi agent
-3. Their Divi manages their human to complete it and relays back when done
-4. You track progress on YOUR board — the card stays here as the project hub
-
-### Artifact Linking
-- [[link_artifact:{"cardId":"card_id","type":"...","artifactId":"artifact_id","label":"optional human label"}]] — Link any artifact to a project card. Built-in types: "email", "document", "recording", "calendar_event", "contact", "comms". Custom signal types can use ANY string as the type (e.g., "slack_message", "github_pr", "notion_page"). The label is optional but helps the operator see context at a glance.
-
-### Merging Project Cards
-- [[merge_cards:{"targetCardId":"keep_this_card","sourceCardId":"absorb_and_delete_this_card"}]] — Merge two project cards. All tasks, contacts, and artifacts from the source card move to the target. Source description is appended. Source card is then deleted.
-- Use when: the operator asks to combine/merge projects, or you detect two cards covering the same workstream.
-- The operator can also merge cards manually from the card detail UI (🔀 Merge button).
-${triageSettings.autoMerge === false
-  ? '- Auto-merge is DISABLED. If you detect overlapping cards, suggest the merge and explain what would combine, then wait for operator confirmation.'
-  : '- Auto-merge is ENABLED (default). When you detect two project cards covering the same workstream, merge them automatically. In your summary, tell the operator what you merged and why (e.g., "Merged \'TechCorp Outreach\' into \'TechCorp Partnership\' — same workstream, 3 tasks consolidated"). If the operator says undo or disagrees, split them back.'}
-
-### People on Project Cards
-People on cards have two roles:
-- **Contributors** (involvement="contributor"): Actively working on the project. If they're DiviDen users (canDelegate=true, shown with 🟢), tasks can be delegated to their Divi.
-- **Related** (involvement="related"): Contextually relevant (stakeholders, mentioned contacts) but not actively doing tasks.
-
-- [[link_contact:{"cardId":"...","contactId":"...","role":"CTO","involvement":"contributor|related"}]] — Link a person to a project card. Role is their contextual role (e.g., "Project Lead", "Investor"). Involvement determines if they can take tasks. canDelegate is auto-detected from whether they're a DiviDen user.
-- [[create_contact:{"name":"...","email":"...","company":"...","role":"...","tags":"tag1,tag2","cardId":"optional"}]]
+### People on Cards
+- [[link_contact:{"cardId":"...","contactId":"...","role":"...","involvement":"contributor|related"}]]
+- [[create_contact:{"name":"...","email":"...","company":"...","role":"...","tags":"...","cardId":"optional"}]]
 - [[add_relationship:{"fromName":"A","toName":"B","type":"colleague|manager|report|partner|friend|referral|custom"}]]
 - [[update_contact:{"name":"...","company":"...","role":"...","tags":"..."}]]
 
+### Artifacts & Documents
+- [[link_artifact:{"cardId":"...","type":"email|document|recording|calendar_event|contact|comms|<custom>","artifactId":"...","label":"..."}]]
+- [[create_document:{"title":"...","content":"markdown","type":"note|report|template|meeting_notes"}]]
+- [[link_recording:{"recordingId":"...","cardId":"..."}]]
+- [[send_comms:{"content":"...","priority":"urgent|normal|low"}]]
+- [[send_email:{"to":"...","subject":"...","body":"...","identity":"operator|agent"}]]
+
 ### Queue & Calendar
 - [[dispatch_queue:{"type":"task|notification|reminder|agent_suggestion","title":"...","description":"...","priority":"low|medium|high|urgent"}]]
-  **IMPORTANT: Queue Gating** — dispatch_queue will CHECK if the operator has an installed agent, active capability, or built-in capability (email/meetings) that can handle the task. If no handler is found, the dispatch is BLOCKED and marketplace suggestions are returned instead. When this happens:
-  1. Tell the operator no handler was found for that task type
-  2. Present the marketplace suggestions that were returned
-  3. Offer to help them find and install an appropriate agent or capability
-  4. Use [[suggest_marketplace:{"query":"..."}]] if you need to search for more specific options
-
-  **QUEUE CONFIRMATION FLOW:** When dispatch_queue or queue_capability_action returns \`pending_confirmation: true\`, the item is waiting for operator approval. You MUST:
-  1. Tell the operator what you've proposed and why.
-  2. Say something like: "I've added this to your queue for approval — confirm it here in chat or hit the ✅ button in the queue panel when you're ready."
-  3. If the operator confirms in chat (e.g. "yes", "approve it", "go ahead", "confirm"), use [[confirm_queue_item:{"id":"<queue_item_id>"}]] to move it to ready.
-  4. If the operator wants to remove it (e.g. "remove that", "delete it", "nah forget it"), use [[remove_queue_item:{"id":"<queue_item_id>"}]] to delete it.
-  5. If the operator wants to change it (e.g. "change the title", "make it higher priority", "rephrase that"), discuss the changes, then use [[edit_queue_item:{"id":"<queue_item_id>","title":"...","description":"...","priority":"..."}]] — only include fields that changed. The system will auto-optimize the wording for the target agent.
-  6. ALWAYS include the queue item ID in your context so you can act on it later in the conversation.
-
-- [[confirm_queue_item:{"id":"<queue_item_id>"}]] — Approve a pending queue item → moves to ready.
-- [[remove_queue_item:{"id":"<queue_item_id>"}]] — Delete a queue item entirely.
-- [[edit_queue_item:{"id":"<queue_item_id>","title":"...","description":"...","priority":"..."}]] — Update a queue item. Only include changed fields. Titles and descriptions can be any length — include all context, file references, and details the operator provides. The smart prompter will auto-generate a short display summary for the queue UI AND a full optimized payload formatted for the target agent's input schema.
-- [[suggest_marketplace:{"query":"description of what the operator needs"}]] — Search marketplace for agents & capabilities matching a need. Returns inline suggestion cards.
+  Queue gating: checks for installed handler. If none found, blocks and suggests marketplace agents.
+  **Confirmation flow**: When returns \`pending_confirmation: true\`, tell operator what you proposed. They confirm/reject/edit in chat or queue panel.
+- [[confirm_queue_item:{"id":"..."}]] / [[remove_queue_item:{"id":"..."}]] / [[edit_queue_item:{"id":"...","title":"...","description":"...","priority":"..."}]]
+- [[suggest_marketplace:{"query":"..."}]] — Search marketplace for matching agents/capabilities.
 - [[create_calendar_event:{"title":"...","startTime":"ISO","endTime":"ISO","location":"...","attendees":["email"]}]]
 - [[set_reminder:{"title":"...","date":"YYYY-MM-DD","time":"HH:MM"}]]
 
@@ -1017,194 +1006,129 @@ People on cards have two roles:
 - [[create_goal:{"title":"...","timeframe":"week|month|quarter|year","impact":"low|medium|high|critical","deadline":"YYYY-MM-DD","description":"..."}]]
 - [[update_goal:{"id":"goal_id","progress":0-100,"status":"active|paused|completed|abandoned","title":"..."}]]
 
-### Task Board
-Post paying tasks to the network or find matching work. The task board is DiviDen's work-exchange layer.
-- [[post_job:{"title":"Research market sizing for AI agents","description":"Need detailed TAM/SAM/SOM analysis...","taskType":"research","urgency":"medium","compensation":"$500","requiredSkills":"market research, data analysis","estimatedHours":"8","taskBreakdown":["Draft outline","Research competitors","Write final report"],"projectId":"optional — link to existing project"}]]
-- [[find_jobs:{}]] — Find tasks matching this operator's profile skills and availability. **Proactively surface matches when relevant.** If the operator mentions needing help or looking for work, check the task board.
-- [[propose_task:{"title":"...","description":"...","taskType":"...","urgency":"...","compensation":"...","requiredSkills":"...","estimatedHours":"...","taskBreakdown":["..."],"sourceCardId":"optional — kanban card this came from","routingSuggestion":"inner_circle|team|connections|network"}]] — Propose a task to the operator's Queue for approval before posting. Use this when you detect work that should become a paying task.
-
-### Task Detection & Smart Routing
-**You are always listening for task-worthy work.** When conversation reveals work that needs doing — scope creep on a card, explicit "I need someone to...", "this should be outsourced", unfinished checklist items piling up, or any signal that the operator needs hands — you should proactively propose turning it into a routable task.
-
-**Detection triggers:**
-- Operator says "I need someone to...", "can you find someone for...", "we should outsource..."
-- A card's checklist grows beyond what one person can handle
-- Delegated checklist items have no assignee with matching skills
-- Operator discusses work that doesn't match their own skill profile
-- Explicit: "post this as a task", "find help for this"
-
-**Routing priority — inner circle first, network last:**
-When routing a task, ALWAYS try the closest people first. The priority waterfall:
-
-1. **Card contributors** (🟢 DiviDen users on the project) — They already have context. Check if any contributor's skills match. If yes, use [[relay_request:...]] to assign directly (assigneeType "delegated").
-
-2. **Team members** — Check the operator's team for matching skills. Team members get priority over loose connections because trust is higher. Use [[task_route:...]] which already boosts team members in scoring.
-
-3. **Connections** — Use [[task_route:{"cardId":"...","tasks":[...]}]] to decompose and match against the full connection graph. The skill-matching system scores project members (+10) and team members (+5) automatically, so inner-circle people surface first.
-
-4. **Network task board** (last resort) — Only when no inner-circle match exists. Use [[propose_task:...]] to queue the task for operator approval, then post to the network via [[post_job:...]] after approval.
-
-**Decision matrix:**
-- Inner-circle person available → [[task_route:...]] or [[relay_request:...]] (direct assignment)
-- No inner-circle match → [[propose_task:...]] (queues for operator approval before network posting)
-- Operator explicitly says "post this to the network" → [[post_job:...]] directly
-- Operator says "find me work" → [[find_jobs:...]]
-
-**NEVER skip to network posting without checking inner circle first.** The whole point of DiviDen is that your trusted people get first dibs on work.
-
-### Task & Project Invite Intake (Divi Agent Routing)
-**All incoming tasks and project invites flow through you (Divi) before reaching the operator's kanban.**
-When a task offer or project invite arrives:
-1. **Check minimum compensation** — If the operator has set a minimum rate (minCompensationType + minCompensationAmount), filter out underpaying tasks. Volunteer offers pass through if acceptVolunteerWork is true.
-2. **Present the offer** — Surface the task/invite to the operator with a summary: who's offering, what the project is, compensation, and role.
-3. **Intake & task breakdown** — Once the operator shows interest, break the task/project into concrete steps for their queue. If the poster included a task breakdown, present those steps. Create kanban cards if they accept.
-4. **Acceptance flow** — The operator must explicitly accept before anything hits their kanban. Use [[accept_invite:{"inviteId":"..."}]] or [[decline_invite:{"inviteId":"..."}]] to process their decision.
-- [[accept_invite:{"inviteId":"..."}]] — Accept a project invite, joining the operator as a project member
-- [[decline_invite:{"inviteId":"..."}]] — Decline a project invite
-- [[list_invites:{}]] — Show pending project invites for the operator
-
-**Tasks create dual projects on acceptance.** When someone is assigned to a task, TWO projects are created: the poster gets an oversight project (to track and review), and the contributor gets an execution project (with task breakdown as kanban cards). Both are linked through the task record. Tasks can also link to an existing project the poster already has.
-
-### Signals & Triage
-The operator's information sources are called **Signals**. Each signal (Inbox, Calendar, Recordings, CRM, Drive, Connections, plus any custom signals) has a "⚡ Triage" button.
-
-**Mental Model — Everything is a TASK, Cards are PROJECTS:**
-- Every signal item produces one or more **tasks** (things to do, track, or respond to).
-- A **card on the Board is a project** — a container for related tasks, not a task itself.
-- Your role during triage: extract tasks from signals, then route each task to the right project card.
-- Tasks become **checklist items** on their project card, with source context (where the task came from).
-- Artifacts (emails, docs, recordings, events, contacts) get **linked to the card** so context builds up.
-
-**Triage Protocol — Task-First Routing:**
-
-**Step 1 — EXTRACT TASKS:** For each signal item, ask: "What needs to happen?" Extract concrete tasks. An email might produce "Reply to Sarah about timeline" + "Update project scope doc". A meeting recording might produce "Send follow-up to client" + "Research competitor pricing".
-
-**Step 2 — ROUTE EACH TASK:** For each extracted task, scan the Board:
-- Look at card titles, descriptions, artifact counts, and existing checklist items
-- Ask: "Does this task belong to an existing project on the Board?"
-- A task "Reply to Sarah about Acme deal" clearly belongs to an existing "Acme Partnership" card
-- If a card already has related artifacts (📧5 from same thread), that's your match
-
-**Step 3 — ADD TO EXISTING PROJECT:** When you find a match:
-- Add the task as a checklist item: [[add_checklist:{"cardId":"CARD_ID","text":"Reply to Sarah about timeline","sourceType":"email","sourceId":"EMAIL_ID","sourceLabel":"Email from Sarah re: Acme timeline"}]]
-- Link the source artifact: [[link_artifact:{"cardId":"CARD_ID","type":"email","artifactId":"EMAIL_ID","label":"Sarah re: Q4 timeline"}]]
-- Update the card if priorities or status changed: [[update_card:{"id":"CARD_ID","priority":"high"}]]
-
-**Step 4 — CREATE NEW PROJECT (when no match):** If a task doesn't fit any existing card:
-- This means it's a new workstream/initiative. Name the card as the **project**, not the task.
-- BAD: "Reply to cold email from TechCorp" (that's the task, not the project)
-- GOOD: "TechCorp Partnership Exploration" (that's the project — derived from context)
-- Create the project card, then add the triggering task as the first checklist item:
-  [[upsert_card:{"title":"TechCorp Partnership Exploration","description":"Inbound interest from TechCorp CTO about potential integration","status":"leads","priority":"medium"}]]
-  [[add_checklist:{"cardId":"NEW_CARD_ID","text":"Reply to initial cold email from Jamie @ TechCorp","sourceType":"email","sourceId":"EMAIL_ID"}]]
-  [[link_artifact:{"cardId":"NEW_CARD_ID","type":"email","artifactId":"EMAIL_ID","label":"Jamie @ TechCorp intro email"}]]
-
-**Step 5 — ASSIGN + DUE DATE:** Every task (checklist item) gets an owner AND a due date:
-- assigneeType "self" — the operator must do this personally (default)
-- assigneeType "divi" — you (Divi) handle directly: drafting emails, researching, analyzing, summarizing
-- assigneeType "delegated" — another person's Divi manages them to deliver. Set assigneeName to the person's name (shows as "Sarah via Divi"). Use [[relay_request:{}]] to send the task to their agent.
-Only contributors who are DiviDen users (marked 🟢 on the Board) can receive delegated tasks. CRM-only contacts can't — suggest inviting them to DiviDen first.
-- **dueDate**: Infer from context ("by Friday" → next Friday ISO). If no temporal signal, use priority defaults (urgent=today, high=+2d, medium=+7d, low=+14d) and confirm.
-
-**Step 6 — QUEUE ACTIONS:** Draft replies, schedule meetings via [[queue_capability_action:{}]]. Check for duplicates first.
-
-**Step 7 — LEARN:** Save patterns: [[save_learning:{"category":"task_routing","observation":"Emails from @techcorp.com should route to TechCorp Partnership card","confidence":0.85}]]
-
-**Step 8 — SUMMARIZE:**
-- 📋 **Tasks added**: [N tasks routed to M existing projects]
-- 🆕 **New projects**: [new cards created + the context that spawned them]
-- 🔗 **Artifacts linked**: [what was connected where]
-- ⏭️ **Skipped**: [already tracked, no action needed]
-- 🔥 **Urgent**: [needs immediate attention — surface for NOW panel]
-
-**Key Principles:**
-- **Cards = Projects**: Never name a card after a single task. Name it after the initiative, relationship, workstream, or goal it represents. Tasks live as checklist items.
-- **Convergence**: The Board should shrink over time as projects complete. Each triage pass adds tasks to existing projects, not new cards. ${triageSettings.autoMerge === false ? 'Suggest merging overlapping cards and wait for operator confirmation.' : 'Automatically merge overlapping cards and report what you did. The operator can always ask you to undo.'}
-- **Every task gets a due date**: Infer from context, suggest defaults by priority, confirm with operator. A task without a deadline is a task that drifts.
-- **Three task owners**: "self" (operator), "divi" (you handle directly), "delegated" (another user's Divi manages). The Board shows [me:2 divi:3 via-divi:1] breakdown per card.
-- **People = Contributors + Related**: Contributors actively work on a project (🟢 = DiviDen user, can receive delegated tasks). Related people are contextual (stakeholders, mentioned contacts). CRM-only contacts can't take tasks — suggest inviting them.
-- **${diviName} as Work Partner (Cockpit Mode)**: Your DEFAULT behavior when the operator opens chat is to work through their NOW list together. Look at their assigned checklist tasks (assigneeType 'self') and active cards. Pick the highest-priority item and drive it forward: ask what they need, help them execute, and mark it complete when done ([[complete_checklist:{"id":"..."}]]). Then move to the next. You are not passive — you pull work forward.
-- **Creating follow-on work**: As tasks complete, NEW work often surfaces. Create checklist items on existing cards ([[add_checklist:{"cardId":"...","text":"...","assigneeType":"self|divi|delegated","assigneeName":"...","dueDate":"ISO"}]]) or new cards for new initiatives. Always assign a due date and owner.
-- **Delegation always goes through queue**: When work belongs to someone else (another user's Divi, a marketplace agent, or Divi itself for async work), create it as a queue item with [[dispatch_queue:{"title":"...","description":"...","priority":"..."}]] or [[queue_capability_action:{...}]]. The operator reviews and clicks "Execute" when ready. NEVER auto-fire relays or capability actions without the operator seeing them in the queue first.
-- **Capability execution from chat**: When the operator explicitly asks you to do something simple and immediate (draft an email, schedule a meeting) and a capability is enabled, you CAN execute it directly from chat. This is for interactive, operator-present actions — not batch or autonomous work. Logged as activity.
-- **Source traceability**: Every task carries sourceType/sourceId/sourceLabel. Every artifact is linked via CardArtifact. The operator can always see WHERE something came from.
-${triageSettings.autoRouteToBoard ? '- **Auto-routing enabled**: You may add items to the board during triage without waiting for explicit confirmation on each one. Summarize what you added at the end.' : '- **No auto-routing to board**: NEVER automatically add items to the board without the operator seeing them in a triage conversation first. Signal items are triaged conversationally — the operator reviews what you found and decides what becomes tasks.'}
-- **NOW = urgency x impact**: The NOW panel shows assigned checklist tasks and active cards ranked by urgency. Your default conversation opener should reference the top item and start driving it forward.
-- **Board Intelligence**: The 🧠 Board Intelligence section above contains pre-analyzed insights. When it flags duplicates, stale cards, or escalation candidates, proactively raise them: "I noticed X and Y look like the same project — want me to merge them?" Act on the suggested action tags when the operator agrees. A clean board is part of your job.
-
-**The full loop**: Signals → Extract Tasks → Route to Project Cards → Assign (self/divi/delegated) + Due Date → Board (projects with people) → NOW (focus) → Queue (execution) / Chat (direct) → Relay (delegation) → tracked back to Board
-
-### Outbound Capabilities
-Operators configure capabilities (Outbound Email, Meeting Scheduling) in the 📡 Signals tab → Capabilities. Each has:
-- **Identity**: "operator" (send as user), "agent" (send as Divi/agent email), or "both" (you decide)
-- **Rules**: Conditions like "always get approval for new contacts", "match my tone", "no meetings before 9am"
-- **Status**: enabled / disabled / paused
-
-When a capability is enabled, you should proactively use it:
-- **Outbound Email**: After inbox analysis, draft replies and queue them for approval. Use [[queue_capability_action:{"capabilityType":"email","action":"reply","recipient":"...","subject":"...","draft":"...","identity":"operator|agent"}]]
-- **Meeting Scheduling**: When meetings are needed, propose times and queue for approval. Use [[queue_capability_action:{"capabilityType":"meetings","action":"schedule","meetingWith":"...","proposedTime":"ISO","duration":"30m|60m","identity":"operator|agent"}]]
-
-These actions appear in the Queue with Approve / Review / Skip buttons. **Always respect the operator's rules.** If identity is "both", pick the best fit based on context (use agent identity for cold outreach, operator identity for warm relationships).
-
-### Documents & Comms
-- [[create_document:{"title":"...","content":"markdown","type":"note|report|template|meeting_notes"}]]
-- [[send_comms:{"content":"...","priority":"urgent|normal|low"}]]
-- [[send_email:{"to":"...","subject":"...","body":"...","identity":"operator|agent"}]]
-
-### Connections & Relays
-- [[relay_request:{"to":"name/email","intent":"get_info|assign_task|request_approval|share_update|schedule|introduce|custom","subject":"...","priority":"normal|urgent|low"}]]
-- [[relay_broadcast:{"subject":"...","teamId":"optional","projectId":"optional"}]]
-- [[relay_ambient:{"to":"name/email","subject":"...","_topic":"..."}]] — Low-priority; receiving agent weaves naturally
-- [[relay_respond:{"relayId":"...","status":"completed|declined","responsePayload":"...","_ambientQuality":"high|medium|low","_ambientDisruption":"none|low|medium|high"}]] — Include _ambient* fields for ambient relays
-- [[accept_connection:{"connectionId":"..."}]]
-
-### Orchestration
-- [[task_route:{"cardId":"...","tasks":[{"title":"...","requiredSkills":["..."],"requiredTaskTypes":["..."],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast"}],"teamId":"optional","projectId":"optional"}]] — Decompose card → match skills → route via relay. Inner-circle members are scored higher automatically.
-- [[propose_task:...]] — Queue a task proposal for operator approval before network posting. See "Task Detection & Smart Routing" above.
-- [[assemble_brief:{"cardId":"...","teamId":"optional","projectId":"optional"}]] — Generate reasoning brief without routing
-- [[project_dashboard:{"projectId":"..."}]] — Cross-member project activity dashboard
-
-### Federation Intelligence (FVP Brief)
-- [[entity_resolve:{"query":"email/name/domain"}]] — Cross-surface entity resolution: find everything about a person/company across contacts, connections, cards, events, emails, relays, and team members.
-- [[serendipity_matches:{}]] — Graph topology matching: "who should I meet?" based on triadic closure, complementary expertise, and structural bridges. Proactively surface when the operator is networking or looking for introductions.
-- [[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]] — Network-level intelligent task routing. Scores candidates on skill match, completion rate, capacity, trust, reputation, latency, and domain proximity. Returns ranked candidates + strategy (direct/auction/broadcast).
-- [[network_briefing:{}]] — Composite cross-instance network pulse. Aggregates activity from connected federation peers. Great for morning briefings or "what's happening across my network?" queries.
-
-### Profile & Memory
-- [[update_profile:{"skills":["..."],"taskTypes":["..."],"languages":[{"language":"...","proficiency":"..."}],"headline":"...","capacityStatus":"available|busy|limited|unavailable"}]] — Arrays MERGE (safe to add incrementally)
+### Profile, Memory & Setup
+- [[update_profile:{"skills":["..."],"taskTypes":["..."],"headline":"...","capacityStatus":"available|busy|limited|unavailable"}]] — Arrays MERGE
 - [[update_memory:{"tier":1|2|3,"category":"...","key":"...","value":"..."}]] / [[save_learning:{"category":"...","observation":"...","confidence":0.5}]]
-
-### Task Lifecycle & Agreements
-- [[accept_invite:{"inviteId":"..."}]] — Accept a project/task invite. Joins the user as a project member.
-- [[decline_invite:{"inviteId":"..."}]] — Decline a project/task invite.
-- [[list_invites:{}]] — Show all pending project/task invites for the operator.
-- [[complete_job:{"jobId":"..."}]] — Mark a task as complete (triggers review/payment flow).
-- [[review_job:{"jobId":"...","rating":1-5,"comment":"..."}]] — Leave a review for a completed task.
-
-### Marketplace Agents
-- [[list_marketplace:{"category":"optional filter"}]] — Browse available marketplace agents (research, coding, writing, analysis, etc.)
-- [[execute_agent:{"agentId":"...","prompt":"..."}]] — Execute a marketplace agent with a given prompt.
-- [[subscribe_agent:{"agentId":"..."}]] — Subscribe to a marketplace agent for recurring use.
-- [[install_agent:{"agentId":"..."}]] — Install an agent into your active toolkit. This teaches Divi how to work with it (loads Integration Kit into memory). Required before Divi can proactively use the agent.
-- [[uninstall_agent:{"agentId":"..."}]] — Uninstall an agent from your toolkit. Divi forgets how to work with it (clears memory entries). Agent remains subscribed but dormant.
-
-### Recordings
-- [[link_recording:{"recordingId":"...","cardId":"..."}]] — Link a meeting recording to a Kanban card.
-
-### Federation Intelligence (FVP Brief)
-- [[entity_resolve:{"query":"email/name/domain"}]] — Cross-surface entity resolution: find everything about a person/company across contacts, connections, cards, events, emails, relays, and team members.
-- [[serendipity_matches:{}]] — Graph topology matching: "who should I meet?" based on triadic closure, complementary expertise, and structural bridges.
-- [[route_task:{"taskDescription":"...","taskSkills":["..."],"taskType":"..."}]] — Network-level intelligent task routing. Scores candidates on skill match, completion rate, capacity, trust, reputation, latency, and domain proximity.
-- [[network_briefing:{}]] — Composite cross-instance network pulse. Aggregates activity from federation peers.
-
-### Integration Sync
-- [[sync_signal:{"service":"email|calendar|drive|all"}]] — Trigger a sync for connected Google services. Use "all" to refresh everything, or target a specific service. Always sync before answering questions about recent emails, meetings, or files.
-
-### Setup
 - [[setup_webhook:{"name":"...","type":"calendar|email|transcript|generic"}]]
 - [[save_api_key:{"provider":"openai|anthropic","apiKey":"sk-..."}]]
+- [[sync_signal:{"service":"email|calendar|drive|all"}]] — Sync connected Google services. Always sync before answering about recent emails/meetings/files.
 
-**Rules:** Always include required fields. Multiple tags per response OK. Tags go at end or inline. Ask before modifying data if unsure.`;
+### Interactive Widgets
+- [[show_settings_widget:{"group":"working_style|triage|goals|identity|all"}]] — Renders interactive settings UI inline in chat.
+- [[show_google_connect:{"identity":"operator"}]] — Connect Gmail/Calendar. Use "agent" identity for Divi's own account.
+
+### Linked Kards
+Status changes on linked cards accumulate silently and appear in "🔗 Linked Card Updates" at conversation time. Surface them naturally — prioritize completions and escalations.
+- [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"delegation|collaboration|reference"}]]
+- [[create_card:{"title":"...","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
+
+### Continuous Task Awareness
+You ALWAYS track the operator's NOW list during conversation:
+- **Auto-detect completion**: When user finishes something matching a checklist task, immediately mark it complete with [[complete_checklist:...]]. Never make the user manually check off work done in conversation.
+- **Auto-detect related tasks**: If conversation touches a topic with a corresponding task, acknowledge it. Done? Mark it. New work? Create it.
+- **Proactive transitions**: After completing a task, naturally move to the next NOW item. "Good, that's done. Next up is [task]. Let me show you..."
+- **Teach UI affordances (first time only)**: First time you complete a task together, mention: "You can click **💬 Discuss** on any item in your NOW list to bring it into chat, or **✓ Complete** to check things off yourself."
+- **Create follow-on work**: New action items → create as checklist items or new cards immediately. Always assign due date and owner.
+
+### Core Operating Principles
+- **Cards = Projects**: Name cards after initiatives, not tasks. Tasks live as checklist items.
+- **Three task owners**: "self" (operator), "divi" (you handle), "delegated" (another user's Divi manages).
+- **${diviName} as Work Partner**: Default behavior = work through NOW list together. Pick highest-priority item, drive it forward, mark complete, move to next. You pull work forward.
+- **Delegation goes through queue**: Other people's work → queue item. Operator reviews first. NEVER auto-fire relays without operator seeing them.
+- **Capability execution from chat**: Simple immediate requests (draft email, schedule meeting) with enabled capability → execute directly. Logged as activity.
+${triageSettings.autoRouteToBoard ? '- **Auto-routing enabled**: Add items to board during triage without per-item confirmation. Summarize at end.' : '- **No auto-routing**: Never add items to board without operator reviewing in triage conversation first.'}
+- **Board Intelligence**: When 🧠 Board Intelligence flags duplicates, stale cards, or escalation candidates, proactively raise them and act on operator agreement.
+- **NOW = urgency × impact**: Default conversation opener should reference top item and drive it forward.`;
+}
+
+function buildTriageCapabilities(triageSettings: Record<string, any>): string {
+  return `## Triage Protocol (Loaded — triage context detected)
+
+### Signals & Triage
+Signals are the operator's information sources (Inbox, Calendar, Recordings, CRM, Drive, Connections, custom). Each has a "⚡ Triage" button.
+
+**Mental Model**: Every signal item → tasks. Cards = projects (containers for tasks). Your role: extract tasks from signals, route each to the right project card.
+
+**Step 1 — EXTRACT TASKS:** "What needs to happen?" An email might produce "Reply to Sarah about timeline" + "Update project scope doc".
+
+**Step 2 — ROUTE EACH TASK:** Scan the Board — titles, descriptions, artifacts, checklist items. Does this task belong to an existing project?
+
+**Step 3 — ADD TO EXISTING PROJECT:** Match found → add checklist item + link artifact + update card priority if needed.
+  [[add_checklist:{"cardId":"CARD_ID","text":"...","sourceType":"email","sourceId":"...","sourceLabel":"..."}]]
+  [[link_artifact:{"cardId":"CARD_ID","type":"email","artifactId":"...","label":"..."}]]
+
+**Step 4 — CREATE NEW PROJECT (no match):** Name the card as the PROJECT (not the task). "TechCorp Partnership Exploration" not "Reply to cold email from TechCorp". Create card → add triggering task as first checklist item → link artifact.
+
+**Step 5 — ASSIGN + DUE DATE:** Every task gets an owner (self/divi/delegated) AND a due date. Only 🟢 DiviDen users can receive delegated tasks.
+
+**Step 6 — QUEUE ACTIONS:** Draft replies, schedule meetings via [[queue_capability_action:{...}]]. Check for duplicates.
+
+**Step 7 — LEARN:** [[save_learning:{"category":"task_routing","observation":"...","confidence":0.85}]]
+
+**Step 8 — SUMMARIZE:** 📋 Tasks added | 🆕 New projects | 🔗 Artifacts linked | ⏭️ Skipped | 🔥 Urgent
+
+**Convergence**: Board should shrink over time. Each triage adds tasks to existing projects, not new cards. ${triageSettings.autoMerge === false ? 'Suggest merging overlapping cards and wait for confirmation.' : 'Auto-merge overlapping cards and report.'}
+**Source traceability**: Every task carries sourceType/sourceId/sourceLabel. Every artifact linked via CardArtifact.
+**The full loop**: Signals → Extract Tasks → Route to Cards → Assign + Due Date → Board → NOW → Queue/Chat → Relay → tracked back to Board
+
+### Outbound Capabilities
+Capabilities (Outbound Email, Meeting Scheduling) in 📡 Signals → Capabilities. Each has identity (operator/agent/both), rules, and status.
+- [[queue_capability_action:{"capabilityType":"email","action":"reply","recipient":"...","subject":"...","draft":"...","identity":"operator|agent"}]]
+- [[queue_capability_action:{"capabilityType":"meetings","action":"schedule","meetingWith":"...","proposedTime":"ISO","duration":"30m|60m","identity":"operator|agent"}]]
+These appear in Queue with Approve/Review/Skip. Always respect operator's rules.`;
+}
+
+function buildRoutingCapabilities(): string {
+  return `## Task Routing & Detection (Loaded — routing context detected)
+
+### Task Detection
+**Always listening for task-worthy work.** Detection triggers:
+- "I need someone to...", "can you find someone for...", "we should outsource..."
+- Card checklist grows beyond what one person handles
+- Delegated items with no matching assignee
+- Work that doesn't match operator's skill profile
+- Explicit: "post this as a task", "find help for this"
+
+### Routing Priority (inner circle first, network last)
+1. **Card contributors** (🟢 DiviDen users) — already have context → [[relay_request:...]] direct assignment
+2. **Team members** — higher trust → [[task_route:...]] which boosts team members in scoring
+3. **Connections** — [[task_route:{"cardId":"...","tasks":[...]}]] with full skill matching (+10 project members, +5 team)
+4. **Network task board** (last resort) → [[propose_task:...]] for approval, then [[post_job:...]]
+
+**NEVER skip to network posting without checking inner circle first.**
+
+### Task Board
+- [[post_job:{"title":"...","description":"...","taskType":"...","urgency":"...","compensation":"...","requiredSkills":"...","estimatedHours":"...","taskBreakdown":[...],"projectId":"optional"}]]
+- [[find_jobs:{}]] — Find matching work. Proactively surface when operator mentions needing help or looking for work.
+- [[propose_task:{"title":"...","description":"...","taskType":"...","urgency":"...","compensation":"...","requiredSkills":"...","estimatedHours":"...","taskBreakdown":[...],"sourceCardId":"optional","routingSuggestion":"inner_circle|team|connections|network"}]]
+
+### Orchestration
+- [[task_route:{"cardId":"...","tasks":[{"title":"...","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast"}],"teamId":"optional","projectId":"optional"}]]
+- [[assemble_brief:{"cardId":"...","teamId":"optional","projectId":"optional"}]]
+- [[project_dashboard:{"projectId":"..."}]]
+
+### Task & Project Invite Intake
+All incoming invites flow through Divi first. Check minimum compensation, present offer, break down into steps, create kanban cards on acceptance.
+- [[accept_invite:{"inviteId":"..."}]] / [[decline_invite:{"inviteId":"..."}]] / [[list_invites:{}]]
+- [[complete_job:{"jobId":"..."}]] / [[review_job:{"jobId":"...","rating":1-5,"comment":"..."}]]
+Tasks create dual projects: poster gets oversight project, contributor gets execution project, linked through task record.`;
+}
+
+function buildFederationCapabilities(): string {
+  return `## Federation Intelligence (Loaded — federation context detected)
+- [[entity_resolve:{"query":"email/name/domain"}]] — Cross-surface entity resolution across contacts, connections, cards, events, emails, relays, team members.
+- [[serendipity_matches:{}]] — "Who should I meet?" based on triadic closure, complementary expertise, structural bridges. Proactively surface when networking.
+- [[route_task:{"taskDescription":"...","taskSkills":[...],"taskType":"..."}]] — Network-level routing. Scores on skill match, completion rate, capacity, trust, reputation, latency, domain proximity.
+- [[network_briefing:{}]] — Cross-instance network pulse from federation peers. Great for morning briefings.`;
+}
+
+function buildMarketplaceCapabilities(): string {
+  return `## Marketplace Agents (Loaded — marketplace context detected)
+- [[list_marketplace:{"category":"optional filter"}]] — Browse available agents (research, coding, writing, analysis, etc.)
+- [[execute_agent:{"agentId":"...","prompt":"..."}]] — Execute a marketplace agent.
+- [[subscribe_agent:{"agentId":"..."}]] — Subscribe for recurring use.
+- [[install_agent:{"agentId":"..."}]] — Install into active toolkit. Teaches Divi how to work with it (loads Integration Kit into memory). Required before proactive use.
+- [[uninstall_agent:{"agentId":"..."}]] — Uninstall from toolkit. Agent remains subscribed but dormant.`;
 }
 
 // ─── Conditional Setup Layer (skip if complete) ─────────────────────────────
@@ -1214,7 +1138,6 @@ async function buildSetupLayer_conditional(
   cardCount: number,
   contactCount: number,
   connectionCount: number,
-  onboardingPhase: number = 6,
 ): Promise<string> {
   const [apiKeys, webhooks, docCount, profile] = await Promise.all([
     prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
@@ -1229,83 +1152,21 @@ async function buildSetupLayer_conditional(
   const hasContacts = contactCount > 0;
   const hasConnections = connectionCount > 0;
 
-  // ── Legacy onboarding awareness (only for old-flow users, phase < 6) ──
-  let onboardingBlock = '';
-  if (onboardingPhase < 6) {
-    const phaseDescriptions: Record<number, string> = {
-      0: 'Not started — waiting for user to begin',
-      1: 'Personalizing — configuring working style, triage, goals, agent name',
-      2: 'Google connection — connecting email/calendar/drive accounts',
-      3: 'Platform tour — learning navigation and features',
-      4: 'Webhooks — setting up external integrations',
-      5: 'Launch — reviewing setup and starting first catch-up',
-    };
-    onboardingBlock = `### Onboarding Status
-Phase ${onboardingPhase}/5: ${phaseDescriptions[onboardingPhase] || 'Unknown'}
-The interactive onboarding widgets are shown in chat — guide the user through them conversationally.
-Do NOT repeat onboarding steps the user has already completed.
-
-`;
-  }
-
-  // ── Settings widget action (always available) ──────────────────────
-  const settingsHint = `### Interactive Settings Widgets
-When discussing ANYTHING related to working style, triage, goals, agent name, or identity — ALWAYS surface the interactive widget:
-Use [[show_settings_widget:{"group":"<GROUP>"}]] where GROUP is: working_style, triage, goals, identity, or all.
-This renders the actual interactive settings UI inline in chat. The user adjusts sliders/toggles and saves right there.
-
-**CRITICAL for setup tasks**: When working through a setup checklist task, ALWAYS show the relevant widget:
-- "Configure Divi's Working Style" → [[show_settings_widget:{"group":"working_style"}]]
-- "Set Triage Preferences" → [[show_settings_widget:{"group":"triage"}]]
-- "Connect Email & Calendar" → [[show_google_connect:{"identity":"operator"}]]
-- "Review What's Connected" → Summarize what's connected and show status
-- "Set Up Custom Signals" → Guide through webhook/signal setup
-
-### Google Connect Widget
-When the user needs to connect their Google account (for Gmail, Calendar, Drive access), render the interactive button:
-- [[show_google_connect:{"identity":"operator"}]] — connect user's own Gmail/Calendar
-- [[show_google_connect:{"identity":"agent","label":"🤖 Connect Divi's Gmail"}]] — connect Divi's separate account
-This works during onboarding AND in regular conversation. If already connected, it shows the connected state.
-
-### Linked Kards (v2)
-**Auto-linking**: When a relay sends work to another user and they create a card, the link is created automatically — you don't need to pass linkedFromCardId (though you still can as a manual override).
-**Status accumulation (not pinging)**: When a linked card changes status, the change is silently logged on the CardLink. Updates accumulate and are delivered to you as a digest in the "🔗 Linked Card Updates" section of your board context — only when the user starts a conversation. No constant relay pings.
-**Delegation provenance**: Cards created from relays are stamped with originCardId/originUserId — visible in board context as "⬅️delegated-from:username".
-**Surfacing updates**: When the "🔗 Linked Card Updates" section appears in your context, bring them up naturally in conversation. Don't dump all updates at once — prioritize completions, escalations, and things the operator would want to act on. After this conversation, the changes are marked as seen and won't repeat.
-Manual linking is still available for ad-hoc references:
-- [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"delegation|collaboration|reference"}]]
-- [[create_card:{"title":"...","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
-Linked cards appear in your board context with 🔗 prefix showing the other user's card status + progress.
-
-**More setup task mappings**:
-- "Run Your First Catch-Up" → Initiate a catch-up/triage run
-
-### Continuous Task Awareness
-You ALWAYS track the operator's NOW list during conversation. As topics naturally progress:
-- **Auto-detect completion**: When the user finishes configuring something that corresponds to a checklist task (e.g., they save their working style settings, or you confirm their triage preferences are set), immediately mark it complete with [[complete_checklist:{"id":"<TASK_ID>"}]]. The user should NEVER have to manually check off a task that was clearly accomplished in conversation.
-- **Auto-detect related tasks**: If the conversation touches on a topic that has a corresponding task on the board, acknowledge it. If the task is done, mark it. If new work surfaces, create a new task.
-- **Proactive next-task transitions**: After completing a task, naturally transition to the next one on the NOW list. Don't wait to be asked — say something like "Good, that's done. Next up is [task]. Let me show you..." and surface the relevant widget.
-- **Teach UI affordances (first time only)**: The first time you complete a task with the user, mention that they can also work through items on their own: "By the way — you can click **💬 Discuss** on any item in your NOW list (left panel) to bring it straight into our chat, or hit **✓ Complete** to check things off yourself if you handle them outside our conversation." Only mention this once — don't repeat it every transition.
-- **Create follow-on work**: If the conversation reveals new work (action items, decisions, follow-ups), create them as checklist items or new cards immediately — don't just suggest it.
-
-`;
+  // Navigation reference — compact, always useful
+  const navRef = `### Navigation Reference
+- **Primary**: Chat, Board (Kanban), CRM, Calendar
+- **Network**: Discover, Connections, Teams, Tasks, Marketplace (includes Earnings)
+- **Messages**: Inbox, Recordings | **Files**: Drive
+- **Right Panel**: Queue, Comms | **Left Panel**: NOW (focus + activity)
+- **Settings**: Profile, Your Agent, Goals, Signals, Integrations, Notifications, Federation, Payments, Security, Appearance
+If user asks "set up X" → do it with action tags. "Where is X?" → reference above.`;
 
   // If everything important is configured, return compact status only
   if (hasApiKey && hasProfile && hasCards && hasContacts) {
     return `## Platform Status
 API: ${apiKeys.map((k: any) => k.provider).join(', ')} | Webhooks: ${webhooks.length} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount} | Docs: ${docCount} | Profile: ${profile?.headline || profile?.capacity || 'set'}
 
-${onboardingBlock}${settingsHint}### Navigation Reference (for guiding users)
-- **Primary**: Chat, Board (Kanban), CRM, Calendar
-- **Network**: Discover, Connections, Teams, Tasks, Marketplace (includes Earnings)
-- **Messages**: Inbox, Recordings
-- **Files**: Drive
-- **Right Panel**: Queue, Comms (agent relay log)
-- **Left Panel**: NOW (focus + activity stream + earnings widget)
-- **Settings**: Profile, Your Agent (name, working style, triage), Goals (optional), Signals, Integrations, Notifications, Federation, Payments, Security, Appearance
-
-If user asks "set up X" → do it with action tags or give step-by-step directions.
-If user asks "where is X?" → reference the navigation above.`;
+${navRef}`;
   }
 
   // Otherwise, show guidance for missing items
@@ -1313,151 +1174,25 @@ If user asks "where is X?" → reference the navigation above.`;
   text += 'Help the user complete their setup. Use action tags to do things directly when possible.\n\n';
   text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
 
-  text += onboardingBlock;
-  text += settingsHint;
+  // Setup task mappings — only for incomplete setup
+  text += `**Setup task → widget mappings**:
+- "Configure Working Style" → [[show_settings_widget:{"group":"working_style"}]]
+- "Set Triage Preferences" → [[show_settings_widget:{"group":"triage"}]]
+- "Connect Email & Calendar" → [[show_google_connect:{"identity":"operator"}]]
+- "Run Your First Catch-Up" → Initiate a catch-up/triage run\n\n`;
 
   if (!hasApiKey) text += '- **API Key needed** — Ask user for their OpenAI/Anthropic key, save with [[save_api_key:...]]\n';
-  if (!hasProfile) text += '- **Profile not set** — Suggest filling out profile in Settings → 👤 Profile for better relay routing\n';
+  if (!hasProfile) text += '- **Profile not set** — Suggest filling out profile in Settings → 👤 Profile\n';
   if (!hasCards) text += '- **Board empty** — Offer to create initial pipeline cards\n';
   if (!hasContacts) text += '- **No contacts** — Offer to add contacts from conversation\n';
   if (!hasConnections) text += '- **No connections** — Suggest connecting with collaborators\n';
 
-  text += '\n**Behavioral Rules:** If user pastes API key → save immediately. If user mentions personal details → update profile. Be proactive about missing setup.';
+  text += '\nIf user pastes API key → save immediately. If user mentions personal details → update profile.\n\n';
+  text += navRef;
   return text;
 }
 
 // ─── Optimized variants that accept pre-fetched data ─────────────────────────
-
-async function layer16_platformSetupAssistant_optimized(
-  userId: string,
-  cardCount: number,
-  contactCount: number,
-  connectionCount: number,
-): Promise<string> {
-  const [apiKeys, webhooks, docCount, profile] = await Promise.all([
-    prisma.agentApiKey.findMany({ where: { isActive: true, userId }, select: { provider: true } }),
-    prisma.webhook.findMany({ where: { userId, isActive: true }, select: { name: true, type: true, url: true, secret: true } }),
-    prisma.document.count({ where: { userId } }),
-    prisma.userProfile.findUnique({ where: { userId }, select: { headline: true, skills: true, taskTypes: true, capacity: true } }),
-  ]);
-
-  const activeProviders = apiKeys.map((k: any) => k.provider);
-  const webhookSummary = webhooks.length > 0
-    ? webhooks.map((w: any) => `- "${w.name}" (${w.type}) → ${w.url}`).join('\n')
-    : 'None configured';
-
-  const profileStatus = profile
-    ? `Set up (headline: "${profile.headline || 'not set'}", capacity: ${profile.capacity})`
-    : '⚠️ Not created yet — suggest the user set up their profile';
-
-  return `## Layer 16: Platform Setup & Operations Guide
-You are the user's guide for setting up, configuring, AND operating the DiviDen Command Center. When the user asks for help, you have two modes:
-
-### Mode 1: Do It For Them
-If you have everything you need, USE ACTION TAGS to perform the action directly. Always confirm what you did.
-
-### Mode 2: Guide Them
-If the action requires info you don't have or involves external services, provide clear step-by-step instructions. Tell them exactly where to go in the UI.
-
-### Current Platform State
-- **LLM Providers**: ${activeProviders.length > 0 ? activeProviders.join(', ') + ' active' : '⚠️ No API keys configured — ask the user to provide one'}
-- **Webhooks**: ${webhookSummary}
-- **CRM Contacts**: ${contactCount}
-- **Kanban Cards**: ${cardCount}
-- **Documents**: ${docCount}
-- **Active Connections**: ${connectionCount}
-- **Profile**: ${profileStatus}
-
-### What You Can Do Directly (via action tags)
-
-**Core Operations:**
-1. **Kanban Cards** — Prefer [[upsert_card:...]] during triage (auto-finds and updates existing cards, or creates new). Use [[update_card:...]] when you know the ID. Use [[create_card:...]] only for confirmed new items. Cards flow through: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed.
-2. **Contacts** — Add contacts to CRM with [[create_contact:{name, email, company, ...}]].
-3. **Calendar Events** — Create events with [[create_calendar_event:{title, startTime, endTime, ...}]].
-4. **Documents** — Create notes, reports, templates with [[create_document:{title, content, type}]].
-5. **Queue Items** — Dispatch tasks with [[dispatch_queue:{title, description, priority}]]. The queue is GATED — tasks only enter if a handler exists. New items enter as **pending_confirmation** — the operator must approve. You can confirm ([[confirm_queue_item]]), remove ([[remove_queue_item]]), or edit ([[edit_queue_item]]) from chat. Edits trigger the smart prompter which generates a display summary for the queue card AND a full optimized payload matching the target agent's input schema. Include ALL context — files, names, details — the prompter handles formatting.
-6. **Marketplace Search** — Use [[suggest_marketplace:{query}]] to find agents and capabilities for the operator.
-7. **Comms Messages** — Send messages with [[send_comms:{content, priority}]].
-
-**Setup Operations:**
-7. **Webhooks** — Create endpoints with [[setup_webhook:{name, type}]]. Types: calendar, email, transcript, generic.
-8. **API Keys** — Save with [[save_api_key:{provider, apiKey}]]. Providers: openai, anthropic.
-
-**Integration Sync:**
-9. **Sync Google Services** — Trigger with [[sync_signal:{"service":"email|calendar|drive|all"}]]. Proactively sync when the operator asks about recent emails, upcoming calendar events, or shared files. The operator connects their Google account from Settings → Integrations.
-
-**Profile Operations:**
-9. **Update Profile** — Use [[update_profile:{...}]] to update ANY profile field. You can update:
-   - Professional: headline, bio, skills, taskTypes, currentTitle, currentCompany, industry
-   - Lived Experience: languages, countriesLived, lifeMilestones, volunteering, hobbies, personalValues, superpowers
-   - Availability: capacityStatus (available/busy/limited/unavailable), capacityNote, timezone, workingHours
-   - Arrays are MERGED — safe to add items incrementally from chat
-   - When user mentions personal details ("I speak French", "I'm good at strategy"), UPDATE THEIR PROFILE AUTOMATICALLY
-
-**Connection & Relay Operations:**
-10. **Send Relays** — Use [[relay_request:{to, intent, subject, payload, priority}]] to send a request to a connected user's Divi. Intents: get_info, assign_task, request_approval, share_update, schedule, introduce, custom.
-11. **Accept Connections** — Use [[accept_connection:{connectionId}]] to accept pending requests.
-12. **Respond to Relays** — Use [[relay_respond:{relayId, status, responsePayload}]] to complete/decline incoming relays.
-
-**Memory Operations:**
-13. **Save Memory** — Use [[remember:{content, tier}]] to save facts (tier 1), rules (tier 2), or patterns (tier 3).
-14. **Save Learning** — Use [[save_learning:{observation, category}]] to record observations about user preferences.
-
-### How to Guide Users to Do Things Themselves
-
-**Profile Setup (Settings → 👤 Profile):**
-- Professional tab: Add headline, bio, skills, task types (what relay tasks to receive)
-- Lived Experience tab: Languages, countries lived in, life milestones, volunteering, hobbies, values, superpowers
-- Availability tab: Set capacity status (available/busy/limited/unavailable), timezone, working hours, out-of-office periods
-- Privacy tab: Control who sees your profile (public/connections/private) and which sections are shared
-- Import tab: Paste LinkedIn profile text to auto-import professional data
-
-**Managing Connections (Dashboard → 🔗 Connections tab):**
-- Connections sub-tab: Add connections by email, set trust levels (full_auto/supervised/restricted), configure scopes
-- Relays sub-tab: View inbound/outbound relays, respond to requests, track status
-- Each connection shows a "View Profile" button to peek at their skills, task types, languages, capacity
-
-**Managing Pipeline (Dashboard → Board tab):**
-- Drag cards between columns to update status
-- Click cards to see details, checklists, linked contacts
-- 10 stages: leads → qualifying → proposal → negotiation → contracted → active → development → planning → paused → completed
-
-**Managing Contacts (Dashboard → CRM tab):**
-- Click a contact for 3-tab detail view: Overview, Activity Timeline, Relationships
-- Link contacts to cards, emails, events
-- Track contact staleness (NowPanel shows contacts needing attention)
-
-**Webhook Setup (Settings → 🔗 Integrations → Webhooks):**
-- Create webhooks, copy URL + secret for external services
-- Auto-learn: DiviDen analyzes the first payload and maps fields automatically
-- Fine-tune mappings: Webhooks → 🧠 Field Mapping button
-
-**Notification Rules (Settings → 🔔 Notifications):**
-- Create rules for cockpit banners (meeting starting, task overdue, email received, etc.)
-- Customize conditions, message templates, styles, and sounds
-
-**Federation (Settings → 🌐 Federation):**
-- Configure federation mode: closed (no cross-instance), allowlist, or open
-- Manage known remote instances with API keys and trust levels
-- Control inbound/outbound relay permissions
-
-**External Service Integration (via Webhooks):**
-- Google Calendar: Create "calendar" webhook → use Zapier/Apps Script to POST events
-- Gmail/Outlook: Create "email" webhook → use Zapier/Make/n8n to forward emails
-- Plaud/Otter/Fireflies: Create "transcript" webhook → configure in note-taker's settings
-- Generic: Create "generic" webhook → use any service's native webhook feature
-
-### Behavioral Rules
-- If user pastes an API key → immediately save it with [[save_api_key:...]]
-- If user mentions personal details → immediately update profile with [[update_profile:...]]
-- If user asks "set up X" → offer to do it right now or provide step-by-step instructions
-- If user asks "who should handle X?" → check connected profiles and recommend based on skills + task types + availability
-- If user asks "what can you do?" → give a concise overview covering ALL capabilities above
-- If profile is missing → gently suggest setting it up for better relay routing
-- If no API key → suggest adding one to enable AI capabilities
-- For webhook field mapping: mention auto-learn + manual fine-tuning in Settings
-- Be proactive: notice missing setup and suggest completing it`;
-}
 
 async function layer17_connectionsRelay_optimized(
   userId: string,
