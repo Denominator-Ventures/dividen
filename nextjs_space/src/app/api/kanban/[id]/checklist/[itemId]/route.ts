@@ -8,6 +8,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { checkAndAutoCompleteCard } from '@/lib/card-auto-complete';
+import { logActivity } from '@/lib/activity';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,18 @@ export async function PATCH(
     where: { id: params.itemId },
     data: updateData,
   });
+
+  // Log checklist item completion/unchecking
+  if (body.completed !== undefined) {
+    logActivity({
+      userId,
+      action: body.completed ? 'checklist_completed' : 'checklist_unchecked',
+      summary: body.completed ? `Completed: "${item.text}"` : `Unchecked: "${item.text}"`,
+      actor: 'user',
+      cardId: params.id,
+      metadata: { itemId: params.itemId, text: item.text, cardTitle: card.title },
+    }).catch(() => {});
+  }
 
   // Auto-complete the card if all checklist items are now done
   let cardAutoCompleted = false;

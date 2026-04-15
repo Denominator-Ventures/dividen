@@ -6,6 +6,7 @@
 import { google } from 'googleapis';
 import { prisma } from '@/lib/prisma';
 import { getValidAccessToken } from '@/lib/google-oauth';
+import { logActivity } from '@/lib/activity';
 
 type IntAccount = {
   id: string;
@@ -328,6 +329,17 @@ export async function syncAllGoogleServices(userId: string): Promise<{
     } catch (err: any) {
       console.error(`[google-sync] Failed to sync ${account.service} (${account.id}):`, err.message);
     }
+  }
+
+  const total = results.email + results.calendar + results.drive;
+  if (total > 0) {
+    logActivity({
+      userId,
+      action: 'sync_completed',
+      summary: `Synced ${total} items — ${results.email} emails, ${results.calendar} events, ${results.drive} files`,
+      actor: 'divi',
+      metadata: results,
+    }).catch(() => {});
   }
 
   return results;

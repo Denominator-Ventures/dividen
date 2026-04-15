@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { onEnterCoSMode } from '@/lib/cos-sequential-dispatch';
 import { pushWake, pushQueueChanged } from '@/lib/webhook-push';
+import { logActivity } from '@/lib/activity';
 
 const updateModeSchema = z.object({
   mode: z.enum(['cockpit', 'chief_of_staff']),
@@ -78,6 +79,8 @@ export async function PUT(request: NextRequest) {
       where: { id: userId },
       data: { mode: result.data.mode },
     });
+
+    logActivity({ userId, action: 'settings_updated', summary: `Switched mode to ${result.data.mode === 'chief_of_staff' ? 'Chief of Staff' : 'Cockpit'}`, actor: 'user', metadata: { setting: 'mode', value: result.data.mode } }).catch(() => {});
 
     // DEP-001: Mode switch logic
     if (result.data.mode === 'chief_of_staff') {
@@ -158,6 +161,11 @@ export async function PUT(request: NextRequest) {
       where: { id: userId },
       data: onboardingData,
     });
+    if (body.hasCompletedOnboarding) {
+      logActivity({ userId, action: 'onboarding_completed', summary: 'Completed onboarding', actor: 'system' }).catch(() => {});
+    } else if (typeof body.onboardingPhase === 'number') {
+      logActivity({ userId, action: 'onboarding_progress', summary: `Onboarding advanced to phase ${body.onboardingPhase}`, actor: 'system', metadata: { phase: body.onboardingPhase } }).catch(() => {});
+    }
   }
 
   // Update username
@@ -197,6 +205,8 @@ export async function PUT(request: NextRequest) {
         where: { id: userId },
         data: updateData,
       });
+      const settingNames = Object.keys(updateData).join(', ');
+      logActivity({ userId, action: 'settings_updated', summary: `Updated settings: ${settingNames}`, actor: 'user', metadata: { settings: Object.keys(updateData) } }).catch(() => {});
     }
   }
 

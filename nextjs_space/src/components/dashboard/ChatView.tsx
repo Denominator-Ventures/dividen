@@ -348,7 +348,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         delete (window as any).__lastMsgMeta;
         setMessages((prev) => [...prev, assistantMsg]);
         // Signal NOW panel to refresh after any agent response (may have executed action tags)
-        window.dispatchEvent(new Event('dividen:now-refresh'));
+        window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
       } catch (err: any) {
         console.error('Chat error:', err);
         setError(err.message || 'Failed to send message');
@@ -479,7 +479,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
               body: JSON.stringify({ role: 'assistant', content: syncMsg.content }),
             }).catch(() => {});
             setMessages(prev => [...prev, syncMsg]);
-            window.dispatchEvent(new Event('dividen:now-refresh'));
+            window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
             return;
           }
 
@@ -498,7 +498,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
               body: JSON.stringify({ role: 'assistant', content: widgetMsg.content, metadata: JSON.stringify(msgMetadata) }),
             }).catch(() => {});
             setMessages(prev => [...prev, widgetMsg]);
-            window.dispatchEvent(new Event('dividen:now-refresh'));
+            window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
             return;
           }
         }
@@ -511,7 +511,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         // Fallback
         sendMessage(`Let's do "${taskText}" now.`);
       }
-      window.dispatchEvent(new Event('dividen:now-refresh'));
+      window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
     } catch (err) {
       console.error('[handleSetupNextTask] Error:', err);
       sendMessage(`Let's do "${taskText}" now.`);
@@ -532,7 +532,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       body: JSON.stringify({ role: 'assistant', content: skipMsg.content }),
     }).catch(() => {});
     setMessages(prev => [...prev, skipMsg]);
-    window.dispatchEvent(new Event('dividen:now-refresh'));
+    window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
   }, []);
 
   // ── Onboarding phase action handler ─────────────────────────────────
@@ -566,7 +566,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
         // Acknowledge the completed task and ask about the next one
         // Signal NOW panel to refresh after settings change
-        window.dispatchEvent(new Event('dividen:now-refresh'));
+        window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
 
         let confirmContent = '✅ Settings saved.';
         let confirmMetadata: any = null;

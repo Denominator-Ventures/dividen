@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { exchangeCodeForTokens, getGoogleUserInfo, getPublicBaseUrl } from '@/lib/google-oauth';
+import { logActivity } from '@/lib/activity';
 
 /**
  * GET /api/auth/callback/google-connect
@@ -108,6 +109,7 @@ export async function GET(req: NextRequest) {
     }
 
     console.log(`[google-callback] Created/updated ${services.length} integration accounts for ${userInfo.email}`);
+    logActivity({ userId, action: 'google_connected', summary: `Connected Google account (${userInfo.email}) — ${services.join(', ')}`, actor: 'user', metadata: { email: userInfo.email, services, identity } }).catch(() => {});
 
     // ── Auto-install capabilities for connected signals (silent — user discovers later) ──
     const capabilityUpserts: Promise<any>[] = [];
