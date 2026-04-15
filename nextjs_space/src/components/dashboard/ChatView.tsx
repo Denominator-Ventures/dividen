@@ -383,6 +383,98 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     }
   };
 
+  // ── Setup next task handler (triggered by Yes/Skip buttons on auto-continue messages) ──
+  const handleSetupNextTask = useCallback(async (taskText: string, action: any) => {
+    try {
+      if (action?.actionTag) {
+        // Task has an interactive widget — trigger the action tag directly
+        const tagName = action.actionTag;
+        const tagParams = action.actionParams || {};
+
+        // Call the action tag execution endpoint to get widget data
+        const tagRes = await fetch('/api/chat/execute-tag', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag: tagName, params: tagParams }),
+        });
+        const tagResult = await tagRes.json();
+
+        if (tagResult?.success && tagResult?.data) {
+          // Build widget message metadata
+          let msgMetadata: any = null;
+          if (tagResult.data.isSettingsWidget) {
+            msgMetadata = {
+              isOnboarding: true,
+              onboardingPhase: -1,
+              widgets: tagResult.data.widgets,
+              settingsGroup: tagResult.data.settingsGroup,
+            };
+          } else if (tagResult.data.widgetType === 'google_connect') {
+            msgMetadata = {
+              isOnboarding: true,
+              onboardingPhase: -1,
+              widgets: [{
+                type: 'google_connect',
+                id: `gc_${tagResult.data.identity}_${tagResult.data.accountIndex}`,
+                identity: tagResult.data.identity,
+                accountIndex: tagResult.data.accountIndex,
+                label: tagResult.data.label,
+                description: tagResult.data.description,
+                connected: tagResult.data.connected,
+                connectedEmail: tagResult.data.connectedEmail,
+              }],
+            };
+          }
+
+          if (msgMetadata) {
+            const widgetMsg: ChatMessage = {
+              id: `msg-widget-${Date.now()}`,
+              role: 'assistant',
+              content: `Here are the settings for **${taskText}**. Adjust anything and hit save:`,
+              createdAt: new Date().toISOString(),
+              metadata: msgMetadata,
+            };
+            // Persist to DB
+            fetch('/api/chat/messages', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ role: 'assistant', content: widgetMsg.content, metadata: JSON.stringify(msgMetadata) }),
+            }).catch(() => {});
+            setMessages(prev => [...prev, widgetMsg]);
+            return;
+          }
+        }
+        // Fallback: if tag execution failed, send to LLM
+        sendMessage(`Let's do "${taskText}" now.`);
+      } else if (action?.agentPrompt) {
+        // No widget — send the task's agent prompt to the LLM for conversational handling
+        sendMessage(`[SYSTEM: ${action.agentPrompt}]`);
+      } else {
+        // Fallback
+        sendMessage(`Let's do "${taskText}" now.`);
+      }
+    } catch (err) {
+      console.error('[handleSetupNextTask] Error:', err);
+      sendMessage(`Let's do "${taskText}" now.`);
+    }
+  }, [sendMessage]);
+
+  const handleSetupSkipTask = useCallback(async (taskText: string) => {
+    // Mark the task as skipped in a Divi message
+    const skipMsg: ChatMessage = {
+      id: `msg-skip-${Date.now()}`,
+      role: 'assistant',
+      content: `⏭️ Skipping "${taskText}" for now. You can always come back to it later.\n\nWhat would you like to do next?`,
+      createdAt: new Date().toISOString(),
+    };
+    fetch('/api/chat/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: 'assistant', content: skipMsg.content }),
+    }).catch(() => {});
+    setMessages(prev => [...prev, skipMsg]);
+  }, []);
+
   // ── Onboarding phase action handler ─────────────────────────────────
   const handleOnboardingAction = useCallback(async (
     action: 'submit' | 'skip' | 'google_connect',
@@ -410,12 +502,19 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           body: JSON.stringify({ action: 'show_settings', settings: cleanData, settingsGroup }),
         });
         const settingsResult = await settingsRes.json();
-        const { tasksCompleted, nextTaskText, allTasksComplete } = settingsResult?.data || {};
+        const { tasksCompleted, nextTaskText, nextTaskAction, allTasksComplete } = settingsResult?.data || {};
 
         // Acknowledge the completed task and ask about the next one
         let confirmContent = '✅ Settings saved.';
+        let confirmMetadata: any = null;
         if (tasksCompleted && nextTaskText) {
           confirmContent = `✅ Done — that's checked off your setup list.\n\nNext up is **"${nextTaskText}"**. Want to knock that out now?`;
+          // Attach next task action metadata so the message renders Yes/Skip buttons
+          confirmMetadata = {
+            isSetupNextTask: true,
+            nextTaskText,
+            nextTaskAction: nextTaskAction || null,
+          };
         } else if (tasksCompleted && allTasksComplete) {
           confirmContent = `✅ Done — and that was the last one! Your setup checklist is complete. You're all set to go.\n\nWhat would you like to focus on?`;
         }
@@ -424,7 +523,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         fetch('/api/chat/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ role: 'assistant', content: confirmContent }),
+          body: JSON.stringify({ role: 'assistant', content: confirmContent, metadata: confirmMetadata ? JSON.stringify(confirmMetadata) : undefined }),
         }).catch(() => {});
 
         setMessages(prev => [...prev, {
@@ -432,6 +531,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           role: 'assistant',
           content: confirmContent,
           createdAt: new Date().toISOString(),
+          metadata: confirmMetadata,
         }]);
         return;
       }
@@ -453,10 +553,12 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             createdAt: new Date().toISOString(),
           }]);
         } else {
-          // "together" — auto-start discussing the first task
+          // "together" — directly trigger the first task's widget
           const firstTask = spResult?.data?.firstTask?.text || "Configure Divi's Working Style";
+          // Look up action from the response or use default
+          const firstTaskAction = spResult?.data?.firstTask?.action || { actionTag: 'show_settings_widget', actionParams: { group: 'working_style' } };
           setTimeout(() => {
-            sendMessage(`Let's do this. Starting with: "${firstTask}". Walk me through it.`);
+            handleSetupNextTask(firstTask, firstTaskAction);
           }, 400);
         }
         return;
@@ -574,7 +676,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} />
             ))}
 
             {/* Streaming response */}
@@ -799,6 +901,41 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 // ─── Message Bubble Component ────────────────────────────────────────────────
 
 /** Now / Later buttons rendered below the setup intro message */
+/** Yes / Skip buttons rendered below auto-continue "Next up is X" messages */
+function SetupNextTaskButtons({ nextTaskText, nextTaskAction, onConfirm, onSkip }: {
+  nextTaskText: string;
+  nextTaskAction: any;
+  onConfirm: (taskText: string, action: any) => void;
+  onSkip: (taskText: string) => void;
+}) {
+  const [chosen, setChosen] = useState<'yes' | 'skip' | null>(null);
+
+  if (chosen) {
+    return (
+      <div className="mt-3 text-xs text-[var(--text-muted)] italic">
+        {chosen === 'yes' ? `⚡ Loading ${nextTaskText}…` : '⏭️ Skipped.'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex gap-2">
+      <button
+        onClick={() => { setChosen('yes'); onConfirm(nextTaskText, nextTaskAction); }}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--brand-primary)] text-white hover:opacity-90 transition-opacity"
+      >
+        ⚡ Yes, let&apos;s go
+      </button>
+      <button
+        onClick={() => { setChosen('skip'); onSkip(nextTaskText); }}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+      >
+        ⏭️ Skip for now
+      </button>
+    </div>
+  );
+}
+
 function SetupNowLaterButtons({ onChoice }: { onChoice: (mode: 'together' | 'solo') => void }) {
   const [chosen, setChosen] = useState<'together' | 'solo' | null>(null);
 
@@ -828,7 +965,7 @@ function SetupNowLaterButtons({ onChoice }: { onChoice: (mode: 'together' | 'sol
   );
 }
 
-function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void }) {
+function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void }) {
   const isUser = message.role === 'user';
   const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
   const initials = isUser
@@ -848,6 +985,14 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
     if (!message.metadata) return false;
     const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
     return meta?.isSetupIntro === true;
+  })();
+
+  // Detect "next task" auto-continue message — renders Yes/Skip buttons
+  const setupNextTaskMeta = (() => {
+    if (!message.metadata) return null;
+    const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
+    if (meta?.isSetupNextTask) return meta;
+    return null;
   })();
 
   // Hide system-triggered messages
@@ -936,6 +1081,15 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
         {/* Setup intro: now/later buttons */}
         {isSetupIntro && (
           <SetupNowLaterButtons onChoice={(mode) => onOnboardingAction?.('submit', 0, { setupMode: mode })} />
+        )}
+        {/* Setup next task: yes/skip buttons */}
+        {setupNextTaskMeta && (
+          <SetupNextTaskButtons
+            nextTaskText={setupNextTaskMeta.nextTaskText}
+            nextTaskAction={setupNextTaskMeta.nextTaskAction}
+            onConfirm={(taskText, action) => onSetupNextTask?.(taskText, action)}
+            onSkip={(taskText) => onSetupSkipTask?.(taskText)}
+          />
         )}
         <p className="text-[10px] text-[var(--text-muted)] mt-1.5 opacity-60">
           {formatTime(message.createdAt)}

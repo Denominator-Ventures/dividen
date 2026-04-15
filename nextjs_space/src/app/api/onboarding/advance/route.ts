@@ -14,6 +14,7 @@ import {
   getSettingsWidgets,
   type SettingsWidgetGroup,
 } from '@/lib/onboarding-phases';
+import { getSetupTaskAction } from '@/lib/onboarding-project';
 
 /**
  * POST /api/onboarding/advance
@@ -322,7 +323,10 @@ async function handleShowSettings(userId: string, group: string, settings?: any)
       }
     }
 
-    return NextResponse.json({ success: true, data: { saved: true, tasksCompleted: taskPatterns[group] ? true : false, nextTaskText, allTasksComplete } });
+    // Look up the action config for the next task so the client can trigger it directly
+    const nextTaskAction = nextTaskText ? getSetupTaskAction(nextTaskText) || null : null;
+
+    return NextResponse.json({ success: true, data: { saved: true, tasksCompleted: taskPatterns[group] ? true : false, nextTaskText, nextTaskAction, allTasksComplete } });
   }
 
   // Load current values and generate widget config

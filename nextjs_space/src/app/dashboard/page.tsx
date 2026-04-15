@@ -168,16 +168,9 @@ export default function DashboardPage() {
       const googleStatus = urlParams.get('google');
       if (googleStatus === 'connected') {
         setActiveTab('chat');
-        // Refresh the onboarding phase 2 widgets by re-generating the message
-        (async () => {
-          try {
-            await fetch('/api/onboarding/advance', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ action: 'init' }),
-            });
-          } catch {}
-        })();
+        // The auto-continue message with next task buttons was already injected by the callback.
+        // Just force a chat refresh to pick up the new message.
+        setChatRefreshKey(Date.now());
       }
       // Clean URL params
       if (tabParam || googleStatus) {

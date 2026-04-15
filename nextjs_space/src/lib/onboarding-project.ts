@@ -15,6 +15,62 @@ export const SETUP_TASKS = [
   'Run Your First Catch-Up',
 ];
 
+/**
+ * Maps each setup task to the action the agent should trigger.
+ * Tasks with `actionTag` render an interactive widget directly.
+ * Tasks with `agentPrompt` get sent to the LLM for conversational handling.
+ * This is the single source of truth — the system prompt references it generically,
+ * and the auto-continue flow uses it to trigger widgets deterministically.
+ */
+export type SetupTaskAction = {
+  taskText: string;
+  actionTag?: string;          // e.g. 'show_settings_widget'
+  actionParams?: Record<string, any>; // e.g. { group: 'triage' }
+  agentPrompt?: string;        // fallback: send this to the LLM instead of rendering a widget
+  description: string;         // human-readable description of what this step does
+};
+
+export const SETUP_TASK_ACTIONS: SetupTaskAction[] = [
+  {
+    taskText: "Configure Divi's Working Style",
+    actionTag: 'show_settings_widget',
+    actionParams: { group: 'working_style' },
+    description: 'Set response detail, proactivity, autonomy, and tone sliders.',
+  },
+  {
+    taskText: 'Set Triage Preferences',
+    actionTag: 'show_settings_widget',
+    actionParams: { group: 'triage' },
+    description: 'Choose how incoming signals get organized (task-first, card-per-item, minimal).',
+  },
+  {
+    taskText: 'Connect Email & Calendar',
+    actionTag: 'show_google_connect',
+    actionParams: { identity: 'operator' },
+    description: 'Grant Gmail & Calendar access so Divi can process your signals.',
+  },
+  {
+    taskText: "Review What's Connected",
+    agentPrompt: "The user wants to review what's connected. Summarize their current integrations — email, calendar, drive — and what data you can see. If nothing's connected, let them know.",
+    description: 'See a summary of active integrations and what data Divi can access.',
+  },
+  {
+    taskText: 'Set Up Custom Signals (Optional)',
+    agentPrompt: "The user wants to set up custom signals. Walk them through Settings → Signals where they can configure custom signal sources and rules. This is optional — let them know they can skip it.",
+    description: 'Configure custom signal sources and routing rules.',
+  },
+  {
+    taskText: 'Run Your First Catch-Up',
+    agentPrompt: "The user wants to run their first catch-up. Initiate a catch-up/triage run — process their connected signals, analyze what's there, and populate their board with what you find.",
+    description: 'Process all connected signals and populate the board.',
+  },
+];
+
+/** Look up the action config for a setup task by its text */
+export function getSetupTaskAction(taskText: string): SetupTaskAction | undefined {
+  return SETUP_TASK_ACTIONS.find(a => a.taskText === taskText);
+}
+
 export async function createOnboardingProject(
   tx: Prisma.TransactionClient | PrismaClient,
   userId: string,

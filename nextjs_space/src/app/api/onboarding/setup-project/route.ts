@@ -72,8 +72,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // Return the first incomplete task for auto-discussion
+    // Return the first incomplete task with its action config for direct widget triggering
     const firstTask = card.checklist.find((t: any) => !t.completed);
+    let firstTaskAction = null;
+    if (firstTask) {
+      const { getSetupTaskAction } = await import('@/lib/onboarding-project');
+      firstTaskAction = getSetupTaskAction(firstTask.text) || null;
+    }
 
     return NextResponse.json({
       success: true,
@@ -82,7 +87,7 @@ export async function POST(req: NextRequest) {
         cardId: card.id,
         mode,
         dueDate,
-        firstTask: firstTask ? { id: firstTask.id, text: firstTask.text } : null,
+        firstTask: firstTask ? { id: firstTask.id, text: firstTask.text, action: firstTaskAction } : null,
       },
     });
   } catch (err: any) {

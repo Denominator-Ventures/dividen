@@ -167,7 +167,7 @@ export function stripActionTags(text: string): string {
 /**
  * Execute a single parsed action tag against the database.
  */
-async function executeTag(
+export async function executeTag(
   tag: ParsedTag,
   userId: string
 ): Promise<TagExecutionResult> {

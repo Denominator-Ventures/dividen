@@ -180,6 +180,64 @@ export async function GET(req: NextRequest) {
           data: { completed: true },
         });
         console.log(`[google-callback] Auto-completed ${connectTasks.length} setup checklist tasks`);
+
+        // Inject auto-continue message with the next task for the setup flow
+        if (returnTo === 'onboarding') {
+          try {
+            const { getSetupTaskAction } = await import('@/lib/onboarding-project');
+            const { checkAndAutoCompleteCard } = await import('@/lib/card-auto-complete');
+            // Check auto-complete for affected cards
+            const affectedCards = await prisma.checklistItem.findMany({
+              where: { id: { in: connectTasks.map(t => t.id) } },
+              select: { cardId: true },
+              distinct: ['cardId'],
+            });
+            for (const { cardId } of affectedCards) {
+              await checkAndAutoCompleteCard(cardId, userId);
+            }
+            // Find the next incomplete setup task
+            const nextTask = await prisma.checklistItem.findFirst({
+              where: {
+                completed: false,
+                card: {
+                  userId,
+                  status: { in: ['active', 'in_progress', 'development'] },
+                  OR: [
+                    { title: { contains: 'Setup' } },
+                    { project: { metadata: { contains: '"isSetupProject":true' } } },
+                  ],
+                },
+              },
+              orderBy: { order: 'asc' },
+              select: { text: true },
+            });
+            if (nextTask) {
+              const nextTaskAction = getSetupTaskAction(nextTask.text) || null;
+              await prisma.chatMessage.create({
+                data: {
+                  role: 'assistant',
+                  content: `✅ Google connected! That's checked off your setup list.\n\nNext up is **"${nextTask.text}"**. Want to knock that out now?`,
+                  userId,
+                  metadata: JSON.stringify({
+                    isSetupNextTask: true,
+                    nextTaskText: nextTask.text,
+                    nextTaskAction,
+                  }),
+                },
+              });
+            } else {
+              await prisma.chatMessage.create({
+                data: {
+                  role: 'assistant',
+                  content: `✅ Google connected — and that was the last setup task! Your setup checklist is complete. You're all set to go.\n\nWhat would you like to focus on?`,
+                  userId,
+                },
+              });
+            }
+          } catch (e) {
+            console.error('[google-callback] Auto-continue injection error:', e);
+          }
+        }
       }
     } catch (e) {
       // Non-fatal

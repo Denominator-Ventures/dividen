@@ -1182,16 +1182,8 @@ ${navRef}`;
   text += 'Help the user complete their setup. Use action tags to do things directly when possible.\n\n';
   text += `**Status:** API: ${hasApiKey ? '✓' : '⚠️ missing'} | Profile: ${hasProfile ? '✓' : '⚠️ missing'} | Cards: ${cardCount} | Contacts: ${contactCount} | Connections: ${connectionCount}\n\n`;
 
-  // Setup task mappings — only for incomplete setup
-  text += `**Setup task → widget mappings** (each setup task maps to an action tag that renders the right UI):
-- "Configure Divi's Working Style" → [[show_settings_widget:{"group":"working_style"}]]
-- "Set Triage Preferences" → [[show_settings_widget:{"group":"triage"}]]
-- "Connect Email & Calendar" → [[show_google_connect:{"identity":"operator"}]]
-- "Review What's Connected" → Summarize current integrations
-- "Set Up Custom Signals (Optional)" → Guide user to Settings → Signals
-- "Run Your First Catch-Up" → Initiate a catch-up/triage run
-
-**SETUP FLOW BEHAVIOR**: After completing a setup task, the system will tell the user what the next task is and ask if they want to do it. When the user confirms (says "yes", "sure", "let's go", etc.), look at the most recently mentioned task name in the conversation and render the corresponding widget above using the action tag. The task name drives which widget to show — don't guess, match it. Keep the conversation flowing naturally through the setup checklist.\n\n`;
+  // Setup flow instructions — widgets are triggered by the client, not the LLM
+  text += `**SETUP FLOW**: The setup checklist is handled by the UI — when a user completes a task, the system automatically presents the next task with Yes/Skip buttons. Interactive widgets (settings sliders, Google Connect) are rendered directly by the client without LLM involvement. Your role during setup is conversational: if the user asks about a setup task, you can use [[show_settings_widget:{"group":"working_style"}]], [[show_settings_widget:{"group":"triage"}]], or [[show_google_connect:{"identity":"operator"}]] to render the appropriate widget. For non-widget tasks like "Review What's Connected", summarize their integrations. For "Set Up Custom Signals", guide them to Settings → Signals. For "Run Your First Catch-Up", initiate a catch-up run.\n\n`;
 
   if (!hasApiKey) text += '- **API Key needed** — Ask user for their OpenAI/Anthropic key, save with [[save_api_key:...]]\n';
   if (!hasProfile) text += '- **Profile not set** — Suggest filling out profile in Settings → 👤 Profile\n';
