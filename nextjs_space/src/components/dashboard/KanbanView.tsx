@@ -395,6 +395,9 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
   const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<KanbanCardData | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [cortexScanning, setCortexScanning] = useState(false);
+  const [cortexResult, setCortexResult] = useState<{ duplicates: number; stale: number; escalations: number; archives: number; autoActions: string[] } | null>(null);
+  const [showCortexTooltip, setShowCortexTooltip] = useState(false);
   const [addingToColumn, setAddingToColumn] = useState<CardStatus | null>(null);
 
   const sensors = useSensors(
@@ -581,6 +584,35 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
     }
   }, []);
 
+  // ─── Cortex Scan ─────────────────────────────────────────────────────
+  const handleCortexScan = useCallback(async () => {
+    setCortexScanning(true);
+    setCortexResult(null);
+    try {
+      const res = await fetch('/api/board/cortex', { method: 'POST' });
+      if (!res.ok) throw new Error('Scan failed');
+      const json = await res.json();
+      const data = json.data;
+      setCortexResult({
+        duplicates: data.duplicates?.length || 0,
+        stale: data.stale?.length || 0,
+        escalations: data.escalations?.length || 0,
+        archives: data.archives?.length || 0,
+        autoActions: data.autoActions || [],
+      });
+      // Refresh cards if any auto-actions were taken
+      if (data.autoActions?.length > 0) {
+        fetchCards();
+      }
+      // Auto-dismiss result after 8 seconds
+      setTimeout(() => setCortexResult(null), 8000);
+    } catch (err) {
+      console.error('Cortex scan error:', err);
+    } finally {
+      setCortexScanning(false);
+    }
+  }, []);
+
   // ─── Render ───────────────────────────────────────────────────────────
 
   if (loading) {
@@ -601,9 +633,69 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
 
   return (
     <>
+      {/* ─── Board Toolbar ─── */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <div className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+          <span>{cards.length} card{cards.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {/* Cortex Scan Result Badge */}
+          {cortexResult && (
+            <div className="flex items-center gap-1.5 text-[11px] text-[var(--text-secondary)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-lg border border-white/5 animate-in fade-in slide-in-from-right-2 duration-300">
+              {cortexResult.duplicates + cortexResult.stale + cortexResult.escalations + cortexResult.archives === 0 ? (
+                <span className="text-green-400">✓ Board looks clean</span>
+              ) : (
+                <>
+                  {cortexResult.duplicates > 0 && <span className="text-yellow-400">{cortexResult.duplicates} dupes</span>}
+                  {cortexResult.stale > 0 && <span className="text-orange-400">{cortexResult.stale} stale</span>}
+                  {cortexResult.escalations > 0 && <span className="text-red-400">{cortexResult.escalations} escalated</span>}
+                  {cortexResult.archives > 0 && <span className="text-[var(--text-muted)]">{cortexResult.archives} archivable</span>}
+                  {cortexResult.autoActions.length > 0 && (
+                    <span className="text-purple-400 ml-1">· {cortexResult.autoActions.length} auto-action{cortexResult.autoActions.length !== 1 ? 's' : ''}</span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Cortex Scan Button */}
+          <div className="relative">
+            <button
+              onClick={handleCortexScan}
+              disabled={cortexScanning}
+              onMouseEnter={() => setShowCortexTooltip(true)}
+              onMouseLeave={() => setShowCortexTooltip(false)}
+              className={cn(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all',
+                'bg-[var(--bg-surface)] border border-white/5 hover:border-white/10',
+                'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+                cortexScanning && 'opacity-70 cursor-wait'
+              )}
+            >
+              <span className={cn('text-sm', cortexScanning && 'animate-spin')}>
+                {cortexScanning ? '⟳' : '🧠'}
+              </span>
+              <span className="hidden sm:inline">
+                {cortexScanning ? 'Scanning...' : 'Cortex Scan'}
+              </span>
+            </button>
+
+            {/* Tooltip */}
+            {showCortexTooltip && !cortexScanning && (
+              <div className="absolute right-0 top-full mt-2 w-64 p-3 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 text-[11px] text-[var(--text-secondary)] leading-relaxed">
+                <div className="font-medium text-[var(--text-primary)] mb-1">Board Cortex Scan</div>
+                <p>AI-powered board intelligence that detects duplicate cards, stale items, overdue escalations, and archive candidates. Auto-takes housekeeping actions when safe.</p>
+                <p className="mt-1.5 text-[var(--text-muted)]">Also runs automatically every 6 hours.</p>
+                <div className="absolute -top-1.5 right-4 w-3 h-3 bg-[#1a1a2e] border-l border-t border-white/10 rotate-45" />
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div
         ref={boardRef}
-        className="h-full p-4 overflow-x-auto cursor-default select-none"
+        className="flex-1 p-4 pt-1 overflow-x-auto cursor-default select-none"
         style={{ WebkitOverflowScrolling: 'touch' }}
         onPointerDown={onBoardPointerDown}
         onPointerMove={onBoardPointerMove}
