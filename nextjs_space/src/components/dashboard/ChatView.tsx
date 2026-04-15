@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
-import type { WidgetItem, WidgetItemAction, AgentWidgetData } from './AgentWidget';
+import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
+import type { WidgetItem, WidgetItemAction, AgentWidgetData } from '@/components/widgets';
 import { emitSignal } from '@/lib/behavior-signals';
 import { OnboardingChatWidgets } from './OnboardingChatWidgets';
 

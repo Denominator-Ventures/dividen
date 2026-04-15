@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import { timeAgo } from '@/lib/utils';
 import { CommsTab } from './CommsTab';
-import { AgentWidgetContainer, parseWidgetPayload } from './AgentWidget';
+import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
 import { emitSignal } from '@/lib/behavior-signals';
 import {
   QUEUE_SECTIONS,

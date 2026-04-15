@@ -1,3 +1,5 @@
+@import '../components/widgets/widget-theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -192,4 +194,20 @@
   .overflow-x-auto {
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* ── Widget slider thumb (uses CSS vars from widget-theme.css) ── */
+.widget-slider::-webkit-slider-thumb {
+  background: var(--widget-accent) !important;
+  border-color: var(--widget-accent-text) !important;
+}
+.widget-slider::-moz-range-thumb {
+  background: var(--widget-accent) !important;
+  border-color: var(--widget-accent-text) !important;
+}
+.widget-slider::-webkit-slider-runnable-track {
+  background: var(--widget-track) !important;
+}
+.widget-slider::-moz-range-track {
+  background: var(--widget-track) !important;
 }
