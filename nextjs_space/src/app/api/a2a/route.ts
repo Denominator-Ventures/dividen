@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { authenticateAgent, isAuthError, AgentContext } from '@/lib/api-auth';
 import { prisma } from '@/lib/prisma';
 import { logRequest, logError, getClientIp } from '@/lib/telemetry';
-import { syncQueueWithRelayCompletion } from '@/lib/relay-queue-bridge';
+import { syncQueueWithRelayCompletion, createQueueItemFromRelay } from '@/lib/relay-queue-bridge';
 import { pushTaskDispatched, pushQueueChanged, pushRelayStateChanged } from '@/lib/webhook-push';
 import { randomUUID } from 'crypto';
 
@@ -102,7 +102,17 @@ export async function POST(req: NextRequest) {
         const textParts = (message.parts || []).filter((p: any) => p.type === 'text');
         const dataParts = (message.parts || []).filter((p: any) => p.type === 'data');
         const subject = textParts[0]?.text || 'A2A Task';
-        const payload = dataParts[0]?.data || null;
+        const rawPayload = dataParts[0]?.data || null;
+
+        // Merge widget definitions from metadata into the payload
+        // This allows remote agents to send interactive widgets as part of tasks
+        const payload = rawPayload || {};
+        if (typeof payload === 'object' && metadata?.widgets) {
+          payload.widgets = metadata.widgets;
+        }
+        if (typeof payload === 'object' && metadata?.widgetResponseUrl) {
+          payload.widgetResponseUrl = metadata.widgetResponseUrl;
+        }
 
         // Resolve connection
         let connectionId = metadata?.connectionId;
@@ -155,7 +165,7 @@ export async function POST(req: NextRequest) {
             type: 'request',
             intent: metadata?.intent || 'custom',
             subject,
-            payload: payload ? JSON.stringify(payload) : null,
+            payload: (payload && Object.keys(payload).length > 0) ? JSON.stringify(payload) : null,
             status: 'pending',
             priority: metadata?.priority || 'normal',
             dueDate: metadata?.dueDate ? new Date(metadata.dueDate) : null,
@@ -165,6 +175,19 @@ export async function POST(req: NextRequest) {
             projectId: metadata?.projectId || null,
           },
         });
+
+        // If the inbound task carries interactive widgets, auto-create a linked queue item
+        // so the user sees it in their queue with widget controls rendered
+        if (toUserId && typeof payload === 'object' && payload.widgets?.length) {
+          createQueueItemFromRelay(
+            { id: relay.id, subject, payload: relay.payload, fromUserId: userId, toUserId },
+            toUserId
+          ).then((queueItemId) => {
+            if (queueItemId) {
+              pushQueueChanged(toUserId, { changeType: 'added', itemId: queueItemId, itemTitle: subject });
+            }
+          }).catch((err) => console.error('[A2A] Widget queue item creation failed:', err));
+        }
 
         // Log as activity (comms is now relay-based — the relay itself is the record)
         if (toUserId) {

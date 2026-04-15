@@ -193,7 +193,37 @@ function QueueItemCard({
           {(() => {
             const widgetPayload = parseWidgetPayload(item.metadata);
             if (!widgetPayload) return null;
-            return <AgentWidgetContainer payload={widgetPayload} className="mt-2" />;
+            // Check if this widget came from a comm relay (stored in raw metadata JSON)
+            let relayId: string | undefined;
+            try {
+              const rawMeta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+              relayId = rawMeta?.widgets?.[0]?.metadata?.relayId;
+            } catch {}
+            return (
+              <AgentWidgetContainer
+                payload={widgetPayload}
+                onAction={relayId ? async (wi, action, widget) => {
+                  try {
+                    await fetch('/api/relays/widget-response', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        relayId,
+                        widgetId: widget.title,
+                        itemId: wi.id,
+                        action: action.action,
+                        payload: action.payload,
+                      }),
+                    });
+                    window.dispatchEvent(new CustomEvent('dividen:queue-refresh'));
+                    window.dispatchEvent(new CustomEvent('dividen:comms-refresh'));
+                  } catch (err) {
+                    console.error('[QueueWidget] Response failed:', err);
+                  }
+                } : undefined}
+                className="mt-2"
+              />
+            );
           })()}
 
           {/* Capability action buttons (approve / edit) */}

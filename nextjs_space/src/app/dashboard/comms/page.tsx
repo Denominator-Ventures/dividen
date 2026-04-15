@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
+import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
+import type { WidgetItem, WidgetItemAction, AgentWidgetData } from '@/components/widgets';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -388,14 +390,52 @@ export default function CommsPage() {
                           </span>
                         </div>
 
-                        {/* Payload */}
+                        {/* Payload text */}
                         {payloadObj && (
                           <div className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
                             {typeof payloadObj === 'string' ? payloadObj : (
-                              payloadObj.message || payloadObj.body || payloadObj.text || JSON.stringify(payloadObj, null, 2)
+                              payloadObj.message || payloadObj.body || payloadObj.text ||
+                              (payloadObj.description && !payloadObj.widgets ? payloadObj.description : null) ||
+                              (!payloadObj.widgets ? JSON.stringify(payloadObj, null, 2) : null)
                             )}
                           </div>
                         )}
+
+                        {/* Interactive widgets from relay payload */}
+                        {(() => {
+                          // Widgets can be in payload.widgets or in the top-level payload as AgentWidgetData format
+                          const wp = payloadObj?.widgets ? parseWidgetPayload(JSON.stringify({ widgets: payloadObj.widgets })) : null;
+                          if (!wp) return null;
+                          return (
+                            <div className="mt-2 mb-2">
+                              <AgentWidgetContainer
+                                payload={wp}
+                                onAction={async (item: WidgetItem, action: WidgetItemAction, widget: AgentWidgetData) => {
+                                  console.log('[Comms Widget] Action:', { relayId: relay.id, item: item.id, action: action.action });
+                                  // Submit widget response back to the relay
+                                  try {
+                                    await fetch('/api/relays/widget-response', {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json' },
+                                      body: JSON.stringify({
+                                        relayId: relay.id,
+                                        widgetId: widget.title,
+                                        itemId: item.id,
+                                        action: action.action,
+                                        payload: action.payload,
+                                      }),
+                                    });
+                                    // Refresh relay data
+                                    fetchRelays();
+                                  } catch (err) {
+                                    console.error('[Comms Widget] Response failed:', err);
+                                  }
+                                }}
+                                className="mt-2"
+                              />
+                            </div>
+                          );
+                        })()}
 
                         {/* Response payload (for completed relays) */}
                         {responseObj && (
