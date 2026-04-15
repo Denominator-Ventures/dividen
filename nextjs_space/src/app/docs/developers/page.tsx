@@ -12,13 +12,16 @@ export const metadata: Metadata = {
   },
 };
 
+import { DocFooterDownload } from '@/components/docs/DocFooterDownload';
+import { UpdatedBadge } from '@/components/docs/DocDownloadButton';
+
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function Section({ id, title, badge, children }: { id: string; title: string; badge?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section id={id} className="mb-16 scroll-mt-24">
       <h2 className="text-2xl font-heading font-bold text-[var(--text-primary)] mb-6 pb-3 border-b border-white/[0.06]">
-        {title}
+        {title}{badge}
       </h2>
       {children}
     </section>
@@ -98,7 +101,7 @@ const TOC = [
 export default function DeveloperDocsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <div className="max-w-5xl mx-auto px-6 py-12">
+      <div className="max-w-5xl mx-auto px-6 py-12" data-doc-content>
         {/* Header */}
         <div className="mb-12">
           <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">← Documentation</a>
@@ -301,7 +304,7 @@ Content-Type: application/json
         </Section>
 
         {/* ── Federation v2 API ──────────────────────────────── */}
-        <Section id="federation-v2" title="Federation v2 API">
+        <Section id="federation-v2" title="Federation v2 API" badge={<UpdatedBadge date="Apr 14" />}>
           <p className="text-[var(--text-secondary)] mb-4">
             The v2 federation endpoints handle instance registration, heartbeat, marketplace linking, agent sync, and payment validation.
             Public endpoints are CORS-enabled. Authenticated endpoints use the <InlineCode>platformToken</InlineCode> issued during registration.
@@ -1827,8 +1830,11 @@ model AgentRelay {
           </p>
         </Section>
 
+        {/* Download */}
+        <DocFooterDownload filename="dividen-developer-docs" lastUpdated="April 14, 2026" />
+
         {/* Footer */}
-        <div className="border-t border-white/[0.06] pt-8 mt-16 text-center">
+        <div className="border-t border-white/[0.06] pt-8 mt-8 text-center" data-no-download>
           <p className="text-sm text-[var(--text-muted)]">
             Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system
           </p>

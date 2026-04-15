@@ -12,13 +12,16 @@ export const metadata: Metadata = {
   },
 };
 
+import { DocFooterDownload } from '@/components/docs/DocFooterDownload';
+import { UpdatedBadge } from '@/components/docs/DocDownloadButton';
+
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
-function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+function Section({ id, title, badge, children }: { id: string; title: string; badge?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section id={id} className="mb-16 scroll-mt-24">
       <h2 className="text-2xl font-heading font-bold text-[var(--text-primary)] mb-6 pb-3 border-b border-white/[0.06]">
-        {title}
+        {title}{badge}
       </h2>
       {children}
     </section>
@@ -153,7 +156,7 @@ export default function DocumentationPage() {
         </nav>
 
         {/* Main content */}
-        <main className="flex-1 min-w-0 py-8 px-6 lg:px-12">
+        <main className="flex-1 min-w-0 py-8 px-6 lg:px-12" data-doc-content>
 
           {/* ═══ OVERVIEW ════════════════════════════════════════════════════ */}
           <Section id="overview" title="Overview">
@@ -306,7 +309,7 @@ yarn start  # Production on port 3000`}</Code>
           </Section>
 
           {/* ═══ FEDERATION PROTOCOL ════════════════════════════════════════ */}
-          <Section id="federation" title="Federation Protocol">
+          <Section id="federation" title="Federation Protocol" badge={<UpdatedBadge date="Apr 14" />}>
             <p className="text-[var(--text-secondary)] mb-4">
               Federation enables DiviDen instances to form a decentralized network. The protocol has 4 layers:
             </p>
@@ -490,7 +493,7 @@ Authorization: Bearer <platformToken>`}</Code>
           </Section>
 
           {/* ═══ API REFERENCE ══════════════════════════════════════════════ */}
-          <Section id="api-reference" title="Full API Reference">
+          <Section id="api-reference" title="Full API Reference" badge={<UpdatedBadge date="Apr 14" />}>
             <p className="text-[var(--text-secondary)] mb-4">
               All endpoints are at <InlineCode>https://dividen.ai/api/...</InlineCode>. Authentication varies by endpoint.
             </p>
@@ -1113,8 +1116,11 @@ onDiscuss={(context: string) => {
             </ul>
           </Section>
 
+          {/* Download */}
+          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 14, 2026" />
+
           {/* Footer */}
-          <div className="border-t border-white/[0.06] pt-8 mt-16 text-center">
+          <div className="border-t border-white/[0.06] pt-8 mt-8 text-center" data-no-download>
             <p className="text-sm text-[var(--text-muted)]">
               Built by <span className="text-white">DiviDen</span> — the individual-first operating system.
             </p>

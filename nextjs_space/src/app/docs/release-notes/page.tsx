@@ -18,12 +18,15 @@ export const metadata: Metadata = {
   },
 };
 
+import { DocDownloadButton } from '@/components/docs/DocDownloadButton';
+import { DocFooterDownload } from '@/components/docs/DocFooterDownload';
+
 export default function ReleaseNotesPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <div className="max-w-4xl mx-auto p-6 sm:p-8">
+      <div className="max-w-4xl mx-auto p-6 sm:p-8" data-doc-content>
         {/* Back links */}
-        <div className="mb-6 flex items-center gap-4">
+        <div className="mb-6 flex items-center gap-4" data-no-download>
           <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">← Documentation</a>
           <a href="/docs/developers" className="text-brand-400 hover:text-brand-300 text-sm">API Reference</a>
           <a href="/docs/federation" className="text-brand-400 hover:text-brand-300 text-sm">Federation Docs</a>
@@ -40,13 +43,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 14, 2026 — v1.8.1 FEDERATION CAPABILITIES + DEV PROFILES    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.8.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.8.1</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Federation v2</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Developer Profiles</span>
             <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+            <DocDownloadButton containerId="release-v1.8.1" filename="dividen-release-v1.8.1" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul & Approval Hardening</h2>
           <p className="text-sm text-[var(--text-muted)] mb-6">Covers v1.6.1 → v1.6.2 → v1.7.0 → v1.8.0 → v1.8.1</p>
@@ -189,12 +193,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 15, 2026 — v1.6.0 MODULAR CAPABILITY SYSTEM PROMPT          */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.6.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 15, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.6.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Modular Capabilities</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Token Optimization</span>
+          
+            <DocDownloadButton containerId="release-v1.6.0" filename="dividen-release-v1.6.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Modular Capability System — Divi Gets a Lighter Brain</h2>
 
@@ -307,12 +313,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 14, 2026 — v1.5.0 CARD ACTIVITY FEEDS, CROSS-USER MIRRORING */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.5.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.5.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Card Activity Feeds</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Cross-User Mirroring</span>
+          
+            <DocDownloadButton containerId="release-v1.5.0" filename="dividen-release-v1.5.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Card-Scoped Activity Feeds &amp; Cross-User Activity Mirroring</h2>
 
@@ -383,12 +391,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 14, 2026 — v1.4.0 TEAMS, PROJECT DELEGATION, OPEN-SOURCE BILLING */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.4.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.4.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Teams &amp; Invites</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">CoS Delegation: v2</span>
+          
+            <DocDownloadButton containerId="release-v1.4.0" filename="dividen-release-v1.4.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Teams Architecture, CoS Project Contributor Delegation, Invite Flow & Open-Source Billing Boundary</h2>
 
@@ -461,13 +471,15 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 14, 2026 — v1.3.0 QUEUE CONTROL, SMART PROMPTER, LOOP FLOWCHART */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.3.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 14, 2026</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.3.0</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Action Tags: 29+</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Smart Prompter: v2</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">v1.3.0</span>
+          
+            <DocDownloadButton containerId="release-v1.3.0" filename="dividen-release-v1.3.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Queue Confirmation Gate, CoS Execution, Chat Queue Control, Smart Prompter v2 & Onboarding Auto-Heal</h2>
 
@@ -576,12 +588,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 13, 2026 — FEDERATION PRICING + ADMIN EXPANSION */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.2.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 13, 2026</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Platform: v1.2.0</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Federation API: v2.1</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.5</span>
+          
+            <DocDownloadButton containerId="release-v1.2.0" filename="dividen-release-v1.2.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Federation Pricing, Admin Marketplace & UX Improvements</h2>
 
@@ -685,12 +699,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 13, 2026 — CAPABILITIES MARKETPLACE RELEASE */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.1.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 13, 2026</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Platform: v1.1.0</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">MCP Server: v1.6</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.5</span>
+          
+            <DocDownloadButton containerId="release-v1.1.0" filename="dividen-release-v1.1.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading text-[var(--text-secondary)]">Capabilities Marketplace, Queue Gating & Integration-Gated Installs</h2>
 
@@ -799,12 +815,14 @@ export default function ReleaseNotesPage() {
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 12-13, 2026 RELEASE */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
-          <div className="flex flex-wrap gap-2 mb-4 text-xs font-mono">
+        <div id="release-v1.0.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl opacity-80">
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs font-mono">
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">April 12–13, 2026</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">MCP Server: v1.5</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">Agent Card: v0.4</span>
             <span className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-muted)] border border-white/[0.06]">A2A: v0.4</span>
+          
+            <DocDownloadButton containerId="release-v1.0.0" filename="dividen-release-v1.0.0" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading text-[var(--text-secondary)]">Federation v2, Multi-Account Sync, Admin Expansion</h2>
 
@@ -1569,10 +1587,13 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
           </ul>
         </Section>
 
+        {/* Download full page */}
+        <DocFooterDownload containerId="" filename="dividen-release-notes-all" lastUpdated="April 14, 2026" />
+
         {/* Footer */}
-        <div className="mt-16 pt-6 border-t border-[var(--border-color)] text-center">
+        <div className="mt-8 pt-6 border-t border-[var(--border-color)] text-center" data-no-download>
           <p className="text-xs text-[var(--text-muted)]">
-            DiviDen Command Center v1.1.0 — Last updated April 13, 2026
+            DiviDen Command Center — Last updated April 14, 2026
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
             <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>

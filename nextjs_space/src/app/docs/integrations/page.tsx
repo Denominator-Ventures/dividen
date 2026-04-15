@@ -18,10 +18,12 @@ export const metadata: Metadata = {
   },
 };
 
+import { DocFooterDownload } from '@/components/docs/DocFooterDownload';
+
 export default function IntegrationDocsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <div className="max-w-4xl mx-auto p-8">
+      <div className="max-w-4xl mx-auto p-8" data-doc-content>
         <div className="mb-8 flex items-center gap-4">
           <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">
             ← Documentation
@@ -324,7 +326,10 @@ export default function IntegrationDocsPage() {
           </div>
         </section>
 
-        <div className="border-t border-[var(--border-primary)] pt-6 text-center text-sm text-[var(--text-muted)]">
+        {/* Download */}
+        <DocFooterDownload filename="dividen-integration-docs" lastUpdated="April 14, 2026" />
+
+        <div className="border-t border-[var(--border-primary)] pt-6 mt-8 text-center text-sm text-[var(--text-muted)]" data-no-download>
           <p>Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system</p>
           <div className="flex items-center justify-center gap-4 mt-2">
             <a href="/open-source" className="text-brand-400 hover:text-brand-300">Open Source</a>

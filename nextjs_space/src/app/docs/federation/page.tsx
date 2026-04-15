@@ -18,10 +18,12 @@ export const metadata: Metadata = {
   },
 };
 
+import { DocFooterDownload } from '@/components/docs/DocFooterDownload';
+
 export default function FederationDocsPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)]">
-      <div className="max-w-4xl mx-auto p-6 sm:p-8">
+      <div className="max-w-4xl mx-auto p-6 sm:p-8" data-doc-content>
         {/* Back link */}
         <div className="mb-6 flex items-center gap-4">
           <a href="/documentation" className="text-brand-400 hover:text-brand-300 text-sm">← Documentation</a>
@@ -783,8 +785,11 @@ X-Federation-Token: <token-from-connection-handshake>
         </section>
 
 
+        {/* Download */}
+        <DocFooterDownload filename="dividen-federation-guide" lastUpdated="April 14, 2026" />
+
         {/* Footer */}
-        <div className="border-t border-[var(--border-primary)] pt-6 text-center space-y-2">
+        <div className="border-t border-[var(--border-primary)] pt-6 mt-8 text-center space-y-2" data-no-download>
           <p className="text-sm text-[var(--text-muted)]">
             Open source: <a href="https://github.com/Denominator-Ventures/dividen" className="text-brand-400 hover:text-brand-300" target="_blank" rel="noopener noreferrer">github.com/Denominator-Ventures/dividen</a>
           </p>
