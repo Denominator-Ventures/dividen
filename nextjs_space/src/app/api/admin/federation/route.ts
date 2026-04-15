@@ -95,6 +95,15 @@ export async function POST(req: NextRequest) {
           where: { id: instance.id },
           data: { isActive: newActive },
         });
+
+        // Fire webhook to notify the instance about activation/deactivation
+        notifyInstance(instance, 'instance_status', {
+          event: 'instance_status',
+          instanceId: instance.id,
+          status: newActive ? 'active' : 'deactivated',
+          timestamp: new Date().toISOString(),
+        }).catch(() => {});
+
         return NextResponse.json({
           success: true,
           instanceId: instance.id,
@@ -140,5 +149,48 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('POST /api/admin/federation error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+/**
+ * Fire a webhook notification to a federated instance.
+ * Used for instance_status events (activation/deactivation).
+ * Fire-and-forget — errors are logged but never block the admin action.
+ */
+async function notifyInstance(
+  instance: { id: string; baseUrl: string; apiKey?: string | null; platformToken?: string | null },
+  eventType: string,
+  payload: Record<string, any>,
+): Promise<{ sent: boolean; error?: string }> {
+  try {
+    if (!instance.baseUrl) return { sent: false, error: 'No baseUrl' };
+
+    const webhookUrl = `${instance.baseUrl}/api/marketplace/webhook`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-DiviDen-Event': eventType,
+        'X-DiviDen-Source': 'federation',
+        ...(instance.apiKey ? { 'X-Federation-Token': instance.apiKey } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn(`[federation-webhook] ${webhookUrl} returned ${response.status}`);
+      return { sent: true, error: `HTTP ${response.status}` };
+    }
+
+    return { sent: true };
+  } catch (err: any) {
+    console.error(`[federation-webhook] Failed for ${instance.baseUrl}:`, err.message);
+    return { sent: false, error: err.message };
   }
 }

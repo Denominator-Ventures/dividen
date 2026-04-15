@@ -7,7 +7,9 @@ import { prisma } from '@/lib/prisma';
  * POST /api/marketplace/webhook — Receive webhooks from the managed marketplace.
  *
  * Events:
- *   agent_approval — Fired when a federated agent is approved/rejected/suspended on the managed marketplace.
+ *   agent_approval      — Fired when a federated agent is approved/rejected/suspended on the managed marketplace.
+ *   capability_approval — Fired when a federated capability's approval status changes on the managed marketplace.
+ *   instance_status     — Fired when an instance is activated/deactivated by the platform admin.
  *
  * Auth:
  *   X-Federation-Token header must match a registered instance's apiKey.
@@ -63,6 +65,12 @@ export async function POST(req: NextRequest) {
     switch (event) {
       case 'agent_approval':
         return handleAgentApproval(body, instance);
+
+      case 'capability_approval':
+        return handleCapabilityApproval(body, instance);
+
+      case 'instance_status':
+        return handleInstanceStatus(body, instance);
 
       default:
         console.log(`[marketplace-webhook] Unknown event: ${event}`);
@@ -148,6 +156,136 @@ async function handleAgentApproval(
     previousStatus,
     newStatus: newLocalStatus,
     reason: reason || null,
+    processedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Handle capability_approval events.
+ * Updates local capability approvalStatus when the managed marketplace reviews it.
+ */
+async function handleCapabilityApproval(
+  body: any,
+  sourceInstance: { id: string; name: string; baseUrl: string } | null
+) {
+  const { capabilityId, name, slug, status, reason } = body;
+
+  if (!capabilityId || !status) {
+    return NextResponse.json(
+      { error: 'capabilityId and status are required for capability_approval events' },
+      { status: 400 }
+    );
+  }
+
+  // Find the local capability — try by ID first, then by slug
+  let capability = await prisma.marketplaceCapability.findUnique({
+    where: { id: capabilityId },
+    select: { id: true, name: true, approvalStatus: true, slug: true, createdByUserId: true },
+  });
+
+  if (!capability && slug) {
+    capability = await prisma.marketplaceCapability.findUnique({
+      where: { slug },
+      select: { id: true, name: true, approvalStatus: true, slug: true, createdByUserId: true },
+    });
+  }
+
+  if (!capability) {
+    console.warn(`[marketplace-webhook] capability_approval for unknown capability: ${capabilityId} / ${slug}`);
+    return NextResponse.json({
+      received: true,
+      event: 'capability_approval',
+      warning: `Capability not found locally (id=${capabilityId}, slug=${slug}). Acknowledged but no action taken.`,
+    });
+  }
+
+  const previousStatus = capability.approvalStatus;
+
+  await prisma.marketplaceCapability.update({
+    where: { id: capability.id },
+    data: {
+      approvalStatus: status,
+      ...(reason ? { rejectionReason: reason } : {}),
+      reviewedAt: new Date(),
+    },
+  });
+
+  // Log activity for the capability author
+  if (capability.createdByUserId) {
+    const label = status === 'approved' ? '✅ Approved' : status === 'rejected' ? '❌ Rejected' : `⚠️ ${status}`;
+    prisma.activityLog.create({
+      data: {
+        userId: capability.createdByUserId,
+        action: 'marketplace_capability_reviewed',
+        actor: 'system',
+        summary: `${label}: Your capability "${capability.name}" has been ${status} on the managed marketplace.${reason ? ` Reason: ${reason}` : ''}`,
+        metadata: JSON.stringify({ capabilityId: capability.id, status, reason }),
+      },
+    }).catch(() => {});
+  }
+
+  console.log(
+    `[marketplace-webhook] capability_approval: "${capability.name}" (${capability.id}) ${previousStatus} → ${status}` +
+    (reason ? ` (reason: ${reason})` : '') +
+    (sourceInstance ? ` from ${sourceInstance.name}` : '')
+  );
+
+  return NextResponse.json({
+    received: true,
+    event: 'capability_approval',
+    capabilityId: capability.id,
+    name: capability.name,
+    previousStatus,
+    newStatus: status,
+    reason: reason || null,
+    processedAt: new Date().toISOString(),
+  });
+}
+
+/**
+ * Handle instance_status events.
+ * Received when the platform admin activates/deactivates this instance.
+ * Logs the event — the instance can use this to show a banner or restrict functionality.
+ */
+async function handleInstanceStatus(
+  body: any,
+  sourceInstance: { id: string; name: string; baseUrl: string } | null
+) {
+  const { instanceId, status } = body;
+
+  if (!status) {
+    return NextResponse.json(
+      { error: 'status is required for instance_status events' },
+      { status: 400 }
+    );
+  }
+
+  console.log(
+    `[marketplace-webhook] instance_status: ${status}` +
+    (instanceId ? ` (instanceId=${instanceId})` : '') +
+    (sourceInstance ? ` from ${sourceInstance.name}` : '')
+  );
+
+  // Store the status change as a system activity
+  // Use a well-known userId or skip if no users exist
+  const admin = await prisma.user.findFirst({ orderBy: { createdAt: 'asc' }, select: { id: true } });
+  if (admin) {
+    prisma.activityLog.create({
+      data: {
+        userId: admin.id,
+        action: 'federation_instance_status',
+        actor: 'system',
+        summary: `Instance ${status === 'active' ? 'activated' : 'deactivated'} by managed marketplace admin.`,
+        metadata: JSON.stringify({ instanceId, status, timestamp: body.timestamp }),
+      },
+    }).catch(() => {});
+  }
+
+  return NextResponse.json({
+    received: true,
+    event: 'instance_status',
+    status,
+    message: `Instance status '${status}' acknowledged.`,
     processedAt: new Date().toISOString(),
   });
 }

@@ -104,9 +104,12 @@ export async function PATCH(req: NextRequest) {
     data.reviewedAt = new Date();
   }
 
-  // Fetch the capability before update so we can notify the submitter
+  // Fetch the capability before update so we can notify the submitter + source instance
   const existing = updates.approvalStatus
-    ? await prisma.marketplaceCapability.findUnique({ where: { id }, select: { createdByUserId: true, name: true } })
+    ? await prisma.marketplaceCapability.findUnique({
+        where: { id },
+        select: { createdByUserId: true, name: true, slug: true, sourceInstanceId: true },
+      })
     : null;
 
   const updated = await prisma.marketplaceCapability.update({ where: { id }, data });
@@ -122,6 +125,19 @@ export async function PATCH(req: NextRequest) {
         summary: `Your capability "${existing.name}" has been ${statusLabel}.${updates.rejectionReason ? ` Reason: ${updates.rejectionReason}` : ''}`,
       },
     });
+  }
+
+  // Fire webhook to source instance if this is a federated capability
+  if (updates.approvalStatus && existing?.sourceInstanceId) {
+    notifySourceInstanceCapability(existing.sourceInstanceId, {
+      event: 'capability_approval',
+      capabilityId: id,
+      name: existing.name,
+      slug: existing.slug,
+      status: updates.approvalStatus,
+      reason: updates.rejectionReason || null,
+      timestamp: new Date().toISOString(),
+    }).catch(() => {});
   }
 
   return NextResponse.json({ success: true, data: updated });
@@ -140,4 +156,49 @@ export async function DELETE(req: NextRequest) {
   await prisma.marketplaceCapability.delete({ where: { id } });
 
   return NextResponse.json({ success: true });
+}
+
+/**
+ * Notify the source instance about a capability approval decision.
+ * Looks up the instance by ID, fires webhook to /api/marketplace/webhook.
+ */
+async function notifySourceInstanceCapability(
+  sourceInstanceId: string,
+  payload: Record<string, any>,
+): Promise<{ sent: boolean; error?: string }> {
+  try {
+    const instance = await prisma.instanceRegistry.findUnique({
+      where: { id: sourceInstanceId },
+      select: { baseUrl: true, apiKey: true },
+    });
+    if (!instance?.baseUrl) return { sent: false, error: 'Instance not found' };
+
+    const webhookUrl = `${instance.baseUrl}/api/marketplace/webhook`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-DiviDen-Event': 'capability_approval',
+        'X-DiviDen-Source': 'marketplace',
+        ...(instance.apiKey ? { 'X-Federation-Token': instance.apiKey } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      console.warn(`[capability-approval-webhook] ${webhookUrl} returned ${response.status}`);
+      return { sent: true, error: `HTTP ${response.status}` };
+    }
+
+    return { sent: true };
+  } catch (err: any) {
+    console.error('[capability-approval-webhook] Failed:', err.message);
+    return { sent: false, error: err.message };
+  }
 }
