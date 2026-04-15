@@ -12,17 +12,44 @@ interface OnboardingWelcomeProps {
 }
 
 type Step = 'welcome' | 'apikey';
-type Provider = 'anthropic' | 'openai';
+
+/** UI-facing provider choice — 'chatgpt' maps to 'openai' when saved */
+type ProviderChoice = 'anthropic' | 'openai' | 'chatgpt';
+
+const PROVIDERS: { id: ProviderChoice; label: string; sub: string; icon: string }[] = [
+  { id: 'anthropic', label: 'Anthropic', sub: 'Claude', icon: '🟣' },
+  { id: 'openai',    label: 'OpenAI',    sub: 'GPT-4o', icon: '🟢' },
+  { id: 'chatgpt',   label: 'ChatGPT',   sub: 'I have a subscription', icon: '💬' },
+];
+
+function getDbProvider(choice: ProviderChoice): 'openai' | 'anthropic' {
+  return choice === 'anthropic' ? 'anthropic' : 'openai';
+}
+
+function getKeyPlaceholder(choice: ProviderChoice): string {
+  return choice === 'anthropic' ? 'sk-ant-api03-...' : 'sk-proj-...';
+}
+
+function getKeyLabel(choice: ProviderChoice): string {
+  if (choice === 'anthropic') return 'Anthropic API Key';
+  if (choice === 'chatgpt')  return 'OpenAI API Key';
+  return 'OpenAI API Key';
+}
+
+function getSaveLabel(choice: ProviderChoice): string {
+  if (choice === 'anthropic') return 'Claude (onboarding)';
+  return 'GPT-4o (onboarding)';
+}
 
 /**
  * Two-step welcome modal:
  *  Step 1 — "Welcome to DiviDen" intro with feature highlights
- *  Step 2 — Bring-your-own-AI key entry (Anthropic or OpenAI)
+ *  Step 2 — Bring-your-own-AI key entry (Anthropic, OpenAI, or ChatGPT)
  * After the key is saved, triggers onStart to begin the chat-based onboarding with Divi.
  */
 export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }: OnboardingWelcomeProps) {
   const [step, setStep] = useState<Step>(initialStep || 'welcome');
-  const [provider, setProvider] = useState<Provider>('anthropic');
+  const [provider, setProvider] = useState<ProviderChoice>('anthropic');
   const [apiKey, setApiKey] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,12 +63,12 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
       return;
     }
 
-    // Basic validation
-    if (provider === 'anthropic' && !apiKey.trim().startsWith('sk-ant-')) {
+    const trimmed = apiKey.trim();
+    if (provider === 'anthropic' && !trimmed.startsWith('sk-ant-')) {
       setError('Anthropic keys start with sk-ant-');
       return;
     }
-    if (provider === 'openai' && !apiKey.trim().startsWith('sk-')) {
+    if ((provider === 'openai' || provider === 'chatgpt') && !trimmed.startsWith('sk-')) {
       setError('OpenAI keys start with sk-');
       return;
     }
@@ -54,9 +81,9 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          provider,
-          apiKey: apiKey.trim(),
-          label: `${provider === 'anthropic' ? 'Claude' : 'GPT-4o'} (onboarding)`,
+          provider: getDbProvider(provider),
+          apiKey: trimmed,
+          label: getSaveLabel(provider),
         }),
       });
 
@@ -65,7 +92,6 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
         throw new Error(data.error || 'Failed to save API key');
       }
 
-      // Key saved — start the chat onboarding
       onStart();
     } catch (e: any) {
       setError(e.message || 'Something went wrong');
@@ -128,7 +154,6 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
         {step === 'apikey' && (
           <>
             <div className="p-6 pb-3">
-              {/* Back button */}
               <button
                 onClick={() => { setStep('welcome'); setError(null); }}
                 className="text-xs text-[var(--brand-primary)] hover:text-[var(--brand-primary)]/80 mb-3 transition-colors"
@@ -148,7 +173,7 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
             </div>
 
             <div className="px-6 pb-2">
-              {/* Explanation */}
+              {/* BYOAI explanation */}
               <div className="p-3 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] mb-4">
                 <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                   DiviDen is <strong className="text-[var(--text-primary)]">BYOAI</strong> (Bring Your Own AI). 
@@ -157,45 +182,50 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
                 </p>
               </div>
 
-              {/* Provider selector */}
-              <div className="flex gap-2 mb-4">
-                {[
-                  { id: 'anthropic' as Provider, label: 'Anthropic', sub: 'Claude', icon: '🟣' },
-                  { id: 'openai' as Provider, label: 'OpenAI', sub: 'GPT-4o', icon: '🟢' },
-                ].map((p) => (
+              {/* Provider selector — 3 tiles */}
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {PROVIDERS.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => { setProvider(p.id); setError(null); }}
                     className={cn(
-                      'flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border text-left transition-all',
+                      'flex flex-col items-center gap-1 px-2 py-3 rounded-lg border text-center transition-all',
                       provider === p.id
                         ? 'border-[var(--brand-primary)]/40 bg-[var(--brand-primary)]/10'
                         : 'border-[var(--border-color)] bg-[var(--bg-primary)] hover:border-[var(--border-color)]/60',
                     )}
                   >
-                    <span className="text-sm">{p.icon}</span>
-                    <div>
-                      <p className={cn(
-                        'text-xs font-medium',
-                        provider === p.id ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]',
-                      )}>{p.label}</p>
-                      <p className="text-[10px] text-[var(--text-muted)]">{p.sub}</p>
-                    </div>
+                    <span className="text-lg">{p.icon}</span>
+                    <p className={cn(
+                      'text-xs font-medium leading-tight',
+                      provider === p.id ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)]',
+                    )}>{p.label}</p>
+                    <p className="text-[10px] text-[var(--text-muted)] leading-tight">{p.sub}</p>
                   </button>
                 ))}
               </div>
 
+              {/* ChatGPT explainer — only shown when ChatGPT tile is selected */}
+              {provider === 'chatgpt' && (
+                <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20 mb-4">
+                  <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                    <strong className="text-emerald-400">Already have ChatGPT?</strong> Your ChatGPT account gives you API access too.
+                    Grab your key from the OpenAI developer dashboard — same account, same login.
+                  </p>
+                </div>
+              )}
+
               {/* API key input */}
               <div className="mb-3">
                 <label className="text-xs text-[var(--text-secondary)] mb-1.5 block">
-                  {provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} API Key
+                  {getKeyLabel(provider)}
                 </label>
                 <div className="relative">
                   <input
                     type={showKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => { setApiKey(e.target.value); setError(null); }}
-                    placeholder={provider === 'anthropic' ? 'sk-ant-api03-...' : 'sk-proj-...'}
+                    placeholder={getKeyPlaceholder(provider)}
                     className="input-base w-full pr-10 text-sm font-mono"
                     autoFocus
                     spellCheck={false}
@@ -211,15 +241,45 @@ export function OnboardingWelcome({ userName, onStart, onDismiss, initialStep }:
                 </div>
               </div>
 
-              {/* Where to get it */}
+              {/* Where to get it — provider-specific guide with direct links */}
               <div className="p-2.5 rounded-lg bg-white/[0.02] border border-[var(--border-color)] mb-4">
-                <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-                  {provider === 'anthropic' ? (
-                    <>Get your key at <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">console.anthropic.com</a> → Settings → API Keys → Create Key</>
-                  ) : (
-                    <>Get your key at <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">platform.openai.com</a> → API Keys → Create new secret key</>
-                  )}
-                </p>
+                {provider === 'anthropic' ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                      <strong className="text-[var(--text-secondary)]">How to get your key:</strong>
+                    </p>
+                    <ol className="text-[10px] text-[var(--text-muted)] leading-relaxed list-decimal list-inside space-y-0.5">
+                      <li>Go to <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">console.anthropic.com/settings/keys</a></li>
+                      <li>Sign in (or create a free account)</li>
+                      <li>Click <strong className="text-[var(--text-secondary)]">Create Key</strong>, copy it, and paste below</li>
+                    </ol>
+                  </div>
+                ) : provider === 'chatgpt' ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                      <strong className="text-[var(--text-secondary)]">How to get your key (same ChatGPT login):</strong>
+                    </p>
+                    <ol className="text-[10px] text-[var(--text-muted)] leading-relaxed list-decimal list-inside space-y-0.5">
+                      <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">platform.openai.com/api-keys</a></li>
+                      <li>Log in with <strong className="text-[var(--text-secondary)]">your existing ChatGPT account</strong></li>
+                      <li>Click <strong className="text-[var(--text-secondary)]">Create new secret key</strong>, copy it, and paste below</li>
+                    </ol>
+                    <p className="text-[10px] text-[var(--text-muted)] leading-relaxed mt-1">
+                      💡 API usage is billed separately from your ChatGPT subscription — you only pay for what Divi uses.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
+                      <strong className="text-[var(--text-secondary)]">How to get your key:</strong>
+                    </p>
+                    <ol className="text-[10px] text-[var(--text-muted)] leading-relaxed list-decimal list-inside space-y-0.5">
+                      <li>Go to <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">platform.openai.com/api-keys</a></li>
+                      <li>Sign in (or create a free account)</li>
+                      <li>Click <strong className="text-[var(--text-secondary)]">Create new secret key</strong>, copy it, and paste below</li>
+                    </ol>
+                  </div>
+                )}
               </div>
 
               {/* Error */}

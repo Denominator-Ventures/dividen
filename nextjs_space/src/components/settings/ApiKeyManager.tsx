@@ -100,8 +100,9 @@ export function ApiKeyManager({ apiKeys, onKeyAdded, onKeyDeleted }: ApiKeyManag
   return (
     <div className="space-y-4">
       <p className="text-sm text-[var(--text-secondary)]">
-        Add your API keys for GPT-4 (OpenAI) and Claude Sonnet (Anthropic) to
-        enable Divi, your AI agent.
+        Add your API key for Claude (Anthropic) or GPT-4o (OpenAI) to enable Divi.
+        Already have ChatGPT? You can use the same account — 
+        <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline ml-1">grab your key here</a>.
       </p>
 
       {/* Existing Keys */}
@@ -156,11 +157,11 @@ export function ApiKeyManager({ apiKeys, onKeyAdded, onKeyDeleted }: ApiKeyManag
               value={form.apiKey}
               onChange={(e) => handleKeyChange(e.target.value)}
               className="input-field"
-              placeholder={form.provider === 'anthropic' ? 'sk-ant-api03-...' : 'sk-...'}
+              placeholder={form.provider === 'anthropic' ? 'sk-ant-api03-...' : 'sk-proj-...'}
               required
             />
             <p className="text-[11px] text-[var(--text-muted)] mt-1">
-              Paste your OpenAI or Anthropic API key — we&apos;ll auto-detect the provider.
+              Paste your API key — we&apos;ll auto-detect the provider.
               {activeKeys.some(k => k.provider === form.provider) && (
                 <span className="text-amber-400"> Adding a new key will replace the existing {form.provider} key.</span>
               )}
@@ -180,7 +181,7 @@ export function ApiKeyManager({ apiKeys, onKeyAdded, onKeyDeleted }: ApiKeyManag
               onChange={(e) => { setForm({ ...form, provider: e.target.value }); setAutoDetected(false); }}
               className="input-field"
             >
-              <option value="openai">OpenAI (GPT-4)</option>
+              <option value="openai">OpenAI (GPT-4o)</option>
               <option value="anthropic">Anthropic (Claude)</option>
             </select>
           </div>
@@ -196,6 +197,19 @@ export function ApiKeyManager({ apiKeys, onKeyAdded, onKeyDeleted }: ApiKeyManag
               placeholder="My API Key"
             />
           </div>
+
+          {/* Where to get keys */}
+          <div className="p-2.5 rounded-lg bg-white/[0.02] border border-[var(--border-color)]">
+            <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">
+              <strong className="text-[var(--text-secondary)]">Where to get a key:</strong>
+            </p>
+            <ul className="text-[11px] text-[var(--text-muted)] mt-1 space-y-0.5">
+              <li>🟣 Anthropic → <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">console.anthropic.com/settings/keys</a></li>
+              <li>🟢 OpenAI → <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-[var(--brand-primary)] hover:underline">platform.openai.com/api-keys</a></li>
+              <li>💬 Have ChatGPT? Same link — log in with your ChatGPT account</li>
+            </ul>
+          </div>
+
           <div className="flex gap-2">
             <button type="submit" className="btn-primary text-sm" disabled={submitting}>
               {submitting ? 'Saving...' : 'Save Key'}
