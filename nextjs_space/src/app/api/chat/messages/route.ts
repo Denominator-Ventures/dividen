@@ -74,6 +74,33 @@ export async function GET(request: NextRequest) {
  * This preserves the conversation record so Divi retains learned context,
  * but starts the visible conversation fresh.
  */
+/**
+ * POST /api/chat/messages
+ * Save a single message to chat history (used for system-injected messages
+ * that need to persist so the LLM sees them in conversation context).
+ */
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  const userId = (session.user as any).id;
+  const body = await request.json();
+  const { role, content, metadata } = body;
+  if (!role || !content) {
+    return NextResponse.json({ success: false, error: 'role and content required' }, { status: 400 });
+  }
+  const msg = await prisma.chatMessage.create({
+    data: {
+      role,
+      content,
+      userId,
+      ...(metadata ? { metadata: typeof metadata === 'string' ? metadata : JSON.stringify(metadata) } : {}),
+    },
+  });
+  return NextResponse.json({ success: true, data: msg });
+}
+
 export async function DELETE() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {

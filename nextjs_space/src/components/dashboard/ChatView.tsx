@@ -412,24 +412,27 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         const settingsResult = await settingsRes.json();
         const { tasksCompleted, nextTaskText, allTasksComplete } = settingsResult?.data || {};
 
-        // Add confirmation message
+        // Acknowledge the completed task and ask about the next one
+        let confirmContent = '✅ Settings saved.';
+        if (tasksCompleted && nextTaskText) {
+          confirmContent = `✅ Done — that's checked off your setup list.\n\nNext up is **"${nextTaskText}"**. Want to knock that out now?`;
+        } else if (tasksCompleted && allTasksComplete) {
+          confirmContent = `✅ Done — and that was the last one! Your setup checklist is complete. You're all set to go.\n\nWhat would you like to focus on?`;
+        }
+
+        // Persist to DB so the LLM sees it in conversation context
+        fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'assistant', content: confirmContent }),
+        }).catch(() => {});
+
         setMessages(prev => [...prev, {
           id: `msg-confirm-${Date.now()}`,
           role: 'assistant',
-          content: '✅ Settings updated! Your changes are active now.',
+          content: confirmContent,
           createdAt: new Date().toISOString(),
         }]);
-
-        // Auto-continue the conversation if a setup task was completed
-        if (tasksCompleted) {
-          setTimeout(() => {
-            if (allTasksComplete) {
-              sendMessage('All my setup tasks are done! What should I focus on now?');
-            } else if (nextTaskText) {
-              sendMessage(`Great, that's saved. Next on my setup list is: "${nextTaskText}". Let's do that one now.`);
-            }
-          }, 600);
-        }
         return;
       }
 
