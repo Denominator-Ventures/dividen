@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     // Parallel queries — 5 concurrent is fine within our pool limit
     // NOTE: Queue items are Divi's/agent domain — they belong in QueuePanel.
     // Now Panel only shows operator-facing items: kanban cards (assignee=human), goals, calendar, relays.
-    const [goals, kanbanCards, calendarEvents, relays, checklistTasks] = await Promise.all([
+    const [goals, kanbanCards, calendarEvents, relays, checklistTasks, setupChecklistTasks] = await Promise.all([
       prisma.goal.findMany({
         where: { userId, status: 'active' },
         include: {
@@ -80,7 +80,33 @@ export async function GET(req: NextRequest) {
           card: { select: { title: true } },
         },
       }),
+      // Fetch setup-project checklist items (no dueDate filter — they start without dates)
+      prisma.checklistItem.findMany({
+        where: {
+          completed: false,
+          assigneeType: 'self',
+          card: {
+            userId,
+            status: { in: ['active', 'development', 'planning'] },
+            project: { metadata: { contains: '"isSetupProject":true' } },
+          },
+        },
+        orderBy: { order: 'asc' },
+        take: 10,
+        select: {
+          id: true, text: true, completed: true, order: true, dueDate: true,
+          assigneeType: true, cardId: true,
+          card: { select: { title: true } },
+        },
+      }),
     ]);
+
+    // Merge checklist tasks — setup project items may overlap if they gained due dates
+    const seenIds = new Set(checklistTasks.map((t: any) => t.id));
+    const mergedChecklist = [
+      ...checklistTasks,
+      ...setupChecklistTasks.filter((t: any) => !seenIds.has(t.id)),
+    ];
 
     const ranked = scoreAndRankNow({
       queueItems: [], // Queue items are Divi's domain — shown in Queue Panel only
@@ -88,7 +114,7 @@ export async function GET(req: NextRequest) {
       kanbanCards,
       calendarEvents,
       relays,
-      checklistTasks: checklistTasks.map((t: any) => ({
+      checklistTasks: mergedChecklist.map((t: any) => ({
         ...t,
         cardTitle: t.card?.title,
       })),
