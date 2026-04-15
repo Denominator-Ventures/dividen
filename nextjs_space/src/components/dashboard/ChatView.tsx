@@ -393,6 +393,45 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         const tagName = action.actionTag;
         const tagParams = action.actionParams || {};
 
+        // Special case: catch_up — sync data first, then send the full briefing prompt to the LLM
+        if (tagName === 'catch_up') {
+          const syncingMsg: ChatMessage = {
+            id: `msg-syncing-${Date.now()}`,
+            role: 'assistant',
+            content: '🔄 Syncing your connected signals first...',
+            createdAt: new Date().toISOString(),
+          };
+          setMessages(prev => [...prev, syncingMsg]);
+
+          // Sync in background (fire and forget — don't block the catch-up)
+          fetch('/api/chat/execute-tag', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tag: 'sync_signal', params: { service: 'all' } }),
+          }).then(() => {
+            window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
+          }).catch(() => {});
+
+          // Give sync a moment to start, then send the catch-up prompt to the LLM
+          // The LLM has full Board/Queue/Inbox context in its system prompt
+          await new Promise(resolve => setTimeout(resolve, 1500));
+
+          // Build the catch-up prompt (same as the header Catch Up button)
+          let catchUpPrompt: string;
+          try {
+            const configRes = await fetch('/api/signals/config');
+            const configJson = await configRes.json();
+            const { getCatchUpPrompt } = await import('@/lib/signals');
+            catchUpPrompt = getCatchUpPrompt(configJson.success ? configJson.data : undefined);
+          } catch {
+            const { getCatchUpPrompt } = await import('@/lib/signals');
+            catchUpPrompt = getCatchUpPrompt();
+          }
+
+          sendMessage(catchUpPrompt);
+          return;
+        }
+
         // Call the action tag execution endpoint to get widget data
         const tagRes = await fetch('/api/chat/execute-tag', {
           method: 'POST',

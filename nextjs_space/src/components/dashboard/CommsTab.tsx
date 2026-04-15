@@ -104,6 +104,17 @@ export function CommsTab() {
     return () => clearInterval(interval);
   }, [fetchRelays]);
 
+  // Listen for custom refresh events
+  useEffect(() => {
+    const handler = () => fetchRelays();
+    window.addEventListener('dividen:comms-refresh', handler);
+    window.addEventListener('dividen:now-refresh', handler);
+    return () => {
+      window.removeEventListener('dividen:comms-refresh', handler);
+      window.removeEventListener('dividen:now-refresh', handler);
+    };
+  }, [fetchRelays]);
+
   const threads = useMemo(() => {
     const map = new Map<string, Relay[]>();
     for (const r of relays) {

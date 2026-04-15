@@ -427,6 +427,17 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
     fetchCards();
   }, [fetchCards]);
 
+  // Listen for custom refresh events (from chat actions, settings saves, etc.)
+  useEffect(() => {
+    const handler = () => fetchCards();
+    window.addEventListener('dividen:board-refresh', handler);
+    window.addEventListener('dividen:now-refresh', handler);
+    return () => {
+      window.removeEventListener('dividen:board-refresh', handler);
+      window.removeEventListener('dividen:now-refresh', handler);
+    };
+  }, [fetchCards]);
+
   // ─── Card grouping ─────────────────────────────────────────────────────
 
   const cardsByColumn = KANBAN_COLUMNS.reduce(

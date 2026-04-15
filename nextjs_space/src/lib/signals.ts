@@ -190,9 +190,37 @@ export function getCatchUpPrompt(configs?: SignalCatchUpConfig[]): string {
   }
 
   const signalList = enabledSignals.map((s, i) => `${i + 1}. ${s.icon} ${s.name}`).join('\n');
-  const signalNames = enabledSignals.map(s => s.name.toLowerCase()).join(', ');
 
-  return `Catch me up on everything. Triage my connected signals in this priority order:\n\n${signalList}\n\n**Everything is a task. Cards are projects.** You have my full Board context above — project cards with IDs, titles, statuses, artifact counts, assignees, and task progress. Your job: extract tasks from each signal, route them to the right project card.\n\nFor each signal (${signalNames}):\n1. **EXTRACT**: What happened? What tasks does it produce?\n2. **ROUTE**: For each task, find the project card it belongs to. Add as a checklist item with source context (sourceType, sourceId, sourceLabel). Link the artifact.\n3. **NEW PROJECT**: Only when a task represents a genuinely new initiative. Name the card as the project/initiative, NOT the task. Add the triggering task as the first checklist item.\n4. **ASSIGN EACH TASK**: "self" (operator does it), "divi" (you handle directly), or "delegated" (another person via their Divi — only if they're a DiviDen user 🟢). Mark contributors on project cards.\n5. Queue outbound actions via [[queue_capability_action:{}]] — check for duplicates.\n6. Flag anything urgent.\n7. **LEARN**: Save routing patterns with [[save_learning:{}]].\n\nStructured summary per signal (priority order):\n📋 **Tasks routed** (N tasks → M project cards)\n🆕 **New projects** (cards created + context)\n🔗 **Artifacts linked** (what → where)\n⏭️ **Skipped** (already tracked)\n🔥 **Urgent** (needs immediate attention)\n\nEnd with: **🎯 Recommended NOW focus** — the 2-3 tasks that move my goals forward fastest.`;
+  return `Catch me up — walk me through everything that needs my attention. Go phase by phase:
+
+## Phase 1 — Board & Queue Progress
+Read my Board and Queue state. Give me a clear status report:
+- **Completed**: What got done since last catch-up? List specifics.
+- **Still pending**: What's sitting there waiting? Be direct about what matters and what doesn't.
+- **Blocked / structurally wrong**: Anything stuck? Any workflow issues?
+- **Your recommendation**: Is the board healthy? What needs management attention?
+
+## Phase 2 — Inbox Triage
+Look at my unread emails. Don't just count them — analyze:
+- **What actually looks real**: Important threads by name, with context about why they matter and what state they're in. Use 🔴 for urgent, 🟡 for important but not urgent.
+- **What I'd do next**: Your specific recommendation for inbox processing order.
+- Skip newsletters and noise — only surface humans and active deals.
+
+## Phase 3 — Calendar & Signals
+Check my calendar and other connected signals (${signalList}):
+- Any meetings coming up that need prep?
+- Any recordings that need review?
+- Anything from connected signals that changes priorities?
+
+## Phase 4 — Recommended Focus
+End with your top 2-3 recommendations for what I should focus on RIGHT NOW — the things that move the needle fastest.
+
+**Style rules**:
+- Write like a chief of staff briefing, not a system report
+- Be specific — use names, project titles, thread subjects
+- Be opinionated — tell me what matters and what doesn't
+- Keep each phase as a separate section with a clear heading
+- After each phase, ask if I want to dig deeper or move to the next one`;
 }
 
 /** Map center tab IDs to signal IDs where triage makes sense */

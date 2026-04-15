@@ -575,6 +575,17 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
     fetchItems();
   }, [fetchItems]);
 
+  // Listen for custom refresh events (from chat actions, sync, etc.)
+  useEffect(() => {
+    const handler = () => fetchItems();
+    window.addEventListener('dividen:queue-refresh', handler);
+    window.addEventListener('dividen:now-refresh', handler);
+    return () => {
+      window.removeEventListener('dividen:queue-refresh', handler);
+      window.removeEventListener('dividen:now-refresh', handler);
+    };
+  }, [fetchItems]);
+
   // ─── Group by status ──────────────────────────────────────────────────
 
   const grouped = QUEUE_SECTIONS.reduce(

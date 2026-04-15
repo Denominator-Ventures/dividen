@@ -61,8 +61,8 @@ export const SETUP_TASK_ACTIONS: SetupTaskAction[] = [
   },
   {
     taskText: 'Run Your First Catch-Up',
-    actionTag: 'sync_signal',
-    actionParams: { service: 'all' },
+    actionTag: 'catch_up',
+    actionParams: {},
     description: 'Process all connected signals and populate the board.',
   },
 ];
