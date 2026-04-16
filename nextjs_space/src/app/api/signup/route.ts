@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { email, password, name, acceptedTerms } = body;
+    const { email, password, name, username, acceptedTerms } = body;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -37,6 +37,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate and check username uniqueness
+    if (username) {
+      const usernameClean = username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+      if (usernameClean.length < 2 || usernameClean.length > 30) {
+        return NextResponse.json({ success: false, error: 'Username must be 2–30 characters' }, { status: 400 });
+      }
+      const reserved = ['admin', 'system', 'divi', 'dividen', 'support', 'help', 'root', 'null', 'undefined', 'api', 'www'];
+      if (reserved.includes(usernameClean)) {
+        return NextResponse.json({ success: false, error: 'This username is reserved' }, { status: 400 });
+      }
+      const existingUsername = await prisma.user.findFirst({ where: { username: usernameClean } });
+      if (existingUsername) {
+        return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 409 });
+      }
+    }
+
     const passwordHash = await bcrypt.hash(password, 12);
 
     const user = await prisma.user.create({
@@ -46,6 +62,7 @@ export async function POST(request: NextRequest) {
         passwordHash,
         role: 'admin',
         mode: 'cockpit',
+        ...(username ? { username: username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '') } : {}),
         ...(acceptedTerms ? {
           acceptedTermsAt: new Date(),
           termsVersion: TERMS_VERSION,

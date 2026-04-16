@@ -11,6 +11,7 @@ const setupSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Valid email is required'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
+  username: z.string().min(2).max(30).regex(/^[a-z0-9_.-]+$/, 'Username can only contain lowercase letters, numbers, underscores, dots, and hyphens').optional(),
   acceptedTerms: z.boolean().optional(),
 });
 
@@ -43,7 +44,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { name, email, password, acceptedTerms } = result.data;
+    const { name, email, password, username, acceptedTerms } = result.data;
 
     // Check if email already exists
     const existing = await prisma.user.findUnique({ where: { email } });
@@ -52,6 +53,19 @@ export async function POST(request: NextRequest) {
         { success: false, error: 'An account with this email already exists' },
         { status: 400 }
       );
+    }
+
+    // Check username uniqueness
+    if (username) {
+      const usernameClean = username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+      const reserved = ['admin', 'system', 'divi', 'dividen', 'support', 'help', 'root', 'null', 'undefined', 'api', 'www'];
+      if (reserved.includes(usernameClean)) {
+        return NextResponse.json({ success: false, error: 'This username is reserved' }, { status: 400 });
+      }
+      const existingUsername = await prisma.user.findFirst({ where: { username: usernameClean } });
+      if (existingUsername) {
+        return NextResponse.json({ success: false, error: 'Username already taken' }, { status: 409 });
+      }
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
@@ -67,6 +81,7 @@ export async function POST(request: NextRequest) {
         passwordHash,
         role,
         mode: 'cockpit',
+        ...(username ? { username: username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '') } : {}),
         ...(acceptedTerms ? {
           acceptedTermsAt: new Date(),
           termsVersion: TERMS_VERSION,

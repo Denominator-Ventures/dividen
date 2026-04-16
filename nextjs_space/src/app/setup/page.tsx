@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import Link from 'next/link';
@@ -26,9 +26,12 @@ function SetupForm() {
   const [inviteLoading, setInviteLoading] = useState(!!inviteToken);
   const [inviteError, setInviteError] = useState('');
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken' | 'invalid'>('idle');
+  const usernameTimer = useRef<NodeJS.Timeout | null>(null);
   const [form, setForm] = useState({
     name: '',
     email: '',
+    username: '',
     password: '',
     confirmPassword: '',
   });
@@ -55,12 +58,34 @@ function SetupForm() {
       .finally(() => setInviteLoading(false));
   }, [inviteToken]);
 
+  const checkUsername = (val: string) => {
+    const clean = val.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+    if (!clean) { setUsernameStatus('idle'); return; }
+    if (clean.length < 2) { setUsernameStatus('invalid'); return; }
+    setUsernameStatus('checking');
+    if (usernameTimer.current) clearTimeout(usernameTimer.current);
+    usernameTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/username/check?username=${encodeURIComponent(clean)}`);
+        const data = await res.json();
+        setUsernameStatus(data.available ? 'available' : 'taken');
+      } catch {
+        setUsernameStatus('idle');
+      }
+    }, 400);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
     if (!acceptedTerms) {
       setError('You must accept the Terms of Service to create an account');
+      return;
+    }
+
+    if (form.username && usernameStatus === 'taken') {
+      setError('That username is already taken — pick another');
       return;
     }
 
@@ -85,6 +110,7 @@ function SetupForm() {
           name: form.name,
           email: form.email,
           password: form.password,
+          ...(form.username.trim() ? { username: form.username.trim().toLowerCase().replace(/[^a-z0-9_.-]/g, '') } : {}),
           acceptedTerms: true,
         }),
       });
@@ -217,6 +243,40 @@ function SetupForm() {
           </div>
 
           <div>
+            <label className="label-mono block mb-2">
+              Username <span className="text-[var(--text-muted)] font-normal text-[10px]">— your @handle for chat mentions</span>
+            </label>
+            <div className="flex gap-2 items-center">
+              <span className="text-white/40 text-sm">@</span>
+              <input
+                type="text"
+                className="input-field flex-1"
+                placeholder="e.g. jon"
+                value={form.username}
+                maxLength={30}
+                onChange={(e) => {
+                  const val = e.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g, '');
+                  setForm({ ...form, username: val });
+                  checkUsername(val);
+                }}
+                required
+              />
+            </div>
+            {usernameStatus === 'checking' && (
+              <p className="text-[10px] text-[var(--text-muted)] mt-1">Checking...</p>
+            )}
+            {usernameStatus === 'available' && (
+              <p className="text-[10px] text-green-400 mt-1">✓ @{form.username} is available</p>
+            )}
+            {usernameStatus === 'taken' && (
+              <p className="text-[10px] text-red-400 mt-1">✗ @{form.username} is already taken</p>
+            )}
+            {usernameStatus === 'invalid' && (
+              <p className="text-[10px] text-yellow-400 mt-1">Must be at least 2 characters</p>
+            )}
+          </div>
+
+          <div>
             <label className="label-mono block mb-2">Password</label>
             <input
               type="password"
@@ -265,7 +325,7 @@ function SetupForm() {
           <button
             type="submit"
             className="btn-primary w-full"
-            disabled={loading || !acceptedTerms}
+            disabled={loading || !acceptedTerms || usernameStatus === 'taken' || usernameStatus === 'checking'}
           >
             {loading ? 'Creating...' : invite ? 'Create Account & Connect' : 'Create Account'}
           </button>
