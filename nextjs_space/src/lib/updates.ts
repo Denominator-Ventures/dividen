@@ -77,6 +77,14 @@ Three pieces for federated partners:
 
 This is the v2.0 foundation. Everything that comes next — mentions in relay messages, federated mention resolution, cross-instance profile linking — builds on these primitives.
 
+## Dallas
+
+Had a very exciting day in Dallas with Chris. Can't say much yet, but we're excited for what's coming.
+
+Jaron — thank you again for the ongoing support of the platform and the meaningful introduction. It matters more than you know.
+
+The future belongs to everyone.
+
 - Jon`,
   },
   {
