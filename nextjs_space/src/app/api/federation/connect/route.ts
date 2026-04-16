@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 // POST /api/federation/connect — receive a connection request from a remote instance
 export async function POST(req: NextRequest) {
@@ -92,6 +93,14 @@ export async function POST(req: NextRequest) {
         lastSeenAt: new Date(),
       },
     });
+
+    // Log for the local target user
+    await logActivity({
+      userId: targetUser.id,
+      action: 'federation_connection_request',
+      summary: `🌐 Federated connection request from ${fromUserName || fromUserEmail} at ${fromInstanceName || fromInstanceUrl}`,
+      metadata: { connectionId: connection.id, fromInstanceUrl, fromUserEmail },
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, connectionId: connection.id });
   } catch (error: any) {

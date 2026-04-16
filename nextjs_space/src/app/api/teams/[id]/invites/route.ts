@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
 import { syncNewMemberToTeamProjects } from '@/lib/team-project-sync';
+import { logActivity } from '@/lib/activity';
 
 // POST /api/teams/:id/invites — create an invite (email, userId, or connectionId)
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -65,6 +66,36 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         inviter: { select: { id: true, name: true, email: true } },
       },
     });
+
+    // Log invite sent
+    const inviteeLabel = resolvedEmail || (resolvedInviteeId ? 'a user' : 'a connection');
+    await logActivity({
+      userId,
+      action: 'team_invite_sent',
+      summary: `Invited ${inviteeLabel} to team "${invite.team.name}"`,
+      metadata: { teamId: params.id, inviteId: invite.id, role: role || 'member' },
+    }).catch(() => {});
+
+    // If invitee is a local user, notify them
+    if (resolvedInviteeId) {
+      await logActivity({
+        userId: resolvedInviteeId,
+        action: 'team_invite_received',
+        summary: `You were invited to join team "${invite.team.name}"`,
+        metadata: { teamId: params.id, inviteId: invite.id, inviterId: userId },
+      }).catch(() => {});
+
+      await prisma.queueItem.create({
+        data: {
+          userId: resolvedInviteeId,
+          type: 'notification',
+          title: `Team invite: ${invite.team.name}`,
+          description: `You were invited to join "${invite.team.name}" as ${role || 'member'}.${message ? ` Message: ${message}` : ''}`,
+          status: 'open',
+          priority: 'normal',
+        },
+      }).catch(() => {});
+    }
 
     return NextResponse.json(invite, { status: 201 });
   } catch (error: any) {

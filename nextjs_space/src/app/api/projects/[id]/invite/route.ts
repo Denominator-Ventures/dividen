@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 /**
  * POST /api/projects/[id]/invite — Invite a user to a project
@@ -85,6 +86,41 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       jobId: linkedJob?.id || null,
     },
   });
+
+  // Activity log for inviter
+  logActivity({
+    userId: inviterId,
+    action: 'project_invite_sent',
+    summary: `Invited ${inviteeEmail || 'a connection'} to project "${project.name}"`,
+    actor: 'user',
+    metadata: { projectId: params.id, inviteId: invite.id, inviteeId, connectionId },
+  });
+
+  // Notification for invitee — activity log + queue item
+  if (inviteeId) {
+    logActivity({
+      userId: inviteeId,
+      action: 'project_invite_received',
+      summary: `${(session.user as any).name || (session.user as any).email} invited you to project "${project.name}"`,
+      actor: 'system',
+      metadata: { projectId: params.id, inviteId: invite.id, inviterId },
+    });
+
+    // Queue item so they see it in their task list
+    await prisma.queueItem.create({
+      data: {
+        type: 'notification',
+        title: `📋 Project invite: ${project.name}`,
+        description: `${(session.user as any).name || 'Someone'} invited you to join "${project.name}" as ${role || 'contributor'}.${message ? ` "${message}"` : ''}`,
+        priority: 'medium',
+        status: 'ready',
+        source: 'system',
+        userId: inviteeId,
+        projectId: params.id,
+        metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id }),
+      },
+    });
+  }
 
   return NextResponse.json({
     success: true,

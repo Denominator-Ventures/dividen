@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 // POST /api/federation/relay — receive a relay from a remote instance
 export async function POST(req: NextRequest) {
@@ -82,6 +83,13 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      await logActivity({
+        userId: fallbackUserId,
+        action: 'federation_relay_received',
+        summary: `🌐 Relay received from ${fromUserName || fromUserEmail}: ${subject || 'No subject'}`,
+        metadata: { relayId: relay.id, connectionId: connection.id, type, intent },
+      }).catch(() => {});
+
       return NextResponse.json({ success: true, relayId: relay.id });
     }
 
@@ -115,6 +123,13 @@ export async function POST(req: NextRequest) {
         metadata: JSON.stringify({ type: 'federated_relay', relayId: relay.id }),
       },
     });
+
+    await logActivity({
+      userId: localUser.id,
+      action: 'federation_relay_received',
+      summary: `🌐 Relay received from ${fromUserName || fromUserEmail}: ${subject || 'No subject'}`,
+      metadata: { relayId: relay.id, connectionId: connection.id, type, intent },
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, relayId: relay.id });
   } catch (error: any) {

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 // GET /api/teams — list teams for current user
 export async function GET() {
@@ -96,6 +97,14 @@ export async function POST(req: NextRequest) {
         subscription: true,
       },
     });
+
+    // Log team creation
+    await logActivity({
+      userId,
+      action: 'team_created',
+      summary: `Created team "${team.name}"${isSelfHosted ? ` (self-hosted from ${originInstanceUrl})` : ''}`,
+      metadata: { teamId: team.id, teamName: team.name, isSelfHosted },
+    }).catch(() => {});
 
     return NextResponse.json(team, { status: 201 });
   } catch (error: any) {

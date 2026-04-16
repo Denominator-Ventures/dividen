@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
 import { syncNewMemberToTeamProjects } from '@/lib/team-project-sync';
+import { logActivity } from '@/lib/activity';
 
 // GET /api/teams/invite/:token — get invite details (no auth required for preview)
 export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
@@ -59,6 +60,14 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
         where: { id: invite.id },
         data: { status: 'declined', declinedAt: new Date() },
       });
+
+      await logActivity({
+        userId,
+        action: 'team_invite_declined',
+        summary: `Declined invite to team "${invite.team.name}"`,
+        metadata: { teamId: invite.teamId, inviteId: invite.id },
+      }).catch(() => {});
+
       return NextResponse.json({ success: true, action: 'declined' });
     }
 
@@ -99,6 +108,24 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
 
     // Auto-sync new member to all team projects
     const projectsAdded = await syncNewMemberToTeamProjects(invite.teamId, userId, invite.connectionId);
+
+    // Log acceptance for the accepter
+    await logActivity({
+      userId,
+      action: 'team_invite_accepted',
+      summary: `Joined team "${invite.team.name}"`,
+      metadata: { teamId: invite.teamId, inviteId: invite.id, role: member.role },
+    }).catch(() => {});
+
+    // Notify the inviter that their invite was accepted
+    if (invite.inviterId) {
+      await logActivity({
+        userId: invite.inviterId,
+        action: 'team_member_joined',
+        summary: `Your invite to team "${invite.team.name}" was accepted`,
+        metadata: { teamId: invite.teamId, acceptedBy: userId },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

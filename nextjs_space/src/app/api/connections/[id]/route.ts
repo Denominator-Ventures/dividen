@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 // PATCH /api/connections/[id] — update connection (accept, block, permissions, nickname)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -176,6 +177,29 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           }
         } catch {}
       })();
+    }
+
+    // ── Activity logging for notification feed ──────────────────────────
+    const peerLabel = updated.isFederated
+      ? (updated.peerUserName || updated.peerUserEmail || 'federated user')
+      : (updated.requesterId === userId
+        ? (updated.accepter?.name || updated.accepter?.email || 'user')
+        : (updated.requester?.name || updated.requester?.email || 'user'));
+
+    if (data.status === 'active') {
+      // Notify the accepting user
+      logActivity({ userId, action: 'connection_accepted', summary: `Accepted connection with ${peerLabel}`, actor: 'user', metadata: { connectionId: id, federated: updated.isFederated } });
+      // Notify the other party (for local connections)
+      if (!updated.isFederated) {
+        const otherUserId = updated.requesterId === userId ? updated.accepterId : updated.requesterId;
+        if (otherUserId) {
+          logActivity({ userId: otherUserId, action: 'connection_accepted', summary: `${(session.user as any).name || (session.user as any).email} accepted your connection request`, actor: 'system', metadata: { connectionId: id } });
+        }
+      }
+    } else if (data.status === 'declined') {
+      logActivity({ userId, action: 'connection_declined', summary: `Declined connection from ${peerLabel}`, actor: 'user', metadata: { connectionId: id } });
+    } else if (data.status === 'blocked') {
+      logActivity({ userId, action: 'connection_blocked', summary: `Blocked connection with ${peerLabel}`, actor: 'user', metadata: { connectionId: id } });
     }
 
     return NextResponse.json(updated);

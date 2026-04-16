@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 // POST /api/projects/:id/members — add a member
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
@@ -20,6 +21,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     const body = await req.json();
     const { email, connectionId, role } = body;
 
+    const project = await prisma.project.findUnique({ where: { id: params.id }, select: { name: true } });
+    const projectName = project?.name || 'a project';
+
     if (connectionId) {
       // Federated member via connection
       const connection = await prisma.connection.findFirst({
@@ -35,6 +39,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         },
         include: { connection: { select: { id: true, peerUserName: true, peerUserEmail: true, peerInstanceUrl: true } } },
       });
+
+      logActivity({ userId, action: 'project_member_added', summary: `Added ${connection.peerUserName || connection.peerUserEmail || 'federated user'} to "${projectName}"`, actor: 'user', metadata: { projectId: params.id, connectionId, federated: true } });
+
       return NextResponse.json(member, { status: 201 });
     }
 
@@ -55,6 +62,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         role: role || 'contributor',
       },
       include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    // Activity logs for both parties
+    logActivity({ userId, action: 'project_member_added', summary: `Added ${targetUser.name || targetUser.email} to "${projectName}"`, actor: 'user', metadata: { projectId: params.id, memberId: targetUser.id } });
+    logActivity({ userId: targetUser.id, action: 'project_member_joined', summary: `You were added to project "${projectName}"`, actor: 'system', metadata: { projectId: params.id, addedBy: userId } });
+
+    // Queue notification for the added member
+    await prisma.queueItem.create({
+      data: {
+        type: 'notification',
+        title: `📋 Added to project: ${projectName}`,
+        description: `${(session.user as any).name || 'Someone'} added you to "${projectName}" as ${role || 'contributor'}.`,
+        priority: 'medium',
+        status: 'ready',
+        source: 'system',
+        userId: targetUser.id,
+        projectId: params.id,
+        metadata: JSON.stringify({ type: 'project_member_added' }),
+      },
     });
 
     return NextResponse.json(member, { status: 201 });

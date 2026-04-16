@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 /**
  * POST /api/federation/connect/accept
@@ -88,6 +89,14 @@ export async function POST(req: NextRequest) {
         }
       } catch {}
     }
+
+    // Log for the local user that their outbound connection was accepted
+    await logActivity({
+      userId: connection.requesterId,
+      action: 'federation_connection_accepted',
+      summary: `🌐 ${acceptedByName || acceptedByEmail || 'Remote user'} accepted your federated connection`,
+      metadata: { connectionId: connection.id, instanceUrl, acceptedByEmail },
+    }).catch(() => {});
 
     return NextResponse.json({ success: true, connectionId: connection.id });
   } catch (error: any) {

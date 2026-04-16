@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { logActivity } from '@/lib/activity';
 
 /**
  * GET /api/project-invites — List invites for current user (received)
@@ -125,6 +126,18 @@ export async function PATCH(req: NextRequest) {
       }
     });
 
+    // Fetch project name for notifications
+    const project = await prisma.project.findUnique({ where: { id: invite.projectId }, select: { name: true } });
+    const projectName = project?.name || 'a project';
+    const userName = (session.user as any).name || (session.user as any).email;
+
+    // Notify accepter
+    logActivity({ userId, action: 'project_invite_accepted', summary: `Joined project "${projectName}"`, actor: 'user', metadata: { projectId: invite.projectId, inviteId } });
+    // Notify inviter
+    if (invite.inviterId) {
+      logActivity({ userId: invite.inviterId, action: 'project_member_joined', summary: `${userName} accepted your invite to "${projectName}"`, actor: 'system', metadata: { projectId: invite.projectId, inviteId, newMemberId: userId } });
+    }
+
     return NextResponse.json({ success: true, message: 'Invite accepted — you are now a project member.' });
   } else {
     // Decline
@@ -132,6 +145,9 @@ export async function PATCH(req: NextRequest) {
       where: { id: inviteId },
       data: { status: 'declined', declinedAt: new Date() },
     });
+
+    const project = await prisma.project.findUnique({ where: { id: invite.projectId }, select: { name: true } });
+    logActivity({ userId, action: 'project_invite_declined', summary: `Declined invite to "${project?.name || 'a project'}"`, actor: 'user', metadata: { projectId: invite.projectId, inviteId } });
 
     return NextResponse.json({ success: true, message: 'Invite declined.' });
   }
