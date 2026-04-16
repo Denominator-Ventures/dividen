@@ -162,6 +162,15 @@ export async function GET(req: NextRequest) {
       console.log(`[google-callback] Auto-installed ${capabilityUpserts.length} capabilities`);
     }
 
+    // ── Fire-and-forget: sync all Google services immediately ──
+    // This pulls emails, calendar events, and drive files in the background
+    // so data is ready by the time the user lands back on the dashboard.
+    import('@/lib/google-sync').then(({ syncAllGoogleServices }) => {
+      syncAllGoogleServices(userId)
+        .then((result) => console.log(`[google-callback] Auto-sync complete:`, result))
+        .catch((e) => console.error('[google-callback] Auto-sync error (non-fatal):', e.message));
+    }).catch(() => {});
+
     // ── Auto-complete "Connect Email & Calendar" checklist task if it exists ──
     try {
       const connectTasks = await prisma.checklistItem.findMany({

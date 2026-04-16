@@ -66,8 +66,22 @@ export function IntegrationManager() {
     const googleStatus = searchParams.get('google');
     const errorMsg = searchParams.get('error');
     if (googleStatus === 'connected') {
-      setToast({ type: 'success', msg: 'Google account connected! Gmail, Calendar, and Drive are now linked.' });
+      setToast({ type: 'success', msg: 'Google connected! Syncing emails, calendar, and drive in the background...' });
       fetchAccounts();
+      // Trigger a full sync (server already started one fire-and-forget, but this ensures completion)
+      fetch('/api/integrations/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service: 'all' }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          if (d.success) {
+            setToast({ type: 'success', msg: `Sync complete — ${d.email || 0} emails, ${d.calendar || 0} events, ${d.drive || 0} files` });
+            fetchAccounts(); // Refresh to show lastSyncAt
+          }
+        })
+        .catch(() => {});
       // Clean URL
       const url = new URL(window.location.href);
       url.searchParams.delete('google');

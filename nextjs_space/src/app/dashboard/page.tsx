@@ -172,6 +172,21 @@ export default function DashboardPage() {
         // The auto-continue message with next task buttons was already injected by the callback.
         // Just force a chat refresh to pick up the new message.
         setChatRefreshKey(Date.now());
+        // Trigger a full sync — server already started one fire-and-forget from the callback,
+        // but this ensures it completes and refreshes the NOW panel when done.
+        fetch('/api/integrations/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ service: 'all' }),
+        })
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.success) {
+              // Refresh the NOW panel so new emails/events show up
+              window.dispatchEvent(new Event('dividen:now-refresh'));
+            }
+          })
+          .catch(() => {});
       }
       // Clean URL params
       if (tabParam || googleStatus) {
