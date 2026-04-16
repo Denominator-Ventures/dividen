@@ -319,7 +319,7 @@ export default function AdminPage() {
       {/* Content */}
       <main className="p-4 md:p-6 max-w-7xl mx-auto">
         {activeTab === 'overview' && <OverviewTab stats={stats} />}
-        {activeTab === 'users' && <UsersTab stats={stats} />}
+        {activeTab === 'users' && <UsersTab stats={stats} token={token} onRefresh={() => fetchStats(token)} />}
         {activeTab === 'content' && <ContentTab stats={stats} />}
         {activeTab === 'activity' && <ActivityTab stats={stats} />}
         {activeTab === 'instances' && <InstancesTab token={token} />}
@@ -413,7 +413,35 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
 }
 
 // ─── Users Tab ──────────────────────────────────────────────────────────────
-function UsersTab({ stats }: { stats: AdminStats }) {
+function UsersTab({ stats, token, onRefresh }: { stats: AdminStats; token: string; onRefresh: () => void }) {
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteResult, setDeleteResult] = useState<string | null>(null);
+
+  const handleDelete = async (userId: string, email: string) => {
+    if (confirmId !== userId) {
+      setConfirmId(userId);
+      return;
+    }
+    setDeletingId(userId);
+    setDeleteResult(null);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Delete failed');
+      setDeleteResult(`Deleted ${email}. Transferred ${data.transferred?.projects || 0} projects, ${data.transferred?.teams || 0} teams.`);
+      setConfirmId(null);
+      onRefresh();
+    } catch (err: any) {
+      setDeleteResult(`Error: ${err.message}`);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-3 gap-3">
@@ -421,6 +449,12 @@ function UsersTab({ stats }: { stats: AdminStats }) {
         <MetricCard label="New (7d)" value={stats.users.last7d} icon="📈" accent />
         <MetricCard label="New (30d)" value={stats.users.last30d} icon="📅" />
       </div>
+
+      {deleteResult && (
+        <div className={`text-xs px-4 py-2 rounded-lg ${deleteResult.startsWith('Error') ? 'bg-red-500/10 text-red-400' : 'bg-emerald-500/10 text-emerald-400'}`}>
+          {deleteResult}
+        </div>
+      )}
 
       <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
@@ -436,6 +470,7 @@ function UsersTab({ stats }: { stats: AdminStats }) {
                 <th className="text-center label-mono text-[10px] px-4 py-3">Docs</th>
                 <th className="text-left label-mono text-[10px] px-4 py-3">Signed Up</th>
                 <th className="text-left label-mono text-[10px] px-4 py-3">Last Active</th>
+                <th className="text-center label-mono text-[10px] px-4 py-3"></th>
               </tr>
             </thead>
             <tbody>
@@ -461,6 +496,33 @@ function UsersTab({ stats }: { stats: AdminStats }) {
                   <td className="px-4 py-3 text-center text-[11px]">{user._count.documents}</td>
                   <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">{timeAgo(user.createdAt)}</td>
                   <td className="px-4 py-3 text-[11px] text-[var(--text-secondary)]">{timeAgo(user.updatedAt)}</td>
+                  <td className="px-4 py-3 text-center">
+                    {confirmId === user.id ? (
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => handleDelete(user.id, user.email)}
+                          disabled={deletingId === user.id}
+                          className="text-[10px] px-2 py-1 rounded bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-colors disabled:opacity-50"
+                        >
+                          {deletingId === user.id ? '…' : 'Confirm'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmId(null)}
+                          className="text-[10px] px-2 py-1 rounded bg-white/[0.04] text-[var(--text-secondary)] hover:bg-white/[0.08] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleDelete(user.id, user.email)}
+                        className="text-[10px] px-2 py-1 rounded bg-white/[0.04] text-[var(--text-secondary)] hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                        title="Delete user"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
