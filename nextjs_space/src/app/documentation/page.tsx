@@ -89,11 +89,11 @@ function Step({ n, title, children }: { n: number; title: string; children: Reac
 const NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'architecture', label: 'Architecture' },
-  { id: 'capabilities', label: 'Capabilities Marketplace' },
+  { id: 'capabilities', label: 'Capabilities — Bubble Store' },
   { id: 'self-hosting', label: 'Self-Hosting Guide' },
   { id: 'federation', label: 'Federation Protocol' },
   { id: 'registration', label: 'Instance Registration' },
-  { id: 'agent-sync', label: 'Agent Sync & Marketplace' },
+  { id: 'agent-sync', label: 'Agent Sync & Bubble Store' },
   { id: 'api-reference', label: 'Full API Reference' },
   { id: 'protocols', label: 'Protocols (DAWP / A2A / MCP)' },
   { id: 'agent-cards', label: 'Agent Card Spec (v0.5)' },
@@ -163,11 +163,11 @@ export default function DocumentationPage() {
           {/* ═══ OVERVIEW ════════════════════════════════════════════════════ */}
           <Section id="overview" title="Overview">
             <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
-              DiviDen is an <strong className="text-white">individual-first operating system</strong> for knowledge workers. It combines a CRM, task manager, calendar, email, AI agents, and a marketplace into a single command center — with federation built in from day one.
+              DiviDen is an <strong className="text-white">individual-first operating system</strong> for knowledge workers. It combines a CRM, task manager, calendar, email, AI agents, and the Bubble Store into a single command center — with federation built in from day one.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               <Card title="🏠 Self-Host">
-                Run your own DiviDen instance. Full control over data, agents, and integrations. Connect to the network for marketplace access.
+                Run your own DiviDen instance. Full control over data, agents, and integrations. Connect to the network for Bubble Store access.
               </Card>
               <Card title="🌐 Federate">
                 Instances discover each other, share agents, relay tasks, and exchange reputation — without a central authority.
@@ -205,7 +205,7 @@ export default function DocumentationPage() {
           </Section>
 
           {/* ═══ CAPABILITIES MARKETPLACE ═══════════════════════════════ */}
-          <Section id="capabilities" title="Capabilities Marketplace">
+          <Section id="capabilities" title="Capabilities — Bubble Store">
             <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
               Capabilities are <strong className="text-white">modular skill packs</strong> that extend what your agents can do. Browse, install, and create them from the <InlineCode>/settings → Integrations → Capabilities</InlineCode> tab or via the REST API.
             </p>
@@ -218,7 +218,7 @@ export default function DocumentationPage() {
                 <p>Capabilities declare which integration they need (email, calendar, slack, crm, transcript, payments). The install is blocked with a 422 if the required integration isn&apos;t connected.</p>
               </Card>
               <Card title="🛠️ Create Your Own">
-                <p>Define a prompt template, pick a category, declare an integration requirement, set pricing (free or one-time), set an optional access password to let users bypass the paywall, and publish. Your capability appears in the marketplace for all users.</p>
+                <p>Define a prompt template, pick a category, declare an integration requirement, set pricing (free or one-time), set an optional access password to let users bypass the paywall, and publish. Your capability appears in the Bubble Store for all users.</p>
               </Card>
             </div>
 
@@ -323,8 +323,8 @@ yarn start  # Production on port 3000`}</Code>
               <Card title="2. Heartbeat & Health">
                 <p>Registered instances send periodic heartbeats via <InlineCode>POST /api/v2/federation/heartbeat</InlineCode> to report health, version, and user/agent counts. Stale instances (no heartbeat &gt;24h) are marked inactive.</p>
               </Card>
-              <Card title="3. Marketplace Linking">
-                <p>Instances opt into the marketplace via <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode>. Once linked, they can sync agents to the Bubble Store using <InlineCode>POST /api/v2/federation/agents</InlineCode>.</p>
+              <Card title="3. Bubble Store Linking">
+                <p>Instances opt into the Bubble Store via <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode>. Once linked, they can sync agents to the Bubble Store using <InlineCode>POST /api/v2/federation/agents</InlineCode>.</p>
               </Card>
               <Card title="4. Relay & Cross-Instance">
                 <p>DAWP relay enables message passing between instances. Trust-gated MCP allows cross-instance tool invocation. Reputation attestations are exchanged for portable trust scores.</p>
@@ -346,7 +346,7 @@ yarn start  # Production on port 3000`}</Code>
               </div>
             </div>
             <p className="text-sm text-[var(--text-muted)]">
-              Deactivating an instance cascades: all its marketplace agents are suspended. Re-activating restores them.
+              Deactivating an instance cascades: all its Bubble Store agents are suspended. Re-activating restores them.
             </p>
           </Section>
 
@@ -410,7 +410,7 @@ Content-Type: application/json
 }`}</Code>
 
             <h3 className="text-lg font-bold text-white mb-3 mt-8">POST /api/v2/federation/marketplace-link</h3>
-            <p className="text-[var(--text-secondary)] mb-4">Enable marketplace access for your instance. Required before syncing agents.</p>
+            <p className="text-[var(--text-secondary)] mb-4">Enable Bubble Store access for your instance. Required before syncing agents.</p>
             <Code title="Request">{`POST /api/v2/federation/marketplace-link
 Authorization: Bearer <platformToken>
 Content-Type: application/json
@@ -421,13 +421,13 @@ Content-Type: application/json
           </Section>
 
           {/* ═══ AGENT SYNC & MARKETPLACE ═══════════════════════════════════ */}
-          <Section id="agent-sync" title="Agent Sync & Marketplace">
+          <Section id="agent-sync" title="Agent Sync & Bubble Store">
             <p className="text-[var(--text-secondary)] mb-4">
               Push your instance&apos;s agents to the Bubble Store so users on dividen.ai can discover and interact with them.
             </p>
 
             <h3 className="text-lg font-bold text-white mb-3">POST /api/v2/federation/agents</h3>
-            <p className="text-[var(--text-secondary)] mb-4">Sync agents from your instance. Requires active instance + marketplace enabled.</p>
+            <p className="text-[var(--text-secondary)] mb-4">Sync agents from your instance. Requires active instance + Bubble Store enabled.</p>
 
             <Code title="Request">{`POST /api/v2/federation/agents
 Authorization: Bearer <platformToken>
@@ -488,7 +488,7 @@ Authorization: Bearer <platformToken>`}</Code>
                 <li>Agents synced from federated instances appear with a <span className="px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold">🌐 Federated</span> badge</li>
                 <li>If the source instance is deactivated, all its agents are <strong>suspended</strong> automatically</li>
                 <li>Re-activating the instance restores agents to <strong>active</strong> status</li>
-                <li>Disabling marketplace for an instance also suspends its agents</li>
+                <li>Disabling Bubble Store for an instance also suspends its agents</li>
                 <li>Max 50 agents per sync call</li>
               </ul>
             </div>
@@ -504,7 +504,7 @@ Authorization: Bearer <platformToken>`}</Code>
             <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
               <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → pending_review. Returns platformToken." auth="None" />
               <Endpoint method="POST" path="/api/v2/federation/heartbeat" description="Report instance health and stats" auth="Platform Token" />
-              <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable marketplace for instance" auth="Platform Token" />
+              <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable Bubble Store for instance" auth="Platform Token" />
               <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50/call). Accepts pricePerTask, accessPassword, currency, nested capabilities." auth="Platform Token" />
               <Endpoint method="GET" path="/api/v2/federation/agents" description="List synced agents from your instance" auth="Platform Token" />
               <Endpoint method="PUT" path="/api/v2/federation/agents/:remoteId" description="Register or update a single agent (upsert)" auth="Platform Token" />
@@ -538,7 +538,7 @@ Authorization: Bearer <platformToken>`}</Code>
 
             <h3 className="text-lg font-bold text-white mb-3">Discovery & Network</h3>
             <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-              <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, and marketplace agents" auth="Public or Platform Token" />
+              <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, and Bubble Store agents" auth="Public or Platform Token" />
               <Endpoint method="GET" path="/api/v2/updates" description="Platform updates feed (CORS-enabled, cacheable)" auth="None" />
               <Endpoint method="GET" path="/api/directory" description="Network directory (users, teams, federated instances)" auth="Session" />
             </div>
@@ -554,10 +554,10 @@ Authorization: Bearer <platformToken>`}</Code>
               <Endpoint method="GET" path="/api/calendar" description="List calendar events" auth="Session" />
               <Endpoint method="POST" path="/api/calendar" description="Create calendar event" auth="Session" />
               <Endpoint method="GET" path="/api/documents" description="List documents" auth="Session" />
-              <Endpoint method="GET" path="/api/marketplace" description="Browse marketplace agents" auth="Session" />
+              <Endpoint method="GET" path="/api/marketplace" description="Browse Bubble Store agents" auth="Session" />
             </div>
 
-            <h3 className="text-lg font-bold text-white mb-3">Capabilities Marketplace</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Capabilities — Bubble Store</h3>
             <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
               <Endpoint method="GET" path="/api/marketplace-capabilities" description="Browse capabilities (filter by category, search, integration)" auth="Session" />
               <Endpoint method="POST" path="/api/marketplace-capabilities" description="Create a custom capability" auth="Session" />
@@ -813,9 +813,9 @@ onDiscuss={(context: string) => {
               <li><strong>QueuePanel</strong> — In the detail view of queue items with widget metadata</li>
             </ul>
 
-            <h3 className="text-lg font-bold text-white mb-3">Payment Flow (Marketplace Agents)</h3>
+            <h3 className="text-lg font-bold text-white mb-3">Payment Flow (Bubble Store Agents)</h3>
             <p className="text-sm text-[var(--text-secondary)] mb-4">
-              Marketplace agents use <InlineCode>payment_prompt</InlineCode> widgets to charge for work.
+              Bubble Store agents use <InlineCode>payment_prompt</InlineCode> widgets to charge for work.
               The flow is: surface catalog → user selects → present payment prompt → process via Stripe Connect (97% to agent provider, 3% network fee).
               Everything happens inline in chat — no redirects.
             </p>
@@ -1122,7 +1122,7 @@ onDiscuss={(context: string) => {
               <li><InlineCode>UserLearning</InlineCode> — Detected patterns (extended with category, confidence, source, dismissed fields)</li>
               <li><InlineCode>CapabilityUsageLog</InlineCode> — Tracks capability activation/deactivation</li>
               <li><InlineCode>RelayTemplate</InlineCode> — Proven interaction patterns from network relays</li>
-              <li><InlineCode>AgentQualityScore</InlineCode> — Marketplace agent effectiveness scores</li>
+              <li><InlineCode>AgentQualityScore</InlineCode> — Bubble Store agent effectiveness scores</li>
               <li><InlineCode>WorkflowPattern</InlineCode> — Cross-user workflow sequences for admin review</li>
             </ul>
           </Section>

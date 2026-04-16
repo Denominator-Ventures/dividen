@@ -315,26 +315,26 @@ Content-Type: application/json
         {/* ── Federation v2 API ──────────────────────────────── */}
         <Section id="federation-v2" title="Federation v2 API" badge={<UpdatedBadge date="Apr 14" />}>
           <p className="text-[var(--text-secondary)] mb-4">
-            The v2 federation endpoints handle instance registration, heartbeat, marketplace linking, agent sync, and payment validation.
+            The v2 federation endpoints handle instance registration, heartbeat, Bubble Store linking, agent sync, and payment validation.
             Public endpoints are CORS-enabled. Authenticated endpoints use the <InlineCode>platformToken</InlineCode> issued during registration.
           </p>
 
           <h3 className="text-lg font-bold mb-3">Public Endpoints</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
             <Endpoint method="GET" path="/api/v2/updates" description="Unified platform updates feed (CORS-enabled, cacheable)" auth="Public" />
-            <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, marketplace agents" auth="Public or Platform Token" />
+            <Endpoint method="GET" path="/api/v2/network/discover" description="Discover profiles, teams, Bubble Store agents" auth="Public or Platform Token" />
           </div>
 
           <h3 className="text-lg font-bold mb-3">Instance Registration & Lifecycle</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
             <Endpoint method="POST" path="/api/v2/federation/register" description="Register instance → returns platformToken. New instances start as pending_review." auth="None" />
             <Endpoint method="POST" path="/api/v2/federation/heartbeat" description="Report instance health, version, user/agent counts (send every 1-12h)" auth="Platform Token" />
-            <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable marketplace participation for instance" auth="Platform Token" />
+            <Endpoint method="POST" path="/api/v2/federation/marketplace-link" description="Enable/disable Bubble Store participation for instance" auth="Platform Token" />
           </div>
 
           <h3 className="text-lg font-bold mb-3">Agent Sync</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed marketplace (max 50 per call). Accepts pricePerTask/pricingAmount/price, accessPassword, currency, nested capabilities." auth="Platform Token" />
+            <Endpoint method="POST" path="/api/v2/federation/agents" description="Sync agents to managed Bubble Store (max 50 per call). Accepts pricePerTask/pricingAmount/price, accessPassword, currency, nested capabilities." auth="Platform Token" />
             <Endpoint method="GET" path="/api/v2/federation/agents" description="List agents currently synced from your instance" auth="Platform Token" />
             <Endpoint method="PUT" path="/api/v2/federation/agents/:remoteId" description="Register or update a single agent (upsert)" auth="Platform Token" />
             <Endpoint method="GET" path="/api/v2/federation/agents/:remoteId" description="Retrieve agent details + revenue stats" auth="Platform Token" />
@@ -343,13 +343,13 @@ Content-Type: application/json
 
           <h3 className="text-lg font-bold mb-3">Capability Sync</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/v2/federation/capabilities" description="Sync capabilities to managed marketplace (max 50 per call). Accepts promptGroup, signalPatterns, tokenEstimate, alwaysLoad." auth="Platform Token" />
+            <Endpoint method="POST" path="/api/v2/federation/capabilities" description="Sync capabilities to managed Bubble Store (max 50 per call). Accepts promptGroup, signalPatterns, tokenEstimate, alwaysLoad." auth="Platform Token" />
             <Endpoint method="GET" path="/api/v2/federation/capabilities" description="List capabilities currently synced from your instance" auth="Platform Token" />
           </div>
 
           <h3 className="text-lg font-bold mb-3">Payment Validation</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/v2/federation/validate-payment" description="Validate proposed fee against network minimums (3% marketplace, 7% recruiting)" auth="Platform Token" />
+            <Endpoint method="POST" path="/api/v2/federation/validate-payment" description="Validate proposed fee against network minimums (3% Bubble Store, 7% recruiting)" auth="Platform Token" />
           </div>
 
           <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4">
@@ -357,7 +357,7 @@ Content-Type: application/json
             <p className="text-sm text-[var(--text-secondary)]">
               New registrations start as <strong className="text-amber-400">pending_review</strong>. Admin approval is required before the instance is active on the network.
               All agent and capability submissions always enter <strong className="text-amber-400">pending_review</strong> — no auto-approve, even for trusted instances.
-              Deactivating an instance cascade-suspends all its marketplace agents. Re-activating restores them.
+              Deactivating an instance cascade-suspends all its Bubble Store agents. Re-activating restores them.
             </p>
           </div>
         </Section>
@@ -376,7 +376,7 @@ Content-Type: application/json`}</Code>
 
           <h3 className="text-lg font-bold mb-3 mt-6">Methods</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path='{ "method": "tools/list" }' description="List all available tools (20 static + dynamic marketplace tools)" />
+            <Endpoint method="POST" path='{ "method": "tools/list" }' description="List all available tools (20 static + dynamic Bubble Store tools)" />
             <Endpoint method="POST" path='{ "method": "tools/call", "params": { "name": "...", "arguments": {...} } }' description="Execute a tool" />
             <Endpoint method="POST" path='{ "method": "resources/list" }' description="List available resources" />
           </div>
@@ -400,14 +400,14 @@ Content-Type: application/json`}</Code>
           <div className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-4 mb-6">
             <h4 className="text-sm font-bold text-white mb-2">New in MCP v1.6</h4>
             <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
-              <li><InlineCode>marketplace_browse</InlineCode> — Search and filter marketplace agents by category, pricing, skills</li>
+              <li><InlineCode>marketplace_browse</InlineCode> — Search and filter Bubble Store agents by category, pricing, skills</li>
               <li><InlineCode>marketplace_unlock</InlineCode> — Unlock paid agents using developer-shared access passwords</li>
             </ul>
           </div>
 
           <h3 className="text-lg font-bold mb-3">Dynamic Tools</h3>
           <p className="text-[var(--text-secondary)] text-sm mb-2">
-            Installed marketplace agents appear as <InlineCode>marketplace_&#123;slug&#125;</InlineCode> tools.
+            Installed Bubble Store agents appear as <InlineCode>marketplace_&#123;slug&#125;</InlineCode> tools.
             Install an agent → it becomes an MCP tool automatically.
           </p>
 
@@ -472,7 +472,7 @@ Content-Type: application/json`}</Code>
         </Section>
 
         {/* ── Marketplace API ─────────────────────────────────── */}
-        <Section id="marketplace" title="Marketplace API">
+        <Section id="marketplace" title="Bubble Store API">
           <p className="text-[var(--text-secondary)] mb-4">
             Register, discover, and execute AI agents.
           </p>
@@ -494,7 +494,7 @@ Content-Type: application/json`}</Code>
 
           <h3 className="text-lg font-bold mb-3">Execution Endpoint — Full Contract</h3>
           <p className="text-[var(--text-secondary)] mb-4">
-            <InlineCode>POST /api/marketplace/:id/execute</InlineCode> is the primary endpoint for running tasks against marketplace agents.
+            <InlineCode>POST /api/marketplace/:id/execute</InlineCode> is the primary endpoint for running tasks against Bubble Store agents.
             DiviDen acts as a broker: it calls the agent&apos;s <InlineCode>endpointUrl</InlineCode> directly, tracks the execution, and handles payment splitting.
           </p>
 
@@ -590,8 +590,8 @@ X-DiviDen-Source: marketplace`}</Code>
           <h4 className="text-md font-semibold mb-2 mt-4 text-[var(--text-primary)]">Inbound Task Routing — Which Endpoint Receives What</h4>
           <div className="bg-[var(--bg-tertiary)] rounded-lg p-4 text-sm space-y-2">
             <div className="flex gap-2">
-              <span className="font-bold text-blue-400 w-40 flex-shrink-0">Marketplace Execute</span>
-              <span className="text-[var(--text-secondary)]">Direct HTTP POST to agent&apos;s <InlineCode>endpointUrl</InlineCode>. Brokered by DiviDen. Used when a user clicks &quot;Execute&quot; on a marketplace agent. Synchronous (30s timeout).</span>
+              <span className="font-bold text-blue-400 w-40 flex-shrink-0">Bubble Store Execute</span>
+              <span className="text-[var(--text-secondary)]">Direct HTTP POST to agent&apos;s <InlineCode>endpointUrl</InlineCode>. Brokered by DiviDen. Used when a user clicks &quot;Execute&quot; on a Bubble Store agent. Synchronous (30s timeout).</span>
             </div>
             <div className="flex gap-2">
               <span className="font-bold text-purple-400 w-40 flex-shrink-0">DAWP Relay</span>
@@ -634,7 +634,7 @@ X-DiviDen-Source: marketplace`}</Code>
         {/* ── Integration Kit ─────────────────────────────────── */}
         <Section id="integration-kit" title="Integration Kit">
           <p className="text-[var(--text-secondary)] mb-4">
-            When listing an agent in the marketplace, you can provide an Integration Kit — structured metadata that teaches Divi how to work with your agent.
+            When listing an agent in the Bubble Store, you can provide an Integration Kit — structured metadata that teaches Divi how to work with your agent.
           </p>
 
           <h3 className="text-lg font-bold mb-3">Kit Fields</h3>
@@ -681,7 +681,7 @@ X-DiviDen-Source: marketplace`}</Code>
             <div className="space-y-2 text-sm text-[var(--text-secondary)]">
               <div className="flex items-center gap-3">
                 <span className="text-brand-400 font-bold">1.</span>
-                <span>Installed marketplace agents with matching task types</span>
+                <span>Installed Bubble Store agents with matching task types</span>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-brand-400 font-bold">2.</span>
@@ -1974,7 +1974,7 @@ model AgentRelay {
                 <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetWebhookSetup</td><td className="py-2 pr-4">Webhook creation flow</td><td className="py-2">onComplete</td></tr>
                 <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetSubmitButton</td><td className="py-2 pr-4">Primary action</td><td className="py-2">onClick, label, loading</td></tr>
                 <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetSkipButton</td><td className="py-2 pr-4">Skip/dismiss</td><td className="py-2">onClick, label</td></tr>
-                <tr><td className="py-2 pr-4 font-mono text-brand-400">AgentWidget</td><td className="py-2 pr-4">Agent cards/lists (marketplace, A2A)</td><td className="py-2">payload, onAction</td></tr>
+                <tr><td className="py-2 pr-4 font-mono text-brand-400">AgentWidget</td><td className="py-2 pr-4">Agent cards/lists (Bubble Store, A2A)</td><td className="py-2">payload, onAction</td></tr>
               </tbody>
             </table>
           </div>
@@ -2065,11 +2065,11 @@ interface AgentWidgetData {
           </p>
           <ul className="list-disc list-inside text-[var(--text-secondary)] mb-3 space-y-1">
             <li><InlineCode>platformLinked: true</InlineCode> AND <InlineCode>isActive: true</InlineCode> — instance must be fully registered and active</li>
-            <li><InlineCode>marketplaceEnabled: true</InlineCode> — call <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode> first to enable marketplace on the instance</li>
+            <li><InlineCode>marketplaceEnabled: true</InlineCode> — call <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode> first to enable Bubble Store on the instance</li>
           </ul>
           <p className="text-[var(--text-secondary)] mb-3">
-            If either condition fails, the response is <InlineCode>401</InlineCode> (inactive token) or <InlineCode>403</InlineCode> (marketplace not enabled).
-            The <InlineCode>403</InlineCode> body includes the specific error message. FVP should check the response status and call <InlineCode>marketplace-link</InlineCode> if they get a 403 with the marketplace error.
+            If either condition fails, the response is <InlineCode>401</InlineCode> (inactive token) or <InlineCode>403</InlineCode> (Bubble Store not enabled).
+            The <InlineCode>403</InlineCode> body includes the specific error message. FVP should check the response status and call <InlineCode>marketplace-link</InlineCode> if they get a 403 with the Bubble Store error.
           </p>
 
           <h4 className="text-base font-bold text-white mb-2 mt-6">3. BehaviorSignal Spec — Taxonomy</h4>
@@ -2083,7 +2083,7 @@ interface AgentWidgetData {
 "calendar_dismiss"   // User dismissed a calendar item
 "chat_send"          // User sent a chat message
 "draft_edit"         // User edited a draft
-"capability_use"     // User invoked a marketplace capability
+"capability_use"     // User invoked a Bubble Store capability
 "relay_send"         // User sent a relay
 
 // Schema

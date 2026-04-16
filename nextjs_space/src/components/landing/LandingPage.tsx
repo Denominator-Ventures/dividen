@@ -8,6 +8,7 @@ import {
   FEATURES,
   PROTOCOL_LAYERS,
   MARKETPLACE_STATS,
+  PERSONAS,
 } from '@/lib/landing-data';
 import { HowItWorks } from './HowItWorks';
 
@@ -138,8 +139,11 @@ export function LandingPage() {
               Features
             </a>
             <a href="#marketplace" className="text-sm text-white/50 hover:text-white transition-colors">
-              Marketplace
+              Bubble Store
             </a>
+            <Link href="/documentation" className="text-sm text-white/50 hover:text-white transition-colors">
+              Docs
+            </Link>
             <Link href="/updates" className="relative text-sm text-white/50 hover:text-white transition-colors">
               Updates
               {todayUpdateCount > 0 && (
@@ -171,7 +175,7 @@ export function LandingPage() {
       </nav>
 
       {/* ── Hero ────────────────────────────────────────────────────────── */}
-      <section className="relative pt-32 pb-24 md:pt-44 md:pb-36">
+      <section className="relative pt-32 pb-16 md:pt-44 md:pb-24">
         {/* Subtle gradient orb */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] bg-brand-500/[0.04] rounded-full blur-[120px] pointer-events-none" />
 
@@ -182,20 +186,21 @@ export function LandingPage() {
             }`}
           >
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-400 mb-6">
-              Your AI-powered command center
+              AI-native personal operating system
             </p>
 
             <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-8">
-              The last interface
-              <br />
+              One agent.{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-300">
-                you&apos;ll ever need.
+                Every workflow.
               </span>
+              <br />
+              Zero context switching.
             </h1>
 
             <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-4 leading-relaxed">
-              Your AI agent learns how you work, handles what it can, and surfaces only what needs you.
-              The more you connect, the more it compounds.
+              Divi manages your tasks, comms, calendar, contacts, and goals in one dashboard.
+              It learns how you work, routes what it can, and surfaces only what needs you.
             </p>
 
             {/* Typing effect */}
@@ -211,9 +216,74 @@ export function LandingPage() {
                 href="/setup"
                 className="w-full sm:w-auto text-center bg-brand-500 hover:bg-brand-400 text-black font-semibold px-8 py-3.5 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-base"
               >
-                Start for Free
+                Get Started — Free
               </Link>
-              {mounted && <DownloadAppButton />}
+              <Link
+                href="/documentation"
+                className="w-full sm:w-auto text-center border border-white/10 hover:border-white/20 text-white/70 hover:text-white px-8 py-3.5 rounded-xl transition-all text-base"
+              >
+                Read the Docs
+              </Link>
+            </div>
+            {mounted && <div className="mt-4 flex justify-center"><DownloadAppButton /></div>}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Dashboard Preview ──────────────────────────────────────────── */}
+      <section className="pb-16 md:pb-24">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden shadow-2xl shadow-brand-500/[0.03]">
+            {/* Simulated dashboard UI */}
+            <div className="h-8 bg-[#0a0a0a] border-b border-white/[0.06] flex items-center px-4 gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500/40" />
+              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/40" />
+              <div className="w-2.5 h-2.5 rounded-full bg-green-500/40" />
+              <span className="ml-3 text-[10px] text-white/20 font-mono">dividen.ai/dashboard</span>
+            </div>
+            <div className="grid grid-cols-12 min-h-[340px] md:min-h-[420px]">
+              {/* Left — NOW panel */}
+              <div className="col-span-3 border-r border-white/[0.04] p-4">
+                <p className="text-[10px] font-mono text-brand-400/60 uppercase tracking-wider mb-3">NOW</p>
+                <div className="space-y-2.5">
+                  {['🔴 Q3 Proposal — due today', '📧 3 emails need triage', '📅 Standup in 45min', '⚡ Relay from Chris'].map((item, i) => (
+                    <div key={i} className="text-[11px] text-white/40 bg-white/[0.02] rounded-lg px-3 py-2 border border-white/[0.04]">{item}</div>
+                  ))}
+                </div>
+              </div>
+              {/* Center — Chat */}
+              <div className="col-span-6 p-4">
+                <p className="text-[10px] font-mono text-white/20 uppercase tracking-wider mb-3">Chat with Divi</p>
+                <div className="space-y-3">
+                  <div className="bg-brand-500/10 rounded-lg px-3 py-2 text-[11px] text-white/50 border border-brand-500/10 max-w-[85%]">
+                    Good morning. 3 items need attention: the Q3 proposal draft is due, Chris sent a relay about the API spec, and you have 2 new connection requests.
+                  </div>
+                  <div className="bg-white/[0.04] rounded-lg px-3 py-2 text-[11px] text-white/40 border border-white/[0.04] max-w-[70%] ml-auto">
+                    Route the API spec relay to Sarah — she&apos;s leading that.
+                  </div>
+                  <div className="bg-brand-500/10 rounded-lg px-3 py-2 text-[11px] text-white/50 border border-brand-500/10 max-w-[85%]">
+                    Done. Sent an ambient relay to Sarah with the API spec context. She&apos;ll see it when the topic comes up naturally.
+                  </div>
+                </div>
+              </div>
+              {/* Right — Context */}
+              <div className="col-span-3 border-l border-white/[0.04] p-4">
+                <p className="text-[10px] font-mono text-white/20 uppercase tracking-wider mb-3">Board</p>
+                <div className="space-y-2">
+                  {[
+                    { status: 'In Progress', color: 'bg-blue-500/20 text-blue-400', cards: ['Q3 Proposal', 'API v2 Spec'] },
+                    { status: 'Review', color: 'bg-amber-500/20 text-amber-400', cards: ['Landing Page'] },
+                    { status: 'Done', color: 'bg-green-500/20 text-green-400', cards: ['Onboarding flow'] },
+                  ].map(col => (
+                    <div key={col.status}>
+                      <span className={`text-[9px] font-mono px-1.5 py-0.5 rounded ${col.color}`}>{col.status}</span>
+                      {col.cards.map(c => (
+                        <div key={c} className="text-[10px] text-white/30 mt-1 pl-2 border-l border-white/[0.04]">{c}</div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -334,6 +404,40 @@ export function LandingPage() {
       </section>
 
 
+      {/* ── Who Is This For (Personas) ─────────────────────────────── */}
+      <section className="py-20 md:py-32 border-t border-white/[0.04]">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-400 mb-4">
+              Built For
+            </p>
+            <h2 className="font-heading text-3xl md:text-4xl font-bold">
+              Who uses DiviDen?
+            </h2>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {PERSONAS.map((p) => (
+              <div
+                key={p.title}
+                className="p-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.04] hover:border-white/[0.1] transition-all duration-300"
+              >
+                <div className="text-3xl mb-3">{p.emoji}</div>
+                <h3 className="font-heading text-lg font-semibold mb-1">{p.title}</h3>
+                <p className="text-sm text-brand-400/70 mb-4">{p.subtitle}</p>
+                <ul className="space-y-2">
+                  {p.useCases.map((uc, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-white/40 leading-relaxed">
+                      <span className="text-brand-400/50 mt-0.5 shrink-0">→</span>
+                      <span>{uc}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ── Bubble Store ──────────────────────────────────────────── */}
       <section id="marketplace" className="py-20 md:py-32 border-t border-white/[0.04]">
         <div className="max-w-6xl mx-auto px-6">
@@ -429,50 +533,59 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ── Protocol Stack (Accordion) ────────────────────────────────── */}
-      <section id="protocol" className="py-20 md:py-32 border-t border-white/[0.04]">
+      {/* ── Protocol Stack (Collapsible) ─────────────────────────────── */}
+      <section id="protocol" className="py-16 md:py-24 border-t border-white/[0.04]">
         <div className="max-w-5xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-brand-400 mb-4">
+          <button
+            onClick={() => setExpandedProtocol(expandedProtocol === '_all' ? null : '_all')}
+            className="w-full text-center group"
+          >
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-white/30 mb-2 group-hover:text-white/50 transition-colors">
               Under the Hood
             </p>
-            <h2 className="font-heading text-3xl md:text-4xl font-bold mb-4">
-              Built on a real protocol.
+            <h2 className="font-heading text-xl md:text-2xl font-bold mb-2 text-white/60 group-hover:text-white/80 transition-colors">
+              Built on a 10-layer protocol stack {expandedProtocol === '_all' ? '▴' : '▾'}
             </h2>
-            <p className="text-white/40 max-w-2xl mx-auto">
-              DiviDen isn&apos;t just a UI. Under the hood, it&apos;s a structured protocol for personal AI
-              agents to coordinate, share context, and act — so you don&apos;t have to.
+            <p className="text-sm text-white/30 max-w-xl mx-auto">
+              Not just a UI — a structured protocol for personal AI agents to coordinate, share context, and act.
             </p>
-          </div>
+          </button>
 
-          <div className="space-y-2">
-            {PROTOCOL_LAYERS.map((layer) => {
-              const isOpen = expandedProtocol === layer.num;
-              return (
-                <button
-                  key={layer.num}
-                  onClick={() => setExpandedProtocol(isOpen ? null : layer.num)}
-                  className="w-full text-left flex items-center gap-5 p-5 rounded-xl border border-white/[0.04] hover:border-white/[0.08] bg-white/[0.01] hover:bg-white/[0.03] transition-all group"
-                >
-                  <span className="font-mono text-xl font-bold text-white/20 shrink-0 leading-none group-hover:text-white/30 transition-colors w-7">
-                    {layer.num}
-                  </span>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-heading text-base font-semibold">{layer.name}</h3>
-                    <div
-                      className={`overflow-hidden transition-all duration-300 ${
-                        isOpen ? 'max-h-24 opacity-100 mt-1.5' : 'max-h-0 opacity-0'
-                      }`}
-                    >
-                      <p className="text-sm text-white/40 leading-relaxed">{layer.desc}</p>
+          <div className={`overflow-hidden transition-all duration-500 ${expandedProtocol === '_all' ? 'max-h-[2000px] opacity-100 mt-8' : 'max-h-0 opacity-0'}`}>
+            <div className="space-y-2">
+              {PROTOCOL_LAYERS.map((layer) => {
+                const isOpen = expandedProtocol === layer.num;
+                return (
+                  <button
+                    key={layer.num}
+                    onClick={(e) => { e.stopPropagation(); setExpandedProtocol(isOpen ? '_all' : layer.num); }}
+                    className="w-full text-left flex items-center gap-5 p-4 rounded-xl border border-white/[0.04] hover:border-white/[0.08] bg-white/[0.01] hover:bg-white/[0.03] transition-all group"
+                  >
+                    <span className="font-mono text-lg font-bold text-white/20 shrink-0 leading-none group-hover:text-white/30 transition-colors w-7">
+                      {layer.num}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-heading text-sm font-semibold">{layer.name}</h3>
+                      <div
+                        className={`overflow-hidden transition-all duration-300 ${
+                          isOpen ? 'max-h-24 opacity-100 mt-1' : 'max-h-0 opacity-0'
+                        }`}
+                      >
+                        <p className="text-xs text-white/40 leading-relaxed">{layer.desc}</p>
+                      </div>
                     </div>
-                  </div>
-                  <span className={`text-white/20 shrink-0 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}>
-                    ▾
-                  </span>
-                </button>
-              );
-            })}
+                    <span className={`text-white/20 shrink-0 transition-transform duration-300 text-sm ${isOpen ? 'rotate-180' : ''}`}>
+                      ▾
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="text-center mt-6">
+              <Link href="/documentation" className="text-sm text-brand-400 hover:text-brand-300 transition-colors">
+                Full protocol documentation →
+              </Link>
+            </div>
           </div>
         </div>
       </section>
@@ -518,27 +631,19 @@ export function LandingPage() {
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-300">
               More leverage.
             </span>
-            <br />
-            Start today.
           </h2>
           <p className="text-white/40 max-w-lg mx-auto mb-10 leading-relaxed">
             Connect your tools, let Divi learn how you work, and reclaim the hours you spend on coordination.
-            Everything else unlocks as you go.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link
-              href="/setup"
-              className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-lg"
-            >
-              Create Your Account
-            </Link>
-            <Link
-              href="/login"
-              className="inline-block border border-white/10 hover:border-white/20 text-white/70 hover:text-white font-medium px-10 py-4 rounded-xl transition-all text-lg"
-            >
-              Log In
-            </Link>
-          </div>
+          <Link
+            href="/setup"
+            className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-lg"
+          >
+            Get Started — Free
+          </Link>
+          <p className="mt-4 text-sm text-white/20">
+            Already have an account? <Link href="/login" className="text-brand-400/60 hover:text-brand-400 transition-colors">Log in</Link>
+          </p>
         </div>
       </section>
 

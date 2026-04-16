@@ -161,12 +161,18 @@ function KanbanCard({
       </div>
 
       {/* Project members */}
-      {card.project && card.project.members && card.project.members.length > 0 && (
+      {card.project && (
         <div className="mt-2 pt-2 border-t border-[var(--border-color)]">
-          <div className="flex items-center gap-1 mb-1">
+          <div className="flex items-center gap-1.5 mb-1 flex-wrap">
             <span className="text-[10px] text-brand-400/70">📁 {card.project.name}</span>
+            <AssignTeamDropdown
+              projectId={card.project.id}
+              projectName={card.project.name}
+              currentTeam={(card.project as any).team}
+              onAssigned={() => window.dispatchEvent(new Event('dividen:board-refresh'))}
+            />
           </div>
-          <div className="flex items-center -space-x-1.5">
+          {card.project.members && card.project.members.length > 0 && <div className="flex items-center -space-x-1.5">
             {card.project.members.slice(0, 5).map((m) => {
               const name = m.user?.name || m.connection?.peerUserName || '?';
               const initial = name.charAt(0).toUpperCase();
@@ -195,7 +201,7 @@ function KanbanCard({
                 +{card.project.members.length - 5}
               </div>
             )}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -379,6 +385,110 @@ function NewCardForm({
           </button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// ─── Assign Team to Project Dropdown ─────────────────────────────────────────
+
+function AssignTeamDropdown({ projectId, projectName, currentTeam, onAssigned }: {
+  projectId: string;
+  projectName: string;
+  currentTeam?: { id: string; name: string; avatar?: string | null } | null;
+  onAssigned: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [teams, setTeams] = useState<{ id: string; name: string; avatar: string | null }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchTeams = useCallback(async () => {
+    if (teams.length > 0) return;
+    setLoading(true);
+    try {
+      const res = await fetch('/api/teams');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setTeams(data.map((t: any) => ({ id: t.id, name: t.name, avatar: t.avatar })));
+      }
+    } catch {}
+    setLoading(false);
+  }, [teams.length]);
+
+  const assign = async (teamId: string | null) => {
+    setSaving(true);
+    try {
+      const body: any = { teamId: teamId || null };
+      if (teamId) body.visibility = 'team';
+      await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      onAssigned();
+    } catch {}
+    setSaving(false);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative inline-block">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen(!open); if (!open) fetchTeams(); }}
+        className={cn(
+          'text-[9px] px-1.5 py-0.5 rounded transition-all',
+          currentTeam
+            ? 'bg-purple-500/15 text-purple-400 hover:bg-purple-500/25'
+            : 'bg-brand-500/10 text-brand-400/60 hover:text-brand-400 hover:bg-brand-500/20'
+        )}
+        title={currentTeam ? `Team: ${currentTeam.name} — click to change` : `Assign ${projectName} to a team`}
+      >
+        {currentTeam ? `${currentTeam.avatar || '👥'} ${currentTeam.name}` : '+ Assign Team'}
+      </button>
+
+      {open && (
+        <div
+          className="absolute left-0 top-full mt-1 w-48 bg-[#1a1a2e] border border-white/10 rounded-xl shadow-xl z-50 p-2"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-[10px] text-[var(--text-muted)] px-2 py-1 mb-1">
+            {currentTeam ? 'Change team for' : 'Assign team to'} <strong className="text-white">{projectName}</strong>
+          </p>
+          {loading ? (
+            <p className="text-[10px] text-[var(--text-muted)] px-2 py-2">Loading teams...</p>
+          ) : teams.length === 0 ? (
+            <p className="text-[10px] text-[var(--text-muted)] px-2 py-2">No teams yet. Create one in Teams tab.</p>
+          ) : (
+            <div className="space-y-0.5">
+              {teams.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => assign(t.id)}
+                  disabled={saving || t.id === currentTeam?.id}
+                  className={cn(
+                    'w-full text-left px-2 py-1.5 rounded-lg text-[11px] transition-all',
+                    t.id === currentTeam?.id
+                      ? 'bg-purple-500/15 text-purple-400'
+                      : 'text-[var(--text-secondary)] hover:bg-white/[0.06] hover:text-white'
+                  )}
+                >
+                  {t.avatar || '👥'} {t.name}
+                  {t.id === currentTeam?.id && <span className="text-[9px] ml-1 text-[var(--text-muted)]">(current)</span>}
+                </button>
+              ))}
+              {currentTeam && (
+                <button
+                  onClick={() => assign(null)}
+                  disabled={saving}
+                  className="w-full text-left px-2 py-1.5 rounded-lg text-[11px] text-red-400/70 hover:bg-red-500/10 hover:text-red-400 transition-all"
+                >
+                  ✕ Remove from team
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

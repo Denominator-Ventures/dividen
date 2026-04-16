@@ -12,6 +12,7 @@ import { getPlatformFeePercent } from './marketplace-config';
 import { checkQueueGate, searchMarketplaceSuggestions } from './queue-gate';
 import { optimizeTaskForAgent } from './smart-task-prompter';
 import { checkAndAutoCompleteCard } from './card-auto-complete';
+import { logActivity } from './activity';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -99,6 +100,8 @@ export const SUPPORTED_TAGS = [
   'link_cards',          // explicitly link two kanban cards (cross-user or same-user)
   // ── Interactive Widgets ──
   'show_google_connect', // render Google Connect button widget in chat (works outside onboarding too)
+  // ── Project → Team Assignment ──
+  'assign_team_to_project', // assign a project to a team (converts it to a team project)
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -2588,6 +2591,77 @@ export async function executeTag(
             connectedEmail: existingAccount?.emailAddress || null,
           },
         };
+      }
+
+      // ── Project → Team Assignment ──
+      case 'assign_team_to_project': {
+        // params: { projectId OR projectName, teamId OR teamName }
+        let projectId = params.projectId;
+        let teamId = params.teamId;
+
+        // Resolve project by name if no ID
+        if (!projectId && params.projectName) {
+          const project = await prisma.project.findFirst({
+            where: {
+              createdById: userId,
+              name: { contains: params.projectName, mode: 'insensitive' as any },
+            },
+            select: { id: true, name: true },
+          });
+          if (!project) return { tag: name, success: false, error: `Project "${params.projectName}" not found` };
+          projectId = project.id;
+        }
+        if (!projectId) return { tag: name, success: false, error: 'Missing projectId or projectName' };
+
+        // Resolve team by name if no ID
+        if (!teamId && params.teamName) {
+          const team = await prisma.team.findFirst({
+            where: {
+              name: { contains: params.teamName, mode: 'insensitive' as any },
+              OR: [
+                { createdById: userId },
+                { members: { some: { userId } } },
+              ],
+            },
+            select: { id: true, name: true },
+          });
+          if (!team) return { tag: name, success: false, error: `Team "${params.teamName}" not found` };
+          teamId = team.id;
+        }
+        if (!teamId) return { tag: name, success: false, error: 'Missing teamId or teamName' };
+
+        // Verify user has access to the project
+        const membership = await prisma.projectMember.findFirst({
+          where: { projectId, userId, role: { in: ['lead', 'contributor'] } },
+        });
+        if (!membership) return { tag: name, success: false, error: 'Not authorized to modify this project' };
+
+        // Assign team and update visibility
+        const updated = await prisma.project.update({
+          where: { id: projectId },
+          data: { teamId, visibility: 'team' },
+          select: { id: true, name: true, team: { select: { id: true, name: true } } },
+        });
+
+        // Add all team members as project contributors if not already members
+        const teamMembers = await prisma.teamMember.findMany({
+          where: { teamId },
+          select: { userId: true },
+        });
+        for (const tm of teamMembers) {
+          if (!tm.userId) continue;
+          const existing = await prisma.projectMember.findFirst({
+            where: { projectId, userId: tm.userId },
+          });
+          if (!existing) {
+            await prisma.projectMember.create({
+              data: { projectId, userId: tm.userId, role: 'contributor' },
+            });
+          }
+        }
+
+        logActivity({ userId, action: 'project_team_assigned', summary: `Assigned project "${updated.name}" to team "${updated.team?.name}"`, metadata: { projectId, teamId } });
+        return { tag: name, success: true, data: { projectId: updated.id, projectName: updated.name, teamId, teamName: updated.team?.name } };
       }
 
       default:

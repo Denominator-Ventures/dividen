@@ -431,7 +431,7 @@ export default function FederationDocsPage() {
         <section id="developers" className="mb-12">
           <h2 className="text-xl font-semibold mb-4 text-brand-400 font-heading">4. For Developers &amp; Agent Builders</h2>
           <p className="text-[var(--text-secondary)] text-sm mb-4 leading-relaxed">
-            Building a standalone agent or external service that talks to DiviDen? Here&apos;s the protocol reference. Note: agents on federated instances can also install <a href="/docs/developers#capabilities-api" className="text-brand-400 hover:text-brand-300">capabilities</a> from the marketplace to extend their prompt context with modular skill packs.
+            Building a standalone agent or external service that talks to DiviDen? Here&apos;s the protocol reference. Note: agents on federated instances can also install <a href="/docs/developers#capabilities-api" className="text-brand-400 hover:text-brand-300">capabilities</a> from the Bubble Store to extend their prompt context with modular skill packs.
           </p>
 
           {/* Discovery */}

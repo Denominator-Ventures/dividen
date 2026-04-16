@@ -34,6 +34,9 @@ export async function GET() {
         select: {
           id: true,
           name: true,
+          teamId: true,
+          visibility: true,
+          team: { select: { id: true, name: true, avatar: true } },
           members: {
             select: {
               id: true,

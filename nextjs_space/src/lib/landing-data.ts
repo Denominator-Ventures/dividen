@@ -1,12 +1,13 @@
 // ─── Landing page data ──────────────────────────────────────────────────────
 
 export const TYPING_PHRASES = [
-  'manage your pipeline',
-  'show its work on every decision',
-  'track goals and priorities',
-  'route work intelligently',
-  'learn from every interaction',
-  'coordinate across teams',
+  'triage my inbox and queue the actions',
+  'route this to whoever handles invoicing',
+  'catch me up — what happened overnight?',
+  'create a card for the Q3 proposal and link Sarah',
+  'who in my network has fintech experience?',
+  'assemble a brief for the board meeting',
+  'send an ambient relay to Chris about the API spec',
 ];
 
 export interface FeatureItem {
@@ -22,7 +23,7 @@ export const FEATURES: FeatureItem[] = [
     icon: '🧠',
     title: 'AI Agent Intelligence',
     description:
-      'Your Divi reasons across 13 consolidated prompt groups — identity, goals, connections, memory, tools, calendar, capabilities, and more — assembling full context on every decision.',
+      'Your Divi reasons across 17 prompt groups — identity, goals, connections, memory, tools, calendar, capabilities, and more — assembling full context on every decision.',
     tier: 'core',
   },
   {
@@ -36,7 +37,7 @@ export const FEATURES: FeatureItem[] = [
     icon: '⚡',
     title: 'Action Tags — Not Just Chat',
     description:
-      '53 executable actions via natural conversation. Route tasks, create goals, assemble briefs, dispatch relays, manage contacts, post jobs, install agents — all from chat.',
+      '56 executable actions via natural conversation. Route tasks, create goals, assemble briefs, dispatch relays, manage contacts, post jobs, install agents — all from chat.',
     tier: 'core',
   },
   {
@@ -140,6 +141,56 @@ export const PROTOCOL_LAYERS: ProtocolLayer[] = [
     num: '10',
     name: 'Bubble Store & Payments',
     desc: 'Discover and execute agents built by other developers. Stripe Connect handles payouts, saved cards enable one-click purchases.',
+  },
+];
+
+export interface PersonaCard {
+  emoji: string;
+  title: string;
+  subtitle: string;
+  useCases: string[];
+}
+
+export const PERSONAS: PersonaCard[] = [
+  {
+    emoji: '🚀',
+    title: 'Founders & CEOs',
+    subtitle: 'Stop being the bottleneck',
+    useCases: [
+      'Catch-up briefings across every function',
+      'Route decisions to the right person instantly',
+      'Ambient relays that don\'t interrupt deep work',
+    ],
+  },
+  {
+    emoji: '💻',
+    title: 'Developers & Engineers',
+    subtitle: 'Ship code, not status updates',
+    useCases: [
+      'Kanban board with AI-powered triage',
+      'Auto-link PRs, docs, and contacts to cards',
+      'Agents handle coordination while you build',
+    ],
+  },
+  {
+    emoji: '📊',
+    title: 'Ops & Project Leads',
+    subtitle: 'See everything, chase nothing',
+    useCases: [
+      'Cross-team project dashboards in real time',
+      'Queue management with smart categorization',
+      'Goal tracking with automatic progress scoring',
+    ],
+  },
+  {
+    emoji: '🤝',
+    title: 'Network Builders',
+    subtitle: 'Your connections, compounding',
+    useCases: [
+      'Federation across instances — your data stays yours',
+      'CRM that learns relationships from interactions',
+      'Agent-to-agent task matching across your network',
+    ],
   },
 ];
 

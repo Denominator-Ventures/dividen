@@ -262,9 +262,9 @@ export default function IntegrationDocsPage() {
           </div>
         </section>
 
-        {/* Capabilities Marketplace */}
+        {/* Capabilities — Bubble Store */}
         <section className="mb-8">
-          <h2 className="text-xl font-semibold mb-3 text-brand-400">🧩 Capabilities Marketplace</h2>
+          <h2 className="text-xl font-semibold mb-3 text-brand-400">🧩 Capabilities — Bubble Store</h2>
           <p className="text-[var(--text-secondary)] mb-3">
             Capabilities are modular skill packs your agent can install to gain new abilities — from drafting emails to generating invoices. They live in <strong>Settings → Integrations → Capabilities</strong>.
           </p>

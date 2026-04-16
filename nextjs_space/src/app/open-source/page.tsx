@@ -168,7 +168,7 @@ export default function OpenSourcePage() {
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { icon: '🧠', label: 'Full AI Agent Engine', detail: '13 consolidated prompt groups, 53 action tags, persistent memory' },
+              { icon: '🧠', label: 'Full AI Agent Engine', detail: '17 prompt groups, 56 action tags, persistent memory' },
               { icon: '📋', label: 'Queue & NOW Engine', detail: 'Dynamic priority ranking, queue gating, mark-complete workflows' },
               { icon: '📧', label: 'Multi-Inbox', detail: 'Up to 3 Google accounts per operator identity, unified inbox with account filtering' },
               { icon: '📅', label: 'Calendar Integration', detail: 'Full read/write Google Calendar with checkbox-style event management' },
