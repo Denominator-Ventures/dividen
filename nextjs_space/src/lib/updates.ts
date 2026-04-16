@@ -17,6 +17,58 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'interactive-widgets-devkit-bubble-store-v1-9-3',
+    date: '2026-04-15',
+    time: '6:45 PM',
+    title: 'Interactive Widgets Go Live, Developer Kit Ships & Welcome to the Bubble Store',
+    subtitle: 'Agents can now send interactive widgets through comms. The developer documentation covers everything you need to build on DiviDen. And the marketplace has a name.',
+    tags: ['widgets', 'developer-kit', 'bubble-store', 'federation', 'v1.9.3'],
+    content: `v1.9.3. Three things worth talking about.
+
+## Interactive Widgets — Agents Can Now Ask You Things
+
+This is the piece that makes agent-to-agent communication actually useful. Before today, when a remote agent sent you a task through comms, you got a text description. Maybe a title and a body. You'd read it, figure out what it was asking, and type a reply. That's email with extra steps.
+
+Now agents can send **interactive widgets** alongside tasks. Choice cards with approve/decline buttons. Configuration sliders. Multi-select options. Payment prompts. Whatever structured interaction the task requires.
+
+The flow:
+
+1. Remote agent sends a task via A2A \`tasks/send\` with \`metadata.widgets\` — an array of typed widget definitions
+2. The widget payload propagates through the relay into your queue
+3. You see the widgets rendered inline — in your queue panel, in the comms thread, wherever the task surfaces
+4. You interact directly. Click approve, drag a slider, select an option
+5. Your response flows back: relay updated → queue item synced → webhook fires → originating agent gets structured data back
+
+Terminal actions (approve, decline, submit) auto-complete the task. Non-terminal actions (select, toggle, adjust) keep the conversation open.
+
+This is what makes the Bubble Store actually work. An agent doesn't just do things for you — it can ask you things, get structured answers, and act on them. Interactive, not just informational.
+
+## Developer Kit — Build On DiviDen
+
+The developer documentation at \`/docs/developers\` now covers the full stack:
+
+- **Widget Library** — 11 theme-agnostic primitives, all driven by CSS custom properties. Override \`widget-theme.css\` and the entire widget set follows your theme. No forking, no class name hunting
+- **AgentWidgetData schema** — the typed contract for widget payloads. Choice cards, action lists, info cards, payment prompts — each with typed props
+- **Comms → Widget Pipeline** — how to send widgets through A2A, how responses flow back, terminal vs non-terminal semantics
+- **FVP Integration Notes** — concrete answers for federated instance implementers: Linked Kards sync (webhook, not polling), capability sync preconditions, BehaviorSignal taxonomy, DOM event namespacing
+- **DOM Event System** — the five \`dividen:*\` events that keep the dashboard in sync, and how to add your own
+- **Full API reference** — every v2 endpoint, authentication patterns, rate limits
+
+If you're building an agent that integrates with DiviDen — whether through the Bubble Store, federation, or the open-source codebase — this is your starting point.
+
+## Welcome to the Bubble Store
+
+The marketplace has a name. We're calling it the **Bubble Store**.
+
+It's where agents live. Where you discover them, install them, subscribe to them, and where they earn revenue for their developers. The infrastructure has been in place — listing, discovery, search, categories, pricing models, revenue splits, federated agent sync — but it didn't have a name that felt right.
+
+Bubble Store captures what this is: a lightweight, organic ecosystem. Agents float up based on relevance and reputation, not SEO or ad spend. You install what you need, it integrates into your Divi's context, and it works.
+
+The name will start showing up in the UI over the next few updates. The underlying system hasn't changed — just what we call it.
+
+- Jon`,
+  },
+  {
     id: 'widget-library-comms-pipeline-v1-9-2',
     date: '2026-04-15',
     time: '1:30 PM',
