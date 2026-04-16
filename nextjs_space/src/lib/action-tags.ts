@@ -1600,6 +1600,32 @@ export async function executeTag(
           subject: relayToRespond.subject,
         });
 
+        // ── Sync delegation status on sender's checklist item ──
+        // Find any checklist item linked to this relay (sourceType='relay', sourceId=relayId)
+        try {
+          const linkedChecklist = await prisma.checklistItem.findFirst({
+            where: { sourceType: 'relay', sourceId: params.relayId },
+          });
+          if (linkedChecklist) {
+            const newDelegationStatus = params.status === 'completed' ? 'accepted' : params.status === 'declined' ? 'declined' : params.status;
+            await prisma.checklistItem.update({
+              where: { id: linkedChecklist.id },
+              data: {
+                delegationStatus: newDelegationStatus,
+                completed: params.status === 'completed' ? false : linkedChecklist.completed, // accepted != completed
+              },
+            });
+          }
+        } catch {}
+
+        // ── Sync linked queue item if relay_respond completes the relay ──
+        if (relayToRespond.queueItemId && (params.status === 'completed' || params.status === 'declined')) {
+          try {
+            const { syncQueueWithRelayCompletion } = await import('./relay-queue-bridge');
+            await syncQueueWithRelayCompletion(params.relayId, relayToRespond.fromUserId, params.responsePayload || params.status);
+          } catch {}
+        }
+
         return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status, ambientSignalCaptured: isAmbient } };
       }
 
@@ -1758,6 +1784,27 @@ export async function executeTag(
             };
             if (routeMode === 'ambient') relayPayload._ambient = true;
 
+            // ── Step 1: Create queue item for the SENDER (operator approval/tracking) ──
+            const queueItem = await prisma.queueItem.create({
+              data: {
+                type: 'task',
+                title: `📡 Route: "${title}" → ${targetMatch.userName || targetMatch.userEmail}`,
+                description: description || `Task delegation via ${routeMode} relay`,
+                priority: priority === 'urgent' ? 'urgent' : priority === 'high' ? 'high' : 'medium',
+                status: 'ready',
+                source: 'agent',
+                userId,
+                metadata: JSON.stringify({
+                  type: 'task_route',
+                  routedTo: targetMatch.userName || targetMatch.userEmail,
+                  routeMode,
+                  cardId,
+                  cardTitle: context.card.title,
+                }),
+              },
+            });
+
+            // ── Step 2: Create relay linked to queue item ──
             const relay = await prisma.agentRelay.create({
               data: {
                 connectionId: targetMatch.connectionId,
@@ -1770,7 +1817,49 @@ export async function executeTag(
                 payload: JSON.stringify(relayPayload),
                 status: 'pending',
                 priority,
-                cardId: context.card.id, // v2: Direct FK to the card this relay is about
+                cardId: context.card.id,
+                queueItemId: queueItem.id,
+              },
+            });
+
+            // ── Step 3: Deliver to recipient — create comms message on THEIR side ──
+            if (targetMatch.userId) {
+              await prisma.commsMessage.create({
+                data: {
+                  sender: 'divi',
+                  content: `📡 Task assigned from ${(await prisma.user.findUnique({ where: { id: userId }, select: { name: true } }))?.name || 'your connection'}: "${title}"${description ? `\n\n${description}` : ''}`,
+                  state: 'new',
+                  priority,
+                  userId: targetMatch.userId,
+                  metadata: JSON.stringify({
+                    type: 'agent_relay',
+                    relayId: relay.id,
+                    intent: 'assign_task',
+                    cardContext: { id: context.card.id, title: context.card.title },
+                  }),
+                },
+              });
+              // Mark relay as delivered
+              await prisma.agentRelay.update({
+                where: { id: relay.id },
+                data: { status: 'delivered' },
+              });
+            }
+
+            // ── Step 4: Create comms message on SENDER side (tracking thread) ──
+            await prisma.commsMessage.create({
+              data: {
+                sender: 'divi',
+                content: `📡 Task routed to ${targetMatch.userName || targetMatch.userEmail}: "${title}"`,
+                state: 'new',
+                priority,
+                userId,
+                metadata: JSON.stringify({
+                  type: 'task_route_sent',
+                  relayId: relay.id,
+                  routedTo: targetMatch.userName || targetMatch.userEmail,
+                  cardId,
+                }),
               },
             });
 
@@ -1786,15 +1875,11 @@ export async function executeTag(
                 action: 'task_routed',
                 actor: 'divi',
                 summary: `Routed task "${title}" to ${targetMatch.userName || targetMatch.userEmail} via ${routeMode} relay`,
-                metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId, matchScore: targetMatch.score }),
+                metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId, matchScore: targetMatch.score, queueItemId: queueItem.id }),
                 userId,
                 cardId: cardId || null,
               },
             });
-
-            // Embed source card ID in relay for Linked Kards — receiving Divi
-            // will read cardContext.id from the relay payload when it creates a
-            // card on the target user's board, enabling bidirectional linking.
 
             // ── Create checklist item on the source card for this routed task ──
             const maxOrderResult = await prisma.checklistItem.aggregate({
@@ -1825,8 +1910,10 @@ export async function executeTag(
               reasoning: targetMatch.reasoning,
               briefId: brief.id,
               relayId: relay.id,
+              queueItemId: queueItem.id,
               sourceCardId: cardId,
               checklistItemId: checklistItem.id,
+              status: targetMatch.userId ? 'delivered' : 'pending',
             });
           } else {
             // No match — log as suggestion

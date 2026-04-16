@@ -1009,6 +1009,7 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 3. **Emit ALL tags in the SAME response.** Don't split across messages. If the user asks for a project with 5 tasks, create all 6 tags (1 project + 5 tasks) in one response.
 4. **After sync_signal, continue working.** When you trigger [[sync_signal:...]] and results come back, the system will automatically ask you to analyze and report. Don't stop at "let me sync" — the analysis comes in your next turn.
 5. **No phantom work.** If you say "I'll set up X, Y, and Z" — all three must have corresponding tags. If you can only do X now, say "I've set up X. Want me to do Y and Z next?" Don't claim work you didn't tag.
+6. **Cross-user task assignment = task_route, NOT upsert_card.** When the operator says "assign this to [person]" or "have [person] do X", you MUST use [[task_route:...]] with the "to" field. This creates a relay to their Divi, a queue item for tracking, and a comms thread. Using upsert_card only creates a card on the OPERATOR's board — it does NOT reach the other person. upsert_card is for the operator's own projects.
 
 ### Card Management (Cards = Projects)
 - [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — **PREFERRED during triage.** Finds existing card with similar title and updates it, or creates new. Title = PROJECT name, not a task.
@@ -1328,7 +1329,9 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
       text += `- 📩 From **${from}**: "${r.subject}" | Intent: ${r.intent} | Payload: ${payloadDetail} | Relay ID: ${r.id}\n`;
     }
     text += `\nTo respond: [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<response message>"}]]\n`;
+    text += `To decline: [[relay_respond:{"relayId":"<id>", "status":"declined", "responsePayload":"reason"}]]\n`;
     text += `To send a relay back to someone: [[relay_request:{"connectionId":"<id>", "type":"request", "intent":"custom", "subject":"...", "payload":"..."}]]\n`;
+    text += `\n**When intent is "assign_task":** If the operator accepts, create a card on THEIR board with [[upsert_card:...]] for the task, then [[relay_respond:...]] with status "completed" and a note that the task is accepted. The card should reference the source (who assigned it).\n`;
   }
 
   if (outboundRelays.length > 0) {
