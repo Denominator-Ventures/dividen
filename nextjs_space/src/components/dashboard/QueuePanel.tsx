@@ -973,10 +973,10 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
               <div className="flex flex-col items-center justify-center h-full text-center px-6">
                 <div className="text-5xl mb-4">🎯</div>
                 <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">
-                  Inbox Zero
+                  ZerQ
                 </h3>
                 <p className="text-xs text-[var(--text-muted)] mb-1">
-                  Nothing pending. You&apos;re completely caught up.
+                  Empty queue. You&apos;re completely caught up.
                 </p>
                 <p className="text-[10px] text-[var(--text-muted)]/60 mb-4">
                   Divi will surface tasks, suggestions, and notifications here as they come in.

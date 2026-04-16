@@ -156,7 +156,7 @@ async function assembleEmailPhase(userId: string): Promise<BriefingPhase> {
       id: 'email',
       name: 'Inbox Triage',
       icon: '📧',
-      content: 'Inbox zero — no unread emails.',
+      content: 'All clear — no unread emails.',
       itemCount: 0,
       hasData: false,
     };

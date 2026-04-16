@@ -88,12 +88,12 @@ The future belongs to everyone.
 - Jon`,
   },
   {
-    id: 'approval-pipeline-inbox-zero-ambient-learning-v1-9-4',
+    id: 'approval-pipeline-zerq-ambient-learning-v1-9-4',
     date: '2026-04-15',
     time: '11:30 PM',
-    title: 'Approval Pipeline Fixed, Inbox Zero Ships & The Learning Loop Closes',
+    title: 'Approval Pipeline Fixed, ZerQ Ships & The Learning Loop Closes',
     subtitle: 'Agents that change get re-reviewed. The queue now auto-categorizes and batch-processes. Divi learns how you work and adapts.',
-    tags: ['approval', 'inbox-zero', 'ambient-learning', 'bubble-store', 'v1.9.4'],
+    tags: ['approval', 'zerq', 'ambient-learning', 'bubble-store', 'v1.9.4'],
     content: `v1.9.4. Infrastructure sprint — three systems that needed to be tighter.
 
 ## Agent Approval Pipeline — Material Changes Trigger Re-Review
@@ -106,7 +106,7 @@ Meanwhile, the developer can still use their own agent — and existing subscrib
 
 The detail view now shows version history with expandable diffs. Red/green inline, every change tracked.
 
-## Inbox Zero — The Queue Gets Smarter
+## ZerQ — The Queue Gets Smarter
 
 The queue panel was a flat list. Everything looked the same — tasks, notifications, relay responses, FYI items. You had to read each one to know what it was, and process them one at a time.
 
@@ -116,7 +116,7 @@ Three changes:
 
 **Batch mode.** Toggle it on, checkboxes appear. Select items individually or by category. "Complete All" and "Snooze All" in one click. When you have 2+ notification/FYI items, a "Clear N notifications" shortcut appears — one click to sweep them all.
 
-**Inbox Zero state.** When the queue is empty, you see it: "🎯 Inbox Zero — Nothing pending. You're completely caught up." Because you should know when you're done.
+**ZerQ state.** When the queue is empty, you see it: "🎯 ZerQ — Empty queue. You're completely caught up." Because you should know when you're done.
 
 ## The Ambient Learning Loop Closes
 
@@ -590,7 +590,7 @@ GET /api/kanban/{id}/activity
 
 ## What's Next
 
-Cross-instance activity mirroring (when FVP's federated Linked Kards land), richer card timeline entries (file attachments, relay digests), and the inbox zero automation layer.
+Cross-instance activity mirroring (when FVP's federated Linked Kards land), richer card timeline entries (file attachments, relay digests), and the ZerQ automation layer.
 
 — Jon
 `,
@@ -650,7 +650,7 @@ The setup task "Connect Email & Calendar" in the onboarding checklist now maps d
 
 ## What's Next
 
-Cross-instance Linked Kards (FVP team integration), Board Cortex pattern recognition improvements, and the inbox zero automation layer.
+Cross-instance Linked Kards (FVP team integration), Board Cortex pattern recognition improvements, and the ZerQ automation layer.
 
 — Jon
 `,

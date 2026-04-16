@@ -1,6 +1,6 @@
 # DiviDen Command Center — Project Bible
 
-> For onboarding new development conversations. Last updated: April 15, 2026 (v1.9.3)
+> For onboarding new development conversations. Last updated: April 15, 2026 (v2.0.3)
 
 ---
 
@@ -151,6 +151,7 @@ All themed via CSS custom properties in `widget-theme.css`. Override the CSS var
 | `src/components/dashboard/NowPanel.tsx` | Left panel — priorities, events, activity |
 | `src/components/dashboard/KanbanView.tsx` | Board view |
 | `src/components/dashboard/QueuePanel.tsx` | Queue + comms tabs |
+| `src/components/MentionText.tsx` | Shared clickable @mention component (bulk-resolves usernames) |
 | `src/components/widgets/index.ts` | Widget library barrel export |
 | `prisma/schema.prisma` | ~55 models, ~2,200 lines |
 | `scripts/seed.ts` | Database seeding (upsert only, never delete) |
@@ -174,9 +175,20 @@ All themed via CSS custom properties in `widget-theme.css`. Override the CSS var
 
 ---
 
-## Current Version: v1.9.3
+## Current Version: v2.0.3
 
-What shipped recently:
+What shipped recently (v2.0 cycle):
+- **Usernames** — field in signup, unique constraint, display throughout dashboard
+- **@Mentions** — `MentionText` shared component renders clickable `@username` spans across ChatView, QueuePanel, CommsTab, NotificationCenter
+- **Username resolution API** — `POST /api/users/resolve` bulk-resolves user IDs to display names/usernames
+- **Notification Center v2** — overhauled with mention highlighting, federation relay notifications, severity tiers, snooze/dismiss/mark-read actions
+- **Catch-up Pipeline v2** — `src/lib/catch-up-pipeline.ts` rewritten with 6-source aggregation (cards, queue, comms, activity, calendar, email), priority scoring, digest compilation
+- **Federation expansion** — notification relay (`POST /api/v2/federation/notifications`), mentions API (`POST /api/v2/federation/mentions`), instance connect (`POST /api/v2/federation/connect`)
+- **FVP integration guide v2.0.3** — 14 sections including clickable mentions (Section 6) and full webhook reference
+- **ZerQ** — branded name for empty queue state (replaced "Inbox Zero" everywhere)
+- **Documentation updates** — developer docs + public docs pages updated with all v2.0 APIs and features
+
+What shipped in v1.9.x cycle:
 - Interactive widget pipeline (agents send widgets through comms, users respond inline)
 - Theme-agnostic widget library (11 primitives, CSS custom properties)
 - Developer documentation overhaul (widget library, FVP integration notes, full API reference)
@@ -202,7 +214,7 @@ The marketplace infrastructure works but still uses "Marketplace" in the UI ever
 - Settings → Marketplace tab
 - All user-facing copy
 
-### 2. Inbox Zero Automation
+### 2. ZerQ Automation
 The queue system works but doesn't have smart auto-prioritization or batch processing. Opportunities:
 - Auto-categorize queue items by urgency/type
 - Suggest batch actions ("Complete all 4 read-only notifications")
@@ -302,7 +314,7 @@ Developer docs exist but gaps remain:
 ## Roadmap (Rough Priority)
 
 1. Bubble Store UI rebrand (cosmetic, high visibility)
-2. Inbox zero automation (user-facing, high impact)
+2. ZerQ automation (user-facing, high impact)
 3. Cross-instance Linked Kards (federation, unblocks FVP)
 4. Semantic dedup for Board Cortex (intelligence, leverages existing daemon)
 5. Agent versioning (marketplace maturity)
