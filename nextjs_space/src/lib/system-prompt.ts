@@ -1563,8 +1563,17 @@ async function buildActiveCapabilitiesContext(userId: string): Promise<string> {
     text += 'The operator has configured the following outbound capabilities. Use them proactively when appropriate.\n\n';
 
     for (const cap of capabilities) {
-      const rules = (cap.rules as unknown as any[]) || [];
-      const config = (cap.config as unknown as Record<string, any>) || {};
+      let rawRules = cap.rules as unknown;
+      // rules may be stored as a JSON string — parse it if so
+      if (typeof rawRules === 'string') {
+        try { rawRules = JSON.parse(rawRules); } catch { rawRules = []; }
+      }
+      const rules = Array.isArray(rawRules) ? rawRules : [];
+      let rawConfig = cap.config as unknown;
+      if (typeof rawConfig === 'string') {
+        try { rawConfig = JSON.parse(rawConfig as string); } catch { rawConfig = {}; }
+      }
+      const config = (rawConfig && typeof rawConfig === 'object' && !Array.isArray(rawConfig)) ? rawConfig as Record<string, any> : {};
       const enabledRules = rules.filter((r: any) => r.enabled !== false);
 
       text += `### ${cap.name} (${cap.status})\n`;

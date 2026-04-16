@@ -1,16 +1,16 @@
 /**
  * DiviDen LLM Provider Integration
  *
- * Uses the user's OWN API keys (stored in DB via Settings)
+ * Tries the user's OWN API keys first (stored in DB via Settings)
  * for OpenAI (GPT-4) or Anthropic (Claude) streaming chat completions.
- * No default/free AI — users must bring their own keys.
+ * Falls back to the platform Abacus AI API key if user keys are missing or fail.
  */
 
 import { prisma } from './prisma';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export type LLMProvider = 'openai' | 'anthropic';
+export type LLMProvider = 'openai' | 'anthropic' | 'abacus';
 
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
@@ -203,11 +203,78 @@ async function readSSEStream(
   callbacks.onDone(fullText);
 }
 
+// ─── Abacus AI Streaming (OpenAI-compatible, platform fallback) ───────────────
+
+async function streamAbacus(
+  apiKey: string,
+  messages: LLMMessage[],
+  callbacks: StreamCallbacks
+): Promise<void> {
+  const response = await fetch('https://apps.abacus.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      messages,
+      stream: true,
+      max_tokens: 4096,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Abacus AI API error (${response.status}): ${errText}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('No response body from Abacus AI');
+
+  const decoder = new TextDecoder();
+  let fullText = '';
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') continue;
+
+        try {
+          const parsed = JSON.parse(data);
+          const token = parsed.choices?.[0]?.delta?.content || '';
+          if (token) {
+            fullText += token;
+            callbacks.onToken(token);
+          }
+        } catch {
+          // Skip invalid JSON chunks
+        }
+      }
+    }
+  } catch (error: any) {
+    callbacks.onError(new Error(`Abacus AI stream error: ${error?.message}`));
+    return;
+  }
+
+  callbacks.onDone(fullText);
+}
+
 // ─── Main Streaming Function ─────────────────────────────────────────────────
 
 /**
- * Stream LLM response using the user's own API keys.
- * Requires at least one active OpenAI or Anthropic key in settings.
+ * Stream LLM response.
+ * Priority: user's own API keys → platform Abacus AI API key as fallback.
  */
 export async function streamLLMResponse(
   messages: LLMMessage[],
@@ -215,26 +282,41 @@ export async function streamLLMResponse(
   preferredProvider?: LLMProvider,
   userId?: string
 ): Promise<void> {
+  // Try user's own keys first
   const available = await getAvailableProvider(preferredProvider, userId);
 
-  if (!available) {
-    callbacks.onError(
-      new Error(
-        'No API key configured. Go to Settings and add your OpenAI or Anthropic API key to enable Divi.'
-      )
-    );
-    return;
+  if (available) {
+    try {
+      if (available.provider === 'anthropic') {
+        await streamAnthropic(available.apiKey, messages, callbacks);
+      } else {
+        await streamOpenAI(available.apiKey, messages, callbacks);
+      }
+      return; // Success — done
+    } catch (error: any) {
+      console.warn(`[llm] User key (${available.provider}) failed: ${error?.message}. Falling back to platform API.`);
+      // Fall through to platform fallback
+    }
   }
 
-  try {
-    if (available.provider === 'anthropic') {
-      await streamAnthropic(available.apiKey, messages, callbacks);
-    } else {
-      await streamOpenAI(available.apiKey, messages, callbacks);
+  // Fallback: platform Abacus AI API key
+  const abacusKey = process.env.ABACUSAI_API_KEY;
+  if (abacusKey) {
+    try {
+      await streamAbacus(abacusKey, messages, callbacks);
+      return;
+    } catch (error: any) {
+      callbacks.onError(
+        new Error(`LLM streaming error: ${error?.message || 'Unknown error'}`)
+      );
+      return;
     }
-  } catch (error: any) {
-    callbacks.onError(
-      new Error(`LLM streaming error: ${error?.message || 'Unknown error'}`)
-    );
   }
+
+  // No keys available at all
+  callbacks.onError(
+    new Error(
+      'No API key configured. Go to Settings and add your OpenAI or Anthropic API key to enable Divi.'
+    )
+  );
 }
