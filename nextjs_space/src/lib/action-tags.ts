@@ -1784,20 +1784,12 @@ export async function executeTag(
             matchReasoning: targetMatch?.reasoning || 'No matching connections found',
             matchedSkills: targetMatch ? [...targetMatch.matchedSkills, ...targetMatch.matchedTaskTypes] : undefined,
             routeType: routeMode,
-            resultAction: targetMatch ? 'relay_sent' : 'suggestion_made',
-            status: targetMatch ? 'routed' : 'assembled',
+            resultAction: targetMatch ? 'queued' : 'suggestion_made',
+            status: targetMatch ? 'queued' : 'assembled',
           });
 
-          // Create the relay if we have a target
+          // ── Create queue item — relay is created on DISPATCH, not here ──
           if (targetMatch && routeMode !== 'self') {
-            const relayPayload: any = {
-              _briefId: brief.id,
-              task: { title, description, requiredSkills, intent, priority },
-              ...(context?.card ? { cardContext: { id: context.card.id, title: context.card.title, status: context.card.status } } : {}),
-            };
-            if (routeMode === 'ambient') relayPayload._ambient = true;
-
-            // ── Step 1: Create queue item for the SENDER (operator approval/tracking) ──
             const queueItem = await prisma.queueItem.create({
               data: {
                 type: 'task',
@@ -1809,145 +1801,41 @@ export async function executeTag(
                 userId,
                 metadata: JSON.stringify({
                   type: 'task_route',
-                  routedTo: targetMatch.userName || targetMatch.userEmail,
+                  // ── All data needed for dispatch to create relay + deliver ──
+                  targetUserId: targetMatch.userId,
+                  targetUserName: targetMatch.userName || targetMatch.userEmail,
+                  targetUserEmail: targetMatch.userEmail,
+                  connectionId: targetMatch.connectionId,
                   routeMode,
+                  intent,
+                  taskTitle: title,
+                  taskDescription: description || null,
+                  taskPriority: priority,
+                  taskDueDate: task.dueDate || null,
+                  requiredSkills,
+                  briefId: brief.id,
+                  briefMarkdown: briefMd,
                   cardId: resolvedCardId || null,
-                  cardTitle: context?.card?.title || title,
+                  cardTitle: context?.card?.title || null,
+                  cardStatus: context?.card?.status || null,
+                  matchScore: targetMatch.score,
+                  matchReasoning: targetMatch.reasoning,
+                  isAmbient: routeMode === 'ambient',
                 }),
               },
             });
 
-            // ── Step 2: Create relay linked to queue item ──
-            const relay = await prisma.agentRelay.create({
-              data: {
-                connectionId: targetMatch.connectionId,
-                fromUserId: userId,
-                toUserId: targetMatch.userId,
-                direction: 'outbound',
-                type: 'request',
-                intent,
-                subject: title,
-                payload: JSON.stringify(relayPayload),
-                status: 'pending',
-                priority,
-                cardId: resolvedCardId || undefined,
-                queueItemId: queueItem.id,
-              },
-            });
-
-            // ── Step 3: Deliver to recipient — create comms message + kanban card on THEIR side ──
-            if (targetMatch.userId) {
-              const senderName = (await prisma.user.findUnique({ where: { id: userId }, select: { name: true } }))?.name || 'your connection';
-
-              await prisma.commsMessage.create({
-                data: {
-                  sender: 'divi',
-                  content: `📡 Task assigned from ${senderName}: "${title}"${description ? `\n\n${description}` : ''}`,
-                  state: 'new',
-                  priority,
-                  userId: targetMatch.userId,
-                  metadata: JSON.stringify({
-                    type: 'agent_relay',
-                    relayId: relay.id,
-                    intent: 'assign_task',
-                    ...(context?.card ? { cardContext: { id: context.card.id, title: context.card.title } } : {}),
-                  }),
-                },
-              });
-
-              // ── Auto-create kanban card on recipient's board ──
-              const recipientCard = await prisma.kanbanCard.create({
-                data: {
-                  title,
-                  description: `${description || ''}\n\n---\n📡 Delegated from ${senderName}${context?.card ? ` (project: ${context.card.title})` : ''}`.trim(),
-                  status: 'active',
-                  priority: priority === 'urgent' ? 'urgent' : priority === 'high' ? 'high' : 'medium',
-                  assignee: 'human',
-                  dueDate: task.dueDate ? new Date(task.dueDate) : null,
-                  userId: targetMatch.userId,
-                  originCardId: resolvedCardId || null,
-                  originUserId: userId,
-                },
-              });
-
-              // Log activity on recipient side
-              await prisma.activityLog.create({
-                data: {
-                  action: 'task_received',
-                  actor: 'divi',
-                  summary: `New task from ${senderName}: "${title}"`,
-                  metadata: JSON.stringify({ relayId: relay.id, cardId: recipientCard.id, fromUserId: userId }),
-                  userId: targetMatch.userId,
-                  cardId: recipientCard.id,
-                },
-              });
-
-              // Mark relay as delivered
-              await prisma.agentRelay.update({
-                where: { id: relay.id },
-                data: { status: 'delivered' },
-              });
-            }
-
-            // ── Step 4: Create comms message on SENDER side (tracking thread) ──
-            await prisma.commsMessage.create({
-              data: {
-                sender: 'divi',
-                content: `📡 Task routed to ${targetMatch.userName || targetMatch.userEmail}: "${title}"`,
-                state: 'new',
-                priority,
-                userId,
-                metadata: JSON.stringify({
-                  type: 'task_route_sent',
-                  relayId: relay.id,
-                  routedTo: targetMatch.userName || targetMatch.userEmail,
-                  cardId: resolvedCardId || null,
-                }),
-              },
-            });
-
-            // Update brief with relay ID
-            await prisma.agentBrief.update({
-              where: { id: brief.id },
-              data: { resultRelayId: relay.id },
-            });
-
-            // Log activity
+            // Log activity — queued, not yet dispatched
             await prisma.activityLog.create({
               data: {
-                action: 'task_routed',
+                action: 'task_queued',
                 actor: 'divi',
-                summary: `Routed task "${title}" to ${targetMatch.userName || targetMatch.userEmail} via ${routeMode} relay`,
-                metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId: resolvedCardId, matchScore: targetMatch.score, queueItemId: queueItem.id }),
+                summary: `Queued task "${title}" for ${targetMatch.userName || targetMatch.userEmail} — awaiting dispatch`,
+                metadata: JSON.stringify({ briefId: brief.id, queueItemId: queueItem.id, cardId: resolvedCardId }),
                 userId,
                 cardId: resolvedCardId || null,
               },
             });
-
-            // ── Create checklist item on the source card (if card exists) ──
-            let checklistItemId: string | null = null;
-            if (resolvedCardId) {
-              const maxOrderResult = await prisma.checklistItem.aggregate({
-                where: { cardId: resolvedCardId },
-                _max: { order: true },
-              });
-              const checklistItem = await prisma.checklistItem.create({
-                data: {
-                  text: title + (description ? ` — ${description}` : ''),
-                  cardId: resolvedCardId,
-                  order: (maxOrderResult._max.order ?? -1) + 1,
-                  assigneeType: 'delegated',
-                  assigneeName: `${targetMatch.userName || targetMatch.userEmail} via Divi`,
-                  assigneeId: targetMatch.connectionId,
-                  delegationStatus: 'sent',
-                  dueDate: task.dueDate ? new Date(task.dueDate) : null,
-                  sourceType: 'relay',
-                  sourceId: relay.id,
-                  sourceLabel: `Routed to ${targetMatch.userName || targetMatch.userEmail}`,
-                },
-              });
-              checklistItemId = checklistItem.id;
-            }
 
             results.push({
               task: title,
@@ -1956,11 +1844,9 @@ export async function executeTag(
               matchScore: targetMatch.score,
               reasoning: targetMatch.reasoning,
               briefId: brief.id,
-              relayId: relay.id,
               queueItemId: queueItem.id,
               sourceCardId: resolvedCardId || null,
-              checklistItemId,
-              status: targetMatch.userId ? 'delivered' : 'pending',
+              status: 'queued',
             });
           } else {
             // No match — log as suggestion

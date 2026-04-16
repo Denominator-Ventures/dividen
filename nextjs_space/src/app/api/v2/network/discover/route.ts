@@ -45,46 +45,118 @@ export async function GET(req: NextRequest) {
 
     const result: any = {};
 
-    // Public profiles (only visibility='public')
+    // Discoverable profiles — users with public/connections profiles + users without profiles (basic info)
     if (type === 'all' || type === 'profiles') {
-      const where: any = { visibility: 'public' };
+      // Fetch users who have profiles with public/connections visibility
+      const profileWhere: any = { visibility: { in: ['public', 'connections'] } };
       if (q) {
-        where.OR = [
+        profileWhere.OR = [
           { headline: { contains: q, mode: 'insensitive' } },
           { bio: { contains: q, mode: 'insensitive' } },
           { currentTitle: { contains: q, mode: 'insensitive' } },
           { currentCompany: { contains: q, mode: 'insensitive' } },
           { industry: { contains: q, mode: 'insensitive' } },
+          { user: { name: { contains: q, mode: 'insensitive' } } },
         ];
       }
-      const [profiles, profileCount] = await Promise.all([
-        prisma.userProfile.findMany({
-          where,
-          select: {
-            id: true,
-            headline: true,
-            bio: true,
-            currentTitle: true,
-            currentCompany: true,
-            industry: true,
-            skills: true,
-            timezone: true,
-            capacity: true,
-            taskTypes: true,
-            // Only include these for authenticated instances
-            ...(isAuthenticated ? {
-              languages: true,
-              hobbies: true,
-              superpowers: true,
-            } : {}),
-          },
-          take: limit,
-          skip: offset,
-          orderBy: { updatedAt: 'desc' },
-        }),
-        prisma.userProfile.count({ where }),
-      ]);
-      result.profiles = { items: profiles, total: profileCount };
+      const profiledUsers = await prisma.userProfile.findMany({
+        where: profileWhere,
+        select: {
+          id: true,
+          headline: true,
+          bio: true,
+          currentTitle: true,
+          currentCompany: true,
+          industry: true,
+          skills: true,
+          timezone: true,
+          capacity: true,
+          taskTypes: true,
+          visibility: true,
+          userId: true,
+          user: { select: { id: true, name: true, email: true } },
+          ...(isAuthenticated ? {
+            languages: true,
+            hobbies: true,
+            superpowers: true,
+          } : {}),
+        },
+        take: limit,
+        skip: offset,
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      // Also fetch users WITHOUT profiles (still discoverable by name)
+      const profiledUserIds = profiledUsers.map((p: any) => p.userId).filter(Boolean);
+      const userWhere: any = {
+        id: { notIn: profiledUserIds },
+        // Exclude test/system accounts
+        email: { notIn: ['admin@dividen.ai', 'john@doe.com'] },
+      };
+      if (q) {
+        userWhere.OR = [
+          { name: { contains: q, mode: 'insensitive' } },
+          { email: { contains: q, mode: 'insensitive' } },
+        ];
+      }
+      const unprofiledUsers = await prisma.user.findMany({
+        where: userWhere,
+        select: { id: true, name: true, email: true },
+        take: Math.max(limit - profiledUsers.length, 10),
+        skip: offset,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // Merge results
+      const profileItems = profiledUsers.map((p: any) => {
+        const isPublic = p.visibility === 'public';
+        return {
+          id: p.id,
+          userId: p.user?.id || null,
+          name: p.user?.name || null,
+          email: isPublic ? (p.user?.email || null) : null,
+          headline: p.headline,
+          currentTitle: p.currentTitle,
+          currentCompany: p.currentCompany,
+          industry: p.industry,
+          capacity: p.capacity,
+          skills: p.skills,
+          taskTypes: p.taskTypes,
+          timezone: p.timezone,
+          bio: isPublic ? p.bio : null,
+          visibility: p.visibility,
+          hasProfile: true,
+          ...(isAuthenticated && isPublic ? {
+            languages: p.languages,
+            hobbies: p.hobbies,
+            superpowers: p.superpowers,
+          } : {}),
+        };
+      });
+
+      const basicItems = unprofiledUsers.map((u: any) => ({
+        id: `user_${u.id}`,
+        userId: u.id,
+        name: u.name,
+        email: null, // Don't expose email for basic profiles
+        headline: null,
+        currentTitle: null,
+        currentCompany: null,
+        industry: null,
+        capacity: null,
+        skills: null,
+        taskTypes: null,
+        timezone: null,
+        bio: null,
+        visibility: 'connections',
+        hasProfile: false,
+      }));
+
+      const allProfiles = [...profileItems, ...basicItems];
+      result.profiles = {
+        items: allProfiles,
+        total: allProfiles.length,
+      };
     }
 
     // Public teams

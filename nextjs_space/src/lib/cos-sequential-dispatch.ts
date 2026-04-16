@@ -17,6 +17,7 @@
 import { prisma } from '@/lib/prisma';
 import { pushTaskDispatched } from '@/lib/webhook-push';
 import { logActivity } from '@/lib/activity';
+import { dispatchNextItem } from '@/lib/queue-dispatch';
 
 // ──────────────────────────────────────────────
 //  Helpers
@@ -32,10 +33,14 @@ async function getUserMode(userId: string): Promise<string> {
 /**
  * Parse handler metadata from a queue item to determine execution strategy.
  */
-function parseTaskHandler(item: any): { strategy: 'capability' | 'relay' | 'generic'; handler?: any; meta?: any } {
+function parseTaskHandler(item: any): { strategy: 'capability' | 'relay' | 'task_route' | 'generic'; handler?: any; meta?: any } {
   if (!item.metadata) return { strategy: 'generic' };
   try {
     const meta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+    // task_route items — handled by queue-dispatch.ts pipeline
+    if (meta.type === 'task_route' && meta.targetUserId && meta.connectionId) {
+      return { strategy: 'task_route', meta };
+    }
     // Capability action — has capabilityType (email, meetings, etc.)
     if (meta.capabilityType) {
       return { strategy: 'capability', handler: meta.capabilityType, meta };
@@ -144,6 +149,30 @@ async function executeTask(userId: string, item: any): Promise<{ executed: boole
   const { strategy, handler, meta } = parseTaskHandler(item);
 
   switch (strategy) {
+    case 'task_route': {
+      // Use the shared dispatch pipeline from queue-dispatch.ts
+      // The item is already in_progress, so we just need to execute the relay + delivery
+      try {
+        const { executeTaskRouteDispatch } = await import('@/lib/queue-dispatch');
+        const result = await executeTaskRouteDispatch(userId, item.id, meta);
+        await logActivity({
+          userId,
+          action: 'cos_task_route_dispatched',
+          actor: 'divi',
+          summary: `CoS dispatched task "${meta.taskTitle}" to ${meta.targetUserName} — relay ${result.relayId} created`,
+        });
+        return { executed: true, method: 'task_route', detail: `Dispatched to ${meta.targetUserName}` };
+      } catch (err: any) {
+        await logActivity({
+          userId,
+          action: 'cos_task_route_failed',
+          actor: 'divi',
+          summary: `CoS failed to dispatch "${meta.taskTitle}" to ${meta.targetUserName}: ${err?.message}`,
+        });
+        return { executed: false, method: 'task_route', detail: err?.message };
+      }
+    }
+
     case 'capability': {
       // Log the capability execution as an activity
       const capType = handler?.capabilityId || meta?.capabilityType || 'unknown';
