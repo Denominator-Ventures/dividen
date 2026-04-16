@@ -138,6 +138,21 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
   // Always include setup — lightweight (status line + nav reference)
   relevantGroups.add('setup');
 
+  // Always include relay if there are unprocessed inbound relays or comms — Divi must surface these
+  const inboundRelayCount = await prisma.agentRelay.count({
+    where: { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
+  });
+  if (inboundRelayCount > 0) {
+    relevantGroups.add('relay');
+  }
+
+  // Check for pending inbound connection requests — Divi must surface these
+  const pendingConnectionRequests = await prisma.connection.findMany({
+    where: { accepterId: userId, status: 'pending' },
+    include: { requester: { select: { id: true, name: true, email: true } } },
+    take: 10,
+  });
+
   // ── Batch 1: Pre-fetch shared data (always needed) ──
   const [
     kanbanCards,
@@ -536,7 +551,21 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
   const group7e = relevantGroups.has('capabilities_marketplace') ? buildMarketplaceCapabilities() : '';
 
   // ── Group 8: Connections & Relay (old 17, kept as-is — it's the core protocol) ──
-  const group8 = relevantGroups.has('relay') ? await layer17_connectionsRelay_optimized(userId, connections) : '';
+  // Force-load if there are pending connection requests too
+  if (pendingConnectionRequests.length > 0) relevantGroups.add('relay');
+  let group8 = relevantGroups.has('relay') ? await layer17_connectionsRelay_optimized(userId, connections) : '';
+  // Inject pending connection requests into group 8
+  if (pendingConnectionRequests.length > 0) {
+    let connReqText = '\n\n### ⚡ Pending Inbound Connection Requests\n';
+    connReqText += '**CRITICAL: You MUST tell the operator about these pending requests at the START of your response.**\n';
+    for (const req of pendingConnectionRequests) {
+      const name = req.requester?.name || 'Unknown';
+      const email = req.requester?.email || '';
+      connReqText += `- **${name}** (${email}) wants to connect — ID: ${req.id}\n`;
+      connReqText += `  → Accept: [[accept_connection:{"connectionId":"${req.id}"}]]\n`;
+    }
+    group8 += connReqText;
+  }
 
   // ── Group 9: Extensions (conditional — skip if none) ──
   const group9 = relevantGroups.has('extensions') ? await layer19_agentExtensions(userId) : '';
@@ -1126,7 +1155,8 @@ function buildRoutingCapabilities(): string {
 - [[propose_task:{"title":"...","description":"...","taskType":"...","urgency":"...","compensation":"...","requiredSkills":"...","estimatedHours":"...","taskBreakdown":[...],"sourceCardId":"optional","routingSuggestion":"inner_circle|team|connections|network"}]]
 
 ### Orchestration
-- [[task_route:{"cardId":"...","tasks":[{"title":"...","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast"}],"teamId":"optional","projectId":"optional"}]]
+- [[task_route:{"cardId":"...","tasks":[{"title":"...","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast","to":"person name or email (REQUIRED when operator names someone explicitly)"}],"teamId":"optional","projectId":"optional"}]]
+  **CRITICAL**: When operator says "assign this to [name]", ALWAYS include the "to" field. The "to" field bypasses skill matching — explicit assignment always works regardless of profile skills.
 - [[assemble_brief:{"cardId":"...","teamId":"optional","projectId":"optional"}]]
 - [[project_dashboard:{"projectId":"..."}]]
 
@@ -1281,21 +1311,31 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
     }
   }
 
-  if (activeRelays.length > 0) {
-    text += `\n### Active Relays (${activeRelays.length})\n`;
-    for (const r of activeRelays) {
-      const dir = r.toUserId === userId ? '📥 INBOUND' : '📤 OUTBOUND';
+  // Separate inbound from outbound for clearer Divi behavior
+  const inboundRelays = activeRelays.filter(r => r.toUserId === userId);
+  const outboundRelays = activeRelays.filter(r => r.fromUserId === userId && r.toUserId !== userId);
+
+  if (inboundRelays.length > 0) {
+    text += `\n### 📥 INCOMING RELAYS — MUST SURFACE IMMEDIATELY (${inboundRelays.length})\n`;
+    text += `**⚠️ CRITICAL**: You have unread relay messages from connections. You MUST tell the operator about these at the START of your next response. Do NOT wait for them to ask. Say something like: "Hey, [name] sent you a relay: [subject]. [summary of payload]. Want me to respond, or want to handle it?"\n\n`;
+    for (const r of inboundRelays) {
       const from = r.fromUser?.name || r.fromUser?.email || 'Unknown';
+      let payloadDetail = r.payload || '';
+      try { const p = JSON.parse(r.payload || '{}'); payloadDetail = p.detail || p.message || r.payload || ''; } catch {}
+      text += `- 📩 From **${from}**: "${r.subject}" | Intent: ${r.intent} | Payload: ${payloadDetail} | Relay ID: ${r.id}\n`;
+    }
+    text += `\nTo respond: [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<response message>"}]]\n`;
+    text += `To send a relay back to someone: [[relay_request:{"connectionId":"<id>", "type":"request", "intent":"custom", "subject":"...", "payload":"..."}]]\n`;
+  }
+
+  if (outboundRelays.length > 0) {
+    text += `\n### 📤 Outbound Relays (${outboundRelays.length})\n`;
+    for (const r of outboundRelays) {
       const to = r.toUser?.name || r.toUser?.email || 'Remote';
-      let payloadMeta = '';
-      try {
-        const p = JSON.parse(r.payload || '{}');
-        if (p._ambient) payloadMeta = ' [AMBIENT — weave naturally]';
-        if (p._broadcast) payloadMeta = ' [BROADCAST — team-wide]';
-      } catch {}
-      text += `- ${dir} | "${r.subject}" | ${r.intent} | Status: ${r.status} | From: ${from} → To: ${to}${payloadMeta}\n`;
+      text += `- Sent to **${to}**: "${r.subject}" | Status: ${r.status}\n`;
     }
   }
+
 
   // Surface recently completed relay responses
   if (recentResponses.length > 0) {

@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
       prisma.agentRelay.findMany({
         where: {
           OR: [{ fromUserId: userId }, { toUserId: userId }],
-          status: { in: ['completed', 'pending'] },
+          status: { in: ['completed', 'pending', 'delivered'] },
         },
         orderBy: { updatedAt: 'desc' },
         take: 20,

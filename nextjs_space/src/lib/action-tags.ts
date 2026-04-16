@@ -1693,12 +1693,43 @@ export async function executeTag(
           // Determine target
           let targetMatch = matches[0] || null;
           if (to) {
-            // If explicit target specified, find them in matches or connections
+            // If explicit target specified, find them in skill matches first
             const explicit = matches.find(m =>
               (m.userName && m.userName.toLowerCase().includes(to.toLowerCase())) ||
               m.userEmail.toLowerCase().includes(to.toLowerCase())
             );
-            if (explicit) targetMatch = explicit;
+            if (explicit) {
+              targetMatch = explicit;
+            } else {
+              // Fallback: search ALL active connections (explicit assignment overrides skill matching)
+              const allConns = await prisma.connection.findMany({
+                where: { status: 'active', OR: [{ requesterId: userId }, { accepterId: userId }] },
+                include: {
+                  requester: { select: { id: true, name: true, email: true } },
+                  accepter: { select: { id: true, name: true, email: true } },
+                },
+              });
+              for (const conn of allConns) {
+                const peer = conn.requesterId === userId ? conn.accepter : conn.requester;
+                if (!peer) continue;
+                const nameMatch = peer.name && peer.name.toLowerCase().includes(to.toLowerCase());
+                const emailMatch = peer.email && peer.email.toLowerCase().includes(to.toLowerCase());
+                if (nameMatch || emailMatch) {
+                  targetMatch = {
+                    userId: peer.id,
+                    userName: peer.name || peer.email,
+                    userEmail: peer.email,
+                    connectionId: conn.id,
+                    matchedSkills: [],
+                    matchedTaskTypes: [],
+                    score: 1,
+                    capacity: 'available',
+                    reasoning: `Explicitly assigned by operator to ${peer.name || peer.email}`,
+                  };
+                  break;
+                }
+              }
+            }
           }
 
           // Store the brief
