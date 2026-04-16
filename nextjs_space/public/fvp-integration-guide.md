@@ -1,6 +1,6 @@
 # DiviDen Federation Integration Guide
 
-**Version**: 1.9.5  
+**Version**: 2.0.1  
 **Last Updated**: 2026-04-16  
 **Audience**: FVP (First Ventures Platform) / MainClaw engineering team  
 **Author**: DiviDen Platform Team
@@ -11,14 +11,17 @@
 
 1. [Architecture Overview](#1-architecture-overview)
 2. [Authentication](#2-authentication)
-3. [Notification System](#3-notification-system)
-4. [Federation Notification Relay API](#4-federation-notification-relay-api)
-5. [Connection Lifecycle](#5-connection-lifecycle)
-6. [Relay System](#6-relay-system)
-7. [Team Integration](#7-team-integration)
-8. [Project Integration](#8-project-integration)
-9. [Activity Logging Taxonomy](#9-activity-logging-taxonomy)
-10. [Error Handling](#10-error-handling)
+3. [Username Requirements](#3-username-requirements)
+4. [Inline Tagging System](#4-inline-tagging-system)
+5. [Federation Mentions API](#5-federation-mentions-api)
+6. [Notification System](#6-notification-system)
+7. [Federation Notification Relay API](#7-federation-notification-relay-api)
+8. [Connection Lifecycle](#8-connection-lifecycle)
+9. [Relay System](#9-relay-system)
+10. [Team Integration](#10-team-integration)
+11. [Project Integration](#11-project-integration)
+12. [Activity Logging Taxonomy](#12-activity-logging-taxonomy)
+13. [Error Handling](#13-error-handling)
 
 ---
 
@@ -84,7 +87,360 @@ Request → Extract X-Federation-Token header
 
 ---
 
-## 3. Notification System
+## 3. Username Requirements
+
+**v2.0.1** — Usernames are now required at signup and enforced as unique across the instance. This is critical for the inline tagging system used in chat-based task assignment.
+
+### Rules
+
+| Rule | Detail |
+|---|---|
+| **Format** | Lowercase letters, numbers, underscores, dots, hyphens: `[a-z0-9_.-]` |
+| **Length** | 2–30 characters |
+| **Uniqueness** | Globally unique per instance (enforced at DB level with `@unique`) |
+| **Reserved words** | `admin`, `system`, `divi`, `dividen`, `support`, `help`, `root`, `null`, `undefined`, `api`, `www` |
+
+### Availability Check
+
+```
+GET /api/username/check?username=foo
+Auth: None required (public endpoint)
+```
+
+**Response**:
+```json
+{ "available": true }
+// or
+{ "available": false, "reason": "This username is reserved" }
+```
+
+### Where Usernames Appear
+
+- **Chat input**: Users type `@jon` to mention someone — resolves via username
+- **Task assignment**: "Assign this to @sarah" in chat triggers routing to that user
+- **Relay routing**: The action tag system uses usernames to resolve relay targets
+- **Notification summaries**: Activity log entries reference `@username` for clarity
+
+### FVP Implementation Notes
+
+If FVP instances support usernames, they should:
+1. Enforce the same format rules (`[a-z0-9_.-]`, 2–30 chars) for cross-instance compatibility
+2. Include `username` in the user object when creating federated connections
+3. Reference users by `@username` in relay subjects/payloads for consistent resolution
+
+### Username in Connection Handshake
+
+When sending a connection request to DiviDen, include the username in the body if available:
+
+```json
+{
+  "fromInstanceUrl": "https://fvp.dev",
+  "fromUserEmail": "operator@fvp.dev",
+  "fromUserName": "FVP Operator",
+  "fromUsername": "fvp-operator",
+  ...
+}
+```
+
+DiviDen will store this in `peerUserName` on the connection record. Future versions will add a dedicated `peerUsername` field.
+
+---
+
+## 4. Inline Tagging System
+
+DiviDen's chat supports two inline tagging triggers for task assignment and agent invocation:
+
+### Trigger Characters
+
+| Trigger | What it does | Example |
+|---|---|---|
+| `@` | Mention a person or agent | `@jon can you review this?` or `@research-agent find me...` |
+| `!` | Invoke a command | `!research-agent.deep-dive fintech trends` |
+
+### How It Works (DiviDen Implementation)
+
+1. **User types `@` in the chat input** → triggers a debounced search
+2. **Autocomplete dropdown** appears with results from `/api/chat/mentions?type=people&q=<query>` (also fetches `type=agents` in parallel)
+3. **User selects a result** → `@username ` or `@agent-slug ` is inserted into the message
+4. **Message is sent** → Divi's AI recognizes the mention and routes accordingly:
+   - `@person` → task delegation via relay or card assignment
+   - `@agent` → invokes that agent's capabilities
+   - `!agent.command` → executes a specific command on that agent
+
+### Autocomplete Response Shape
+
+**People** (`GET /api/chat/mentions?type=people&q=jon`):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "clx...",
+      "type": "person",
+      "name": "Jon Bradford",
+      "username": "jon",
+      "avatar": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Portrait_of_John_Bradford_%284672791%29.jpg/330px-Portrait_of_John_Bradford_%284672791%29.jpg",
+      "subtitle": "@jon",
+      "diviName": "Divi"
+    }
+  ]
+}
+```
+
+**Agents** (`GET /api/chat/mentions?type=agents&q=research`):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "clx...",
+      "type": "agent",
+      "name": "Research Agent",
+      "username": "research-agent",
+      "subtitle": "@research-agent · Research",
+      "description": "Deep research across multiple sources...",
+      "commands": [
+        { "name": "deep-dive", "description": "Full research report", "usage": "!research-agent.deep-dive <topic>" }
+      ]
+    }
+  ]
+}
+```
+
+**Commands** (`GET /api/chat/mentions?type=commands&q=deep`):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "clx...:deep-dive",
+      "type": "command",
+      "name": "deep-dive",
+      "fullCommand": "!research-agent.deep-dive",
+      "source": "Research Agent",
+      "sourceSlug": "research-agent",
+      "sourceType": "agent",
+      "description": "Full research report on a topic",
+      "usage": "!research-agent.deep-dive <topic>"
+    }
+  ]
+}
+```
+
+### FVP Implementation Guide
+
+To implement inline tagging on FVP's side:
+
+#### 1. Input Detection
+
+```typescript
+// In your chat input onChange handler:
+const handleInputChange = (value: string, cursorPos: number) => {
+  // Walk backwards from cursor to find trigger character
+  let triggerIdx = -1;
+  let triggerChar: '@' | '!' | null = null;
+  
+  for (let i = cursorPos - 1; i >= 0; i--) {
+    const ch = value[i];
+    if (ch === ' ' || ch === '\n') break; // stop at whitespace
+    if (ch === '@' || ch === '!') {
+      // Only trigger if at start of input or preceded by whitespace
+      if (i === 0 || value[i - 1] === ' ' || value[i - 1] === '\n') {
+        triggerIdx = i;
+        triggerChar = ch;
+      }
+      break;
+    }
+  }
+  
+  if (triggerChar && triggerIdx >= 0) {
+    const query = value.slice(triggerIdx + 1, cursorPos);
+    // Fetch suggestions from the federation mentions API
+    fetchMentions(triggerChar, query);
+  }
+};
+```
+
+#### 2. Fetch From DiviDen
+
+Use the federation mentions endpoint (see [Section 5](#5-federation-mentions-api)) to query DiviDen's users and agents:
+
+```typescript
+const fetchMentions = async (trigger: '@' | '!', query: string) => {
+  const type = trigger === '@' ? 'all' : 'commands';
+  const res = await fetch(
+    `${DIVIDEN_INSTANCE_URL}/api/federation/mentions?type=${type}&q=${encodeURIComponent(query)}`,
+    { headers: { 'X-Federation-Token': federationToken } }
+  );
+  const { data } = await res.json();
+  // data.people, data.agents, data.commands
+  setSuggestions(data);
+};
+```
+
+#### 3. Insert Selection
+
+When the user selects from the dropdown:
+
+```typescript
+const insertMention = (item: MentionItem) => {
+  const handle = item.type === 'command' 
+    ? item.fullCommand  // "!agent.command"
+    : `@${item.username || item.slug || item.name}`; // "@jon" or "@research-agent"
+  
+  // Replace from trigger position to cursor with the handle
+  const before = input.slice(0, triggerIndex);
+  const after = input.slice(cursorPosition);
+  setInput(`${before}${handle} ${after}`);
+};
+```
+
+#### 4. Rendering Mentions in Messages
+
+When displaying messages that contain mentions, parse `@username` tokens and render them as styled chips/links:
+
+```typescript
+const renderMentions = (text: string) => {
+  return text.replace(/@([a-z0-9_.-]+)/g, (match, username) => {
+    return `<span class="mention-tag">@${username}</span>`;
+  });
+};
+```
+
+#### 5. Task Assignment via Mentions
+
+When a message contains `@username` + task language, DiviDen's AI:
+1. Resolves the username to a local user or federated connection
+2. Creates a relay (if federated) or kanban card (if local)
+3. Routes the task with full context
+
+For FVP to trigger task assignment targeting a DiviDen user, include `@username` in relay subjects:
+
+```json
+{
+  "subject": "Review the pitch deck — assigned to @jon",
+  "type": "request",
+  "intent": "review",
+  "payload": { "targetUsername": "jon" }
+}
+```
+
+---
+
+## 5. Federation Mentions API
+
+This is the federation-authenticated endpoint for powering inline tagging on remote instances.
+
+### `GET /api/federation/mentions`
+
+**Auth**: `X-Federation-Token` header
+
+**Query Parameters**:
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `type` | string | `all` | `people`, `agents`, `commands`, or `all` |
+| `q` | string | _(empty)_ | Search term. Returns top results if empty. |
+
+**Privacy Scope**: Returns only users the connection can "see" — members of shared teams/projects. Does NOT expose email addresses.
+
+### Example Request
+
+```bash
+curl -X GET "https://dividen.ai/api/federation/mentions?type=all&q=jon" \
+  -H "X-Federation-Token: $TOKEN"
+```
+
+### Response (200)
+
+```json
+{
+  "success": true,
+  "data": {
+    "people": [
+      {
+        "id": "clx...",
+        "type": "person",
+        "name": "Jon Bradford",
+        "username": "jon",
+        "handle": "@jon",
+        "avatar": "https://placehold.co/1200x600/e2e8f0/1e293b?text=avatar_image_of_Jon_Bradford",
+        "diviName": "Divi"
+      }
+    ],
+    "agents": [
+      {
+        "id": "clx...",
+        "type": "agent",
+        "name": "Research Agent",
+        "slug": "research-agent",
+        "handle": "@research-agent",
+        "category": "Research",
+        "description": "Deep research across multiple sources...",
+        "hasCommands": true
+      }
+    ],
+    "commands": [
+      {
+        "id": "clx...:deep-dive",
+        "type": "command",
+        "name": "deep-dive",
+        "fullCommand": "!research-agent.deep-dive",
+        "source": "Research Agent",
+        "sourceSlug": "research-agent",
+        "sourceType": "agent",
+        "description": "Full research report on a topic",
+        "usage": "!research-agent.deep-dive <topic>"
+      }
+    ]
+  }
+}
+```
+
+### Response Fields
+
+**People**:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | User ID |
+| `type` | string | Always `"person"` |
+| `name` | string | Display name |
+| `username` | string \| null | Unique @handle (may be null for legacy users) |
+| `handle` | string \| null | Formatted as `@username` |
+| `avatar` | string \| null | Profile photo URL |
+| `diviName` | string \| null | User's custom AI agent name |
+
+**Agents**:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Agent ID |
+| `type` | string | Always `"agent"` |
+| `name` | string | Display name |
+| `slug` | string | URL-safe identifier (used as @handle) |
+| `handle` | string | Formatted as `@slug` |
+| `category` | string | Agent category |
+| `description` | string | Truncated description (max 120 chars) |
+| `hasCommands` | boolean | Whether the agent has executable commands |
+
+**Commands**:
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | string | Compound ID (`agentId:commandName`) |
+| `type` | string | Always `"command"` |
+| `name` | string | Command name |
+| `fullCommand` | string | Full invocation string (e.g. `!slug.command`) |
+| `source` | string | Agent or capability name |
+| `sourceSlug` | string | Agent or capability slug |
+| `sourceType` | string | `"agent"` or `"capability"` |
+| `description` | string | What the command does |
+| `usage` | string | Usage example |
+
+---
+
+## 6. Notification System
 
 ### How Notifications Work Internally
 
@@ -133,7 +489,7 @@ Returns recent activity items with:
 
 ---
 
-## 4. Federation Notification Relay API
+## 7. Federation Notification Relay API
 
 This is the primary endpoint for FVP to push notifications to DiviDen users.
 
@@ -233,7 +589,7 @@ curl -X POST https://dividen.ai/api/federation/notifications \
 
 ---
 
-## 5. Connection Lifecycle
+## 8. Connection Lifecycle
 
 ### Creating a Federated Connection
 
@@ -285,7 +641,7 @@ Header: `X-Federation-Token: <federation_token>`
 
 ---
 
-## 6. Relay System
+## 9. Relay System
 
 ### Sending a Relay to DiviDen
 
@@ -335,7 +691,7 @@ Header: `X-Federation-Token: <federation_token>`
 
 ---
 
-## 7. Team Integration
+## 10. Team Integration
 
 ### Adding a Federated Member to a Team
 
@@ -377,7 +733,7 @@ Invites can target email, userId, or connectionId. They expire after 7 days.
 
 ---
 
-## 8. Project Integration
+## 11. Project Integration
 
 ### Project Context Sharing
 
@@ -422,7 +778,7 @@ PATCH /api/project-invites              → accept/decline
 
 ---
 
-## 9. Activity Logging Taxonomy
+## 12. Activity Logging Taxonomy
 
 Complete list of all `action` types used in `ActivityLog`:
 
@@ -506,7 +862,7 @@ Complete list of all `action` types used in `ActivityLog`:
 
 ---
 
-## 10. Error Handling
+## 13. Error Handling
 
 ### Standard Error Response
 
@@ -542,11 +898,13 @@ For federation callbacks (accept, relay, notifications):
 
 ## Quick Start for FVP
 
-1. **Establish a connection**: POST to `/api/federation/connect` with your instance details + federation token
-2. **Wait for acceptance**: DiviDen user accepts → you receive a callback at your `/api/federation/connect/accept`
-3. **Push notifications**: Use `POST /api/federation/notifications` with the federation token to send any notification type
-4. **Send relays**: Use `POST /api/federation/relay` for agent-to-agent communication
-5. **Add to teams/projects**: DiviDen users can add your connection to teams and projects from their UI
+1. **Implement usernames**: Enforce `[a-z0-9_.-]` format, 2–30 chars, unique per instance (see [Section 3](#3-username-requirements))
+2. **Establish a connection**: POST to `/api/federation/connect` with your instance details + federation token
+3. **Wait for acceptance**: DiviDen user accepts → you receive a callback at your `/api/federation/connect/accept`
+4. **Push notifications**: Use `POST /api/federation/notifications` with the federation token to send any notification type
+5. **Send relays**: Use `POST /api/federation/relay` for agent-to-agent communication
+6. **Add to teams/projects**: DiviDen users can add your connection to teams and projects from their UI
+7. **Implement inline tagging**: Use `GET /api/federation/mentions` to power @mention autocomplete on your side (see [Section 4](#4-inline-tagging-system) and [Section 5](#5-federation-mentions-api))
 
 ---
 
