@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
 import { useActivityStream } from '@/hooks/use-activity-stream';
 
 interface FeedItem {
@@ -15,6 +14,43 @@ interface FeedItem {
   isNew: boolean;
 }
 
+// Maps notification categories to dashboard tabs
+const CATEGORY_TAB_MAP: Record<string, string> = {
+  board: 'kanban',
+  queue: 'chat',       // queue panel is alongside chat
+  crm: 'crm',
+  calendar: 'calendar',
+  goals: 'goals',
+  comms: 'chat',       // comms is in the queue/chat sidebar
+  connections: 'connections',
+  drive: 'drive',
+  marketplace: 'marketplace',
+  federation: 'federation',
+  teams: 'teams',
+  projects: 'kanban',  // projects are board-centric
+  intelligence: 'chat', // learnings surface in settings, but chat is the entry
+};
+
+// Special route overrides for specific action types
+const ACTION_ROUTE_MAP: Record<string, string> = {
+  learning_generated: '/settings?tab=learnings',
+};
+
+const FILTER_PILLS: { id: string; label: string; icon: string }[] = [
+  { id: 'all', label: 'All', icon: '' },
+  { id: 'connections', label: 'Connections', icon: '🤝' },
+  { id: 'teams', label: 'Teams', icon: '👥' },
+  { id: 'projects', label: 'Projects', icon: '📁' },
+  { id: 'federation', label: 'Federation', icon: '🌐' },
+  { id: 'board', label: 'Board', icon: '🗂️' },
+  { id: 'queue', label: 'Queue', icon: '⚡' },
+  { id: 'comms', label: 'Comms', icon: '📡' },
+  { id: 'crm', label: 'CRM', icon: '👤' },
+  { id: 'calendar', label: 'Calendar', icon: '📅' },
+  { id: 'goals', label: 'Goals', icon: '🎯' },
+  { id: 'marketplace', label: 'Bubble Store', icon: '🫧' },
+];
+
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const mins = Math.floor(diff / 60000);
@@ -27,19 +63,29 @@ function timeAgo(iso: string): string {
 }
 
 export default function NotificationCenter() {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<FeedItem[]>([]);
   const [unseenCount, setUnseenCount] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [activeFilter, setActiveFilter] = useState('all');
   const ref = useRef<HTMLDivElement>(null);
 
   const handleNotificationClick = useCallback((item: FeedItem) => {
-    if (item.action === 'learning_generated' || item.category === 'intelligence') {
+    // Check for special action-specific routes first
+    const specialRoute = ACTION_ROUTE_MAP[item.action];
+    if (specialRoute) {
       setOpen(false);
-      router.push('/settings?tab=learnings');
+      window.location.href = specialRoute;
+      return;
     }
-  }, [router]);
+
+    // Navigate to the corresponding dashboard tab
+    const targetTab = CATEGORY_TAB_MAP[item.category];
+    if (targetTab) {
+      setOpen(false);
+      window.dispatchEvent(new CustomEvent('dividen:navigate-tab', { detail: { tab: targetTab } }));
+    }
+  }, []);
 
   const fetchFeed = useCallback(async () => {
     try {
@@ -99,14 +145,29 @@ export default function NotificationCenter() {
     const willOpen = !open;
     setOpen(willOpen);
     if (willOpen) {
-      // Reset badge immediately on open
       setUnseenCount(0);
+      setActiveFilter('all');
       setLoading(true);
       fetchFeed().finally(() => setLoading(false));
-      // Persist mark-seen to server after a short delay
       setTimeout(() => markSeen(), 1500);
     }
   };
+
+  // Filtered items
+  const filteredItems = activeFilter === 'all'
+    ? items
+    : items.filter((i) => i.category === activeFilter);
+
+  // Count items per category for pill badges
+  const categoryCounts: Record<string, number> = {};
+  items.forEach((i) => {
+    categoryCounts[i.category] = (categoryCounts[i.category] || 0) + 1;
+  });
+
+  // Only show filter pills that have items
+  const visiblePills = FILTER_PILLS.filter(
+    (p) => p.id === 'all' || categoryCounts[p.id]
+  );
 
   return (
     <div ref={ref} className="relative">
@@ -143,49 +204,84 @@ export default function NotificationCenter() {
             )}
           </div>
 
+          {/* Filter Pills */}
+          {visiblePills.length > 2 && (
+            <div className="flex items-center gap-1 px-3 py-2 border-b border-[var(--border-color)] overflow-x-auto scrollbar-none">
+              {visiblePills.map((pill) => (
+                <button
+                  key={pill.id}
+                  onClick={() => setActiveFilter(pill.id)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium whitespace-nowrap transition-colors ${
+                    activeFilter === pill.id
+                      ? 'bg-brand-500/20 text-brand-400'
+                      : 'bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]'
+                  }`}
+                >
+                  {pill.icon && <span className="text-[10px]">{pill.icon}</span>}
+                  <span>{pill.label}</span>
+                  {pill.id !== 'all' && categoryCounts[pill.id] && (
+                    <span className="text-[9px] opacity-60">{categoryCounts[pill.id]}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Items */}
           <div className="flex-1 overflow-y-auto">
             {loading && items.length === 0 ? (
               <div className="p-6 text-center text-[var(--text-muted)] text-sm">Loading...</div>
-            ) : items.length === 0 ? (
+            ) : filteredItems.length === 0 ? (
               <div className="p-6 text-center">
-                <div className="text-2xl mb-2">🔔</div>
-                <div className="text-sm text-[var(--text-muted)]">No notifications yet</div>
-                <div className="text-xs text-[var(--text-muted)] mt-1">Activity from your workspace will appear here</div>
+                <div className="text-2xl mb-2">{activeFilter === 'all' ? '🔔' : FILTER_PILLS.find(p => p.id === activeFilter)?.icon || '📋'}</div>
+                <div className="text-sm text-[var(--text-muted)]">
+                  {activeFilter === 'all' ? 'No notifications yet' : `No ${activeFilter} notifications`}
+                </div>
+                <div className="text-xs text-[var(--text-muted)] mt-1">
+                  {activeFilter === 'all' ? 'Activity from your workspace will appear here' : 'Try selecting "All" to see everything'}
+                </div>
               </div>
             ) : (
-              items.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleNotificationClick(item)}
-                  className={`flex items-start gap-3 px-4 py-3 border-b border-[var(--border-color)] last:border-0 transition-colors ${
-                    (item.action === 'learning_generated' || item.category === 'intelligence') ? 'cursor-pointer ' : ''
-                  }${
-                    item.isNew
-                      ? 'bg-[var(--brand-primary)]/5'
-                      : 'hover:bg-[var(--bg-surface-hover)]'
-                  }`}
-                >
-                  <span className="text-base flex-shrink-0 mt-0.5">{item.icon}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-[var(--text-primary)] leading-relaxed">
-                      {item.summary}
-                    </p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '9px' }}>
-                        {item.category}
-                      </span>
-                      <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>·</span>
-                      <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>
-                        {timeAgo(item.time)}
-                      </span>
-                      {item.isNew && (
-                        <span className="w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0" />
-                      )}
+              filteredItems.map((item) => {
+                const isClickable = !!(ACTION_ROUTE_MAP[item.action] || CATEGORY_TAB_MAP[item.category]);
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => handleNotificationClick(item)}
+                    className={`flex items-start gap-3 px-4 py-3 border-b border-[var(--border-color)] last:border-0 transition-colors group ${
+                      isClickable ? 'cursor-pointer' : ''
+                    } ${
+                      item.isNew
+                        ? 'bg-[var(--brand-primary)]/5'
+                        : 'hover:bg-[var(--bg-surface-hover)]'
+                    }`}
+                  >
+                    <span className="text-base flex-shrink-0 mt-0.5">{item.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-[var(--text-primary)] leading-relaxed">
+                        {item.summary}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '9px' }}>
+                          {item.category}
+                        </span>
+                        <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>·</span>
+                        <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>
+                          {timeAgo(item.time)}
+                        </span>
+                        {item.isNew && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0" />
+                        )}
+                        {isClickable && (
+                          <span className="text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: '9px' }}>
+                            →
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 
@@ -193,7 +289,10 @@ export default function NotificationCenter() {
           {items.length > 0 && (
             <div className="px-4 py-2 border-t border-[var(--border-color)] text-center">
               <span className="text-[10px] text-[var(--text-muted)]">
-                Showing last {items.length} events
+                {activeFilter === 'all'
+                  ? `Showing last ${items.length} events`
+                  : `${filteredItems.length} of ${items.length} events`
+                }
               </span>
             </div>
           )}

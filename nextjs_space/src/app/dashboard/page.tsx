@@ -289,6 +289,16 @@ export default function DashboardPage() {
     return () => window.removeEventListener('dividen:now-refresh', handler);
   }, []);
 
+  // Listen for notification click-through tab navigation
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const tab = (e as CustomEvent).detail?.tab;
+      if (tab) setActiveTab(tab as CenterTab);
+    };
+    window.addEventListener('dividen:navigate-tab', handler);
+    return () => window.removeEventListener('dividen:navigate-tab', handler);
+  }, []);
+
   const toggleMode = useCallback(async () => {
     const newMode = mode === 'cockpit' ? 'chief_of_staff' : 'cockpit';
     setModeLoading(true);
