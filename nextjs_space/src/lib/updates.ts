@@ -17,6 +17,51 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'site-audit-homepage-team-assign-v2-0-4',
+    date: '2026-04-15',
+    time: '11:59 PM',
+    title: 'Site Audit, Homepage Glow-Up & Team Project Assignment',
+    subtitle: 'Docs accuracy pass, homepage redesign with real dashboard preview, persona cards, and a new way to convert any project into a team project.',
+    tags: ['audit', 'homepage', 'teams', 'kanban', 'v2.0.4'],
+    content: `v2.0.4. Three buckets in one push — accuracy sweep, homepage improvements, and a new feature that's been on the list since teams shipped.
+
+## Accuracy Audit
+
+The documentation and open-source pages were showing stale numbers. We had 13 prompt groups listed everywhere — the actual count is 17. Action tags said 53 — it's 56 now. Every instance has been corrected across the landing page, open-source page, documentation, and developer docs.
+
+While we were in there: "Marketplace" → "Bubble Store" across all user-facing copy. ~35 replacements in docs, developer guides, federation docs, and integration pages. Internal route names and model identifiers stay as-is — this is a branding layer, not a refactor.
+
+Added a "Docs" link to the header nav. Should have been there from the start.
+
+## Homepage Redesign
+
+The hero copy was too generic. "The last interface you'll ever need" — that could be anything. Now it's: **"One agent. Every workflow. Zero context switching."** Direct. Specific. True.
+
+The typing animation now shows real Divi commands instead of abstract descriptions: "triage my inbox and queue the actions", "catch me up — what happened overnight?", "spin up a project board for the rebrand". People should see what they'll actually type.
+
+Below the hero: a simulated 3-column dashboard preview showing the NOW panel, Chat, and Board side by side. No screenshot — it's a live CSS mockup with realistic content. First-time visitors can see the actual interface layout before signing up.
+
+New section: **"Who uses DiviDen?"** — four persona cards (Founders, Developers, Ops Leads, Network Builders) each with a use-case description and sample command. Real positioning instead of feature lists.
+
+The protocol stack was taking up too much vertical space. It's now collapsible — click to expand, with a link to the full protocol documentation.
+
+CTA hierarchy cleaned up: one primary button ("Get Started — Free"), one secondary ("Read the Docs"), PWA download moved to tertiary position. The final CTA section is simplified with a subtle "Already have an account? Log in" text link.
+
+## Team Project Assignment
+
+You can now convert any personal project into a team project two ways:
+
+**From the Kanban board**: Every project badge now has a team assignment dropdown. Click it, pick a team, done. The project gets \`visibility: "team"\`, all team members are added as contributors automatically, and the activity is logged.
+
+**Via Divi chat**: Tell Divi "assign the rebrand project to the ops team" and the new \`assign_team_to_project\` action tag handles it. Fuzzy matching on both project name and team name — you don't need to remember exact titles. Works with IDs too if you're that kind of person.
+
+The tag auto-adds all team members as project contributors and sets visibility. Activity logged for audit trail.
+
+That brings us to 56 action tags total. The system keeps growing.
+
+— Jon`
+  },
+  {
     id: 'identity-layer-mentions-federation-v2-0',
     date: '2026-04-15',
     time: '11:59 PM',
