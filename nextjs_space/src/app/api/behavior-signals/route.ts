@@ -33,6 +33,17 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // Auto-trigger behavior learning synthesis every 25 signals
+    // Fire-and-forget — don't block the response
+    const signalCount = await prisma.behaviorSignal.count({
+      where: { userId, createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
+    });
+    if (signalCount > 0 && signalCount % 25 === 0) {
+      import('@/lib/ambient-learning').then(({ synthesizeBehaviorLearnings }) => {
+        synthesizeBehaviorLearnings(userId).catch(() => {});
+      }).catch(() => {});
+    }
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('Behavior signal error:', err);

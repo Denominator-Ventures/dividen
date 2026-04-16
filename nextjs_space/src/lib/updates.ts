@@ -17,6 +17,59 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'approval-pipeline-inbox-zero-ambient-learning-v1-9-4',
+    date: '2026-04-15',
+    time: '11:30 PM',
+    title: 'Approval Pipeline Fixed, Inbox Zero Ships & The Learning Loop Closes',
+    subtitle: 'Agents that change get re-reviewed. The queue now auto-categorizes and batch-processes. Divi learns how you work and adapts.',
+    tags: ['approval', 'inbox-zero', 'ambient-learning', 'bubble-store', 'v1.9.4'],
+    content: `v1.9.4. Infrastructure sprint — three systems that needed to be tighter.
+
+## Agent Approval Pipeline — Material Changes Trigger Re-Review
+
+There was a bug. If a federated agent was already active on the Bubble Store and the developer pushed an update — new description, new pricing, new endpoint — the update went through without re-review. The agent stayed active. No one checked the changes.
+
+That's fixed. The federation agents route now compares 10 material fields on every update (description, endpoint URL, pricing model, price, task types, context instructions, input/output schemas, category, long description). If anything material changed and the agent was active, it flips to \`pending_review\`, auto-increments the patch version, and appends a changelog entry with a field-by-field diff. Admin gets an ActivityLog notification.
+
+Meanwhile, the developer can still use their own agent — and existing subscribers keep access. We're not punishing anyone for iterating. But changes get eyes before they reach new users.
+
+The detail view now shows version history with expandable diffs. Red/green inline, every change tracked.
+
+## Inbox Zero — The Queue Gets Smarter
+
+The queue panel was a flat list. Everything looked the same — tasks, notifications, relay responses, FYI items. You had to read each one to know what it was, and process them one at a time.
+
+Three changes:
+
+**Auto-categorization.** Every queue item now gets classified into one of five categories — action, notification, relay, FYI, or task — based on type, metadata, source, and priority. Each item shows a colored category badge. You can see what needs attention vs. what's informational without reading anything.
+
+**Batch mode.** Toggle it on, checkboxes appear. Select items individually or by category. "Complete All" and "Snooze All" in one click. When you have 2+ notification/FYI items, a "Clear N notifications" shortcut appears — one click to sweep them all.
+
+**Inbox Zero state.** When the queue is empty, you see it: "🎯 Inbox Zero — Nothing pending. You're completely caught up." Because you should know when you're done.
+
+## The Ambient Learning Loop Closes
+
+This is the one I'm most interested in. The pieces were there — BehaviorSignals captured every action you took in the dashboard. UserLearnings existed as a model. The system prompt loaded both. But nothing connected signals to learnings. You'd accumulate hundreds of behavior signals and Divi would never do anything with them.
+
+Now it does. \`synthesizeBehaviorLearnings\` clusters your BehaviorSignal history and extracts patterns:
+
+- **Schedule patterns** — your peak productivity hours and busiest days
+- **Workflow style** — whether you're conversation-driven, queue-driven, or balanced
+- **Decision speed** — how fast you act on items (quick decider vs. deliberate reviewer)
+- **Capability usage** — which Bubble Store agents you actually use, and how often
+- **Queue triage habits** — your complete-vs-snooze ratio
+
+These write to UserLearning, which feeds directly into the system prompt. Divi adapts — it knows when you're most active, how you prefer to work, what tools you reach for.
+
+High-confidence learnings surface as queue suggestions: "🧬 3 new patterns detected" with a link to Settings → Learnings. You can confirm or dismiss.
+
+Synthesis runs automatically after every 25th behavior signal, or manually via \`/api/ambient-learning/synthesize\`. The loop: signals → patterns → prompt → better agent behavior → better signals.
+
+This is how Divi stops being a static assistant and starts being yours.
+
+- Jon`,
+  },
+  {
     id: 'interactive-widgets-devkit-bubble-store-v1-9-3',
     date: '2026-04-15',
     time: '6:45 PM',

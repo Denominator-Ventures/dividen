@@ -3,28 +3,35 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { synthesizePatterns, captureIgnoredAmbientSignals } from '@/lib/ambient-learning';
+import { synthesizePatterns, captureIgnoredAmbientSignals, synthesizeBehaviorLearnings } from '@/lib/ambient-learning';
 
 // POST /api/ambient-learning/synthesize
-// Triggers pattern synthesis from accumulated ambient relay signals.
-// Also captures signals for ignored ambient relays (delivered >48h, no response).
+// Triggers full learning pipeline:
+// 1. Capture ignored ambient relay signals
+// 2. Synthesize ambient relay patterns
+// 3. Synthesize behavior signal → UserLearning patterns
 export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-    if (!(session?.user as any)?.id) {
+    const userId = (session?.user as any)?.id;
+    if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // First, capture signals for ignored ambient relays
+    // 1. Capture signals for ignored ambient relays
     const ignoredCount = await captureIgnoredAmbientSignals();
 
-    // Then synthesize patterns from all signals
+    // 2. Synthesize ambient relay patterns (cross-user)
     const patterns = await synthesizePatterns();
+
+    // 3. Synthesize behavior signal → UserLearning (per-user)
+    const behaviorLearnings = await synthesizeBehaviorLearnings(userId);
 
     return NextResponse.json({
       success: true,
       patternsGenerated: patterns.length,
       ignoredRelaysCaptured: ignoredCount,
+      behaviorLearningsCreated: behaviorLearnings,
       patterns: patterns.map(p => ({
         type: p.patternType,
         description: p.description,

@@ -438,3 +438,223 @@ export async function captureIgnoredAmbientSignals(): Promise<number> {
 
   return captured;
 }
+
+// ─── Behavior Signal → UserLearning Synthesis ─────────────────────────────────
+
+interface BehaviorLearning {
+  category: string;
+  observation: string;
+  confidence: number;
+  source: string;
+  evidence: Record<string, any>;
+}
+
+/**
+ * Synthesize UserLearning records from accumulated BehaviorSignal data.
+ * Detects patterns in how the user works — peak hours, preferred actions,
+ * workflow habits — and writes them as learnings that feed the system prompt.
+ *
+ * Call periodically or after signal accumulation threshold.
+ */
+export async function synthesizeBehaviorLearnings(userId: string): Promise<number> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const signals = await prisma.behaviorSignal.findMany({
+    where: { userId, createdAt: { gte: since } },
+    orderBy: { createdAt: 'desc' },
+    take: 1000,
+  });
+
+  if (signals.length < 10) return 0; // Not enough data
+
+  const learnings: BehaviorLearning[] = [];
+
+  // ── 1. Peak Productivity Hours ──────────────────────────────────────────
+  const hourCounts: Record<number, number> = {};
+  for (const s of signals) {
+    if (s.hourOfDay !== null) hourCounts[s.hourOfDay] = (hourCounts[s.hourOfDay] || 0) + 1;
+  }
+  const sortedHours = Object.entries(hourCounts).sort(([, a], [, b]) => b - a);
+  if (sortedHours.length >= 3) {
+    const top3 = sortedHours.slice(0, 3).map(([h]) => parseInt(h));
+    const formatHour = (h: number) => h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`;
+    learnings.push({
+      category: 'schedule',
+      observation: `Most active hours: ${top3.map(formatHour).join(', ')}. Peak: ${formatHour(top3[0])} with ${sortedHours[0][1]} actions in 30 days.`,
+      confidence: Math.min(0.9, 0.3 + (signals.length / 200)),
+      source: 'behavior_analysis',
+      evidence: { hourCounts, top3, signalCount: signals.length },
+    });
+  }
+
+  // ── 2. Day-of-Week Patterns ─────────────────────────────────────────────
+  const dayCounts: Record<number, number> = {};
+  for (const s of signals) {
+    if (s.dayOfWeek !== null) dayCounts[s.dayOfWeek] = (dayCounts[s.dayOfWeek] || 0) + 1;
+  }
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const sortedDays = Object.entries(dayCounts).sort(([, a], [, b]) => b - a);
+  if (sortedDays.length >= 2) {
+    const busiestDay = dayNames[parseInt(sortedDays[0][0])];
+    const quietestDay = dayNames[parseInt(sortedDays[sortedDays.length - 1][0])];
+    learnings.push({
+      category: 'schedule',
+      observation: `Busiest day: ${busiestDay} (${sortedDays[0][1]} actions). Lightest: ${quietestDay} (${sortedDays[sortedDays.length - 1][1]} actions).`,
+      confidence: Math.min(0.85, 0.3 + (signals.length / 150)),
+      source: 'behavior_analysis',
+      evidence: { dayCounts, busiestDay, quietestDay },
+    });
+  }
+
+  // ── 3. Workflow Style (action distribution) ────────────────────────────
+  const actionCounts: Record<string, number> = {};
+  for (const s of signals) {
+    actionCounts[s.action] = (actionCounts[s.action] || 0) + 1;
+  }
+  const topActions = Object.entries(actionCounts).sort(([, a], [, b]) => b - a).slice(0, 5);
+  if (topActions.length >= 2) {
+    const chatHeavy = (actionCounts['chat_send'] || 0) > (signals.length * 0.4);
+    const queueHeavy = ((actionCounts['queue_complete'] || 0) + (actionCounts['queue_snooze'] || 0)) > (signals.length * 0.3);
+    const style = chatHeavy ? 'conversation-driven — prefers to discuss and delegate through chat'
+      : queueHeavy ? 'queue-driven — works through structured task lists'
+      : 'balanced — mixes chat and queue workflows';
+
+    learnings.push({
+      category: 'workflow',
+      observation: `Workflow style: ${style}. Top actions: ${topActions.map(([a, c]) => `${a}(${c})`).join(', ')}.`,
+      confidence: Math.min(0.85, 0.3 + (signals.length / 100)),
+      source: 'behavior_analysis',
+      evidence: { actionCounts, topActions, style },
+    });
+  }
+
+  // ── 4. Response Speed Pattern ──────────────────────────────────────────
+  const withDuration = signals.filter(s => s.duration !== null && s.duration! > 0);
+  if (withDuration.length >= 5) {
+    const avgDuration = withDuration.reduce((a, s) => a + s.duration!, 0) / withDuration.length;
+    const isQuick = avgDuration < 5000;
+    const isSlow = avgDuration > 30000;
+    learnings.push({
+      category: 'style',
+      observation: `Average decision time: ${(avgDuration / 1000).toFixed(1)}s. ${isQuick ? 'Quick decision-maker — acts on items fast.' : isSlow ? 'Deliberate decision-maker — takes time reviewing before acting.' : 'Moderate pace — balances review with action.'}`,
+      confidence: Math.min(0.8, 0.3 + (withDuration.length / 50)),
+      source: 'behavior_analysis',
+      evidence: { avgDuration, sampleSize: withDuration.length },
+    });
+  }
+
+  // ── 5. Capability Usage Patterns ────────────────────────────────────────
+  const capabilityUses = signals.filter(s => s.action === 'capability_use');
+  if (capabilityUses.length >= 3) {
+    const capCounts: Record<string, number> = {};
+    for (const s of capabilityUses) {
+      try {
+        const ctx = JSON.parse(s.context || '{}');
+        const name = ctx.capabilityName || ctx.name || 'unknown';
+        capCounts[name] = (capCounts[name] || 0) + 1;
+      } catch {}
+    }
+    const topCaps = Object.entries(capCounts).sort(([, a], [, b]) => b - a).slice(0, 3);
+    if (topCaps.length > 0) {
+      learnings.push({
+        category: 'capability_usage',
+        observation: `Most-used capabilities: ${topCaps.map(([n, c]) => `${n}(${c}×)`).join(', ')}. Consider pre-loading these in relevant conversations.`,
+        confidence: Math.min(0.85, 0.35 + (capabilityUses.length / 30)),
+        source: 'capability_usage',
+        evidence: { capCounts, topCaps },
+      });
+    }
+  }
+
+  // ── 6. Queue Triage Pattern ────────────────────────────────────────────
+  const queueCompletes = signals.filter(s => s.action === 'queue_complete');
+  const queueSnoozes = signals.filter(s => s.action === 'queue_snooze');
+  if (queueCompletes.length + queueSnoozes.length >= 5) {
+    const completeRate = queueCompletes.length / (queueCompletes.length + queueSnoozes.length);
+    learnings.push({
+      category: 'workflow',
+      observation: `Queue triage: ${(completeRate * 100).toFixed(0)}% complete vs ${((1 - completeRate) * 100).toFixed(0)}% snooze. ${completeRate > 0.7 ? 'Action-biased — knocks items out immediately.' : completeRate < 0.3 ? 'Snooze-heavy — prefers to defer and batch work.' : 'Balanced triager.'}`,
+      confidence: Math.min(0.8, 0.3 + ((queueCompletes.length + queueSnoozes.length) / 40)),
+      source: 'behavior_analysis',
+      evidence: { completes: queueCompletes.length, snoozes: queueSnoozes.length, completeRate },
+    });
+  }
+
+  // ── Write learnings to DB (upsert to avoid duplicates) ──────────────────
+  let created = 0;
+  for (const l of learnings) {
+    // Use category + source as dedup key — update existing, create new
+    const existing = await prisma.userLearning.findFirst({
+      where: { userId, category: l.category, source: l.source },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (existing) {
+      // Only update if observation materially changed
+      if (existing.observation !== l.observation || Math.abs(existing.confidence - l.confidence) > 0.05) {
+        await prisma.userLearning.update({
+          where: { id: existing.id },
+          data: {
+            observation: l.observation,
+            confidence: l.confidence,
+            evidence: JSON.stringify(l.evidence),
+            isNew: true, // re-flag so user sees the update
+          },
+        });
+        created++;
+      }
+    } else {
+      await prisma.userLearning.create({
+        data: {
+          userId,
+          category: l.category,
+          observation: l.observation,
+          confidence: l.confidence,
+          source: l.source,
+          evidence: JSON.stringify(l.evidence),
+          isNew: true,
+        },
+      });
+      created++;
+    }
+  }
+
+  // ── Surface high-confidence new learnings as queue suggestions ──────────
+  if (created > 0) {
+    const newLearnings = await prisma.userLearning.findMany({
+      where: { userId, isNew: true, dismissed: false, confidence: { gte: 0.6 } },
+      orderBy: { updatedAt: 'desc' },
+      take: 3,
+    });
+
+    // Only push queue item if we haven't recently (within 24h)
+    const recentSuggestion = await prisma.queueItem.findFirst({
+      where: {
+        userId,
+        type: 'agent_suggestion',
+        source: 'system',
+        metadata: { contains: 'behavior_learning' },
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+    });
+
+    if (!recentSuggestion && newLearnings.length > 0) {
+      const summaries = newLearnings.map((l: any) => `• ${l.observation}`).join('\n');
+      await prisma.queueItem.create({
+        data: {
+          type: 'agent_suggestion',
+          title: `🧬 ${newLearnings.length} new pattern${newLearnings.length > 1 ? 's' : ''} detected`,
+          description: `Divi learned new things about how you work:\n${summaries}\n\nReview in Settings → Learnings to confirm or dismiss.`,
+          priority: 'low',
+          status: 'ready',
+          source: 'system',
+          userId,
+          metadata: JSON.stringify({ type: 'behavior_learning', learningIds: newLearnings.map((l: any) => l.id), count: newLearnings.length }),
+        },
+      });
+    }
+  }
+
+  console.log(`[ambient-learning] Synthesized ${created} behavior learnings for user ${userId}`);
+  return created;
+}
