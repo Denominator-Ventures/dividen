@@ -1155,6 +1155,10 @@ model InstanceRegistry {
   agentCount          Int?     // Self-reported marketplace agent count
   lastSyncAt          DateTime? // Last successful sync with managed platform
 
+  // ── Operator (person who runs this instance) ──
+  operatorName    String?  // Display name of the instance operator
+  operatorEmail   String?  // Email of the instance operator (for profile linking)
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

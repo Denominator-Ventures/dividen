@@ -143,6 +143,7 @@ export async function PATCH(req: NextRequest) {
     const allowed: Record<string, boolean> = {
       isActive: true, isTrusted: true, marketplaceEnabled: true,
       discoveryEnabled: true, updatesEnabled: true, apiKey: true, name: true,
+      operatorName: true, operatorEmail: true,
     };
     const safeUpdates: Record<string, any> = {};
     for (const [k, v] of Object.entries(updates)) {

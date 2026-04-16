@@ -640,7 +640,9 @@ export function ConnectionsView() {
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium shrink-0">🌐 federated dev</span>
                               )}
                               {u.source === 'federated' && (
-                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium shrink-0">self-hosted</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium shrink-0">
+                                  🌐 {u.instanceName || 'self-hosted'}
+                                </span>
                               )}
                               {u.capacity && u.capacity !== 'available' && (
                                 <span className={cn(

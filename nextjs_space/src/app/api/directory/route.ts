@@ -155,27 +155,34 @@ export async function GET(req: NextRequest) {
           agentCount: true,
           version: true,
           metadata: true,
+          operatorName: true,
+          operatorEmail: true,
         },
       });
 
       federatedEntries = instances
         .filter((inst: any) => {
           if (!q) return true;
-          const haystack = [inst.name, inst.baseUrl].filter(Boolean).join(' ').toLowerCase();
+          const haystack = [inst.name, inst.baseUrl, inst.operatorName, inst.operatorEmail].filter(Boolean).join(' ').toLowerCase();
           return haystack.includes(q);
         })
         .map((inst: any) => ({
           id: `fed_${inst.id}`,
-          name: inst.name,
-          email: null,
+          name: inst.operatorName || inst.name,
+          email: inst.operatorEmail || null,
           source: 'federated',
           instanceUrl: inst.baseUrl,
+          instanceName: inst.name,
           userCount: inst.userCount,
           agentCount: inst.agentCount,
           version: inst.version,
           connectionStatus: null,
-          hasProfile: false,
-          headline: `Self-hosted instance${inst.userCount ? ` • ${inst.userCount} user${inst.userCount !== 1 ? 's' : ''}` : ''}${inst.agentCount ? ` • ${inst.agentCount} agent${inst.agentCount !== 1 ? 's' : ''}` : ''}`,
+          connectionDirection: null,
+          connectionId: null,
+          hasProfile: !!inst.operatorName,
+          headline: inst.operatorName
+            ? `${inst.name}${inst.userCount ? ` • ${inst.userCount} user${inst.userCount !== 1 ? 's' : ''}` : ''}`
+            : `Self-hosted instance${inst.userCount ? ` • ${inst.userCount} user${inst.userCount !== 1 ? 's' : ''}` : ''}${inst.agentCount ? ` • ${inst.agentCount} agent${inst.agentCount !== 1 ? 's' : ''}` : ''}`,
         }));
     } catch (e) {
       // Non-critical — federated entries are optional
