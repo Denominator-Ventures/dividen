@@ -98,6 +98,10 @@ const TOC = [
   { id: 'google-connect-widget', label: 'Google Connect Widget' },
   { id: 'widget-library', label: 'Widget Library (v1.9.2)' },
   { id: 'fvp-integration', label: 'FVP Integration Notes (v2.7)' },
+  { id: 'username-system', label: 'Username System (v2.0)' },
+  { id: 'mentions-system', label: '@Mentions & Resolution (v2.0)' },
+  { id: 'federation-mentions', label: 'Federation Mentions API (v2.0)' },
+  { id: 'notification-center', label: 'Notification Center (v2.0)' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
 
@@ -618,6 +622,9 @@ X-DiviDen-Source: marketplace`}</Code>
             <Endpoint method="POST" path="/api/federation/mcp" description="Cross-instance MCP tool invocation (trust-gated)" auth="Federation" />
             <Endpoint method="POST" path="/api/federation/reputation" description="Portable reputation attestation exchange" auth="Federation" />
             <Endpoint method="GET" path="/api/federation/entity-search" description="Privacy-respecting cross-instance entity lookup" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/notifications" description="Push typed notifications (12 types) from federated instance" auth="Federation" />
+            <Endpoint method="GET" path="/api/federation/mentions?prefix=jo" description="@mention autocomplete — prefix-search users (max 10)" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/connect" description="Request a federation connection with a user" auth="Federation" />
           </div>
           <p className="text-[var(--text-secondary)] text-sm">
             Full federation docs at <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">/docs/federation</a>.
@@ -2124,6 +2131,130 @@ function emitStatusChange() {
           <p className="text-[var(--text-secondary)] mb-3">
             Detect DiviDen context by checking <InlineCode>window.__DIVIDEN_HOST === true</InlineCode> (set by the dashboard shell).
             Only emit <InlineCode>dividen:*</InlineCode> events when running in that context.
+          </p>
+        </Section>
+
+        {/* ── Username System (v2.0) ─────────────────────────── */}
+        <Section id="username-system" title="Username System (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Every DiviDen account now has a unique <InlineCode>@username</InlineCode> handle.
+            Usernames are the identity primitive for @mentions, federation, and profile URLs.
+          </p>
+
+          <h3 className="text-lg font-bold text-white mb-3">Validation Rules</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <ul className="text-sm text-[var(--text-secondary)] space-y-1 list-disc list-inside">
+              <li>Length: 2–30 characters</li>
+              <li>Characters: <InlineCode>[a-z0-9_.-]</InlineCode> (lowercase only)</li>
+              <li>Reserved words blocked: admin, system, dividen, support, help, api, www, mail, etc.</li>
+              <li>Uniqueness enforced at database level</li>
+            </ul>
+          </div>
+
+          <h3 className="text-lg font-bold text-white mb-3">API Endpoints</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <Endpoint method="GET" path="/api/username/check?username=jon" description="Real-time availability check. Returns { available: boolean, username: string }" auth="None" />
+            <Endpoint method="POST" path="/api/setup" description="Account creation (includes optional username field with server-side validation)" auth="None" />
+            <Endpoint method="POST" path="/api/signup" description="User registration (includes optional username field with server-side validation)" auth="None" />
+          </div>
+
+          <p className="text-sm text-[var(--text-muted)]">
+            The setup page debounces username checks as the user types, showing real-time ✓/✗ status. The submit button is disabled while checking or if the username is taken.
+          </p>
+        </Section>
+
+        {/* ── @Mentions & Resolution (v2.0) ────────────────────── */}
+        <Section id="mentions-system" title="@Mentions & Username Resolution (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            All <InlineCode>@username</InlineCode> tokens rendered anywhere in DiviDen are clickable links
+            that navigate to the mentioned user&apos;s profile page (<InlineCode>/profile/[userId]</InlineCode>).
+          </p>
+
+          <h3 className="text-lg font-bold text-white mb-3">Where Mentions Render</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            {[
+              { surface: 'Chat Messages', detail: 'Message bodies — alongside bold/code formatting' },
+              { surface: 'Queue Panel', detail: 'Task titles + descriptions (main list and review suggestions)' },
+              { surface: 'Comms Tab', detail: 'Relay thread peer names and message subjects' },
+              { surface: 'Notification Center', detail: 'Activity feed summaries' },
+            ].map((s) => (
+              <div key={s.surface} className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-3">
+                <div className="text-sm font-bold text-white">{s.surface}</div>
+                <div className="text-xs text-[var(--text-muted)] mt-1">{s.detail}</div>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="text-lg font-bold text-white mb-3">Resolution API</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <Endpoint method="GET" path="/api/users/resolve?usernames=jon,sarah" description="Bulk username→profile resolution. Returns { users: { [username]: { id, name, username, avatar } } }" auth="None (public)" />
+          </div>
+
+          <h3 className="text-lg font-bold text-white mb-3">Implementation</h3>
+          <p className="text-[var(--text-secondary)] mb-4 text-sm">
+            The shared <InlineCode>{'<MentionText text={...} />'}</InlineCode> component handles all rendering.
+            It splits text on the <InlineCode>@[a-z0-9_.-]{'{2,30}'}</InlineCode> pattern, batch-resolves
+            usernames via <InlineCode>/api/users/resolve</InlineCode> (module-level cache + 50ms coalescing window),
+            and renders resolved mentions as styled <InlineCode>{'<Link>'}</InlineCode> chips to <InlineCode>/profile/[userId]</InlineCode>.
+            Unresolved usernames render styled but not linked.
+          </p>
+        </Section>
+
+        {/* ── Federation Mentions API (v2.0) ────────────────────── */}
+        <Section id="federation-mentions" title="Federation Mentions API (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            Federated instances can query DiviDen&apos;s user directory to power @mention autocomplete on their side.
+          </p>
+
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <Endpoint method="GET" path="/api/federation/mentions?prefix=jo" description="Prefix-search users for @mention autocomplete. Returns up to 10 matches with { id, username, name, avatar }." auth="Federation Token" />
+          </div>
+
+          <h3 className="text-lg font-bold text-white mb-3">Federation Notification Relay</h3>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <Endpoint method="POST" path="/api/federation/notifications" description="Push typed notifications into DiviDen from a federated instance. 12 notification types supported." auth="Federation Token" />
+          </div>
+
+          <h3 className="text-lg font-bold text-white mb-3">Supported Notification Types</h3>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {['task_assigned', 'mention', 'relay_received', 'approval_needed', 'deadline_approaching',
+              'agent_update', 'team_invite', 'project_update', 'capability_alert', 'system_notice',
+              'payment_received', 'goal_progress'].map(t => (
+              <span key={t} className="px-2 py-1 rounded bg-white/[0.04] text-[var(--text-secondary)] text-[10px] font-mono">{t}</span>
+            ))}
+          </div>
+
+          <p className="text-sm text-[var(--text-muted)]">
+            Full specification available in the <a href="/fvp-integration-guide.md" target="_blank" className="text-brand-400 hover:text-brand-300">FVP Integration Guide</a> (14 sections).
+          </p>
+        </Section>
+
+        {/* ── Notification Center (v2.0) ─────────────────────────── */}
+        <Section id="notification-center" title="Notification Center (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            The notification feed received two major upgrades in v2.0: click-through navigation and category filtering.
+          </p>
+
+          <h3 className="text-lg font-bold text-white mb-3">Click-Through Navigation</h3>
+          <p className="text-[var(--text-secondary)] mb-4 text-sm">
+            Every notification now routes to the relevant dashboard tab when clicked. Card activity → Kanban.
+            Relay notifications → Comms. Queue items → Queue. The notification dispatches a custom
+            <InlineCode>dividen:navigate-tab</InlineCode> DOM event with the target tab, which the dashboard layout
+            picks up to switch context.
+          </p>
+
+          <h3 className="text-lg font-bold text-white mb-3">Category Filter Pills</h3>
+          <p className="text-[var(--text-secondary)] mb-4 text-sm">
+            Filter pills at the top of the feed let you narrow by category: All, Queue, Comms, Cards, System.
+            Quick triage without scrolling through unrelated items.
+          </p>
+
+          <h3 className="text-lg font-bold text-white mb-3">Event System</h3>
+          <p className="text-[var(--text-secondary)] text-sm">
+            The notification center integrates with the dashboard event bus. Key events:
+            <InlineCode>dividen:navigate-tab</InlineCode> (click-through routing),
+            <InlineCode>dividen:now-refresh</InlineCode> (data refresh trigger),
+            <InlineCode>dividen:activity-refresh</InlineCode> (activity feed update).
           </p>
         </Section>
 

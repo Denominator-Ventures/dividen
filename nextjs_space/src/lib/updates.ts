@@ -17,6 +17,69 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'identity-layer-mentions-federation-v2-0',
+    date: '2026-04-15',
+    time: '11:59 PM',
+    title: 'The Identity Layer — Usernames, @Mentions & Federation v2.0',
+    subtitle: 'Every user gets a handle. Every @mention is a clickable link. Federation gets a notification relay, a mentions API, and a 14-section integration guide.',
+    tags: ['identity', 'mentions', 'federation', 'notifications', 'v2.0'],
+    content: `v2.0. This is the identity sprint. Five releases in one push — usernames, @mentions, notification overhaul, catch-up pipeline, and federation expansion.
+
+## Usernames Are Real Now
+
+Every DiviDen account now has a \`@username\` — a unique, permanent handle that works across the entire platform. Enforced at signup, validated in real-time.
+
+Rules: 2–30 characters, lowercase alphanumeric plus \`_\`, \`.\`, \`-\`. No reserved words (admin, system, dividen, etc.). Uniqueness checked against the database with a dedicated endpoint: \`GET /api/username/check?username=jon\`.
+
+The setup page now includes a username field between email and password. As you type, it debounces a check request, shows green/red availability status, and blocks submit if the handle is taken. The signup API validates server-side too — format, reserved words, uniqueness — because client-side checks are suggestions, not guarantees.
+
+Why this matters: usernames are the foundation for everything below. @mentions need stable identifiers. Federation needs portable handles. The profile system needs URL-safe slugs. This was prerequisite infrastructure.
+
+## @Mentions — Clickable Everywhere
+
+Type \`@jon\` anywhere on the platform and it renders as a styled, clickable chip that links to that user's profile page.
+
+This works in:
+- **Chat** — message bodies, alongside bold and code formatting
+- **Queue** — task titles and descriptions (main list + Divi's review suggestions)
+- **Comms** — relay thread peer names and message subjects
+- **Notifications** — activity feed summaries
+
+The implementation: a shared \`<MentionText>\` component that takes any text string, splits it on the \`@[a-z0-9_.-]{2,30}\` pattern, and resolves matches via \`GET /api/users/resolve?usernames=jon,sarah\`. Batch resolution with a module-level cache and 50ms coalescing window — so rendering 20 messages with mentions doesn't fire 20 API calls.
+
+Unresolved usernames render styled but unlinked. Graceful degradation, no broken UI.
+
+\`/api/users/resolve\` is public (no auth required) — it returns only safe fields: id, name, username, avatar. Federation partners can use it too.
+
+## Notification Center v2
+
+The notification feed got two upgrades:
+
+**Click-through navigation.** Every notification now routes you to the relevant dashboard tab when clicked. Activity about a card → Kanban. A relay → Comms. A queue item → Queue. It dispatches a custom \`dividen:navigate-tab\` event that the dashboard layout picks up and switches context. No more "I see a notification but where do I go?"
+
+**Category filter pills.** Filter the feed by category — all, queue, comms, cards, system — with pill buttons at the top. Quick triage without scrolling through everything.
+
+## Catch-Up Pipeline v2
+
+The catch-up briefing system was rebuilt. When you click "☀️ Catch me up" (or when it runs during onboarding), it now passes \`catchUpMode: true\` to the chat endpoint. The server assembles a structured briefing from your actual data — calendar, queue, activity, pending items — instead of a generic summary.
+
+The onboarding flow now includes "Run Your First Catch-Up" as a guided task that auto-completes after the briefing runs. And when you connect Google services during setup, it auto-syncs all services immediately and refreshes the NOW panel — so the catch-up has real data to work with.
+
+## Federation Expansion
+
+Three pieces for federated partners:
+
+**Notification Relay API.** \`POST /api/federation/notifications\` lets federated instances push typed notifications into DiviDen. 12 supported types — task_assigned, mention, relay_received, approval_needed, etc. Each notification creates an ActivityLog entry and optionally routes to the queue.
+
+**Mentions API.** \`GET /api/federation/mentions?prefix=jo\` powers @mention autocomplete for federated instances. Returns matching users with id, username, name, and avatar. Prefix-search, capped at 10 results. Federation partners can build mention pickers against DiviDen's user directory.
+
+**FVP Integration Guide — now 14 sections.** The guide at \`/fvp-integration-guide.md\` grew from 5 to 14 sections. New content covers username requirements, inline tagging system spec, federation mentions API, clickable mentions rendering spec (with the resolve endpoint), notification system internals, federation notification relay API, connection lifecycle, relay system, team/project integration, activity logging taxonomy, and error handling. It's the complete technical surface for building against DiviDen.
+
+This is the v2.0 foundation. Everything that comes next — mentions in relay messages, federated mention resolution, cross-instance profile linking — builds on these primitives.
+
+- Jon`,
+  },
+  {
     id: 'approval-pipeline-inbox-zero-ambient-learning-v1-9-4',
     date: '2026-04-15',
     time: '11:30 PM',

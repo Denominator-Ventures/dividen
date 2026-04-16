@@ -107,6 +107,8 @@ const NAV = [
   { id: 'linked-kards', label: 'Linked Kards (Cross-User)' },
   { id: 'card-activity', label: 'Card Activity Feeds' },
   { id: 'intelligence-system', label: 'Intelligence & Learning' },
+  { id: 'username-mentions', label: 'Usernames & @Mentions (v2.0)' },
+  { id: 'notification-v2', label: 'Notification Center (v2.0)' },
 ];
 
 /* ── PAGE ─────────────────────────────────────────────────────────────────── */
@@ -523,6 +525,15 @@ Authorization: Bearer <platformToken>`}</Code>
               <Endpoint method="POST" path="/api/federation/mcp" description="Cross-instance MCP tool invocation" auth="Federation Token" />
               <Endpoint method="POST" path="/api/federation/reputation" description="Reputation attestation exchange" auth="Federation Token" />
               <Endpoint method="GET" path="/api/federation/entity-search" description="Privacy-respecting cross-instance entity lookup" auth="Federation Token" />
+              <Endpoint method="POST" path="/api/federation/notifications" description="Push typed notifications (12 types) into this instance" auth="Federation Token" />
+              <Endpoint method="GET" path="/api/federation/mentions?prefix=jo" description="@mention autocomplete — prefix-search users (max 10 results)" auth="Federation Token" />
+              <Endpoint method="POST" path="/api/federation/connect" description="Request a federation connection with a user on this instance" auth="Federation Token" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">Identity & Mentions</h3>
+            <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+              <Endpoint method="GET" path="/api/username/check?username=jon" description="Check username availability (real-time)" auth="None" />
+              <Endpoint method="GET" path="/api/users/resolve?usernames=jon,sarah" description="Bulk username→profile resolution (public-safe fields)" auth="None" />
             </div>
 
             <h3 className="text-lg font-bold text-white mb-3">Discovery & Network</h3>
@@ -1116,8 +1127,68 @@ onDiscuss={(context: string) => {
             </ul>
           </Section>
 
+          {/* ═══ USERNAMES & @MENTIONS ═══════════════════════════════ */}
+          <Section id="username-mentions" title="Usernames & @Mentions (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              Every DiviDen account now has a unique <InlineCode>@username</InlineCode> handle — the identity primitive
+              for mentions, federation, and profile URLs. Usernames are enforced at signup with real-time validation.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <Card title="🏷️ Username Rules">
+                <p>2–30 characters, <InlineCode>[a-z0-9_.-]</InlineCode> format. Reserved words blocked (admin, system, dividen, etc.).
+                Uniqueness enforced at database level. Real-time availability check at <InlineCode>GET /api/username/check</InlineCode>.</p>
+              </Card>
+              <Card title="@️ Clickable @Mentions">
+                <p>Type <InlineCode>@username</InlineCode> anywhere — chat, queue, comms, notifications — and it renders as a
+                styled clickable chip linking to <InlineCode>/profile/[userId]</InlineCode>. Batch-resolved via
+                <InlineCode>GET /api/users/resolve</InlineCode> (public, no auth).</p>
+              </Card>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">Where Mentions Render</h3>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">Chat</strong> — Message bodies alongside bold/code formatting</li>
+              <li><strong className="text-white">Queue</strong> — Task titles and descriptions (main list + review suggestions)</li>
+              <li><strong className="text-white">Comms</strong> — Relay thread peer names and message subjects</li>
+              <li><strong className="text-white">Notifications</strong> — Activity feed summaries</li>
+            </ul>
+
+            <h3 className="text-lg font-bold text-white mb-3">Federation Support</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Federated instances can power @mention autocomplete via <InlineCode>GET /api/federation/mentions?prefix=jo</InlineCode> (prefix-search, max 10 results).
+              Push notifications containing @mentions are supported via <InlineCode>POST /api/federation/notifications</InlineCode> (12 notification types).
+              Full spec in the <a href="/fvp-integration-guide.md" target="_blank" className="text-brand-400 hover:text-brand-300">FVP Integration Guide</a>.
+            </p>
+          </Section>
+
+          {/* ═══ NOTIFICATION CENTER v2 ════════════════════════════════ */}
+          <Section id="notification-v2" title="Notification Center (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              The notification feed now supports click-through navigation and category filtering — making it an
+              actionable hub instead of a passive list.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <Card title="🔗 Click-Through Navigation">
+                <p>Every notification routes to the relevant dashboard tab when clicked. Cards → Kanban, relays → Comms,
+                queue items → Queue. Dispatches <InlineCode>dividen:navigate-tab</InlineCode> custom DOM event.</p>
+              </Card>
+              <Card title="🏷️ Category Filters">
+                <p>Filter pills at the top: All, Queue, Comms, Cards, System. Quick triage without scrolling through
+                unrelated notifications.</p>
+              </Card>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">@Mention Rendering</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              Notification summaries now render <InlineCode>@username</InlineCode> tokens as clickable profile links,
+              using the shared <InlineCode>MentionText</InlineCode> component with batch resolution.
+            </p>
+          </Section>
+
           {/* Download */}
-          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 14, 2026" />
+          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 15, 2026" />
 
           {/* Footer */}
           <div className="border-t border-white/[0.06] pt-8 mt-8 text-center" data-no-download>

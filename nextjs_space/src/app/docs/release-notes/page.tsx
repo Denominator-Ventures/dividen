@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — Realtime Dashboard, Catch-Up Rewrite, Activity Feed v2, Federation, and more.',
+  description: 'DiviDen release notes — v2.0 Identity Layer, Usernames, @Mentions, Federation Expansion, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'Realtime Dashboard, Catch-Up Briefing Rewrite, Activity Feed v2, Federation Capabilities, and more.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v1.9.1+Realtime+%2B+Catch-Up&tag=release', width: 1200, height: 630 }],
+    description: 'v2.0 Identity Layer — Usernames, Clickable @Mentions, Federation Mentions API, Notification Center v2.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.0+Identity+Layer&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'Realtime Dashboard, Catch-Up Briefing Rewrite, Activity Feed v2, Federation Capabilities, and more.',
-    images: ['/api/og?title=Release+Notes&subtitle=v1.9.1+Realtime+%2B+Catch-Up&tag=release'],
+    description: 'v2.0 Identity Layer — Usernames, Clickable @Mentions, Federation Mentions API, Notification Center v2.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.0+Identity+Layer&tag=release'],
   },
 };
 
