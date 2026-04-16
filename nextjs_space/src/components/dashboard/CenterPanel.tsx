@@ -49,6 +49,7 @@ const primaryTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'calendar', label: 'Calendar', icon: '📅' },
   { id: 'inbox', label: 'Email', icon: '📧' },
   { id: 'recordings', label: 'Recordings', icon: '🎙️' },
+  { id: 'marketplace', label: 'Bubble Store', icon: '🫧' },
 ];
 
 const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
@@ -56,7 +57,6 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'connections', label: 'Connections', icon: '🔗' },
   { id: 'teams', label: 'Teams', icon: '🏢' },
   { id: 'jobs', label: 'Tasks', icon: '📋' },
-  { id: 'marketplace', label: 'Bubble Store', icon: '🫧' },
   { id: 'capabilities', label: 'Capabilities', icon: '⚡' },
   { id: 'federation', label: 'Federation Intel', icon: '🧠' },
 ];

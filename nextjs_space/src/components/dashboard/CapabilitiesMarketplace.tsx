@@ -124,8 +124,11 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
   });
   const [creating, setCreating] = useState(false);
 
-  const fetchCapabilities = useCallback(async () => {
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const fetchCapabilities = useCallback(async (retryCount = 0) => {
     setLoading(true);
+    setFetchError(null);
     try {
       const params = new URLSearchParams();
       if (view === 'installed') params.set('installed', 'true');
@@ -137,9 +140,20 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
       if (res.ok) {
         const data = await res.json();
         setCapabilities(data.capabilities || []);
+      } else if (res.status >= 500 && retryCount < 2) {
+        // Retry on server errors (connection pool issues)
+        await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+        return fetchCapabilities(retryCount + 1);
+      } else {
+        setFetchError(`Failed to load (${res.status})`);
       }
     } catch (e) {
       console.error('Failed to fetch capabilities:', e);
+      if (retryCount < 2) {
+        await new Promise(r => setTimeout(r, 1000 * (retryCount + 1)));
+        return fetchCapabilities(retryCount + 1);
+      }
+      setFetchError('Network error — please try again');
     } finally {
       setLoading(false);
     }
@@ -894,6 +908,15 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
           <CreateView />
         ) : loading ? (
           <div className="text-center py-12 text-white/30 text-sm">Loading capabilities...</div>
+        ) : fetchError ? (
+          <div className="text-center py-12">
+            <div className="text-3xl mb-2">⚠️</div>
+            <div className="text-white/50 text-sm">{fetchError}</div>
+            <button
+              onClick={() => fetchCapabilities()}
+              className="mt-3 text-xs px-4 py-2 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 border border-brand-500/30 transition-colors"
+            >Retry</button>
+          </div>
         ) : capabilities.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-3xl mb-2">{view === 'installed' ? '📭' : '🔍'}</div>

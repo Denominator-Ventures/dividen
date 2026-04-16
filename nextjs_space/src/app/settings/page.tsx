@@ -15,8 +15,9 @@ import { FederationManager } from '@/components/settings/FederationManager';
 import RelaySettings from '@/components/settings/RelaySettings';
 import PaymentSettings from '@/components/settings/PaymentSettings';
 import { DiviSettings } from '@/components/settings/DiviSettings';
+import { InstalledManager } from '@/components/settings/InstalledManager';
 import { cn } from '@/lib/utils';
-import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
+// DragScrollContainer removed — tabs now fit in single row
 
 interface SettingsData {
   user: {
@@ -232,12 +233,12 @@ function SettingsPageInner() {
   }
 
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
-    { id: 'divi', label: 'Your Divi', icon: '🤖' },
+    { id: 'divi', label: 'Divi', icon: '🤖' },
     { id: 'general', label: 'General', icon: '⚙️' },
-    { id: 'integrations', label: 'Signals & Integrations', icon: '📡' },
+    { id: 'integrations', label: 'Signals', icon: '📡' },
     { id: 'network', label: 'Network', icon: '🌐' },
-    { id: 'payments', label: 'Payments', icon: '💳' },
-    { id: 'learnings', label: 'Learnings', icon: '🧠' },
+    { id: 'payments', label: 'Pay', icon: '💳' },
+    { id: 'learnings', label: 'Learn', icon: '🧠' },
     { id: 'notifications', label: 'Alerts', icon: '🔔' },
   ];
 
@@ -250,27 +251,23 @@ function SettingsPageInner() {
         </p>
       </div>
 
-      {/* Tab Navigation — horizontal scroll on mobile with drag-to-scroll */}
-      <div className="relative -mx-4 px-4 md:mx-0 md:px-0">
-        <DragScrollContainer>
-          <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={cn(
-                  'px-3 md:px-4 py-2 rounded-md text-sm font-medium transition-colors whitespace-nowrap shrink-0',
-                  activeTab === tab.id
-                    ? 'bg-[var(--brand-primary)] text-white'
-                    : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                )}
-              >
-                <span className="mr-1">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </DragScrollContainer>
+      {/* Tab Navigation — single row, compact, no scroll */}
+      <div className="flex gap-1 p-1 bg-[var(--bg-surface)] rounded-lg w-full">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={cn(
+              'flex-1 min-w-0 px-1.5 py-2 rounded-md text-xs font-medium transition-colors text-center',
+              activeTab === tab.id
+                ? 'bg-[var(--brand-primary)] text-white'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+            )}
+          >
+            <span className="block text-base leading-none mb-0.5">{tab.icon}</span>
+            <span className="block truncate">{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       {/* General Tab */}
@@ -511,12 +508,19 @@ function SettingsPageInner() {
 
       {/* Your Divi Tab */}
       {activeTab === 'divi' && data?.user && (
-        <DiviSettings
-          diviName={(data.user as any).diviName || null}
-          workingStyle={(data.user as any).workingStyle || null}
-          triageSettings={(data.user as any).triageSettings || null}
-          goalsEnabled={(data.user as any).goalsEnabled || false}
-        />
+        <div className="space-y-6">
+          <DiviSettings
+            diviName={(data.user as any).diviName || null}
+            workingStyle={(data.user as any).workingStyle || null}
+            triageSettings={(data.user as any).triageSettings || null}
+            goalsEnabled={(data.user as any).goalsEnabled || false}
+          />
+          <InstalledManager
+            onNavigate={(tab) => {
+              window.location.href = `/dashboard?tab=${tab}`;
+            }}
+          />
+        </div>
       )}
 
       {/* Payments Tab */}
