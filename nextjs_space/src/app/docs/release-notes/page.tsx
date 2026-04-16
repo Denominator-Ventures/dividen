@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.0 Identity Layer, Usernames, @Mentions, Federation Expansion, and more.',
+  description: 'DiviDen release notes — v2.1.0 Task Routing, Bubble Store, Settings Overhaul, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.0 Identity Layer — Usernames, Clickable @Mentions, Federation Mentions API, Notification Center v2.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.0+Identity+Layer&tag=release', width: 1200, height: 630 }],
+    description: 'v2.1.0 — Cross-User Task Routing, Bubble Store Top Tab, Settings Overhaul, Installed Manager.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.1.0+Task+Routing&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.0 Identity Layer — Usernames, Clickable @Mentions, Federation Mentions API, Notification Center v2.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.0+Identity+Layer&tag=release'],
+    description: 'v2.1.0 — Cross-User Task Routing, Bubble Store Top Tab, Settings Overhaul, Installed Manager.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.1.0+Task+Routing&tag=release'],
   },
 };
 
@@ -38,6 +38,138 @@ export default function ReleaseNotesPage() {
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 16, 2026 — v2.1.0 TASK ROUTING, BUBBLE STORE, SETTINGS    */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.1.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/20 rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.0</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">April 16, 2026</span>
+              <DocDownloadButton containerId="release-v2.1.0" filename="dividen-release-v2.1.0" variant="icon" />
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-6">Cross-User Task Routing, Relay Pipeline, Bubble Store Promotion, Settings Overhaul, Installed Manager, Capabilities Resilience</p>
+
+          <div className="space-y-8">
+
+            {/* Task Routing */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📡 Cross-User Task Routing</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Task routing is now a core capability — not a Bubble Store install. When you say &quot;assign this to Alvaro&quot;, Divi emits a <code className="code-inline">[[task_route:...]]</code> tag that creates a full delivery pipeline:
+              </p>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li><strong className="text-white">Queue item</strong> created on the sender&apos;s side for tracking and approval.</li>
+                <li><strong className="text-white">Relay</strong> created and linked to the queue item, sent to the recipient&apos;s Divi.</li>
+                <li><strong className="text-white">Comms message</strong> delivered to recipient with task details, subject, and card context.</li>
+                <li><strong className="text-white">Sender comms thread</strong> created for tracking routed tasks.</li>
+                <li><strong className="text-white">Checklist item</strong> added to source card (if card context exists) showing assignee, due date, and delegation status.</li>
+                <li><strong className="text-white">Activity log</strong> records the routing with match scores and route mode.</li>
+              </ul>
+            </div>
+
+            {/* task_route Flexibility */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔧 Flexible task_route Tag</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li><code className="code-inline">cardId</code> is now <strong className="text-white">optional</strong>. Tasks can be routed standalone without a specific kanban card.</li>
+                <li><code className="code-inline">cardTitle</code> added as an alternative — looks up cards by name (case-insensitive partial match).</li>
+                <li>Minimum viable tag: <code className="code-inline">{'[[task_route:{"tasks":[{"title":"...","to":"Name","dueDate":"..."}]}]]'}</code></li>
+                <li>Explicit <code className="code-inline">to</code> field bypasses skill matching — direct assignment always works regardless of profile skills.</li>
+                <li>When skill matching fails for the <code className="code-inline">to</code> target, falls back to searching <strong className="text-white">all active connections</strong>.</li>
+              </ul>
+            </div>
+
+            {/* Relay Respond Sync */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔄 Relay Response Sync</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li><code className="code-inline">relay_respond</code> now syncs delegation status back to the sender&apos;s checklist item (accepted/declined).</li>
+                <li>Queue items linked to relays are also updated when relays complete or are declined.</li>
+                <li>Inbound <code className="code-inline">assign_task</code> relays instruct the recipient&apos;s Divi to create a card on their board.</li>
+              </ul>
+            </div>
+
+            {/* Routing Always Loaded */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚡ Routing Capabilities Always On</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>When a user has <strong className="text-white">any active connections</strong>, the routing capability group and relay group are always loaded into Divi&apos;s context.</li>
+                <li>Previously required specific keyword patterns to match — now routing is available in every conversation.</li>
+                <li>5 concrete <code className="code-inline">[[task_route:...]]</code> examples added to CRITICAL EXECUTION RULES to prevent phantom work.</li>
+                <li>Rule 6 explicitly prohibits using <code className="code-inline">upsert_card</code> for cross-user assignment.</li>
+              </ul>
+            </div>
+
+            {/* Checklist Delegation */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📋 Delegation on Checklist Items</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Checklist items now carry <code className="code-inline">assigneeType</code>, <code className="code-inline">assigneeName</code>, <code className="code-inline">delegationStatus</code>, <code className="code-inline">dueDate</code>, and <code className="code-inline">sourceType/sourceId/sourceLabel</code>.</li>
+                <li>Card detail modal shows purple <strong className="text-white">Delegated</strong> badges and per-task due dates.</li>
+                <li>NOW panel scores and surfaces delegated tasks with assignee info.</li>
+              </ul>
+            </div>
+
+            {/* Bubble Store */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🫧 Bubble Store — Top-Level Tab</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Bubble Store promoted from the Network sub-menu to the <strong className="text-white">primary tab bar</strong> — one click, no nesting.</li>
+                <li>Sits alongside Chat, CRM, Calendar, Email, Recordings as a first-class surface.</li>
+              </ul>
+            </div>
+
+            {/* Settings */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚙️ Settings Overhaul</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li><strong className="text-white">Compact tab bar</strong> — all 7 tabs fit in a single row with icon-above-label layout. No horizontal scrolling, no two-row wrapping.</li>
+                <li><strong className="text-white">Installed Manager</strong> (Divi tab) — new section showing all installed agents and capabilities with uninstall, edit rules, and links to stores.</li>
+                <li>Capability customization fields editable inline — no need to navigate to the store.</li>
+              </ul>
+            </div>
+
+            {/* Capabilities Resilience */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🛡️ Capabilities Page Resilience</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Auto-retry (up to 2x) on server errors and network failures — handles DB connection pool timeouts gracefully.</li>
+                <li>Error state with manual &quot;Retry&quot; button when auto-retry exhausted.</li>
+              </ul>
+            </div>
+
+            {/* Connection Requests */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🤝 Connection Request Surfacing</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Pending inbound connection requests now injected into the relay group with <code className="code-inline">[[accept_connection:...]]</code> action tags.</li>
+                <li>Divi proactively tells the operator about pending requests at the start of responses.</li>
+                <li>Relay group force-loaded when pending requests exist.</li>
+              </ul>
+            </div>
+
+            {/* Signals Onboarding */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔔 Signals Onboarding Fix</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Signal onboarding links now open settings <strong className="text-white">in-page</strong> (not new tab) and navigate to the correct tab.</li>
+              </ul>
+            </div>
+
+            {/* Directory */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🌍 Directory Improvements</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Raw instance entities without <code className="code-inline">operatorName</code> hidden from directory — only operators with profiles show.</li>
+                <li>Federated operators displayed as people with instance context cards.</li>
+              </ul>
+            </div>
+
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}

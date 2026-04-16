@@ -110,6 +110,8 @@ const NAV = [
   { id: 'username-mentions', label: 'Usernames & @Mentions (v2.0)' },
   { id: 'team-project-assignment', label: 'Team Project Assignment (v2.0.4)' },
   { id: 'notification-v2', label: 'Notification Center (v2.0)' },
+  { id: 'task-routing', label: 'Task Routing (v2.1.0)' },
+  { id: 'installed-manager', label: 'Installed Manager (v2.1.0)' },
 ];
 
 /* ── PAGE ─────────────────────────────────────────────────────────────────── */
@@ -1226,6 +1228,84 @@ onDiscuss={(context: string) => {
               Notification summaries now render <InlineCode>@username</InlineCode> tokens as clickable profile links,
               using the shared <InlineCode>MentionText</InlineCode> component with batch resolution.
             </p>
+          </Section>
+
+          {/* ═══ TASK ROUTING (v2.1.0) ════════════════════════════════ */}
+          <Section id="task-routing" title="Cross-User Task Routing (v2.1.0)" badge={<UpdatedBadge date="Apr 16" />}>
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              Task routing is DiviDen&apos;s core mechanism for delegating work across users. When an operator says
+              &quot;assign this to [name]&quot;, Divi creates a complete delivery pipeline — queue item, relay,
+              comms messages, and checklist tracking.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">How It Works</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <Card title="📡 task_route Tag">
+                <p>Divi emits <InlineCode>{'[[task_route:{...}]]'}</InlineCode> which orchestrates the full pipeline.
+                The <InlineCode>to</InlineCode> field specifies the recipient by name or email. <InlineCode>cardId</InlineCode> and <InlineCode>cardTitle</InlineCode> are optional.</p>
+              </Card>
+              <Card title="📋 Delivery Pipeline">
+                <p>1. Queue item (sender tracking) → 2. Relay (inter-user) → 3. Comms (recipient delivery) →
+                4. Sender thread → 5. Checklist item (card tracking) → 6. Activity log.</p>
+              </Card>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">Minimum Viable Tag</h3>
+            <Code title="Simplest task_route">
+{`[[task_route:{"tasks":[{
+  "title": "Review pitch deck",
+  "to": "Alvaro",
+  "dueDate": "2026-04-20"
+}]}]]`}
+            </Code>
+            <p className="text-[var(--text-secondary)] text-sm mb-4">
+              Optional fields: <InlineCode>cardId</InlineCode>, <InlineCode>cardTitle</InlineCode>,
+              <InlineCode>description</InlineCode>, <InlineCode>requiredSkills</InlineCode>,
+              <InlineCode>intent</InlineCode>, <InlineCode>priority</InlineCode>,
+              <InlineCode>route</InlineCode> (direct/ambient/broadcast).
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Relay Response Flow</h3>
+            <p className="text-[var(--text-secondary)] mb-4">
+              When the recipient&apos;s Divi processes an inbound <InlineCode>assign_task</InlineCode> relay, it creates
+              a card on their board. When they respond via <InlineCode>relay_respond</InlineCode>, the sender&apos;s
+              checklist item delegation status is synced (accepted/declined) and the linked queue item is updated.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">For Instance Operators</h3>
+            <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+              <li>Task routing works between any two users with an <strong className="text-white">active connection</strong>.</li>
+              <li>Connections are established via the <strong className="text-white">Discover</strong> tab or direct invite links.</li>
+              <li>Routing capabilities auto-load when connections exist — no configuration needed.</li>
+              <li>Self-hosted instances: ensure federation relay endpoints are accessible for cross-instance routing.</li>
+              <li>The <InlineCode>to</InlineCode> field does a case-insensitive partial match on connection names and emails.</li>
+            </ul>
+          </Section>
+
+          {/* ═══ INSTALLED MANAGER (v2.1.0) ═══════════════════════════ */}
+          <Section id="installed-manager" title="Installed Manager (v2.1.0)" badge={<UpdatedBadge date="Apr 16" />}>
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              A centralized place to manage all agents and capabilities installed from the Bubble Store.
+              Found in <strong className="text-white">Settings → Divi</strong>.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <Card title="🤖 Installed Agents">
+                <p>View all marketplace agents you&apos;ve subscribed to. Each shows name, category, and install date.
+                Uninstall removes the subscription — the agent stops running tasks for you.</p>
+              </Card>
+              <Card title="⚡ Installed Capabilities">
+                <p>View prompt modules extending Divi. Edit customizable rules inline (e.g., tone, industry, escalation
+                policies). Uninstall removes the capability from Divi&apos;s context.</p>
+              </Card>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">API Endpoints</h3>
+            <Endpoint method="GET" path="/api/settings/installed-agents" description="List user's installed marketplace agents" auth="Session" />
+            <Endpoint method="DELETE" path="/api/marketplace/[id]/subscribe" description="Unsubscribe from an agent" auth="Session" />
+            <Endpoint method="GET" path="/api/marketplace-capabilities?installed=true" description="List user's installed capabilities" auth="Session" />
+            <Endpoint method="PATCH" path="/api/marketplace-capabilities/[id]" description="Update capability customizations" auth="Session" />
+            <Endpoint method="DELETE" path="/api/marketplace-capabilities/[id]" description="Uninstall a capability" auth="Session" />
           </Section>
 
           {/* Download */}
