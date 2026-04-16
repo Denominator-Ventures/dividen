@@ -12,6 +12,7 @@ import { prisma } from '@/lib/prisma';
 import { buildSystemPrompt } from '@/lib/system-prompt';
 import { parseActionTags, executeActionTags, stripActionTags } from '@/lib/action-tags';
 import { streamLLMResponse, type LLMMessage } from '@/lib/llm';
+import { assembleBriefing } from '@/lib/catch-up-pipeline';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   const userId = (session.user as any).id;
 
   // ── Parse Request ─────────────────────────────────────────────────────
-  let body: { message: string; provider?: string };
+  let body: { message: string; provider?: string; catchUpMode?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const { message, provider } = body;
+  const { message, provider, catchUpMode } = body;
   if (!message || typeof message !== 'string' || message.trim().length === 0) {
     return new Response(JSON.stringify({ error: 'Message is required' }), {
       status: 400,
@@ -70,12 +71,24 @@ export async function POST(request: Request) {
   }
 
   // ── Build System Prompt (dynamic — loads only relevant groups) ────────
-  const systemPrompt = await buildSystemPrompt({
+  let systemPrompt = await buildSystemPrompt({
     userId: user.id,
     mode: user.mode,
     userName: user.name,
     currentMessage: message.trim(),
   });
+
+  // ── Catch-Up Mode: Assemble briefing data server-side and inject into prompt ──
+  if (catchUpMode) {
+    try {
+      const briefing = await assembleBriefing(userId);
+      // Append the pre-assembled briefing context + pacing instructions to the system prompt
+      systemPrompt += '\n\n---\n\n' + briefing.briefingContext + '\n\n---\n\n' + briefing.pacingPrompt;
+    } catch (err: any) {
+      console.error('[chat/send] Catch-up pipeline error:', err);
+      // Fallback: continue without briefing data — LLM will use system prompt context
+    }
+  }
 
   // ── Build Message History ─────────────────────────────────────────────
   // Use up to 50 recent non-cleared messages for context continuity.

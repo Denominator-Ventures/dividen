@@ -56,7 +56,8 @@ export const SETUP_TASK_ACTIONS: SetupTaskAction[] = [
   },
   {
     taskText: 'Set Up Custom Signals (Optional)',
-    agentPrompt: "The user wants to set up custom signals. Walk them through Settings → Signals where they can configure custom signal sources and rules. This is optional — let them know they can skip it.",
+    actionTag: 'open_signals_settings',
+    actionParams: {},
     description: 'Configure custom signal sources and routing rules.',
   },
   {

@@ -176,12 +176,10 @@ export function getCatchUpPrompt(configs?: SignalCatchUpConfig[]): string {
   let enabledSignals: { id: string; name: string; icon: string }[];
 
   if (configs && configs.length > 0) {
-    // Filter to only catch-up-enabled signals, already sorted by priority from API
     enabledSignals = configs
       .filter(c => c.catchUpEnabled)
       .map(c => ({ id: c.signalId, name: c.name, icon: c.icon }));
   } else {
-    // Fallback: all hardcoded signals
     enabledSignals = SIGNAL_DEFINITIONS.map(s => ({ id: s.id, name: s.name, icon: s.icon }));
   }
 
@@ -189,38 +187,9 @@ export function getCatchUpPrompt(configs?: SignalCatchUpConfig[]): string {
     return 'All signals are currently excluded from catch-up. Go to Catch Up Settings to enable at least one signal.';
   }
 
-  const signalList = enabledSignals.map((s, i) => `${i + 1}. ${s.icon} ${s.name}`).join('\n');
-
-  return `Catch me up — walk me through everything that needs my attention. Go phase by phase:
-
-## Phase 1 — Board & Queue Progress
-Read my Board and Queue state. Give me a clear status report:
-- **Completed**: What got done since last catch-up? List specifics.
-- **Still pending**: What's sitting there waiting? Be direct about what matters and what doesn't.
-- **Blocked / structurally wrong**: Anything stuck? Any workflow issues?
-- **Your recommendation**: Is the board healthy? What needs management attention?
-
-## Phase 2 — Inbox Triage
-Look at my unread emails. Don't just count them — analyze:
-- **What actually looks real**: Important threads by name, with context about why they matter and what state they're in. Use 🔴 for urgent, 🟡 for important but not urgent.
-- **What I'd do next**: Your specific recommendation for inbox processing order.
-- Skip newsletters and noise — only surface humans and active deals.
-
-## Phase 3 — Calendar & Signals
-Check my calendar and other connected signals (${signalList}):
-- Any meetings coming up that need prep?
-- Any recordings that need review?
-- Anything from connected signals that changes priorities?
-
-## Phase 4 — Recommended Focus
-End with your top 2-3 recommendations for what I should focus on RIGHT NOW — the things that move the needle fastest.
-
-**Style rules**:
-- Write like a chief of staff briefing, not a system report
-- Be specific — use names, project titles, thread subjects
-- Be opinionated — tell me what matters and what doesn't
-- Keep each phase as a separate section with a clear heading
-- After each phase, ask if I want to dig deeper or move to the next one`;
+  // The actual briefing data is pre-assembled server-side and injected into the system prompt
+  // via the catch-up pipeline. This user message just triggers the briefing delivery.
+  return `Catch me up — walk me through everything that needs my attention. Deliver the briefing using the pre-assembled data.`;
 }
 
 /** Map center tab IDs to signal IDs where triage makes sense */

@@ -246,7 +246,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
   // ── Send message with SSE streaming ───────────────────────────────────
   const sendMessage = useCallback(
-    async (text?: string) => {
+    async (text?: string, opts?: { catchUpMode?: boolean }) => {
       const content = (text || input).trim();
       if (!content || isStreaming) return;
 
@@ -267,10 +267,12 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       emitSignal('chat_send', { contentLength: content.length });
 
       try {
+        const reqBody: any = { message: content };
+        if (opts?.catchUpMode) reqBody.catchUpMode = true;
         const res = await fetch('/api/chat/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: content }),
+          body: JSON.stringify(reqBody),
         });
 
         if (!res.ok) {
@@ -393,6 +395,25 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         const tagName = action.actionTag;
         const tagParams = action.actionParams || {};
 
+        // Special case: open_signals_settings — show a button to open settings, then confirm
+        if (tagName === 'open_signals_settings') {
+          const signalsMsg: ChatMessage = {
+            id: `msg-signals-setup-${Date.now()}`,
+            role: 'assistant',
+            content: `Time for custom signals — this is where you configure additional data sources and routing rules beyond the defaults.\n\nHead to **Settings → Signals** to set things up. When you're done (or if you want to skip), let me know.`,
+            createdAt: new Date().toISOString(),
+            metadata: { isSignalsSetup: true },
+          };
+          // Persist to DB
+          fetch('/api/chat/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ role: 'assistant', content: signalsMsg.content, metadata: JSON.stringify(signalsMsg.metadata) }),
+          }).catch(() => {});
+          setMessages(prev => [...prev, signalsMsg]);
+          return;
+        }
+
         // Special case: catch_up — sync data first, then send the full briefing prompt to the LLM
         if (tagName === 'catch_up') {
           const syncingMsg: ChatMessage = {
@@ -428,7 +449,17 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             catchUpPrompt = getCatchUpPrompt();
           }
 
-          sendMessage(catchUpPrompt);
+          sendMessage(catchUpPrompt, { catchUpMode: true });
+
+          // Mark the "Run Your First Catch-Up" setup task as complete
+          fetch('/api/onboarding/complete-task', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskText: 'Run Your First Catch-Up' }),
+          }).then(() => {
+            window.dispatchEvent(new Event('dividen:now-refresh'));
+          }).catch(() => {});
+
           return;
         }
 
@@ -556,6 +587,83 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       sendMessage(`Let's do "${taskText}" now.`);
     }
   }, [sendMessage]);
+
+  // ── Signals setup complete handler ─────────────────────────────────
+  const handleSignalsSetupComplete = useCallback(async (choice: 'done' | 'skip') => {
+    try {
+      if (choice === 'done') {
+        // Mark the custom signals task as complete
+        const completeRes = await fetch('/api/onboarding/complete-task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskText: 'Set Up Custom Signals' }),
+        });
+        const result = await completeRes.json();
+        const { nextTaskText, nextTaskAction, allTasksComplete } = result?.data || {};
+
+        let confirmContent = '✅ Custom signals configured — nice. That\'s checked off your setup list.';
+        let confirmMetadata: any = null;
+
+        if (nextTaskText) {
+          confirmContent += `\n\nNext up is **"${nextTaskText}"**. Want to knock that out now?`;
+          confirmMetadata = {
+            isSetupNextTask: true,
+            nextTaskText,
+            nextTaskAction: nextTaskAction || null,
+          };
+        } else if (allTasksComplete) {
+          confirmContent += '\n\nAnd that wraps up your setup! You\'re good to go.';
+        }
+
+        // Persist and show
+        fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'assistant', content: confirmContent, metadata: confirmMetadata ? JSON.stringify(confirmMetadata) : undefined }),
+        }).catch(() => {});
+        setMessages(prev => [...prev, {
+          id: `msg-signals-done-${Date.now()}`,
+          role: 'assistant',
+          content: confirmContent,
+          createdAt: new Date().toISOString(),
+          metadata: confirmMetadata,
+        }]);
+      } else {
+        // Skip — same flow as handleSetupSkipTask but for signals specifically
+        const skipMsg: ChatMessage = {
+          id: `msg-signals-skip-${Date.now()}`,
+          role: 'assistant',
+          content: '⏭️ No worries — custom signals are optional. You can always set them up later in Settings → Signals.',
+          createdAt: new Date().toISOString(),
+        };
+        fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: 'assistant', content: skipMsg.content }),
+        }).catch(() => {});
+
+        // Still check what the next task is
+        const completeRes = await fetch('/api/onboarding/complete-task', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskText: 'Set Up Custom Signals' }),
+        });
+        const result = await completeRes.json();
+        const { nextTaskText, nextTaskAction } = result?.data || {};
+
+        if (nextTaskText) {
+          skipMsg.content += `\n\nNext up is **"${nextTaskText}"**. Want to do that now?`;
+          skipMsg.metadata = { isSetupNextTask: true, nextTaskText, nextTaskAction: nextTaskAction || null };
+        }
+
+        setMessages(prev => [...prev, skipMsg]);
+      }
+      window.dispatchEvent(new Event('dividen:now-refresh'));
+      window.dispatchEvent(new Event('dividen:activity-refresh'));
+    } catch (err) {
+      console.error('[handleSignalsSetupComplete] Error:', err);
+    }
+  }, []);
 
   const handleSetupSkipTask = useCallback(async (taskText: string) => {
     // Mark the task as skipped in a Divi message
@@ -698,7 +806,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
 
   // ── Engagement actions (has API key, cleared chat) ─────────────────
   const engagementActions = [
-    { label: '☀️ Catch me up', message: 'Catch me up on everything — what happened since we last talked, what\'s urgent, what needs my attention.' },
+    { label: '☀️ Catch me up', message: 'Catch me up on everything — what happened since we last talked, what\'s urgent, what needs my attention.', catchUpMode: true },
     { label: '🧠 Let\'s strategize', message: 'I want to think through something strategic. Help me work through my priorities and what to focus on next.' },
     { label: '⚡ Quick task', message: 'I have something quick I need done. Let me tell you what it is.' },
   ];
@@ -764,11 +872,11 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
               </p>
             ) : null}
             <div className="flex gap-2 flex-wrap justify-center">
-              {(hasApiKey ? engagementActions : quickActions).map((action) => (
+              {(hasApiKey ? engagementActions : quickActions).map((action: any) => (
                 <button
                   key={action.label}
                   className="btn-secondary text-sm"
-                  onClick={() => sendMessage(action.message)}
+                  onClick={() => sendMessage(action.message, action.catchUpMode ? { catchUpMode: true } : undefined)}
                 >
                   {action.label}
                 </button>
@@ -778,7 +886,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} onSignalsSetupComplete={handleSignalsSetupComplete} />
             ))}
 
             {/* Streaming response */}
@@ -1067,7 +1175,42 @@ function SetupNowLaterButtons({ onChoice }: { onChoice: (mode: 'together' | 'sol
   );
 }
 
-function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void }) {
+function SignalsSetupButtons({ onDone, onSkip }: { onDone: () => void; onSkip: () => void }) {
+  const [chosen, setChosen] = useState<'done' | 'skip' | null>(null);
+
+  if (chosen) {
+    return (
+      <div className="mt-3 text-xs text-[var(--text-muted)] italic">
+        {chosen === 'done' ? '✅ Checking your signal setup…' : '⏭️ Skipped — you can set up signals anytime.'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 flex gap-2 flex-wrap">
+      <button
+        onClick={() => window.open('/settings#signals', '_blank')}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors"
+      >
+        📡 Open Signal Settings
+      </button>
+      <button
+        onClick={() => { setChosen('done'); onDone(); }}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--brand-primary)] text-white hover:opacity-90 transition-opacity"
+      >
+        ✅ Done — I&apos;ve set them up
+      </button>
+      <button
+        onClick={() => { setChosen('skip'); onSkip(); }}
+        className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+      >
+        ⏭️ Skip for now
+      </button>
+    </div>
+  );
+}
+
+function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask, onSignalsSetupComplete }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void; onSignalsSetupComplete?: (choice: 'done' | 'skip') => void }) {
   const isUser = message.role === 'user';
   const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
   const initials = isUser
@@ -1095,6 +1238,13 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
     const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
     if (meta?.isSetupNextTask) return meta;
     return null;
+  })();
+
+  // Detect signals setup message — renders Open Settings + Done/Skip buttons
+  const isSignalsSetup = (() => {
+    if (!message.metadata) return false;
+    const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
+    return meta?.isSignalsSetup === true;
   })();
 
   // Hide system-triggered messages
@@ -1191,6 +1341,13 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
             nextTaskAction={setupNextTaskMeta.nextTaskAction}
             onConfirm={(taskText, action) => onSetupNextTask?.(taskText, action)}
             onSkip={(taskText) => onSetupSkipTask?.(taskText)}
+          />
+        )}
+        {/* Signals setup: open settings + done/skip buttons */}
+        {isSignalsSetup && (
+          <SignalsSetupButtons
+            onDone={() => onSignalsSetupComplete?.('done')}
+            onSkip={() => onSignalsSetupComplete?.('skip')}
           />
         )}
         <p className="text-[10px] text-[var(--text-muted)] mt-1.5 opacity-60">
