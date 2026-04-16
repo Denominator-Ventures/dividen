@@ -97,6 +97,7 @@ const TOC = [
   { id: 'card-activity-feeds', label: 'Card Activity Feeds' },
   { id: 'google-connect-widget', label: 'Google Connect Widget' },
   { id: 'widget-library', label: 'Widget Library (v1.9.2)' },
+  { id: 'fvp-integration', label: 'FVP Integration Notes (v2.7)' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
 
@@ -2029,6 +2030,101 @@ interface AgentWidgetData {
     }
   }
 }`}</Code>
+        </Section>
+
+        {/* ── FVP Integration Notes ────────────────────────────── */}
+        <Section id="fvp-integration" title="FVP Integration Notes (v2.7)" badge={<UpdatedBadge date="Apr 15" />}>
+          <h4 className="text-base font-bold text-white mb-2">1. Linked Kards — Polling vs Webhooks</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            DiviDen does <strong className="text-white">not</strong> poll. Status changes propagate via the <InlineCode>propagateCardStatusChange()</InlineCode> function
+            in <InlineCode>card-links.ts</InlineCode>, which silently updates the <InlineCode>CardLink</InlineCode> row
+            (cached <InlineCode>linkedStatus</InlineCode>, <InlineCode>linkedPriority</InlineCode>, and a <InlineCode>changeLog</InlineCode> JSON array capped at 20 entries).
+            The originator&apos;s Divi reads accumulated changes at conversation time via the system prompt — <strong className="text-white">accumulate, don&apos;t ping</strong>.
+          </p>
+          <p className="text-[var(--text-secondary)] mb-3">
+            For <strong className="text-white">cross-instance</strong> Linked Kards (FVP ↔ DiviDen), the recommended pattern:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-3 space-y-1">
+            <li>FVP exposes a <InlineCode>POST /api/webhooks/card-status</InlineCode> endpoint</li>
+            <li>DiviDen calls it when a linked card&apos;s status/priority changes (fire-and-forget from <InlineCode>propagateCardStatusChange</InlineCode>)</li>
+            <li>Payload: <InlineCode>{`{ cardId, externalCardId, newStatus, newPriority, changeLog }`}</InlineCode></li>
+            <li>Reciprocally, FVP calls <InlineCode>POST /api/v2/federation/card-status</InlineCode> on DiviDen (to be added in v2.8)</li>
+            <li>No polling interval needed — webhook-driven, event-sourced</li>
+          </ul>
+
+          <h4 className="text-base font-bold text-white mb-2 mt-6">2. Capability Sync — Why Capabilities Get Skipped</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            <InlineCode>POST /api/v2/federation/capabilities</InlineCode> requires <strong className="text-white">two preconditions</strong>:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-3 space-y-1">
+            <li><InlineCode>platformLinked: true</InlineCode> AND <InlineCode>isActive: true</InlineCode> — instance must be fully registered and active</li>
+            <li><InlineCode>marketplaceEnabled: true</InlineCode> — call <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode> first to enable marketplace on the instance</li>
+          </ul>
+          <p className="text-[var(--text-secondary)] mb-3">
+            If either condition fails, the response is <InlineCode>401</InlineCode> (inactive token) or <InlineCode>403</InlineCode> (marketplace not enabled).
+            The <InlineCode>403</InlineCode> body includes the specific error message. FVP should check the response status and call <InlineCode>marketplace-link</InlineCode> if they get a 403 with the marketplace error.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2 mt-6">3. BehaviorSignal Spec — Taxonomy</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            The <InlineCode>BehaviorSignal</InlineCode> model stores per-user interaction signals. Current action taxonomy:
+          </p>
+          <Code>{`// Core action types (action field)
+"queue_complete"     // User completed a queue item
+"queue_snooze"       // User snoozed a queue item
+"email_discuss"      // User opened email discussion
+"calendar_dismiss"   // User dismissed a calendar item
+"chat_send"          // User sent a chat message
+"draft_edit"         // User edited a draft
+"capability_use"     // User invoked a marketplace capability
+"relay_send"         // User sent a relay
+
+// Schema
+POST /api/behavior-signals
+{
+  action: string,        // One of the above (extensible — add new types freely)
+  context?: object,      // Arbitrary JSON — item details, timing, metadata
+  duration?: number       // ms — time spent before action (optional)
+}
+
+// Stored fields (auto-populated server-side)
+dayOfWeek: 0-6         // 0=Sun..6=Sat
+hourOfDay: 0-23        // Hour of day
+createdAt: DateTime     // Auto timestamp
+
+// Aggregation: GET /api/behavior-signals?days=30
+// Returns: totalSignals, byAction counts, byHour, byDay, peakHour, peakDay`}</Code>
+          <p className="text-[var(--text-secondary)] mb-3">
+            FVP can emit any new action types — the taxonomy is open-ended. Convention: use <InlineCode>snake_case</InlineCode> verbs.
+            For cross-instance signals, FVP should prefix with <InlineCode>fvp_</InlineCode> (e.g., <InlineCode>fvp_session_start</InlineCode>).
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2 mt-6">4. DOM Event Namespace</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            DiviDen uses the <InlineCode>dividen:</InlineCode> prefix for all custom DOM events:
+          </p>
+          <ul className="list-disc list-inside text-[var(--text-secondary)] mb-3 space-y-1">
+            <li><InlineCode>dividen:now-refresh</InlineCode> — universal trigger, all panels listen</li>
+            <li><InlineCode>dividen:board-refresh</InlineCode> — kanban board re-fetch</li>
+            <li><InlineCode>dividen:queue-refresh</InlineCode> — queue panel re-fetch</li>
+            <li><InlineCode>dividen:comms-refresh</InlineCode> — comms tab re-fetch</li>
+            <li><InlineCode>dividen:activity-refresh</InlineCode> — activity stream re-fetch</li>
+          </ul>
+          <p className="text-[var(--text-secondary)] mb-3">
+            <strong className="text-white">FVP should:</strong> Keep <InlineCode>fvp:*</InlineCode> for their own internal events. When FVP widgets run embedded inside DiviDen,
+            emit the corresponding <InlineCode>dividen:*</InlineCode> event alongside the <InlineCode>fvp:*</InlineCode> event so DiviDen panels stay in sync.
+            Pattern:
+          </p>
+          <Code>{`// Inside an FVP widget running in DiviDen context
+function emitStatusChange() {
+  window.dispatchEvent(new Event('fvp:card-updated'));       // FVP internal
+  window.dispatchEvent(new Event('dividen:board-refresh'));   // DiviDen sync
+  window.dispatchEvent(new Event('dividen:activity-refresh'));
+}`}</Code>
+          <p className="text-[var(--text-secondary)] mb-3">
+            Detect DiviDen context by checking <InlineCode>window.__DIVIDEN_HOST === true</InlineCode> (set by the dashboard shell).
+            Only emit <InlineCode>dividen:*</InlineCode> events when running in that context.
+          </p>
         </Section>
 
         {/* ── Rate Limits ─────────────────────────────────────── */}
