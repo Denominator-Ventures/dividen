@@ -399,6 +399,6 @@ export async function PUT(req: NextRequest) {
   return NextResponse.json({
     success: true,
     data: capability,
-    message: 'Capability submitted for review. It will be visible in the marketplace once approved.',
+    message: 'Capability submitted for review. It will be visible in the Bubble Store once approved.',
   }, { status: 201 });
 }

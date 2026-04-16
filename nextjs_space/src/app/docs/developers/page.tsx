@@ -72,7 +72,7 @@ const TOC = [
   { id: 'mcp', label: 'MCP Server' },
   { id: 'a2a', label: 'A2A Protocol' },
   { id: 'webhooks', label: 'Webhooks' },
-  { id: 'marketplace', label: 'Agent Marketplace API' },
+  { id: 'marketplace', label: 'Bubble Store API' },
   { id: 'federation', label: 'Cross-Instance API' },
   { id: 'integration-kit', label: 'Integration Kit' },
   { id: 'queue-gating', label: 'Queue Gating & Confirmation' },

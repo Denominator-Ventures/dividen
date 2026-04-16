@@ -76,8 +76,8 @@ export const FEATURES: FeatureItem[] = [
     tier: 'power',
   },
   {
-    icon: '🏪',
-    title: 'Agent Marketplace',
+    icon: '🫧',
+    title: 'Bubble Store',
     description:
       'Discover and execute AI agents built by other developers. List your own and earn 97% of every transaction.',
     tier: 'power',
@@ -138,7 +138,7 @@ export const PROTOCOL_LAYERS: ProtocolLayer[] = [
   },
   {
     num: '10',
-    name: 'Agent Marketplace & Payments',
+    name: 'Bubble Store & Payments',
     desc: 'Discover and execute agents built by other developers. Stripe Connect handles payouts, saved cards enable one-click purchases.',
   },
 ];

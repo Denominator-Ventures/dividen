@@ -23,17 +23,43 @@ export async function GET(req: NextRequest) {
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '50'), 100);
     const offset = parseInt(url.searchParams.get('offset') || '0');
 
-    const where: any = { status };
+    const userId = (session.user as any).id;
+
+    // Visibility: show 'active' agents to everyone, PLUS show the developer's own
+    // agents (any status) and agents the user is already subscribed to.
+    // This lets developers use their own agents while pending_review,
+    // and existing subscribers keep access during re-review.
+    const ownAgentIds = (await prisma.marketplaceAgent.findMany({
+      where: { developerId: userId },
+      select: { id: true },
+    })).map(a => a.id);
+
+    const subscribedAgentIds = (await prisma.marketplaceSubscription.findMany({
+      where: { userId, status: 'active' },
+      select: { agentId: true },
+    })).map(s => s.agentId);
+
+    const privilegedIds = [...new Set([...ownAgentIds, ...subscribedAgentIds])];
+
+    // Build where: status filter applies to general browse, but privileged agents always visible
+    const where: any = privilegedIds.length > 0
+      ? { OR: [{ status }, { id: { in: privilegedIds } }] }
+      : { status };
+
     if (category && category !== 'all') where.category = category;
     if (pricing && pricing !== 'all') where.pricingModel = pricing;
     if (featured === 'true') where.featured = true;
     if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { description: { contains: search, mode: 'insensitive' } },
-        { developerName: { contains: search, mode: 'insensitive' } },
-        { tags: { contains: search, mode: 'insensitive' } },
-      ];
+      // Wrap existing conditions so search applies as AND
+      const searchFilter = {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+          { developerName: { contains: search, mode: 'insensitive' } },
+          { tags: { contains: search, mode: 'insensitive' } },
+        ],
+      };
+      where.AND = where.AND ? [...where.AND, searchFilter] : [searchFilter];
     }
 
     const orderBy: any =
@@ -217,7 +243,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ...agent,
-      message: 'Agent submitted for review. It will appear in the marketplace once approved.',
+      message: 'Agent submitted for review. It will appear in the Bubble Store once approved.',
     }, { status: 201 });
   } catch (error: any) {
     console.error('Marketplace registration error:', error);

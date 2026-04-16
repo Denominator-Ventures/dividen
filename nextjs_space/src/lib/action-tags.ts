@@ -561,7 +561,7 @@ export async function executeTag(
               suggestions: gateResult.suggestions || [],
               taskTitle,
               taskDescription: taskDesc,
-              message: `No installed agent or capability can handle "${taskTitle}". Would you like to browse the marketplace for a matching agent or capability?`,
+              message: `No installed agent or capability can handle "${taskTitle}". Would you like to browse the Bubble Store for a matching agent or capability?`,
             },
           };
         }
@@ -2376,7 +2376,7 @@ export async function executeTag(
             suggestions,
             message: suggestions.length > 0
               ? `Found ${suggestions.length} marketplace items that might help:`
-              : 'No matching agents or capabilities found in the marketplace.',
+              : 'No matching agents or capabilities found in the Bubble Store.',
           },
         };
       }

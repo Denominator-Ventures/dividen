@@ -575,10 +575,10 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
 
       {/* Agent Grid */}
       {loading ? (
-        <div className="text-center py-12 text-white/30">Loading marketplace...</div>
+        <div className="text-center py-12 text-white/30">Loading Bubble Store...</div>
       ) : agents.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-3xl mb-2">🏪</div>
+          <div className="text-3xl mb-2">🫧</div>
           <div className="text-white/50 text-sm">No agents found</div>
           <div className="text-white/30 text-xs mt-1">Try adjusting your filters or be the first to list one</div>
         </div>
@@ -609,6 +609,9 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                         : agent.developerName}</span>
                     {(agent as any).isFederated && (
                       <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 text-[9px] font-medium border border-purple-500/20">🌐 Federated</span>
+                    )}
+                    {agent.status === 'pending_review' && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[9px] font-medium border border-amber-500/20">⏳ Pending Review</span>
                     )}
                   </div>
                 </div>
@@ -693,7 +696,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
           onClick={() => { setView('browse'); setSelectedAgent(null); }}
           className="text-xs text-white/40 hover:text-white/60 transition-colors"
         >
-          ← Back to marketplace
+          ← Back to Bubble Store
         </button>
 
         {/* Header */}
@@ -719,6 +722,9 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                     : a.developerName}</span>
                 {(a as any).isFederated && (
                   <span className="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-400 text-[9px] font-medium border border-purple-500/20">🌐 {(a as any).sourceInstanceUrl ? (() => { try { return new URL((a as any).sourceInstanceUrl).hostname; } catch { return 'Federated'; } })() : 'Federated'}</span>
+                )}
+                {a.status === 'pending_review' && (
+                  <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 text-[9px] font-medium border border-amber-500/20">⏳ Pending Review</span>
                 )}
               </div>
             </div>
@@ -771,13 +777,28 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                       📝 Changelog ({entries.length} {entries.length === 1 ? 'entry' : 'entries'})
                     </summary>
                     <div className="mt-2 space-y-1 pl-3 border-l border-white/[0.06]">
-                      {entries.slice(0, 5).map((entry: any, i: number) => (
+                      {entries.slice(0, 10).map((entry: any, i: number) => (
                         <div key={i} className="text-[10px] text-white/40">
                           <span className="text-brand-400 font-mono">v{entry.version}</span>
+                          {entry.previousVersion && <span className="text-white/20 font-mono"> ← v{entry.previousVersion}</span>}
                           <span className="text-white/20 mx-1">·</span>
                           <span className="text-white/25">{new Date(entry.date).toLocaleDateString()}</span>
                           <span className="text-white/20 mx-1">—</span>
                           <span>{entry.changes}</span>
+                          {entry.diff && Object.keys(entry.diff).length > 0 && (
+                            <details className="mt-1 ml-2">
+                              <summary className="text-[9px] text-white/20 cursor-pointer hover:text-white/35">view diff</summary>
+                              <div className="mt-0.5 space-y-0.5 text-[9px]">
+                                {Object.entries(entry.diff).map(([field, val]: [string, any]) => (
+                                  <div key={field} className="text-white/25">
+                                    <span className="text-white/40">{field}:</span>{' '}
+                                    <span className="text-red-400/50 line-through">{String(val.from || '(empty)').slice(0, 80)}</span>{' → '}
+                                    <span className="text-green-400/50">{String(val.to || '(empty)').slice(0, 80)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1157,12 +1178,12 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
         onClick={() => setView('browse')}
         className="text-xs text-white/40 hover:text-white/60 transition-colors"
       >
-        ← Back to marketplace
+        ← Back to Bubble Store
       </button>
 
       <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl p-5">
         <h2 className="text-lg font-semibold text-white/90 mb-1">🏗️ Register Your Agent</h2>
-        <p className="text-xs text-white/40 mb-4">List your agent on the DiviDen marketplace for others to discover and use.</p>
+        <p className="text-xs text-white/40 mb-4">List your agent on the Bubble Store for others to discover and use.</p>
 
         {regError && (
           <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg p-2 mb-4">{regError}</div>
@@ -1731,7 +1752,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
         <div className="text-center py-12">
           <div className="text-4xl mb-3">🤖</div>
           <h3 className="text-sm font-medium text-white/60 mb-1">No agents listed yet</h3>
-          <p className="text-xs text-white/35 mb-4">List an agent with paid pricing to start earning from the marketplace.</p>
+          <p className="text-xs text-white/35 mb-4">List an agent with paid pricing to start earning from the Bubble Store.</p>
           <button onClick={() => setView('register')} className="px-4 py-2 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-lg text-sm font-medium hover:bg-brand-500/30 transition-all">
             + List Your First Agent
           </button>
@@ -1799,7 +1820,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
 
         {/* Revenue hero */}
         <div className="bg-gradient-to-br from-brand-500/10 via-purple-500/5 to-emerald-500/5 border border-brand-500/20 rounded-xl p-6">
-          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Agent Marketplace Earnings</div>
+          <div className="text-xs text-white/40 uppercase tracking-wider mb-1">Bubble Store Earnings</div>
           <div className="text-3xl font-bold text-emerald-400">${(t.developerPayout || 0).toLocaleString()}</div>
           {t.grossRevenue > 0 && (
             <div className="flex items-center gap-3 mt-2 text-xs">
@@ -2001,7 +2022,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
       <div className="flex-shrink-0 p-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-base font-semibold text-white/90">🏪 Agent Marketplace</h1>
+            <h1 className="text-base font-semibold text-white/90">🫧 Bubble Store</h1>
             <p className="text-[10px] text-white/35 mt-0.5">Discover, connect, and execute tasks with community agents</p>
           </div>
           <div className="flex gap-2">

@@ -189,10 +189,94 @@ export async function POST(req: NextRequest) {
         };
 
         if (existing) {
-          // Preserve existing approval status on updates — don't downgrade active agents
+          // ── Material change detection ──
+          // Compare incoming fields against stored fields to decide if re-review is needed
+          const MATERIAL_FIELDS = [
+            'description', 'endpointUrl', 'pricingModel', 'pricePerTask',
+            'taskTypes', 'contextInstructions', 'requiredInputSchema', 'outputSchema',
+            'category', 'longDescription',
+          ] as const;
+
+          const changes: Record<string, { from: any; to: any }> = {};
+          for (const field of MATERIAL_FIELDS) {
+            const oldVal = (existing as any)[field];
+            const newVal = data[field];
+            // Normalize: treat null/undefined/empty-string as equivalent
+            const normalize = (v: any) => (v === null || v === undefined || v === '') ? null : String(v);
+            if (normalize(oldVal) !== normalize(newVal)) {
+              changes[field] = { from: oldVal, to: newVal };
+            }
+          }
+
+          const hasMaterialChanges = Object.keys(changes).length > 0;
+
+          // Version bump: if material changes detected, auto-increment patch version
+          let newVersion = existing.version || '1.0.0';
+          if (hasMaterialChanges) {
+            const parts = newVersion.split('.').map(Number);
+            parts[2] = (parts[2] || 0) + 1;
+            newVersion = parts.join('.');
+          }
+          // Allow submitted version to override if it's explicitly higher
+          if (agent.version && agent.version !== existing.version) {
+            newVersion = agent.version;
+          }
+
+          // Build changelog entry
+          let existingChangelog: any[] = [];
+          try { existingChangelog = existing.changelog ? JSON.parse(existing.changelog) : []; } catch {}
+          if (hasMaterialChanges) {
+            existingChangelog.unshift({
+              version: newVersion,
+              date: new Date().toISOString(),
+              changes: `Updated: ${Object.keys(changes).join(', ')}`,
+              diff: changes,
+              previousVersion: existing.version,
+            });
+            // Keep last 50 changelog entries
+            if (existingChangelog.length > 50) existingChangelog = existingChangelog.slice(0, 50);
+          }
+
+          // If material changes and agent was previously active → flip to pending_review
+          // Existing subscribers keep access (handled in execute/browse endpoints)
+          const shouldReReview = hasMaterialChanges && existing.status === 'active';
+          const resolvedStatus = shouldReReview ? 'pending_review' : existing.status;
+
           const { status: _omitStatus, ...updateData } = data;
-          await prisma.marketplaceAgent.update({ where: { id: existing.id }, data: updateData });
-          results.push({ remoteId: agent.id, name: agent.name, status: 'updated', marketplaceId: existing.id, approvalStatus: existing.status, pricePerTask: resolvedPricePerTask, pricingModel: data.pricingModel });
+          await prisma.marketplaceAgent.update({
+            where: { id: existing.id },
+            data: {
+              ...updateData,
+              status: resolvedStatus,
+              version: newVersion,
+              changelog: JSON.stringify(existingChangelog),
+            },
+          });
+
+          // Notify admin about re-review if status changed
+          if (shouldReReview) {
+            const changesSummary = Object.entries(changes)
+              .map(([k, v]) => `${k}: "${String(v.from || '').slice(0, 50)}" → "${String(v.to || '').slice(0, 50)}"`)
+              .join('; ');
+            prisma.activityLog.create({
+              data: {
+                userId: adminUser.id,
+                action: 'marketplace_resubmission',
+                actor: 'system',
+                summary: `🔄 Agent "${existing.name}" resubmitted with material changes (v${existing.version} → v${newVersion}). Moved to pending_review. Changes: ${changesSummary}`,
+                metadata: JSON.stringify({ agentId: existing.id, changes, previousVersion: existing.version, newVersion }),
+              },
+            }).catch(() => {});
+          }
+
+          results.push({
+            remoteId: agent.id, name: agent.name, status: 'updated',
+            marketplaceId: existing.id, approvalStatus: resolvedStatus,
+            pricePerTask: resolvedPricePerTask, pricingModel: data.pricingModel,
+            materialChanges: hasMaterialChanges, version: newVersion,
+            changedFields: Object.keys(changes),
+            previousStatus: existing.status,
+          });
         } else {
           const created = await prisma.marketplaceAgent.create({ data });
           results.push({ remoteId: agent.id, name: agent.name, status: 'created', marketplaceId: created.id, approvalStatus: data.status, pricePerTask: resolvedPricePerTask, pricingModel: data.pricingModel });
@@ -242,13 +326,19 @@ export async function POST(req: NextRequest) {
       data: { agentCount, lastSyncAt: new Date() },
     });
 
+    const reReviewed = results.filter(r => r.materialChanges && r.previousStatus === 'active').length;
+
     return NextResponse.json({
       success: true,
-      status: 'pending_review',  // top-level: all submissions enter review
+      status: 'pending_review',  // top-level: new submissions enter review
       instanceId: instance.id,
       synced: results.filter(r => r.status === 'created' || r.status === 'updated').length,
+      reReviewed,  // count of previously-active agents moved back to pending_review due to material changes
       total: results.length,
       results,
+      message: reReviewed > 0
+        ? `${reReviewed} agent(s) had material changes and were moved to pending_review. Existing subscribers retain access.`
+        : undefined,
     });
   } catch (error: any) {
     console.error('POST /api/v2/federation/agents error:', error);

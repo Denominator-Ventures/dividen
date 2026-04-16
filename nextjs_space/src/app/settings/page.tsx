@@ -524,7 +524,7 @@ function SettingsPageInner() {
         <div className="space-y-6 animate-fade-in">
           <div className="mb-4">
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">💳 Payment Settings</h2>
-            <p className="text-sm text-[var(--text-secondary)] mt-1">Manage your payment methods and developer payout settings for the Agent Marketplace.</p>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">Manage your payment methods and developer payout settings for the Bubble Store.</p>
           </div>
           <PaymentSettings />
         </div>
@@ -586,7 +586,7 @@ function SettingsPageInner() {
                 }}
                 className="text-xs px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 border border-brand-500/30 transition-colors whitespace-nowrap"
               >
-                ⚡ Open Marketplace
+                ⚡ Open Bubble Store
               </a>
             </div>
           </div>

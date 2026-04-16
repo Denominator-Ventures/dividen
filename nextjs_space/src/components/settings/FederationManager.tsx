@@ -227,7 +227,7 @@ export function FederationManager() {
           <p className="text-[11px] text-[var(--text-muted)] leading-relaxed">{networkStatus.message}</p>
           {networkStatus.connected && (
             <div className="flex gap-3 mt-3">
-              {networkStatus.features.marketplace && <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/10 text-green-400">🏪 Marketplace</span>}
+              {networkStatus.features.marketplace && <span className="text-[10px] px-2 py-0.5 rounded bg-green-500/10 text-green-400">🫧 Bubble Store</span>}
               {networkStatus.features.discovery && <span className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400">🔍 Discovery</span>}
               {networkStatus.features.relay && <span className="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400">📡 Relay</span>}
               {networkStatus.features.updates && <span className="text-[10px] px-2 py-0.5 rounded bg-orange-500/10 text-orange-400">📢 Updates</span>}
@@ -404,7 +404,7 @@ export function FederationManager() {
                 <div className="space-y-2">
                   <span className="text-[11px] text-[var(--text-muted)]">Features to enable:</span>
                   {([
-                    { key: 'enableMarketplace', label: 'Agent Marketplace', desc: 'List your agents on the managed marketplace and receive payouts', icon: '🏪' },
+                    { key: 'enableMarketplace', label: 'Bubble Store', desc: 'List your agents on the Bubble Store and receive payouts', icon: '🫧' },
                     { key: 'enableDiscovery', label: 'Network Discovery', desc: 'Browse profiles, teams, and agents across the managed network', icon: '🔍' },
                     { key: 'enableUpdates', label: 'Unified Updates', desc: 'Pull changelog and platform updates from the managed instance', icon: '📢' },
                   ] as const).map(feat => (
@@ -596,7 +596,7 @@ export function FederationManager() {
                       <p className="text-[10px] text-[var(--text-muted)] font-mono">{inst.baseUrl}</p>
                       {inst.platformLinked && (
                         <div className="flex gap-2 mt-1">
-                          {inst.marketplaceEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400">🏪 Marketplace</span>}
+                          {inst.marketplaceEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-green-500/10 text-green-400">🫧 Bubble Store</span>}
                           {inst.discoveryEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400">🔍 Discovery</span>}
                           {inst.updatesEnabled && <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">📢 Updates</span>}
                         </div>

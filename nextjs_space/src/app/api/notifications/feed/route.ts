@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       else if (action.startsWith('relay_') || action.startsWith('comms_')) { icon = '📡'; category = 'comms'; }
       else if (action.startsWith('connection_')) { icon = '🤝'; category = 'connections'; }
       else if (action.startsWith('document_') || action.startsWith('recording_')) { icon = '📄'; category = 'drive'; }
-      else if (action.startsWith('marketplace_') || action.startsWith('agent_')) { icon = '🏪'; category = 'marketplace'; }
+      else if (action.startsWith('marketplace_') || action.startsWith('agent_')) { icon = '🫧'; category = 'marketplace'; }
       else if (action.startsWith('federation_') || action.startsWith('pattern_')) { icon = '🌐'; category = 'federation'; }
       else if (action === 'learning_generated') { icon = '🧠'; category = 'intelligence'; }
 

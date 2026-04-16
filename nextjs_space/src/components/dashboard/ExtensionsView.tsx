@@ -434,11 +434,11 @@ export function ExtensionsView() {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-lg">🏪</span>
+                <span className="text-lg">🫧</span>
                 <h4 className="text-sm font-semibold text-white/90">Monetize &ldquo;{justInstalled.name}&rdquo;?</h4>
               </div>
               <p className="text-xs text-white/50">
-                List this agent on the marketplace so others can use it — charge per task, offer subscriptions, or keep it free.
+                List this agent on the Bubble Store so others can use it — charge per task, offer subscriptions, or keep it free.
               </p>
             </div>
             <button onClick={() => setJustInstalled(null)} className="text-white/30 hover:text-white/60 text-sm ml-2">✕</button>
@@ -460,7 +460,7 @@ export function ExtensionsView() {
               }}
               className="px-4 py-2 bg-brand-500/20 text-brand-400 border border-brand-500/30 rounded-lg text-xs font-medium hover:bg-brand-500/30 transition-all"
             >
-              🚀 List on Marketplace
+              🚀 List on Bubble Store
             </button>
             <button
               onClick={() => setJustInstalled(null)}

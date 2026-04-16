@@ -28,6 +28,17 @@ export async function GET(
       return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
     }
 
+    // Access control: active → everyone. Other statuses → developer + existing subscribers only.
+    if (agent.status !== 'active' && agent.developerId !== userId) {
+      const hasSubscription = await prisma.marketplaceSubscription.findFirst({
+        where: { agentId: agent.id, userId, status: 'active' },
+        select: { id: true },
+      });
+      if (!hasSubscription) {
+        return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+      }
+    }
+
     // Check if user has an active subscription
     const subscription = await prisma.marketplaceSubscription.findUnique({
       where: { agentId_userId: { agentId: agent.id, userId } },

@@ -44,8 +44,20 @@ export async function POST(
       where: { id: params.id },
       include: { developer: { select: { stripeConnectAccountId: true, stripeConnectOnboarded: true } } },
     });
-    if (!agent || agent.status !== 'active') {
-      return NextResponse.json({ error: 'Agent not found or not active' }, { status: 404 });
+    if (!agent) {
+      return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+    }
+
+    // Execution access: active agents → everyone. Pending/other → developer + existing subscribers only.
+    if (agent.status !== 'active') {
+      const isDeveloper = agent.developerId === userId;
+      const isSubscriber = !isDeveloper && await prisma.marketplaceSubscription.findFirst({
+        where: { agentId: agent.id, userId, status: 'active' },
+        select: { id: true },
+      });
+      if (!isDeveloper && !isSubscriber) {
+        return NextResponse.json({ error: 'Agent is pending review and not accessible to you' }, { status: 403 });
+      }
     }
 
     // Self-owned agents are always free — skip payment entirely

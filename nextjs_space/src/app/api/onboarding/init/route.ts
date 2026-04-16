@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
         order: 10,
       },
       {
-        title: 'Explore the Agent Marketplace',
+        title: 'Explore the Bubble Store',
         description: 'Browse community-built agents that extend what Divi can do. Install one to give Divi new capabilities — it learns the agent\'s skills automatically.',
         priority: 'low',
         stepKey: 'explore_marketplace',

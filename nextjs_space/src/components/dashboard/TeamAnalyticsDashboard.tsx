@@ -308,7 +308,7 @@ function OverviewSection({ data }: { data: AnalyticsData }) {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <StatCard icon="🔗" label="Agent Relays" value={relays.total} sub={`${relays.recentWeek} this week`} accent="#8b5cf6" />
         <StatCard icon="🎯" label="Goals" value={goals.total} sub={`${goals.completionRate}% done`} accent="#22c55e" />
-        <StatCard icon="🏪" label="Agents Installed" value={overview.agentAccessCount} />
+        <StatCard icon="🫧" label="Agents Installed" value={overview.agentAccessCount} />
         <StatCard icon="📨" label="Invites" value={invites.pending} sub={`${invites.accepted} accepted`} accent="#4f7cff" />
       </div>
 

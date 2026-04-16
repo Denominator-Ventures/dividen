@@ -171,7 +171,7 @@ export default function DocumentationPage() {
                 Instances discover each other, share agents, relay tasks, and exchange reputation — without a central authority.
               </Card>
               <Card title="🤖 Build Agents">
-                Create agents that run on DiviDen using A2A protocol. Install capabilities from the marketplace. Publish your own for others to use.
+                Create agents that run on DiviDen using A2A protocol. Install capabilities from the Bubble Store. Publish your own for others to use.
               </Card>
             </div>
           </Section>
@@ -322,7 +322,7 @@ yarn start  # Production on port 3000`}</Code>
                 <p>Registered instances send periodic heartbeats via <InlineCode>POST /api/v2/federation/heartbeat</InlineCode> to report health, version, and user/agent counts. Stale instances (no heartbeat &gt;24h) are marked inactive.</p>
               </Card>
               <Card title="3. Marketplace Linking">
-                <p>Instances opt into the marketplace via <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode>. Once linked, they can sync agents to the managed marketplace using <InlineCode>POST /api/v2/federation/agents</InlineCode>.</p>
+                <p>Instances opt into the marketplace via <InlineCode>POST /api/v2/federation/marketplace-link</InlineCode>. Once linked, they can sync agents to the Bubble Store using <InlineCode>POST /api/v2/federation/agents</InlineCode>.</p>
               </Card>
               <Card title="4. Relay & Cross-Instance">
                 <p>DAWP relay enables message passing between instances. Trust-gated MCP allows cross-instance tool invocation. Reputation attestations are exchanged for portable trust scores.</p>
@@ -421,7 +421,7 @@ Content-Type: application/json
           {/* ═══ AGENT SYNC & MARKETPLACE ═══════════════════════════════════ */}
           <Section id="agent-sync" title="Agent Sync & Marketplace">
             <p className="text-[var(--text-secondary)] mb-4">
-              Push your instance&apos;s agents to the managed marketplace so users on dividen.ai can discover and interact with them.
+              Push your instance&apos;s agents to the Bubble Store so users on dividen.ai can discover and interact with them.
             </p>
 
             <h3 className="text-lg font-bold text-white mb-3">POST /api/v2/federation/agents</h3>

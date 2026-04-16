@@ -776,7 +776,7 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
 
     // Marketplace agents (developer's own)
     if (marketplaceAgents.length > 0) {
-      text += `\n### Your Marketplace Agents\n`;
+      text += `\n### Your Bubble Store Agents\n`;
       for (const a of marketplaceAgents) {
         text += `- **${a.name}** (${a.category}) — ${a.pricingModel} | ⭐ ${(a.avgRating as number)?.toFixed(1) || 'N/A'} | ${a.totalExecutions} executions\n`;
       }
@@ -862,22 +862,22 @@ async function buildBusinessOperationsLayer(userId: string): Promise<string> {
           }
         }
       } else {
-        text += `\n### Capabilities\nNo capability packs installed yet. When the operator needs to handle tasks outside your built-in skills (email, meetings) and has no installed agents, suggest browsing the capability marketplace using [[suggest_marketplace:{"query":"..."}]].\n`;
+        text += `\n### Capabilities\nNo capability packs installed yet. When the operator needs to handle tasks outside your built-in skills (email, meetings) and has no installed agents, suggest browsing the Bubble Store using [[suggest_marketplace:{"query":"..."}]].\n`;
       }
     } catch { /* capabilities lookup failed — non-critical */ }
 
     // Business-specific behavioral rules
     text += `\n### Business Operations Rules
-- When the operator asks about earnings, show totals from agreements + marketplace.
+- When the operator asks about earnings, show totals from agreements + Bubble Store.
 - When someone expresses interest in a posted task, surface it proactively with their details.
 - When an agreement is active, track milestones and payment status.
 - Proactively remind about pending reviews on completed tasks.
 - If recordings exist without summaries, offer to help review them.
 - When the operator asks about their reputation, explain the scoring components. Everyone starts at 5.0⭐ — real ratings don't factor until 5+ completed tasks.
-- For Stripe payment issues, guide them to Settings → 💳 Payments or the Marketplace → Earnings tab.
+- For Stripe payment issues, guide them to Settings → 💳 Payments or the Bubble Store → Earnings tab.
 - Payment routing uses a two-tier fee model:
   - INTERNAL transactions (both parties on the same instance): configurable fee, can be 0% for whitelabel/closed-team deployments.
-  - NETWORK transactions (marketplace, federation, external agents/users): enforced minimum floor — ${process.env.NETWORK_RECRUITING_FEE_FLOOR || '7'}% platform fee on task agreements, ${process.env.NETWORK_MARKETPLACE_FEE_FLOOR || '3'}% on marketplace agent transactions. Payments route through DiviDen and cannot bypass the platform fee. The platform does not take a cut on equity or non-monetary compensation.
+  - NETWORK transactions (marketplace, federation, external agents/users): enforced minimum floor — ${process.env.NETWORK_RECRUITING_FEE_FLOOR || '7'}% platform fee on task agreements, ${process.env.NETWORK_MARKETPLACE_FEE_FLOOR || '3'}% on Bubble Store agent transactions. Payments route through DiviDen and cannot bypass the platform fee. The platform does not take a cut on equity or non-monetary compensation.
 - Self-hosted instances connecting to the DiviDen network must route payments through DiviDen. The fee floor cannot be overridden for network transactions.`;
 
     return text;
@@ -1131,9 +1131,9 @@ function buildFederationCapabilities(): string {
 }
 
 function buildMarketplaceCapabilities(): string {
-  return `## Marketplace Agents (Loaded — marketplace context detected)
-- [[list_marketplace:{"category":"optional filter"}]] — Browse available agents (research, coding, writing, analysis, etc.)
-- [[execute_agent:{"agentId":"...","prompt":"..."}]] — Execute a marketplace agent.
+  return `## Bubble Store Agents (Loaded — Bubble Store context detected)
+- [[list_marketplace:{"category":"optional filter"}]] — Browse Bubble Store agents (research, coding, writing, analysis, etc.)
+- [[execute_agent:{"agentId":"...","prompt":"..."}]] — Execute a Bubble Store agent.
 - [[subscribe_agent:{"agentId":"..."}]] — Subscribe for recurring use.
 - [[install_agent:{"agentId":"..."}]] — Install into active toolkit. Teaches Divi how to work with it (loads Integration Kit into memory). Required before proactive use.
 - [[uninstall_agent:{"agentId":"..."}]] — Uninstall from toolkit. Agent remains subscribed but dormant.`;

@@ -675,7 +675,7 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
     <div className="space-y-4 max-w-2xl">
       <div className="bg-white/[0.03] border border-white/[0.08] rounded-xl p-5">
         <h3 className="text-sm font-semibold text-white/80 mb-4">🎯 Create Custom Capability</h3>
-        <p className="text-xs text-white/40 mb-4">Build a skill pack that extends what Divi can do. It will be added to the marketplace and auto-installed for you.</p>
+        <p className="text-xs text-white/40 mb-4">Build a skill pack that extends what Divi can do. It will be added to the Bubble Store and auto-installed for you.</p>
 
         <div className="space-y-3">
           <div className="grid grid-cols-[auto_1fr] gap-3">
@@ -902,7 +902,7 @@ export function CapabilitiesMarketplace({ onStartGuidedChat }: CapabilitiesMarke
             </div>
             <div className="text-white/25 text-xs mt-1">
               {view === 'installed'
-                ? 'Browse the marketplace or create a custom capability'
+                ? 'Browse the Bubble Store or create a custom capability'
                 : 'Try adjusting your search or category filter'}
             </div>
             {view === 'installed' && (

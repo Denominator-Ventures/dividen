@@ -18,7 +18,7 @@ const SHORTCUTS: { key: string; label: string; description: string; section: str
   { key: '6', label: '6', description: 'Recordings', section: 'Tabs' },
   { key: '7', label: '7', description: 'Drive', section: 'Tabs' },
   { key: '8', label: '8', description: 'Connections', section: 'Tabs' },
-  { key: '9', label: '9', description: 'Marketplace', section: 'Tabs' },
+  { key: '9', label: '9', description: 'Bubble Store', section: 'Tabs' },
   { key: '0', label: '0', description: 'Goals', section: 'Tabs' },
   // Global
   { key: '⌘K', label: '⌘K', description: 'Search', section: 'Global' },

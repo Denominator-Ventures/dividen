@@ -230,7 +230,7 @@ export default function OpenSourcePage() {
                 <ComparisonRow feature="Capabilities (20 packs)" selfHosted="✅" managed="✅" />
                 <ComparisonRow feature="MCP v1.6 / A2A v0.4" selfHosted="✅" managed="✅" />
                 <ComparisonRow feature="Federation (DAWP)" selfHosted="✅ Configure" managed="✅ Built-in" />
-                <ComparisonRow feature="Agent Marketplace" selfHosted="—" managed="✅ Network" />
+                <ComparisonRow feature="Bubble Store" selfHosted="—" managed="✅ Network" />
                 <ComparisonRow feature="Stripe Payments" selfHosted="—" managed="✅ 97% payout" />
                 <ComparisonRow feature="OAuth Configuration" selfHosted="Your GCP project" managed="Zero-config" />
                 <ComparisonRow feature="Hosting" selfHosted="Your infra" managed="Fully managed" />

@@ -47,6 +47,33 @@ const capabilityIcons: Record<string, string> = {
   meetings: '📅',
 };
 
+// ─── Auto-categorization ────────────────────────────────────────────────────
+
+type QueueCategory = 'action' | 'notification' | 'relay' | 'fyi' | 'task';
+
+function categorizeItem(item: QueueItemData): { category: QueueCategory; label: string; color: string } {
+  // Parse metadata for source hints
+  let meta: any = null;
+  try { if (item.metadata) meta = JSON.parse(item.metadata); } catch {}
+
+  if (item.type === 'notification' || meta?.type === 'notification') {
+    return { category: 'notification', label: 'Notification', color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' };
+  }
+  if (meta?.relayId || meta?.source === 'relay' || item.source === 'relay') {
+    return { category: 'relay', label: 'Relay', color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' };
+  }
+  if (item.type === 'agent_suggestion') {
+    return { category: 'fyi', label: 'Suggestion', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' };
+  }
+  if (item.type === 'reminder') {
+    return { category: 'notification', label: 'Reminder', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+  }
+  if (item.priority === 'urgent' || item.priority === 'high') {
+    return { category: 'action', label: 'Action Required', color: 'text-red-400 bg-red-500/10 border-red-500/20' };
+  }
+  return { category: 'task', label: 'Task', color: 'text-white/40 bg-white/5 border-white/10' };
+}
+
 // ─── Queue Item Card ────────────────────────────────────────────────────────
 
 function QueueItemCard({
@@ -72,6 +99,7 @@ function QueueItemCard({
   const [optimizing, setOptimizing] = useState(false);
 
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
+  const cat = categorizeItem(item);
   const capMeta = parseCapabilityMeta(item.metadata);
   const isCapabilityAction = !!capMeta?.capabilityType;
   const capIcon = capMeta ? (capabilityIcons[capMeta.capabilityType || ''] || '⚡') : '';
@@ -160,6 +188,7 @@ function QueueItemCard({
             <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight" title={item.title}>
               {displaySummary || item.title}
             </h4>
+            <span className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', cat.color)}>{cat.label}</span>
             {optimizing && <span className="text-[9px] text-[var(--brand-primary)] animate-pulse">✨ optimizing...</span>}
             {hasOptimizedPayload && !optimizing && <span className="text-[9px] text-green-400" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
           </div>
@@ -586,6 +615,9 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [dispatching, setDispatching] = useState(false);
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchProcessing, setBatchProcessing] = useState(false);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -753,6 +785,66 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
     setDispatching(false);
   }
 
+  // ─── Batch Actions ──────────────────────────────────────────────────
+
+  function toggleSelect(id: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllInCategory(category: QueueCategory) {
+    const ids = items.filter(i => categorizeItem(i).category === category && i.status !== 'done_today').map(i => i.id);
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      ids.forEach(id => next.add(id));
+      return next;
+    });
+  }
+
+  async function handleBatchComplete() {
+    if (selectedIds.size === 0) return;
+    setBatchProcessing(true);
+    const ids = Array.from(selectedIds);
+    await Promise.allSettled(ids.map(id =>
+      fetch(`/api/queue/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done_today' }),
+      })
+    ));
+    setItems(prev => prev.map(i => ids.includes(i.id) ? { ...i, status: 'done_today' as QueueItemStatus } : i));
+    setSelectedIds(new Set());
+    setBatchMode(false);
+    setBatchProcessing(false);
+    window.dispatchEvent(new CustomEvent('dividen:now-refresh'));
+  }
+
+  async function handleBatchSnooze() {
+    if (selectedIds.size === 0) return;
+    setBatchProcessing(true);
+    const ids = Array.from(selectedIds);
+    await Promise.allSettled(ids.map(id =>
+      fetch(`/api/queue/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'later' }),
+      })
+    ));
+    setItems(prev => prev.map(i => ids.includes(i.id) ? { ...i, status: 'later' as QueueItemStatus } : i));
+    setSelectedIds(new Set());
+    setBatchMode(false);
+    setBatchProcessing(false);
+  }
+
+  // Count notifications for quick-clear
+  const notificationItems = items.filter(i => {
+    const c = categorizeItem(i);
+    return (c.category === 'notification' || c.category === 'fyi') && i.status !== 'done_today';
+  });
+
   // ─── Render ───────────────────────────────────────────────────────────
 
   const [activeView, setActiveView] = useState<'queue' | 'comms'>('queue');
@@ -765,13 +857,29 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
           <div className="flex items-center gap-2">
             <h2 className="label-mono-accent">📥 Workspace</h2>
           </div>
-          <button
-            onClick={() => setShowAddForm(true)}
-            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface-hover)] transition-colors"
-            title="Assemble new task"
-          >
-            +
-          </button>
+          <div className="flex items-center gap-1">
+            {totalCount > 1 && (
+              <button
+                onClick={() => { setBatchMode(!batchMode); setSelectedIds(new Set()); }}
+                className={cn(
+                  'text-[10px] px-2 py-0.5 rounded transition-colors',
+                  batchMode
+                    ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] border border-[var(--brand-primary)]/30'
+                    : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface-hover)]'
+                )}
+                title={batchMode ? 'Exit batch mode' : 'Select multiple items'}
+              >
+                {batchMode ? '✕ Cancel' : '☑️'}
+              </button>
+            )}
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="text-[var(--text-muted)] hover:text-[var(--text-primary)] text-lg leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface-hover)] transition-colors"
+              title="Assemble new task"
+            >
+              +
+            </button>
+          </div>
         </div>
         <div className="flex gap-1 w-full">
           <button
@@ -801,8 +909,44 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
 
       {activeView === 'queue' ? (
         <>
+          {/* Batch Action Bar */}
+          {batchMode && selectedIds.size > 0 && (
+            <div className="px-4 pt-3">
+              <div className="flex items-center gap-2 bg-[var(--brand-primary)]/10 border border-[var(--brand-primary)]/20 rounded-lg p-2">
+                <span className="text-[11px] text-[var(--brand-primary)] font-medium">{selectedIds.size} selected</span>
+                <div className="flex-1" />
+                <button
+                  onClick={handleBatchComplete}
+                  disabled={batchProcessing}
+                  className="text-[10px] px-2.5 py-1 rounded bg-green-500/15 text-green-400 border border-green-500/20 hover:bg-green-500/25 transition-colors font-medium"
+                >
+                  {batchProcessing ? '...' : '✓ Complete All'}
+                </button>
+                <button
+                  onClick={handleBatchSnooze}
+                  disabled={batchProcessing}
+                  className="text-[10px] px-2.5 py-1 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20 hover:bg-amber-500/25 transition-colors font-medium"
+                >
+                  {batchProcessing ? '...' : '⏳ Snooze All'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Quick-clear notifications */}
+          {!batchMode && notificationItems.length >= 2 && (
+            <div className="px-4 pt-2">
+              <button
+                onClick={() => { selectAllInCategory('notification'); selectAllInCategory('fyi'); setBatchMode(true); }}
+                className="w-full text-[10px] py-1.5 px-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/15 hover:bg-blue-500/15 transition-colors"
+              >
+                ✓ Clear {notificationItems.length} notification{notificationItems.length > 1 ? 's' : ''}
+              </button>
+            </div>
+          )}
+
           {/* Dispatch Button */}
-          {readyCount > 0 && (
+          {!batchMode && readyCount > 0 && (
             <div className="px-4 pt-3">
               <button
                 onClick={handleDispatch}
@@ -825,13 +969,16 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                 <span className="text-sm text-[var(--text-muted)]">Loading...</span>
               </div>
             ) : totalCount === 0 && !showAddForm ? (
-              <div className="flex flex-col items-center justify-center h-full text-center">
-                <div className="text-4xl mb-3 opacity-30">📥</div>
-                <h3 className="text-sm font-medium text-[var(--text-secondary)] mb-1">
-                  Queue is empty
+              <div className="flex flex-col items-center justify-center h-full text-center px-6">
+                <div className="text-5xl mb-4">🎯</div>
+                <h3 className="text-base font-semibold text-[var(--text-primary)] mb-1">
+                  Inbox Zero
                 </h3>
-                <p className="text-xs text-[var(--text-muted)] mb-3">
-                  Divi&apos;s suggestions, tasks, and notifications will appear here.
+                <p className="text-xs text-[var(--text-muted)] mb-1">
+                  Nothing pending. You&apos;re completely caught up.
+                </p>
+                <p className="text-[10px] text-[var(--text-muted)]/60 mb-4">
+                  Divi will surface tasks, suggestions, and notifications here as they come in.
                 </p>
                 <button
                   onClick={() => setShowAddForm(true)}
@@ -901,7 +1048,24 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                       </div>
                       <div className="space-y-2">
                         {sectionItems.map((item) => (
-                          <QueueItemCard key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} onEdit={handleEdit} />
+                          <div key={item.id} className="relative">
+                            {batchMode && (
+                              <button
+                                onClick={() => toggleSelect(item.id)}
+                                className={cn(
+                                  'absolute -left-1 top-3 w-4 h-4 rounded border flex items-center justify-center text-[9px] z-10 transition-all',
+                                  selectedIds.has(item.id)
+                                    ? 'bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white'
+                                    : 'border-[var(--border-color)] hover:border-[var(--brand-primary)]/50 text-transparent'
+                                )}
+                              >
+                                ✓
+                              </button>
+                            )}
+                            <div className={batchMode ? 'ml-5' : ''}>
+                              <QueueItemCard item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} onEdit={handleEdit} />
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -948,8 +1112,8 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
             className="w-full py-3 px-4 bg-gradient-to-r from-brand-500/20 via-purple-500/15 to-brand-500/20 hover:from-brand-500/30 hover:via-purple-500/25 hover:to-brand-500/30 border border-brand-500/30 hover:border-brand-500/50 rounded-xl text-sm font-semibold text-brand-400 transition-all group"
           >
             <span className="flex items-center justify-center gap-2">
-              <span className="text-lg group-hover:scale-110 transition-transform">🏪</span>
-              <span>Agent Marketplace</span>
+              <span className="text-lg group-hover:scale-110 transition-transform">🫧</span>
+              <span>Bubble Store</span>
               <span className="text-[10px] bg-brand-500/20 px-1.5 py-0.5 rounded-full text-brand-400/80">Explore</span>
             </span>
           </button>

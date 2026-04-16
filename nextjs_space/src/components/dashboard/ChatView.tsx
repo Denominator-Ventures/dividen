@@ -860,7 +860,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                           });
                         }
                         // Trigger a chat message to confirm
-                        setInput(`I just installed a ${type} from the marketplace. Let me know what's next.`);
+                        setInput(`I just installed a ${type} from the Bubble Store. Let me know what's next.`);
                       } catch (e) {
                         console.error('Install failed:', e);
                       }
@@ -1368,9 +1368,9 @@ function MarketplaceSuggestionCard({
     <div className="rounded-xl border border-brand-500/20 bg-brand-500/[0.04] overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-brand-500/10 flex items-center gap-2">
-        <span className="text-base">🛒</span>
+        <span className="text-base">🫧</span>
         <span className="text-xs font-medium text-brand-400">
-          {gated ? 'Marketplace — No handler found' : 'Marketplace Suggestions'}
+          {gated ? 'Bubble Store — No handler found' : 'Bubble Store Suggestions'}
         </span>
       </div>
 

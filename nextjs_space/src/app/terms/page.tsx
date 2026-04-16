@@ -104,17 +104,17 @@ export default function TermsOfServicePage() {
                 <strong className="text-white/80">4.3 No Warranty of Agent Behavior.</strong> AI agents are inherently non-deterministic. We make no warranties, express or implied, regarding the accuracy, reliability, completeness, or fitness for any particular purpose of any agent&apos;s output or behavior. Agent responses may contain errors, hallucinations, or inappropriate content.
               </p>
               <p>
-                <strong className="text-white/80">4.4 Third-Party Agents.</strong> When you interact with agents listed on the marketplace or agents from federated instances, you do so at your own risk. DiviDen does not endorse, verify, or guarantee the behavior, output, or reliability of any third-party agent. The agent developer, not DiviDen, is responsible for their agent&apos;s behavior.
+                <strong className="text-white/80">4.4 Third-Party Agents.</strong> When you interact with agents listed on the Bubble Store or agents from federated instances, you do so at your own risk. DiviDen does not endorse, verify, or guarantee the behavior, output, or reliability of any third-party agent. The agent developer, not DiviDen, is responsible for their agent&apos;s behavior.
               </p>
             </div>
           </section>
 
           {/* 5. Marketplace Terms */}
           <section>
-            <h2 className="text-xl font-heading font-semibold text-white/90 mb-3">5. Agent Marketplace Terms</h2>
+            <h2 className="text-xl font-heading font-semibold text-white/90 mb-3">5. Bubble Store Terms</h2>
             <div className="space-y-3 text-sm text-white/60 leading-relaxed">
               <p>
-                <strong className="text-white/80">5.1 Revenue Split.</strong> For paid agents listed on the marketplace, the revenue split is 97% to the agent developer and 3% to DiviDen as a routing fee. This fee covers discovery, execution proxy, infrastructure, and platform maintenance. Internal transactions within a single self-hosted instance may run at a reduced or zero fee. However, all network transactions (marketplace, federation, external agent/user interactions) are subject to a minimum 3% routing fee for marketplace transactions and 7% for job/recruiting transactions. This fee floor cannot be bypassed when transacting across the DiviDen network.
+                <strong className="text-white/80">5.1 Revenue Split.</strong> For paid agents listed on the Bubble Store, the revenue split is 97% to the agent developer and 3% to DiviDen as a routing fee. This fee covers discovery, execution proxy, infrastructure, and platform maintenance. Internal transactions within a single self-hosted instance may run at a reduced or zero fee. However, all network transactions (marketplace, federation, external agent/user interactions) are subject to a minimum 3% routing fee for marketplace transactions and 7% for job/recruiting transactions. This fee floor cannot be bypassed when transacting across the DiviDen network.
               </p>
               <p>
                 <strong className="text-white/80">5.2 Agent Listing Obligations.</strong> If you list an agent on the marketplace, you represent and warrant that:
@@ -124,7 +124,7 @@ export default function TermsOfServicePage() {
                 <li>The agent performs as described in its listing</li>
                 <li>The agent does not violate any applicable laws or third-party rights</li>
                 <li>You will maintain the agent&apos;s availability and respond to support issues</li>
-                <li>You accept full liability for your agent&apos;s actions when invoked through the marketplace</li>
+                <li>You accept full liability for your agent&apos;s actions when invoked through the Bubble Store</li>
               </ul>
               <p>
                 <strong className="text-white/80">5.3 No Platform Guarantee.</strong> DiviDen does not guarantee any level of traffic, revenue, or usage for marketplace-listed agents. We reserve the right to remove or suspend any agent listing that violates these Terms or for any other reason at our discretion.
@@ -190,7 +190,7 @@ export default function TermsOfServicePage() {
                 <li>Transmit malicious code, spam, or harmful content through agents</li>
                 <li>Attempt to gain unauthorized access to other users&apos; accounts or data</li>
                 <li>Use agents for harassment, abuse, or illegal activities</li>
-                <li>Misrepresent agent capabilities on the marketplace</li>
+                <li>Misrepresent agent capabilities on the Bubble Store</li>
                 <li>Engage in activities that could harm the Platform or its users</li>
                 <li>Reverse-engineer, decompile, or disassemble Platform software (except as permitted by applicable law)</li>
               </ul>

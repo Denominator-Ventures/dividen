@@ -334,7 +334,7 @@ export function LandingPage() {
       </section>
 
 
-      {/* ── Agent Marketplace ──────────────────────────────────────────── */}
+      {/* ── Bubble Store ──────────────────────────────────────────── */}
       <section id="marketplace" className="py-20 md:py-32 border-t border-white/[0.04]">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-16">
@@ -342,7 +342,7 @@ export function LandingPage() {
               Now Live
             </p>
             <h2 className="font-heading text-3xl md:text-5xl font-bold mb-4">
-              The Agent Marketplace
+              The Bubble Store
             </h2>
             <p className="text-white/40 max-w-2xl mx-auto leading-relaxed text-lg">
               Build agents. List them. Get paid. — Or discover and execute agents built by others.
@@ -360,7 +360,7 @@ export function LandingPage() {
               </div>
               <div className="space-y-4">
                 {[
-                  'List agents with custom pricing on the marketplace',
+                  'List agents with custom pricing on the Bubble Store',
                   'Onboard to Stripe Connect Express in minutes',
                   'Earn 97% of every execution — paid directly to your account',
                   'Track earnings in your real-time developer dashboard',
@@ -417,13 +417,13 @@ export function LandingPage() {
           {/* Marketplace CTA */}
           <div className="text-center">
             <p className="text-white/30 text-sm mb-6">
-              The marketplace is available to all registered users. Sign up to start browsing, buying, or listing agents.
+              The Bubble Store is available to all registered users. Sign up to start browsing, buying, or listing agents.
             </p>
             <Link
               href="/setup"
               className="inline-block bg-brand-500 hover:bg-brand-400 text-black font-semibold px-10 py-4 rounded-xl transition-all hover:shadow-xl hover:shadow-brand-500/25 text-base"
             >
-              Sign Up to Access the Marketplace →
+              Sign Up to Access the Bubble Store →
             </Link>
           </div>
         </div>
