@@ -96,6 +96,7 @@ const TOC = [
   { id: 'linked-kards', label: 'Linked Kards (Cross-User)' },
   { id: 'card-activity-feeds', label: 'Card Activity Feeds' },
   { id: 'google-connect-widget', label: 'Google Connect Widget' },
+  { id: 'widget-library', label: 'Widget Library (v1.9.2)' },
   { id: 'rate-limits', label: 'Rate Limits' },
 ];
 
@@ -1938,6 +1939,96 @@ model AgentRelay {
             <li>Works both during onboarding and in regular conversation</li>
             <li>Maps to the &quot;Connect Email &amp; Calendar&quot; setup checklist task</li>
           </ul>
+        </Section>
+
+        {/* ── Widget Library ─────────────────────────────────── */}
+        <Section id="widget-library" title="Widget Library (v1.9.2)" badge={<UpdatedBadge date="Apr 15" />}>
+          <p className="text-[var(--text-secondary)] mb-4">
+            DiviDen ships a theme-agnostic widget library at <InlineCode>src/components/widgets/</InlineCode>.
+            Every widget renders using CSS custom properties — override the variables, the entire set follows.
+            No class-name hunting, no brand coupling.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-2">Available Primitives</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
+            <table className="w-full text-xs">
+              <thead><tr className="text-left text-[var(--text-muted)] border-b border-white/[0.06]">
+                <th className="pb-2 pr-4">Component</th><th className="pb-2 pr-4">Purpose</th><th className="pb-2">Key Props</th>
+              </tr></thead>
+              <tbody className="text-[var(--text-secondary)]">
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetSlider</td><td className="py-2 pr-4">Range input (autonomy, priorities)</td><td className="py-2">value, onChange, min, max, step, labels</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetToggle</td><td className="py-2 pr-4">Boolean toggle</td><td className="py-2">checked, onChange, label</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetRadio</td><td className="py-2 pr-4">Radio group (single select)</td><td className="py-2">options, value, onChange</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetSelect</td><td className="py-2 pr-4">Dropdown</td><td className="py-2">options, value, onChange</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetTextInput</td><td className="py-2 pr-4">Text input</td><td className="py-2">value, onChange, placeholder</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetInfo</td><td className="py-2 pr-4">Read-only display</td><td className="py-2">label, value</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetGoogleConnect</td><td className="py-2 pr-4">Google OAuth button</td><td className="py-2">identity, onConnect</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetWebhookSetup</td><td className="py-2 pr-4">Webhook creation flow</td><td className="py-2">onComplete</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetSubmitButton</td><td className="py-2 pr-4">Primary action</td><td className="py-2">onClick, label, loading</td></tr>
+                <tr className="border-b border-white/[0.04]"><td className="py-2 pr-4 font-mono text-brand-400">WidgetSkipButton</td><td className="py-2 pr-4">Skip/dismiss</td><td className="py-2">onClick, label</td></tr>
+                <tr><td className="py-2 pr-4 font-mono text-brand-400">AgentWidget</td><td className="py-2 pr-4">Agent cards/lists (marketplace, A2A)</td><td className="py-2">payload, onAction</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-2">CSS Custom Properties</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            All theming flows through 18 CSS variables defined in <InlineCode>widget-theme.css</InlineCode>.
+            Override these on any parent container to re-theme the entire widget set.
+          </p>
+          <Code>{`--widget-bg: var(--bg-surface);
+--widget-bg-hover: var(--bg-hover);
+--widget-accent: var(--brand-primary);
+--widget-accent-text: #ffffff;
+--widget-text: var(--text-primary);
+--widget-text-secondary: var(--text-secondary);
+--widget-text-muted: var(--text-muted);
+--widget-border: var(--border-color);
+--widget-track: rgba(255, 255, 255, 0.1);`}</Code>
+
+          <h4 className="text-base font-bold text-white mb-2 mt-6">Comms → Widget Pipeline</h4>
+          <p className="text-[var(--text-secondary)] mb-3">
+            Remote agents can send interactive widgets as part of A2A tasks.
+            The pipeline flows: <InlineCode>tasks/send</InlineCode> → relay payload → queue item metadata → UI rendering → <InlineCode>/api/relays/widget-response</InlineCode>.
+          </p>
+          <ol className="list-decimal list-inside text-[var(--text-secondary)] text-sm space-y-2 mb-4">
+            <li>A2A <InlineCode>tasks/send</InlineCode> accepts <InlineCode>metadata.widgets</InlineCode> — an array of <InlineCode>AgentWidgetData</InlineCode> objects</li>
+            <li>Relay payload carries widget definitions. If linked to a queue item, widgets propagate to the queue item&apos;s <InlineCode>metadata</InlineCode></li>
+            <li>QueuePanel and Comms detail page render widgets inline via <InlineCode>AgentWidgetContainer</InlineCode></li>
+            <li>Widget actions POST to <InlineCode>/api/relays/widget-response</InlineCode> with <InlineCode>{'{'}relayId, widgetId, itemId, action, payload{'}'}</InlineCode></li>
+            <li>Terminal actions (approve, decline, submit) auto-complete both relay and linked queue item</li>
+            <li>If the relay payload contains a <InlineCode>widgetResponseUrl</InlineCode>, the response is forwarded there with <InlineCode>X-DiviDen-Event: widget_response</InlineCode></li>
+          </ol>
+
+          <h4 className="text-base font-bold text-white mb-2">AgentWidgetData Schema</h4>
+          <Code>{`// Each widget in the array
+interface AgentWidgetData {
+  type: 'choice_card' | 'action_list' | 'info_card' | 'payment_prompt';
+  title: string;
+  subtitle?: string;
+  items: WidgetItem[];   // Each item has: id, label, description?, actions[]
+  layout?: 'horizontal' | 'vertical' | 'grid';
+}
+
+// Sending widgets via A2A tasks/send:
+{
+  "method": "tasks/send",
+  "params": {
+    "message": { "parts": [{ "type": "text", "text": "Approve budget" }] },
+    "metadata": {
+      "intent": "request_approval",
+      "widgets": [{
+        "widget_type": "choice_card",
+        "title": "Budget Approval",
+        "items": [
+          { "id": "approve", "label": "Approve", "actions": [{ "action": "approve" }] },
+          { "id": "decline", "label": "Decline", "actions": [{ "action": "decline" }] }
+        ]
+      }],
+      "widgetResponseUrl": "https://your-instance/api/callback"
+    }
+  }
+}`}</Code>
         </Section>
 
         {/* ── Rate Limits ─────────────────────────────────────── */}
