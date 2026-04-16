@@ -1,427 +1,324 @@
 # DiviDen Command Center — Project Bible
 
-**Last updated:** April 12, 2026  
-**HEAD commit:** `4b34916`  
-**Deployed at:** dividen.ai + sdfgasgfdsgsdg.abacusai.app (both untagged)  
-**Git remote:** `https://github.com/Denominator-Ventures/dividen.git` → branch `main`  
-**OS site:** os.dividen.ai (separate deployment, reads from same `/api/v2/updates` feed)
+> For onboarding new development conversations. Last updated: April 15, 2026 (v1.9.3)
 
 ---
 
-## 1. What DiviDen Is
+## What DiviDen Is
 
-DiviDen is an **open-core AI-powered command center** — a shared workspace where a human operator and an AI agent ("Divi") coordinate through:
+DiviDen is an AI-native personal operating system. Every user gets a personal AI agent called **Divi** that manages their tasks, communications, calendar, contacts, documents, and goals — all in one dashboard. It's not a chatbot with a task list bolted on. It's an agent that owns your operational context and acts on it.
 
-- A **kanban board** (10-stage deal/project pipeline)
-- A **task queue** (dispatch work to AI or humans)
-- A **CRM** (contacts with relationship mapping)
-- A **relay protocol** (agent-to-agent communication across instances)
-- **Structured chat** with 53 executable action tags
+The founder is **Jon Bradford**. Voice is direct, technical, no marketing language. Everything ships with a changelog entry in founder voice.
 
-**Philosophy:** Individual-first. DiviDen is a powerful tool for one person to run their entire work life. Teams, federation, and marketplace are network effects that layer on top — not the core value prop.
-
-**Tagline:** "The last interface you'll ever need."
-
-**Open core model:**
-- **Engine** = MIT-licensed. Self-host it, inspect every line.
-- **Network features** (marketplace, federation discovery, team plans, network fee enforcement) = managed platform at dividen.ai.
+Live at **dividen.ai**. Open-source. GitHub: `Denominator-Ventures/dividen` (main branch).
 
 ---
 
-## 2. How This Instance Fits the Network
+## Architecture Overview
 
-The codebase at `/home/ubuntu/dividen_command_center` is deployed as the **managed platform** at **dividen.ai**. It serves as:
+**Stack**: Next.js 14 (App Router), TypeScript, Prisma ORM, PostgreSQL, Tailwind CSS. Dark-only theme. PWA-enabled.
 
-1. **The primary production instance** — the hosted DiviDen platform that users sign up for
-2. **The network hub** — self-hosted instances register with this instance via `POST /api/v2/federation/register` and receive a `platformToken`
-3. **The marketplace host** — all network marketplace transactions route through this instance for fee enforcement (3% floor)
-4. **The federation directory** — `InstanceRegistry` model tracks all connected instances; discoverable ones appear in the Find People tab alongside local users
-5. **The updates feed source** — `GET /api/v2/updates` serves the public changelog that os.dividen.ai reads
+**Project path**: `/home/ubuntu/dividen_command_center` → app code in `nextjs_space/`
 
-**Network topology:**
-```
-┌─────────────────────────┐
-│  dividen.ai (this)       │ ◄── The Hub
-│  - User accounts         │
-│  - Marketplace           │
-│  - Federation registry   │
-│  - Fee enforcement       │
-│  - Network discovery     │
-└────────┬────────────────┘
-         │ Relay Protocol + Federation APIs
-    ┌────┴────┐     ┌────┴────┐
-    │ Self-   │     │ Self-   │
-    │ hosted  │     │ hosted  │
-    │ inst. A │◄───►│ inst. B │
-    └─────────┘     └─────────┘
-      (can also relay directly P2P)
-```
+**Key directories**:
+- `src/app/api/` — ~65 API route files. REST endpoints for everything
+- `src/app/dashboard/` — Main authenticated view (single-page app feel with tab switching)
+- `src/components/dashboard/` — ~43 dashboard components (ChatView, KanbanView, QueuePanel, NowPanel, etc.)
+- `src/components/widgets/` — Theme-agnostic widget library (11 primitives + container)
+- `src/lib/` — ~40 library files (system prompt, action tags, signals, card links, federation, etc.)
+- `src/lib/federation/` — Cross-instance intelligence (graph matching, composite prompts, pattern sharing, task routing)
+- `prisma/schema.prisma` — ~2,200 lines, ~55 models
+- `src/docs/` — Internal markdown documentation
+- `src/app/docs/` — Public-facing documentation pages (developers, federation, integrations, release notes)
+
+**Database**: Shared between dev and prod. All schema changes MUST be additive — never `--accept-data-loss`. Prisma `db push` only.
+
+**Build constraints**: TSC runs out of memory during `test_nextjs_project` — skip it, go straight to `build_and_save_nextjs_project_checkpoint`. Use yarn only (never npm/npx).
+
+**Deploy flow**: `build_and_save_nextjs_project_checkpoint` → `deploy_nextjs_project` → `git add -A && git commit && git push origin main`. Both `dividen.ai` and `sdfgasgfdsgsdg.abacusai.app` are untagged — one deploy updates both.
 
 ---
 
-## 3. Technical Stack
+## Core Systems
 
-| Layer | Tech |
-|-------|------|
-| Framework | Next.js 14 (App Router) |
-| Language | TypeScript (strict) |
-| Database | PostgreSQL via Prisma ORM (60 models) |
-| Auth | NextAuth.js (credentials provider) |
-| Styling | Tailwind CSS + CSS variables |
-| Fonts | Space Grotesk (headings), Inter (body), JetBrains Mono (code) |
-| Colors | Brand blue `#4f7cff`, dark theme `#050505` base |
-| File storage | AWS S3 (presigned URLs, cloud-only — no local files) |
-| Payments | Stripe Connect (Express onboarding) |
-| Protocols | A2A v0.4, MCP v1.5.0, DAWP/0.1, Agent Card v0.4.0 |
-| PWA | Service worker, installable, auto-updates |
-| Package manager | **yarn only** (never npm/npx) |
-| DB migrations | `yarn prisma db push` only (never `--accept-data-loss` without explicit user consent) |
+### 1. Divi (The AI Agent)
 
----
+Every user's Divi is powered by the system prompt in `src/lib/system-prompt.ts`. It's modular:
 
-## 4. Architecture
+- **capabilities_core** (~3,200 tokens, always loaded) — Card CRUD, checklist, people, artifacts, queue, goals, profile/memory, setup tags, interactive widgets, linked kards
+- **triage** (~1,200 tokens, on-demand) — 8-step triage protocol, catch-up briefings
+- **routing** (~800 tokens, on-demand) — Task detection, routing waterfall, delegation
+- **federation** (~200 tokens, on-demand) — Cross-instance entity resolution, serendipity
+- **marketplace** (~200 tokens, on-demand) — Agent install/execute/subscribe
 
-### 4.1 Dashboard Layout
+The **relevance engine** scores which modules to load per message using `PromptGroup` definitions and `SIGNAL_PATTERNS` regex matching. This saves ~5,000-6,000 tokens per non-triage message.
 
-3-column layout: **NOW** (left) | **Center** (main) | **Queue + Comms** (right)
+**Action tags**: Divi emits `[[tag_name:params]]` in responses. `src/lib/action-tags.ts` parses and executes them server-side. ~30+ tags covering card creation, email drafts, calendar events, relay sends, settings changes, etc.
 
-**Primary tabs** (Center panel): Chat · CRM · Calendar · Inbox · Recordings  
-**Network tabs**: Discover · Connections · Teams · Jobs · Marketplace · Federation Intel  
-**Right panel tabs**: Queue · Comms (relay log)
+### 2. Dashboard Layout
 
-**Removed from top row:** Board, Extensions, Capabilities/Signals, Goals  
-**Board** → accessible via 📋 button in NowPanel  
-**Goals** → optional, toggled in Settings → Your Divi  
-**Earnings** → conditional widget in NowPanel (visible when marketplace/job activity exists)  
-**Mode toggle** (Cockpit/Chief of Staff) → workspace strip between header and content
+The dashboard (`src/app/dashboard/page.tsx`) is a three-column layout:
 
-### 4.2 System Prompt Architecture
+- **Left**: NowPanel — priority items, upcoming events, activity stream
+- **Center**: Tab-switched views — Chat, Board (Kanban), Queue, Comms, Discover, Connections, Teams, Goals, Marketplace, CRM, Federation Intel, Briefs, Recordings
+- **Right**: Context-dependent (contact details, card details, etc.)
 
-13 prompt groups assembled dynamically:
+**Custom event system** for realtime sync:
+- `dividen:now-refresh` — universal trigger, all panels listen
+- `dividen:board-refresh` — kanban board re-fetch
+- `dividen:queue-refresh` — queue panel re-fetch
+- `dividen:comms-refresh` — comms tab re-fetch
+- `dividen:activity-refresh` — activity stream re-fetch
 
-| # | Group | Notes |
-|---|-------|-------|
-| 1 | Identity, Rules & Time | Hardcoded personality (chief of staff) + operator rules |
-| 2 | Active State | Board, queue, goals snapshot |
-| 3 | Conversation | Chat history (50 msg context window) |
-| 4 | People | CRM + user profiles |
-| 5 | Memory & Learning | Explicit facts, behavioral rules, patterns, ambient |
-| 6 | Calendar & Inbox | Events + email triage |
-| 7 | Capabilities & Action Tags | 53 action tags + capability configs |
-| 8 | Connections & Relay | Core protocol layer |
-| 9 | Extensions | Conditional — skip if none installed |
-| 10 | Platform Setup | Conditional — compact if setup complete |
-| 11 | Business Operations | Jobs, contracts, marketplace, recordings, reputation |
-| 12 | Team Agent Context | Conditional — only if user is in teams with agents |
-| 13 | Active Capabilities | Conditional — only if capabilities configured |
+### 3. Kanban Board
 
-### 4.3 Action Tags (53)
+Cards are the atomic unit. `KanbanCard` model with status columns: backlog, todo, in_progress, review, done, archived. Each card can have checklists, artifacts, contacts, activity logs, and **linked cards** (cross-user delegation).
 
-Divi embeds `[[tag_name:params]]` in responses. The parser (`action-tags.ts`) extracts and executes them against the database. Tags cover: card CRUD, queue dispatch, CRM updates, goal management, relay sending, marketplace operations, job posting, memory writes, capability actions, and more.
+**Board Cortex** (`src/lib/board-cortex.ts`) — scheduled daemon (every 6h) that scans the board for stale cards, missing context, and optimization opportunities. Runs as Scheduled Task #38251327.
 
-### 4.4 Smart Triage (Task-First)
+**Card Links** (`src/lib/card-links.ts`) — bidirectional linking between cards (same user or cross-user). Status propagation uses "accumulate, don't ping" philosophy — changes written to `CardLink.changeLog` JSON array, read at conversation time.
 
-- **Cards = Projects** (containers), **Checklist Items = Tasks** (atomic work)
-- Auto-merge: ON by default. Levenshtein ≥80% on card titles → merge instead of creating duplicates
-- Due date discipline: Every task gets a due date (inferred or suggested by priority)
-- Delegation: `self` / `divi` / `delegated` (routed to another user's agent via relay)
+### 4. Queue System
 
-### 4.5 Signals & Catch Up
+Queue items surface in the QueuePanel. Created from chat actions, relay responses, scheduled tasks, or ambient signals. Items can carry interactive widget metadata — rendered inline with action callbacks.
 
-6 built-in signals: Email, Calendar, Recordings, CRM, Drive, Connections  
-Custom signals via webhooks  
-Catch Up: respects per-signal priority order and inclusion toggles  
-Quick signal dropdown: gear icon next to Catch Up button → drag-reorder + checkboxes
+### 5. Comms (Agent Relays)
 
-### 4.6 Connections (Redesigned This Session)
+The `AgentRelay` model powers inter-agent communication. Relays flow through named threads. The comms page shows threads with message history. Since v1.9.2, relays can carry **widget payloads** — interactive UI elements that render inline and send structured responses back.
 
-3 tabs:
-- **Find People** — search local + federated instances. Source badges. Default landing.
-- **My Connections** — active, incoming requests, outbound pending
-- **Relays** — relay history
+**Widget response flow**: User interacts → `/api/relays/widget-response` → relay updated → queue item synced → webhook fired → optional callback to sender.
 
-No local/federated toggle. Federation hidden behind collapsible in Connect by Email.  
-Federated instances from `InstanceRegistry` appear in Find People with "self-hosted" badge.
+### 6. Bubble Store (Marketplace)
 
-### 4.7 Peer Profile Modal (New This Session)
+The marketplace — now branded as **Bubble Store** — hosts agents that users can discover, install, and subscribe to.
 
-Click any name/avatar in Connections → full profile modal with:
-- **Profile tab** — routing manifest (bio, skills, experience, values, availability)
-- **Us tab** — shared context (mutual teams, projects, conversation stats, relay history)
-- Connect button in modal
+- `MarketplaceAgent` — agent listings with pricing models (free, per_task, subscription)
+- `MarketplaceCapability` — individual capabilities that integrate into the relevance engine as `CapabilityModule`s
+- Revenue split: 97% developer / 3% platform
+- Federated agents sync from external instances via `/api/v2/federation/capabilities`
+- Developer profiles at `/developer/[slug]` (federated) or `/profile/[id]` (platform)
 
-### 4.8 Two-Tier Fee Model
+### 7. Federation
 
-- **Internal** (same instance): Configurable by operator. Env vars `MARKETPLACE_FEE_PERCENT`, `RECRUITING_FEE_PERCENT`.
-- **Network** (cross-instance): Enforced minimums — 3% marketplace, 7% recruiting. Validated by `POST /api/v2/federation/validate-payment`.
+DiviDen instances can federate. `InstanceRegistry` tracks registered instances. Federation enables:
 
-### 4.9 Key API Surface
+- Cross-instance agent discovery and capability sync
+- Linked Kards across instances (webhook-driven status sync)
+- Reputation scoring
+- Task exchange (auto-matching jobs to connections)
+- Pattern sharing between instances
 
-175 API routes total. Key ones:
+**FVP** (a key federated partner) is the quality bar for federation integration. Their v2.7.0 integration notes are in `/docs/developers#fvp-integration`.
 
-| Endpoint | Purpose |
-|----------|---------|
-| `/api/chat/send` | Main chat with action tag execution |
-| `/api/v2/queue` | Agent task queue |
-| `/api/v2/shared-chat/stream` | SSE real-time feed |
-| `/api/main-connect` | Agent connection ceremony |
-| `/api/main-handoff` | Handoff brief for agents |
-| `/api/mcp` | MCP v1.5.0 server (22+ tools) |
-| `/api/a2a` | A2A v0.4 endpoint |
-| `/api/a2a/playbook` | Operational playbook |
-| `/api/v2/federation/*` | Federation registration, heartbeat, marketplace linking |
-| `/api/v2/updates` | Public changelog feed |
-| `/api/marketplace/*` | Browse, execute, subscribe, earnings |
-| `/api/jobs/*` | Job board, matching, contracts |
-| `/api/stripe/*` | Stripe Connect onboarding, payments |
-| `/api/relays/*` | Relay send, threads, counts |
-| `/api/profile/photo` | S3 presigned upload for profile photos |
+### 8. Widget Library
+
+`src/components/widgets/` — 11 theme-agnostic primitives:
+
+WidgetSlider, WidgetToggle, WidgetRadio, WidgetSelect, WidgetTextInput, WidgetInfo, WidgetGoogleConnect, WidgetWebhookSetup, WidgetSubmitButton, WidgetSkipButton, AgentWidget.
+
+All themed via CSS custom properties in `widget-theme.css`. Override the CSS vars to re-theme everything. Barrel export from `@/components/widgets`.
+
+### 9. Activity System
+
+`ActivityLog` records everything — card changes, queue actions, relay events, settings changes. The `ActivityStream` component renders a filterable, categorized feed with 10 categories. API at `/api/activity` filters by userId.
+
+### 10. Behavior Signals
+
+`BehaviorSignal` collects user interaction telemetry — fire-and-forget from the client via `emitSignal()`. Used for ambient learning and pattern detection. Actions are open-ended snake_case strings.
+
+### 11. Onboarding
+
+`src/lib/onboarding-project.ts` — deterministic setup flow. Creates a "DiviDen Setup" project with checklist tasks. Each task maps to either a widget action or an agent prompt. The UI drives the flow with Yes/Skip buttons — no LLM dependency for widget rendering.
 
 ---
 
-## 5. Divi Personality & Configuration
+## Key Files Quick Reference
 
-- **Identity:** High-agency chief of staff — leverage, incentives, sequencing, signal vs noise, asymmetric upside
-- **Agent name:** Configurable via `diviName` (User model), defaults to "Divi"
-- **Working Style dials** (1-5 each): Verbosity (default 3), Proactivity (4), Autonomy (3), Formality (2)
-- **Triage settings:** autoMerge (default true), autoRouteToBoard (false), triageStyle (task-first/card-per-item/minimal)
-- **Goals:** Optional, toggled in Settings → Your Divi
-- **Settings UI:** Settings → "🤖 Your Divi" tab
-
----
-
-## 6. Key Files & Locations
-
-| File | What |
-|------|------|
-| `src/lib/system-prompt.ts` | 13-group dynamic system prompt builder |
-| `src/lib/action-tags.ts` | 53 action tag parser/executor |
-| `src/lib/signals.ts` | Signal definitions + catch-up prompt builder |
-| `src/lib/marketplace-config.ts` | Two-tier marketplace fee logic |
-| `src/lib/recruiting-config.ts` | Two-tier recruiting fee logic |
-| `src/lib/landing-data.ts` | Landing page data (features, protocol layers, stats) |
-| `src/lib/updates.ts` | Changelog entries (builder-log voice) |
-| `src/lib/prisma.ts` | Singleton Prisma client with telemetry |
-| `src/lib/llm.ts` | LLM provider abstraction (OpenAI/Anthropic) |
-| `src/lib/auth.ts` | NextAuth configuration |
-| `src/lib/aws-config.ts` | S3 configuration |
-| `src/lib/s3.ts` | S3 utilities (presigned upload, URLs, delete) |
-| `src/lib/free-tier.ts` | Free tier limits (not yet consumed) |
-| `src/app/dashboard/page.tsx` | Main dashboard orchestrator |
-| `src/components/dashboard/NowPanel.tsx` | NOW engine (left panel) |
-| `src/components/dashboard/CenterPanel.tsx` | Tab router (center) |
-| `src/components/dashboard/QueuePanel.tsx` | Queue + Comms (right panel) |
-| `src/components/dashboard/ConnectionsView.tsx` | Connections 3-tab view |
-| `src/components/dashboard/PeerProfileModal.tsx` | Profile modal with Us tab |
-| `src/components/dashboard/CatchUpQuickMenu.tsx` | Quick signal dropdown |
-| `src/components/dashboard/ChatView.tsx` | Chat interface |
-| `src/components/landing/LandingPage.tsx` | dividen.ai landing page |
-| `src/docs/os-dividen-ai-audit-v2.md` | Full os.dividen.ai copy audit |
-| `prisma/schema.prisma` | 60 Prisma models |
-| `scripts/seed.ts` | Seed script (admin + test users) |
+| File | Purpose |
+|---|---|
+| `src/lib/system-prompt.ts` | Builds Divi's system prompt. Modular capability loading |
+| `src/lib/action-tags.ts` | Parses and executes `[[tag:params]]` from agent responses |
+| `src/lib/signals.ts` | Catch-up prompts, signal detection |
+| `src/lib/card-links.ts` | Linked Kards, cross-user card delegation |
+| `src/lib/relay-queue-bridge.ts` | Bridges relays ↔ queue items, widget propagation |
+| `src/lib/capability-module.ts` | CapabilityModule interface for marketplace→relevance engine |
+| `src/lib/now-engine.ts` | NOW panel data assembly |
+| `src/lib/board-cortex.ts` | Scheduled board analysis daemon |
+| `src/lib/updates.ts` | Changelog entries (add new to top of array, founder voice) |
+| `src/app/api/a2a/route.ts` | A2A protocol endpoint (~570 lines) |
+| `src/app/api/kanban/route.ts` | Card CRUD API |
+| `src/components/dashboard/ChatView.tsx` | Main chat interface, widget rendering, action dispatch |
+| `src/components/dashboard/NowPanel.tsx` | Left panel — priorities, events, activity |
+| `src/components/dashboard/KanbanView.tsx` | Board view |
+| `src/components/dashboard/QueuePanel.tsx` | Queue + comms tabs |
+| `src/components/widgets/index.ts` | Widget library barrel export |
+| `prisma/schema.prisma` | ~55 models, ~2,200 lines |
+| `scripts/seed.ts` | Database seeding (upsert only, never delete) |
 
 ---
 
-## 7. Environment & Credentials
+## Conventions & Constraints
 
-### Env vars (in `.env`)
-- `DATABASE_URL` — shared between dev and prod
-- `NEXTAUTH_SECRET` — auto-managed by Abacus
-- `ABACUSAI_API_KEY` — for LLM APIs
-- `ADMIN_PASSWORD` — admin dashboard access
-- `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` — Stripe Connect
-- `AWS_REGION` / `AWS_BUCKET_NAME` / `AWS_FOLDER_PREFIX` — S3 storage
-- `MARKETPLACE_FEE_PERCENT` — internal marketplace fee
-- `NOTIF_ID_CONNECTION_INVITATION` — email notification type ID
-
-### Test accounts
-- **Admin:** `admin@dividen.ai` / (see `.env` or seed script)
-- **Test user:** `john@doe.com` / (see `.env` or seed script)
-- **Admin page:** `/admin` with `ADMIN_PASSWORD` env var
-
-### Deployment
-- **Hostnames:** `dividen.ai` and `sdfgasgfdsgsdg.abacusai.app` (both untagged — one deploy updates both)
-- **Git:** Always reset `.abacus.donotdelete` before commit. Pull-rebase before push.
-- **NEXTAUTH_URL:** Auto-set by Abacus per environment. Never set manually.
+- **yarn only** — never npm or npx
+- **Dark-only theme** — no light mode
+- **Founder voice** — direct, technical, no marketing fluff. Updates signed "- Jon"
+- **Schema changes must be additive** — never drop columns, never `--accept-data-loss`
+- **Seed script uses upsert** — never add delete commands (shared dev/prod DB)
+- **Skip `test_nextjs_project`** — TSC OOMs. Go straight to `build_and_save_nextjs_project_checkpoint`
+- **Deploy + commit + push** after every successful build
+- **Custom events** for dashboard refresh — `dividen:*` namespace
+- **Widget theming** via CSS custom properties — never hardcode brand colors in widgets
+- **Updates page** — new entries at top of `UPDATES` array in `src/lib/updates.ts`
+- **Test account**: `john@doe.com` / `johndoe123`
+- **Admin account**: `admin@dividen.ai`
 
 ---
 
-## 8. Constraints & Rules
+## Current Version: v1.9.3
 
-1. **yarn only** — never npm/npx
-2. **Prisma `db push` only** — never `--accept-data-loss` without explicit confirmation
-3. **Git discipline:** Reset `.abacus.donotdelete` before every commit. Pull-rebase before push.
-4. **No local file storage** — all uploads go to S3 via presigned URLs
-5. **Database shared between dev and prod** — be careful with data mutations
-6. **BYOK** — both self-hosted and managed platform require users to bring their own LLM API keys
-7. **No sidebar** — the dashboard has no sidebar and never has
-8. **Hero H1 is locked** — "The last interface you'll ever need." — Jon explicitly prefers this
-9. **Builder-log tone** — updates and copy are technical, direct, no fluff
-
----
-
-## 9. os.dividen.ai — Separate Site
-
-os.dividen.ai is a **separate deployment** from dividen.ai. It serves as the open-source project's marketing and documentation site.
-
-**Pages:**
-- `/` — Homepage ("You don't need a boss. You need a system.")
-- `/docs` — Protocol specification (rendered from `/app/docs/*` routes in this codebase)
-- `/open-source` — Open core comparison table, build phases, architecture
-- `/updates` — Changelog wall (reads from `GET /api/v2/updates` or rendered from `src/lib/updates.ts`)
-
-**PLATFORM** and **GET STARTED** nav links point to dividen.ai.
-
-**Current audit status:** Full audit completed April 12, 2026 — see `src/docs/os-dividen-ai-audit-v2.md`. Summary of needed corrections:
-- 12 → 13 prompt groups (~8 occurrences)
-- 44 → 53 action tags (~10 occurrences)
-- 55 → 60 Prisma models (~3 occurrences)
-- MCP v1.4.0 → v1.5.0 (~5 occurrences)
-- Agent Card v0.3.0 → v0.4.0 (~3 occurrences)
-- Remove "Platform provides LLM keys automatically" — both are BYOK
-- Remove "can be 0%" fee language (~4 occurrences)
-- Remove Extensions from PLATFORM feature list
+What shipped recently:
+- Interactive widget pipeline (agents send widgets through comms, users respond inline)
+- Theme-agnostic widget library (11 primitives, CSS custom properties)
+- Developer documentation overhaul (widget library, FVP integration notes, full API reference)
+- Bubble Store branding for the marketplace
+- Approval status notifications for federated instances
+- Activity feed v2 with 10 filterable categories
+- Realtime dashboard refresh via custom DOM events
+- Catch-up briefing rewrite (FVP-style phased format)
+- Board Cortex scheduled daemon
+- CapabilityModule system for marketplace→relevance engine integration
 
 ---
 
-## 10. What We Built This Session
+## Open Areas of Work
 
-### Session Date: April 12, 2026
-### Commits (chronological):
+These are active opportunities — things that need building, improving, or rethinking.
 
-#### 1. Divi Personality & Tab Reorganization (`7c3574c`)
-- Rewrote system prompt Group 1 with full personality (chief of staff identity)
-- Working Style dials (4 dimensions, 1-5 scales) dynamically injected into prompt
-- Agent naming (`diviName` field, defaults to "Divi")
-- Auto-merge default ON, configurable triage settings
-- Dashboard tab reorganization: Primary (Chat, CRM, Calendar, Inbox, Recordings), Network (Discover, Connections, Teams, Jobs, Marketplace, Federation Intel)
-- Comms redesigned as relay log (replaced Activity tab)
-- Goals made optional (off by default)
-- Board moved to 📋 button in NowPanel
-- New Settings → "Your Divi" tab
+### 1. Bubble Store UI Rebrand
+The marketplace infrastructure works but still uses "Marketplace" in the UI everywhere. Need to rename to "Bubble Store" across:
+- Tab labels in CenterPanel
+- MarketplaceView component
+- DiscoverView agent cards
+- Settings → Marketplace tab
+- All user-facing copy
 
-#### 2. Two-Tier Fees & Comms Overhaul (`2594d1f`)
-- Internal vs network fee model with configurable rates and enforced floors
-- `marketplace-config.ts` and `recruiting-config.ts` with `isNetworkTransaction` flag
-- `POST /api/v2/federation/validate-payment` endpoint
-- Comms tab in QueuePanel showing relay threads
-- Activity stream moved to bottom of NowPanel
+### 2. Inbox Zero Automation
+The queue system works but doesn't have smart auto-prioritization or batch processing. Opportunities:
+- Auto-categorize queue items by urgency/type
+- Suggest batch actions ("Complete all 4 read-only notifications")
+- Smart snooze recommendations based on BehaviorSignal patterns
+- Zero-state celebration when queue is empty
 
-#### 3. Agent Passwords, Persistent Threads & A2A v0.4 (`058bc31`)
-- `MarketplaceAgent.accessPassword` — share password for free agent access
-- Chat context window bumped to 50 messages
-- Soft-clear conversations (timestamps, not deletion)
-- A2A v0.4 with `marketplacePasswordAccess` and `persistentConversation` capabilities
-- MCP v1.5 with `marketplace_browse` and `marketplace_unlock` tools
+### 3. Semantic Dedup for Board Cortex
+The Board Cortex daemon identifies stale cards but doesn't detect near-duplicate cards. Opportunities:
+- Embedding-based similarity detection across cards
+- Suggest merges for similar cards
+- Auto-link related cards that aren't explicitly connected
+- Cross-project duplicate detection
 
-#### 4. Profile View, Photo Upload, Chat Improvements (`caaccf0`)
-- Dedicated ProfileView component in dashboard (Preview + Edit modes)
-- S3 presigned upload for profile photos
-- `User.profilePhotoUrl` field
-- Chat personalization: `diviName` in header/placeholder/avatars, user photos in bubbles
-- Context-aware empty state (API key detected → engagement prompts)
+### 4. Agent Versioning
+Marketplace agents have no version history. When a developer updates their agent's prompt or capabilities, there's no rollback, no diff, no changelog. Need:
+- Version tracking for agent prompts and configs
+- Diff view for agent updates
+- Rollback capability
+- Update notifications to subscribers
 
-#### 5. Landing Page Fixes & os.dividen.ai Corrections (`801e49a`)
-- 13 prompt groups, 53 action tags in `landing-data.ts`
-- Removed Extensions from features
-- Fee copy corrections
-- Created `src/docs/os-dividen-ai-corrections.md` (v1)
-- Updates wall entry: "Signals, Capabilities, and the Full Loop"
+### 5. Cross-Instance Linked Kards (v2.8)
+Linked Kards work within a single DiviDen instance but cross-instance sync is still roadmap. The webhook architecture is documented (`/docs/developers#fvp-integration`) but not implemented:
+- `POST /api/v2/federation/card-status` receiver endpoint
+- Outbound webhook from `propagateCardStatusChange()` to remote instances
+- Conflict resolution for simultaneous status changes
+- Cross-instance checklist progress sync
 
-#### 6. Connections View Redesign (`bbbdfb7`)
-- 3 tabs: Find People, My Connections, Relays
-- Removed local/federated toggle
-- `/api/directory` now includes federated `InstanceRegistry` entries
-- Federated results show source badges, deep-link to originating instance
-- Federation hidden behind collapsible in Connect by Email
+### 6. Ambient Learning Pipeline
+`BehaviorSignal` collects data but the learning loop isn't closed:
+- Pattern detection from signal clusters (e.g., "user always snoozes queue items at 9am")
+- Proactive suggestions based on learned patterns
+- Feed learnings back into Divi's system prompt context
+- `UserLearning` model exists but synthesis (`/api/ambient-learning/synthesize`) needs refinement
 
-#### 7. Peer Profile Modal (`558fc8c`)
-- New `PeerProfileModal.tsx` component (~310 lines)
-- Click any name/avatar in Connections → full profile modal
-- Profile tab (routing manifest) + Us tab (shared context)
-- Connect button in modal
-- Replaced old inline profile peek
+### 7. Calendar Intelligence
+Google Calendar syncs but there's no smart layer:
+- Pre-meeting briefs (pull context from contacts, cards, recent comms with attendees)
+- Post-meeting action item extraction from recordings
+- Scheduling conflict detection and resolution suggestions
+- Travel time awareness
 
-#### 8. Catch-Up Button Restyle & Quick Signal Menu (`8943c29`)
-- Catch-Up button restyled to match Search button appearance
-- Gear icon toggles `CatchUpQuickMenu` dropdown (drag-reorder + checkboxes)
-- Mode toggle (Cockpit/CoS) moved from header into workspace strip
+### 8. Email Integration Depth
+Emails sync but Divi's email capabilities are shallow:
+- Draft generation from card context
+- Thread summarization
+- Auto-categorization and priority scoring
+- Follow-up reminders based on sent email age
 
-#### 9. Full os.dividen.ai Audit (`81b6d39`)
-- Browsed every page: homepage, /open-source, /docs, /updates
-- Created `src/docs/os-dividen-ai-audit-v2.md` with 31 items
-- Discovered os.dividen.ai is a separate deployment (different hero copy)
-- Documented ground truth: 13 groups, 53 tags, 60 models, MCP v1.5.0, Agent Card v0.4.0
+### 9. Mobile Experience
+PWA works but the mobile UX needs dedicated attention:
+- Touch-optimized card interactions
+- Swipe gestures for queue triage
+- Compact views for small screens
+- Push notifications (service worker exists but notification triggers are limited)
 
-#### 10. Updates Wall Entry (`4b34916`)
-- "Connections Redesign, Peer Profiles & The Catch-Up Menu" entry added to `src/lib/updates.ts`
-- Covers all 4 features from commits 6-8
+### 10. Team Features
+Team infrastructure exists (Team, TeamMember, TeamSubscription, TeamBilling, TeamSpendingPolicy) but team workflows are underdeveloped:
+- Shared boards across team members
+- Team-level queue with assignment routing
+- Team briefs (aggregate across members)
+- Spending policy enforcement for marketplace agent usage
 
----
+### 11. Recruiting Pipeline
+Job board and talent matching exist but the flow is incomplete:
+- Application tracking beyond basic status
+- Interview scheduling integration
+- Candidate comparison views
+- Automated outreach via relay templates
 
-### Earlier This Session (from prior conversation parts):
+### 12. Revenue & Billing
+Stripe integration exists but the billing story is thin:
+- Subscription management dashboard for developers
+- Usage-based billing reports
+- Payout tracking and history
+- Free tier enforcement improvements
 
-- **KanbAIn** — Smart triage with task-first architecture, card merging, due date discipline
-- **Delegation model** — assignee types (self/divi/delegated), contributor vs related people
-- **Signals framework** — 6 built-in signals, custom webhook signals, triage prompts
-- **Capabilities system** — email/meetings/custom with setup wizards and outbound actions
-- **Catch Up settings** — drag-reorder priority, per-signal toggles
-- **Smart triage prompts** — editable per signal, artifact linking
-- **API key persistence** — consistency fix
-- **Inline onboarding** — API key form in chat
+### 13. Documentation & Guides
+Developer docs exist but gaps remain:
+- Getting started guide for self-hosting
+- Federation setup walkthrough
+- Agent development tutorial (from zero to Bubble Store listing)
+- API client libraries (TypeScript SDK)
 
----
+### 14. Performance & Scale
+- System prompt token optimization (further modularization)
+- Database query optimization for high-cardinality tables (ActivityLog, BehaviorSignal, TelemetryEvent)
+- Caching layer for frequently-accessed data (NOW panel, board state)
+- Connection pooling tuning (current: max 25 concurrent, 5s statement timeout)
 
-## 11. What Needs Doing Next
-
-### Immediate
-1. **Apply os.dividen.ai corrections** — The audit doc (`os-dividen-ai-audit-v2.md`) has 31 items. The os site is a separate deployment, so changes there need to be made wherever that site is deployed from.
-2. **Deploy** — Current checkpoint is built and pushed to git but not deployed to dividen.ai.
-
-### Open Architecture Items
-- Free tier enforcement (`isFreeUser` field + `free-tier.ts` exist but aren't consumed yet)
-- Google Calendar sync (integration account + API routes exist, needs OAuth setup)
-- Gmail inbox triage (same — integration infrastructure exists)
-- Meeting transcription webhooks (endpoint exists, needs transcription service config)
-- Recordings playback (model exists, needs file upload integration)
-- Drive/document management (model exists, needs UI)
-- Desktop notifications (infrastructure exists, needs permission prompt UX)
-
-### Network Features
-- Federation health dashboard in admin
-- Cross-instance pattern sharing (ambient learning exchange)
-- Serendipity graph matching
-- Network briefing aggregation
-- 7-signal task routing
+### 15. Testing
+- No test suite exists. Zero unit tests, zero integration tests, zero e2e tests
+- TSC OOMs during type checking — needs investigation (likely circular types or excessive inference)
+- Build takes ~60-90s — could benefit from incremental compilation
 
 ---
 
-## 12. Pricing (Managed Platform)
+## Roadmap (Rough Priority)
 
-| Plan | Price | Includes |
-|------|-------|----------|
-| Individual | Free | Full engine, BYOK, internal marketplace/jobs |
-| Team Starter | $29/mo | 5 members, 3 projects, basic teams |
-| Team Pro | $79/mo + $9/seat | Team agent, spending policies, unlimited |
-| 14-day Pro trial | Free | Full Pro features |
-
----
-
-## 13. How to Continue This Conversation
-
-When starting a new Deep Agent conversation:
-
-1. **Reference this file** — Upload or paste the relevant sections of this bible
-2. **Key context to provide:**
-   - Project path: `/home/ubuntu/dividen_command_center`
-   - Git remote: `https://github.com/Denominator-Ventures/dividen.git` (branch `main`)
-   - Constraints: yarn only, Prisma `db push` only (no `--accept-data-loss`), reset `.abacus.donotdelete` before commits
-   - Deployed at: dividen.ai + sdfgasgfdsgsdg.abacusai.app (both untagged)
-   - Credentials: see `.env` file and `scripts/seed.ts`
-3. **Tell the agent to read `.project_instructions.md`** — it has the full accumulated context
-4. **The os.dividen.ai audit** is at `src/docs/os-dividen-ai-audit-v2.md` if corrections need applying
-5. **Updates wall** entries go in `src/lib/updates.ts` — newest at top, builder-log voice, with id/date/time/title/subtitle/tags/content
+1. Bubble Store UI rebrand (cosmetic, high visibility)
+2. Inbox zero automation (user-facing, high impact)
+3. Cross-instance Linked Kards (federation, unblocks FVP)
+4. Semantic dedup for Board Cortex (intelligence, leverages existing daemon)
+5. Agent versioning (marketplace maturity)
+6. Ambient learning pipeline (closes the BehaviorSignal loop)
+7. Calendar intelligence (pre-meeting briefs are the killer feature)
+8. Team workflows (unlocks B2B use case)
 
 ---
 
-*Built by Jon (Denominator Ventures). Powered by DiviDen. Documented for continuity.*
+## How to Ship
+
+1. Read `.project_instructions.md` at project root for accumulated design decisions
+2. Search before you write — grep for existing implementations before assuming
+3. Make schema changes additive. Never drop. Never `--accept-data-loss`
+4. Build: `build_and_save_nextjs_project_checkpoint` (skip `test_nextjs_project`)
+5. Deploy: `deploy_nextjs_project` → `git commit && push`
+6. Write a changelog entry in `src/lib/updates.ts` for anything user-visible
+7. Update `.project_instructions.md` with any new architectural decisions
+8. Founder signs off as "- Jon". No corporate voice. No buzzwords.
