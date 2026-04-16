@@ -79,6 +79,8 @@ interface ChecklistTaskInput {
   order: number;
   dueDate: Date | null;
   assigneeType: string;
+  assigneeName?: string | null;
+  delegationStatus?: string | null;
   cardId: string;
   cardTitle?: string;
 }
@@ -250,9 +252,12 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
   const checklistTasks = input.checklistTasks || [];
   for (const task of checklistTasks) {
     if (task.completed) continue;
-    if (task.assigneeType !== 'self') continue; // Only operator-assigned tasks
 
-    let taskScore = 30; // Base score for incomplete tasks
+    const isDelegated = task.assigneeType === 'delegated';
+    // Skip non-self, non-delegated tasks (e.g., 'divi' tasks are Divi's domain)
+    if (task.assigneeType !== 'self' && !isDelegated) continue;
+
+    let taskScore = isDelegated ? 20 : 30; // Delegated tasks score slightly lower (oversight, not action)
     if (task.dueDate) {
       const dlScore = deadlineScore(task.dueDate, now);
       taskScore = Math.max(taskScore, dlScore);
@@ -260,15 +265,25 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
     // Earlier tasks in the checklist get higher priority
     taskScore += Math.max(0, 10 - task.order * 2);
 
+    const delegatedPrefix = isDelegated && task.assigneeName ? `👤 ${task.assigneeName}` : '';
+    const statusSuffix = isDelegated && task.delegationStatus ? ` · ${task.delegationStatus}` : '';
+    const subtitle = isDelegated
+      ? `${delegatedPrefix}${statusSuffix}${task.cardTitle ? ` — ${task.cardTitle}` : ''}`
+      : task.cardTitle ? `Card: ${task.cardTitle}` : undefined;
+
     items.push({
       id: `task_${task.id}`,
       type: 'checklist_task',
       title: task.text,
-      subtitle: task.cardTitle ? `Card: ${task.cardTitle}` : undefined,
+      subtitle,
       score: taskScore,
       urgency: urgencyFromScore(taskScore),
       sourceId: task.id,
-      meta: { cardId: task.cardId, cardTitle: task.cardTitle, order: task.order, dueDate: task.dueDate },
+      meta: {
+        cardId: task.cardId, cardTitle: task.cardTitle, order: task.order, dueDate: task.dueDate,
+        assigneeName: task.assigneeName || null, delegationStatus: task.delegationStatus || null,
+        isDelegated,
+      },
     });
   }
 

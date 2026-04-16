@@ -70,6 +70,14 @@ export interface ChecklistItemData {
   completed: boolean;
   order: number;
   cardId: string;
+  dueDate?: string | null;
+  assigneeType?: string;
+  assigneeName?: string | null;
+  assigneeId?: string | null;
+  delegationStatus?: string | null;
+  sourceType?: string | null;
+  sourceId?: string | null;
+  sourceLabel?: string | null;
 }
 
 export interface CardContactData {

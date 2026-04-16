@@ -1796,6 +1796,27 @@ export async function executeTag(
             // will read cardContext.id from the relay payload when it creates a
             // card on the target user's board, enabling bidirectional linking.
 
+            // ── Create checklist item on the source card for this routed task ──
+            const maxOrderResult = await prisma.checklistItem.aggregate({
+              where: { cardId },
+              _max: { order: true },
+            });
+            const checklistItem = await prisma.checklistItem.create({
+              data: {
+                text: title + (description ? ` — ${description}` : ''),
+                cardId,
+                order: (maxOrderResult._max.order ?? -1) + 1,
+                assigneeType: 'delegated',
+                assigneeName: `${targetMatch.userName || targetMatch.userEmail} via Divi`,
+                assigneeId: targetMatch.connectionId,
+                delegationStatus: 'sent',
+                dueDate: task.dueDate ? new Date(task.dueDate) : null,
+                sourceType: 'relay',
+                sourceId: relay.id,
+                sourceLabel: `Routed to ${targetMatch.userName || targetMatch.userEmail}`,
+              },
+            });
+
             results.push({
               task: title,
               routedTo: targetMatch.userName || targetMatch.userEmail,
@@ -1805,6 +1826,7 @@ export async function executeTag(
               briefId: brief.id,
               relayId: relay.id,
               sourceCardId: cardId,
+              checklistItemId: checklistItem.id,
             });
           } else {
             // No match — log as suggestion

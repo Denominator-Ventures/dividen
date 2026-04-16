@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
     // Parallel queries — 5 concurrent is fine within our pool limit
     // NOTE: Queue items are Divi's/agent domain — they belong in QueuePanel.
     // Now Panel only shows operator-facing items: kanban cards (assignee=human), goals, calendar, relays.
-    const [goals, kanbanCards, calendarEvents, relays, checklistTasks, setupChecklistTasks] = await Promise.all([
+    const [goals, kanbanCards, calendarEvents, relays, checklistTasks, delegatedChecklistTasks, setupChecklistTasks] = await Promise.all([
       prisma.goal.findMany({
         where: { userId, status: 'active' },
         include: {
@@ -80,6 +80,24 @@ export async function GET(req: NextRequest) {
           card: { select: { title: true } },
         },
       }),
+      // Fetch delegated checklist items (operator needs visibility into delegated work)
+      prisma.checklistItem.findMany({
+        where: {
+          completed: false,
+          assigneeType: 'delegated',
+          card: {
+            userId,
+            status: { in: ['active', 'development', 'planning'] },
+          },
+        },
+        orderBy: [{ dueDate: 'asc' }, { order: 'asc' }],
+        take: 20,
+        select: {
+          id: true, text: true, completed: true, order: true, dueDate: true,
+          assigneeType: true, assigneeName: true, delegationStatus: true, cardId: true,
+          card: { select: { title: true } },
+        },
+      }),
       // Fetch setup-project checklist items (no dueDate filter — they start without dates)
       prisma.checklistItem.findMany({
         where: {
@@ -105,7 +123,8 @@ export async function GET(req: NextRequest) {
     const seenIds = new Set(checklistTasks.map((t: any) => t.id));
     const mergedChecklist = [
       ...checklistTasks,
-      ...setupChecklistTasks.filter((t: any) => !seenIds.has(t.id)),
+      ...delegatedChecklistTasks.filter((t: any) => !seenIds.has(t.id)),
+      ...setupChecklistTasks.filter((t: any) => !seenIds.has(t.id) && !delegatedChecklistTasks.some((d: any) => d.id === t.id)),
     ];
 
     const ranked = scoreAndRankNow({
@@ -117,6 +136,8 @@ export async function GET(req: NextRequest) {
       checklistTasks: mergedChecklist.map((t: any) => ({
         ...t,
         cardTitle: t.card?.title,
+        assigneeName: t.assigneeName || null,
+        delegationStatus: t.delegationStatus || null,
       })),
       userId,
       now,

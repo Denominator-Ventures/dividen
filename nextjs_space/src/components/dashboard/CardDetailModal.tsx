@@ -338,46 +338,79 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
             {/* Items */}
             <div className="space-y-1.5 mb-3">
               {checklist.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 group">
-                  <button
-                    onClick={() => toggleChecklistItem(item)}
-                    className={cn(
-                      'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all',
-                      item.completed
-                        ? 'bg-brand-500 border-brand-500'
-                        : 'border-[var(--border-color)] hover:border-brand-400'
-                    )}
-                  >
-                    {item.completed && (
-                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                  </button>
-                  <span
-                    className={cn(
-                      'text-sm flex-1',
-                      item.completed
-                        ? 'text-[var(--text-muted)] line-through'
-                        : 'text-[var(--text-primary)]'
-                    )}
-                  >
-                    {item.text}
-                  </span>
-                  {onDiscuss && !item.completed && (
+                <div key={item.id} className="group">
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => onDiscuss(`Let's work on this task: "${item.text}" from card "${card.title}". Help me complete it.`)}
-                      className="opacity-0 group-hover:opacity-100 text-[9px] px-1.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
+                      onClick={() => toggleChecklistItem(item)}
+                      className={cn(
+                        'w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 transition-all',
+                        item.completed
+                          ? 'bg-brand-500 border-brand-500'
+                          : 'border-[var(--border-color)] hover:border-brand-400'
+                      )}
                     >
-                      💬
+                      {item.completed && (
+                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
                     </button>
+                    <span
+                      className={cn(
+                        'text-sm flex-1',
+                        item.completed
+                          ? 'text-[var(--text-muted)] line-through'
+                          : 'text-[var(--text-primary)]'
+                      )}
+                    >
+                      {item.text}
+                    </span>
+                    {onDiscuss && !item.completed && (
+                      <button
+                        onClick={() => onDiscuss(`Let's work on this task: "${item.text}" from card "${card.title}". Help me complete it.`)}
+                        className="opacity-0 group-hover:opacity-100 text-[9px] px-1.5 py-0.5 rounded-full bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
+                      >
+                        💬
+                      </button>
+                    )}
+                    <button
+                      onClick={() => deleteChecklistItem(item.id)}
+                      className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 text-xs transition-opacity"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* Assignee + Due Date row */}
+                  {(item.assigneeName || item.dueDate) && (
+                    <div className="flex items-center gap-3 ml-6 mt-0.5">
+                      {item.assigneeName && (
+                        <span className={cn(
+                          'text-[10px] px-1.5 py-0.5 rounded-full',
+                          item.assigneeType === 'delegated'
+                            ? 'bg-purple-500/15 text-purple-400 border border-purple-500/20'
+                            : item.assigneeType === 'divi'
+                            ? 'bg-brand-500/15 text-brand-400 border border-brand-500/20'
+                            : 'bg-[var(--bg-surface)] text-[var(--text-muted)]'
+                        )}>
+                          {item.assigneeType === 'delegated' ? '👤 ' : item.assigneeType === 'divi' ? '🤖 ' : ''}
+                          {item.assigneeName}
+                          {item.delegationStatus && item.delegationStatus !== 'completed' && (
+                            <span className="ml-1 opacity-60">· {item.delegationStatus}</span>
+                          )}
+                        </span>
+                      )}
+                      {item.dueDate && (
+                        <span className={cn(
+                          'text-[10px]',
+                          new Date(item.dueDate) < new Date() && !item.completed
+                            ? 'text-red-400'
+                            : 'text-[var(--text-muted)]'
+                        )}>
+                          📅 {new Date(item.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                    </div>
                   )}
-                  <button
-                    onClick={() => deleteChecklistItem(item.id)}
-                    className="opacity-0 group-hover:opacity-100 text-[var(--text-muted)] hover:text-red-400 text-xs transition-opacity"
-                  >
-                    ✕
-                  </button>
                 </div>
               ))}
             </div>

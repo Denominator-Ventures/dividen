@@ -1019,6 +1019,7 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 
 ### Tasks (Checklist Items on Cards)
 - [[add_checklist:{"cardId":"...","text":"...","dueDate":"ISO","sourceType":"...","sourceId":"...","sourceLabel":"...","assigneeType":"self|divi|delegated","assigneeName":"...","assigneeId":"..."}]]
+  **CRITICAL**: ALWAYS include "dueDate" on every checklist item. If no date is specified, pick a reasonable default (3 days for normal tasks, 1 day urgent, 1 week low). Tasks without due dates are invisible in the NOW panel.
   - assigneeType: "self" = operator, "divi" = you handle, "delegated" = another person's Divi
   - sourceType/sourceId/sourceLabel optional but recommended for traceability
 - [[complete_checklist:{"id":"item_id","completed":true}]]
@@ -1155,8 +1156,10 @@ function buildRoutingCapabilities(): string {
 - [[propose_task:{"title":"...","description":"...","taskType":"...","urgency":"...","compensation":"...","requiredSkills":"...","estimatedHours":"...","taskBreakdown":[...],"sourceCardId":"optional","routingSuggestion":"inner_circle|team|connections|network"}]]
 
 ### Orchestration
-- [[task_route:{"cardId":"...","tasks":[{"title":"...","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast","to":"person name or email (REQUIRED when operator names someone explicitly)"}],"teamId":"optional","projectId":"optional"}]]
+- [[task_route:{"cardId":"...","tasks":[{"title":"...","description":"...","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast","to":"person name or email (REQUIRED when operator names someone explicitly)","dueDate":"ISO date string (ALWAYS include a reasonable due date)"}],"teamId":"optional","projectId":"optional"}]]
   **CRITICAL**: When operator says "assign this to [name]", ALWAYS include the "to" field. The "to" field bypasses skill matching — explicit assignment always works regardless of profile skills.
+  **CRITICAL**: ALWAYS include a "dueDate" for each task. If the operator doesn't specify one, pick a reasonable default based on urgency/priority (e.g., 3 days for normal, 1 day for urgent, 1 week for low priority).
+  Each routed task creates a checklist item on the source card with the assignee and due date visible.
 - [[assemble_brief:{"cardId":"...","teamId":"optional","projectId":"optional"}]]
 - [[project_dashboard:{"projectId":"..."}]]
 
