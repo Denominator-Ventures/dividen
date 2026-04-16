@@ -160,17 +160,20 @@ export async function GET(req: NextRequest) {
         },
       });
 
+      // Only show instances that have a named operator — these appear as people, not as raw instances
       federatedEntries = instances
         .filter((inst: any) => {
+          if (!inst.operatorName) return false; // Hide unnamed instances
           if (!q) return true;
-          const haystack = [inst.name, inst.baseUrl, inst.operatorName, inst.operatorEmail].filter(Boolean).join(' ').toLowerCase();
+          const haystack = [inst.operatorName, inst.operatorEmail, inst.name].filter(Boolean).join(' ').toLowerCase();
           return haystack.includes(q);
         })
         .map((inst: any) => ({
           id: `fed_${inst.id}`,
-          name: inst.operatorName || inst.name,
+          name: inst.operatorName,
           email: inst.operatorEmail || null,
-          source: 'federated',
+          source: 'federated_operator',
+          instanceId: inst.id,
           instanceUrl: inst.baseUrl,
           instanceName: inst.name,
           userCount: inst.userCount,
@@ -179,17 +182,16 @@ export async function GET(req: NextRequest) {
           connectionStatus: null,
           connectionDirection: null,
           connectionId: null,
-          hasProfile: !!inst.operatorName,
-          headline: inst.operatorName
-            ? `${inst.name}${inst.userCount ? ` • ${inst.userCount} user${inst.userCount !== 1 ? 's' : ''}` : ''}`
-            : `Self-hosted instance${inst.userCount ? ` • ${inst.userCount} user${inst.userCount !== 1 ? 's' : ''}` : ''}${inst.agentCount ? ` • ${inst.agentCount} agent${inst.agentCount !== 1 ? 's' : ''}` : ''}`,
+          hasProfile: true,
+          headline: `Operator of ${inst.name}`,
+          currentTitle: 'Instance Operator',
+          currentCompany: inst.name,
         }));
     } catch (e) {
       // Non-critical — federated entries are optional
       console.warn('Failed to fetch federated instances for directory:', e);
     }
 
-    // Also show federated developers (distinct developerName+sourceInstanceId from marketplace agents)
     let federatedDevelopers: any[] = [];
     try {
       const fedAgents = await prisma.marketplaceAgent.findMany({

@@ -39,7 +39,7 @@ export function ConnectionsView() {
   const [loading, setLoading] = useState(true);
   const [selectedConnection, setSelectedConnection] = useState<ConnectionData | null>(null);
   const [selectedRelay, setSelectedRelay] = useState<AgentRelayData | null>(null);
-  const [peerProfile, setPeerProfile] = useState<{ userId: string; name?: string; email?: string; connectionStatus?: string | null } | null>(null);
+  const [peerProfile, setPeerProfile] = useState<{ userId: string; name?: string; email?: string; connectionStatus?: string | null; source?: string; instanceName?: string; instanceUrl?: string; instanceId?: string } | null>(null);
   const [relayCounts, setRelayCounts] = useState({ pendingInbound: 0, totalActive: 0 });
 
   // New relay form
@@ -619,10 +619,13 @@ export function ConnectionsView() {
                           <button
                             onClick={() => {
                               if (u.source === 'federated_developer' && u.profileUrl) { window.open(u.profileUrl, '_blank'); return; }
-                              if (u.source !== 'federated') setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus });
+                              // federated_operator and regular users are both clickable
+                              setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus, source: u.source, instanceName: u.instanceName, instanceUrl: u.instanceUrl, instanceId: u.instanceId });
                             }}
-                            disabled={u.source === 'federated'}
-                            className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium shrink-0', u.source === 'federated_developer' ? 'bg-purple-500/15 text-purple-400 hover:ring-2 hover:ring-purple-500/30 cursor-pointer transition-all' : u.source === 'federated' ? 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]' : 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:ring-2 hover:ring-[var(--brand-primary)]/30 cursor-pointer transition-all')}
+                            className={cn('w-9 h-9 rounded-full flex items-center justify-center text-sm font-medium shrink-0',
+                              u.source === 'federated_developer' ? 'bg-purple-500/15 text-purple-400' : u.source === 'federated_operator' ? 'bg-blue-500/15 text-blue-400' : 'bg-[var(--brand-primary)]/15 text-[var(--brand-primary)]',
+                              'hover:ring-2 hover:ring-[var(--brand-primary)]/30 cursor-pointer transition-all'
+                            )}
                           >
                             {(u.name || u.email || '?').charAt(0).toUpperCase()}
                           </button>
@@ -631,17 +634,16 @@ export function ConnectionsView() {
                               <button
                                 onClick={() => {
                                   if (u.source === 'federated_developer' && u.profileUrl) { window.open(u.profileUrl, '_blank'); return; }
-                                  if (u.source !== 'federated') setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus });
+                                  setPeerProfile({ userId: u.id, name: u.name, email: u.email, connectionStatus: u.connectionStatus, source: u.source, instanceName: u.instanceName, instanceUrl: u.instanceUrl, instanceId: u.instanceId });
                                 }}
-                                disabled={u.source === 'federated'}
-                                className={cn('text-sm font-medium text-[var(--text-primary)] truncate', (u.source !== 'federated') && 'hover:text-[var(--brand-primary)] cursor-pointer transition-colors')}
+                                className="text-sm font-medium text-[var(--text-primary)] truncate hover:text-[var(--brand-primary)] cursor-pointer transition-colors"
                               >{u.name || 'Anonymous'}</button>
                               {u.source === 'federated_developer' && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 font-medium shrink-0">🌐 federated dev</span>
                               )}
-                              {u.source === 'federated' && (
+                              {u.source === 'federated_operator' && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium shrink-0">
-                                  🌐 {u.instanceName || 'self-hosted'}
+                                  🏠 {u.instanceName || 'Self-hosted'}
                                 </span>
                               )}
                               {u.capacity && u.capacity !== 'available' && (
@@ -680,7 +682,6 @@ export function ConnectionsView() {
                             <div className="flex items-center gap-2 mt-1.5 text-[10px] text-[var(--text-muted)]">
                               {u.timezone && <span>🕐 {u.timezone.replace('_', ' ').split('/').pop()}</span>}
                               {u.industry && <span>• {u.industry}</span>}
-                              {u.instanceName && <span>• 🌐 {u.instanceName}</span>}
                             </div>
                           </div>
                         </div>
@@ -691,13 +692,9 @@ export function ConnectionsView() {
                           ) : isPending && u.connectionDirection === 'inbound' ? (
                             <button
                               onClick={() => {
-                                // Find the connection in our loaded connections to open accept modal
                                 const conn = connections.find(c => c.id === u.connectionId);
                                 if (conn) { setAcceptingConnection(conn); }
-                                else {
-                                  // Fallback: auto-accept by sending a connect request (triggers mutual-accept)
-                                  handleDirectoryConnect(u.email, u.name);
-                                }
+                                else { handleDirectoryConnect(u.email, u.name); }
                               }}
                               className="text-[10px] px-2.5 py-1 rounded-md bg-green-500/15 text-green-400 hover:bg-green-500/25 font-medium transition-colors"
                             >
@@ -712,7 +709,15 @@ export function ConnectionsView() {
                               rel="noopener"
                               className="text-[10px] px-2.5 py-1 rounded-md bg-purple-500/15 text-purple-400 font-medium hover:bg-purple-500/25 transition-colors"
                             >View Profile →</a>
-                          ) : u.source === 'federated' ? (
+                          ) : u.source === 'federated_operator' && u.email ? (
+                            <button
+                              onClick={() => handleDirectoryConnect(u.email, u.name)}
+                              disabled={connectingUserId === u.email}
+                              className="text-[10px] px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 font-medium transition-colors disabled:opacity-50"
+                            >
+                              {connectingUserId === u.email ? '...' : '+ Connect'}
+                            </button>
+                          ) : u.source === 'federated_operator' ? (
                             <button
                               onClick={() => {
                                 setShowConnectEmail(true);
@@ -723,7 +728,7 @@ export function ConnectionsView() {
                               }}
                               className="text-[10px] px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-400 hover:bg-blue-500/25 font-medium transition-colors"
                             >
-                              🌐 Connect
+                              + Connect
                             </button>
                           ) : (
                             <button
@@ -731,7 +736,7 @@ export function ConnectionsView() {
                               disabled={connectingUserId === u.email}
                               className="text-[10px] px-2.5 py-1 rounded-md bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/25 font-medium transition-colors disabled:opacity-50"
                             >
-                              {connectingUserId === u.email ? '…' : '+ Connect'}
+                              {connectingUserId === u.email ? '...' : '+ Connect'}
                             </button>
                           )}
                         </div>
@@ -1149,6 +1154,9 @@ export function ConnectionsView() {
           userName={peerProfile.name}
           userEmail={peerProfile.email}
           connectionStatus={peerProfile.connectionStatus}
+          source={peerProfile.source}
+          instanceName={peerProfile.instanceName}
+          instanceUrl={peerProfile.instanceUrl}
           onClose={() => setPeerProfile(null)}
           onConnect={(email, name) => {
             handleDirectoryConnect(email, name);

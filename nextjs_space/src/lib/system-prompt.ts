@@ -974,6 +974,13 @@ function buildCapabilitiesCore(diviName: string, triageSettings: Record<string, 
   return `## Capabilities & Action Tags
 Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display. Multiple tags per response OK. Tags go at end or inline. Ask before modifying data if unsure.
 
+**⚠️ CRITICAL EXECUTION RULES:**
+1. **NEVER describe an action without emitting the tag.** If you say "I'll create a project for X", you MUST include [[upsert_card:...]] in that same response. Words without tags = nothing happens.
+2. **One tag per item.** Creating 3 tasks? Emit 3 separate [[add_checklist:...]] tags. Creating a project AND tasks? Emit [[upsert_card:...]] for the project AND [[add_checklist:...]] for each task. Never batch-describe and emit only one.
+3. **Emit ALL tags in the SAME response.** Don't split across messages. If the user asks for a project with 5 tasks, create all 6 tags (1 project + 5 tasks) in one response.
+4. **After sync_signal, continue working.** When you trigger [[sync_signal:...]] and results come back, the system will automatically ask you to analyze and report. Don't stop at "let me sync" — the analysis comes in your next turn.
+5. **No phantom work.** If you say "I'll set up X, Y, and Z" — all three must have corresponding tags. If you can only do X now, say "I've set up X. Want me to do Y and Z next?" Don't claim work you didn't tag.
+
 ### Card Management (Cards = Projects)
 - [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — **PREFERRED during triage.** Finds existing card with similar title and updates it, or creates new. Title = PROJECT name, not a task.
 - [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]]

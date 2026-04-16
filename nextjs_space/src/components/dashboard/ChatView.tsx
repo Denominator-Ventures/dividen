@@ -296,6 +296,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         const decoder = new TextDecoder();
         let buffer = '';
         let fullCleanContent = '';
+        let executedTagResults: any[] = [];
 
         while (true) {
           const { done, value } = await reader.read();
@@ -323,6 +324,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                 case 'tags_executed':
                   if (event.results) {
                     setTagResults(event.results);
+                    executedTagResults = event.results;
                   }
                   break;
 
@@ -358,6 +360,19 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         setMessages((prev) => [...prev, assistantMsg]);
         // Signal NOW panel to refresh after any agent response (may have executed action tags)
         window.dispatchEvent(new Event('dividen:now-refresh')); window.dispatchEvent(new Event('dividen:activity-refresh'));
+
+        // Auto-continue after sync_signal: feed results back to LLM so Divi reports findings
+        const syncResult = executedTagResults.find((r: any) => r.tag === 'sync_signal' && r.success);
+        if (syncResult) {
+          const syncData = syncResult.data || {};
+          const syncSummary = syncData.synced !== undefined
+            ? `Synced ${syncData.synced} items from ${syncData.service || 'all services'}`
+            : 'Sync completed';
+          // Brief pause for UX, then auto-send a hidden follow-up so the LLM continues
+          setTimeout(() => {
+            sendMessage(`[SYSTEM: sync_signal completed — ${syncSummary}. Now analyze what was found and report back to the operator. Continue with the task you were working on. Do NOT say you need to sync again.]`);
+          }, 1500);
+        }
       } catch (err: any) {
         console.error('Chat error:', err);
         setError(err.message || 'Failed to send message');

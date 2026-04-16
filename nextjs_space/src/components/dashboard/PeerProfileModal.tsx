@@ -5,16 +5,19 @@ import { cn } from '@/lib/utils';
 import { CAPACITY_STATUSES, TASK_TYPES } from '@/types';
 
 interface PeerProfileModalProps {
-  userId: string;          // target user ID
+  userId: string;          // target user ID (or fed_xxx for federated operators)
   userName?: string;       // pre-known name for immediate display
   userEmail?: string;
   connectionStatus?: string | null; // 'active' | 'pending' | null
+  source?: string;         // 'federated_operator' for federated instances
+  instanceName?: string;   // e.g. "FVP Command Center"
+  instanceUrl?: string;    // e.g. "https://cc.fractionalventure.partners"
   onClose: () => void;
   onConnect?: (email: string, name: string) => void; // connect handler
 }
 
 export default function PeerProfileModal({
-  userId, userName, userEmail, connectionStatus, onClose, onConnect,
+  userId, userName, userEmail, connectionStatus, source, instanceName, instanceUrl, onClose, onConnect,
 }: PeerProfileModalProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +29,14 @@ export default function PeerProfileModal({
   const [relLoading, setRelLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
 
+  const isFederatedOperator = source === 'federated_operator';
+
   const fetchProfile = useCallback(async () => {
+    // Federated operators don't have local profiles — use the pre-populated info
+    if (isFederatedOperator) {
+      setLoading(false);
+      return;
+    }
     try {
       const res = await fetch(`/api/profile/${userId}`);
       const data = await res.json();
@@ -43,7 +53,7 @@ export default function PeerProfileModal({
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, isFederatedOperator]);
 
   const fetchRelationship = useCallback(async () => {
     if (!isConnected) return;
@@ -110,14 +120,16 @@ export default function PeerProfileModal({
             {/* Header */}
             <div className="flex-shrink-0 px-6 pt-6 pb-4 border-b border-[var(--border-color)]">
               <div className="flex items-start gap-4">
-                <div className="w-16 h-16 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xl font-bold border-2 border-[var(--border-color)] flex-shrink-0">
+                <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-xl font-bold border-2 border-[var(--border-color)] flex-shrink-0 ${isFederatedOperator ? 'bg-blue-600' : 'bg-[var(--brand-primary)]'}`}>
                   {initials}
                 </div>
                 <div className="flex-1 min-w-0">
                   <h2 className="text-lg font-bold text-[var(--text-primary)] truncate">{displayName}</h2>
-                  {profile?.headline && (
+                  {profile?.headline ? (
                     <p className="text-sm text-[var(--text-secondary)] mt-0.5 line-clamp-2">{profile.headline}</p>
-                  )}
+                  ) : isFederatedOperator && instanceName ? (
+                    <p className="text-sm text-[var(--text-secondary)] mt-0.5">Operator of {instanceName}</p>
+                  ) : null}
                   <div className="flex items-center gap-3 mt-2 flex-wrap">
                     {capacity && (
                       <span className={cn('text-xs font-medium', capacity.color)}>
@@ -171,9 +183,25 @@ export default function PeerProfileModal({
             </div>
 
             {/* Body */}
+            {/* Body */}
             <div className="flex-1 overflow-y-auto">
               {tab === 'profile' ? (
                 <div className="p-6 space-y-5 max-w-2xl">
+                  {/* Instance context for federated operators */}
+                  {isFederatedOperator && instanceName && (
+                    <div className="p-3 rounded-lg bg-blue-500/5 border border-blue-500/15">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-sm">🏠</span>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{instanceName}</span>
+                      </div>
+                      <p className="text-xs text-[var(--text-secondary)]">
+                        Self-hosted DiviDen instance
+                      </p>
+                      {instanceUrl && (
+                        <p className="text-[10px] text-[var(--text-muted)] mt-1 font-mono">{instanceUrl}</p>
+                      )}
+                    </div>
+                  )}
                   {profile?.bio && (
                     <p className="text-sm text-[var(--text-secondary)] leading-relaxed whitespace-pre-wrap">{profile.bio}</p>
                   )}
