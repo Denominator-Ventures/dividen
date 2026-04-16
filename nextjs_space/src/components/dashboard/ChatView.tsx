@@ -407,7 +407,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           const signalsMsg: ChatMessage = {
             id: `msg-signals-setup-${Date.now()}`,
             role: 'assistant',
-            content: `Time for custom signals — this is where you configure additional data sources and routing rules beyond the defaults.\n\nHead to **Settings → Signals** to set things up. When you're done (or if you want to skip), let me know.`,
+            content: `Time for custom signals — this is where you configure additional data sources and routing rules beyond the defaults.\n\nHit **📡 Open Signal Settings** below to configure them. When you're done (or if you want to skip), let me know.`,
             createdAt: new Date().toISOString(),
             metadata: { isSignalsSetup: true },
           };
@@ -640,7 +640,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         const skipMsg: ChatMessage = {
           id: `msg-signals-skip-${Date.now()}`,
           role: 'assistant',
-          content: '⏭️ No worries — custom signals are optional. You can always set them up later in Settings → Signals.',
+          content: '⏭️ No worries — custom signals are optional. You can always set them up later in Settings → Integrations.',
           createdAt: new Date().toISOString(),
         };
         fetch('/api/chat/messages', {
@@ -1208,7 +1208,7 @@ function SignalsSetupButtons({ onDone, onSkip }: { onDone: () => void; onSkip: (
   return (
     <div className="mt-3 flex gap-2 flex-wrap">
       <button
-        onClick={() => window.open('/settings#signals', '_blank')}
+        onClick={() => { window.location.href = '/settings?tab=integrations'; }}
         className="px-4 py-2 text-xs font-semibold rounded-lg bg-[var(--bg-surface)] border border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-surface-hover)] transition-colors"
       >
         📡 Open Signal Settings

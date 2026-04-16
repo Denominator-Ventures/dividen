@@ -234,7 +234,7 @@ function SettingsPageInner() {
   const TABS: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'divi', label: 'Your Divi', icon: '🤖' },
     { id: 'general', label: 'General', icon: '⚙️' },
-    { id: 'integrations', label: 'Integrations', icon: '🔗' },
+    { id: 'integrations', label: 'Signals & Integrations', icon: '📡' },
     { id: 'network', label: 'Network', icon: '🌐' },
     { id: 'payments', label: 'Payments', icon: '💳' },
     { id: 'learnings', label: 'Learnings', icon: '🧠' },
