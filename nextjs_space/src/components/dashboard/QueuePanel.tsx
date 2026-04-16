@@ -6,6 +6,7 @@ import { timeAgo } from '@/lib/utils';
 import { CommsTab } from './CommsTab';
 import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
 import { emitSignal } from '@/lib/behavior-signals';
+import { MentionText } from '@/components/MentionText';
 import {
   QUEUE_SECTIONS,
   type QueueItemData,
@@ -186,7 +187,7 @@ function QueueItemCard({
           <div className="flex items-center gap-1.5">
             {isCapabilityAction && <span className="text-sm">{capIcon}</span>}
             <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight" title={item.title}>
-              {displaySummary || item.title}
+              <MentionText text={displaySummary || item.title} />
             </h4>
             <span className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', cat.color)}>{cat.label}</span>
             {optimizing && <span className="text-[9px] text-[var(--brand-primary)] animate-pulse">✨ optimizing...</span>}
@@ -195,12 +196,12 @@ function QueueItemCard({
           {/* Show full title if summary is truncated */}
           {displaySummary && displaySummary !== item.title && (
             <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 mt-0.5 leading-tight">
-              {item.title}
+              <MentionText text={item.title} />
             </p>
           )}
           {item.description && (
             <p className="text-xs text-[var(--text-muted)] line-clamp-2 mt-1">
-              {item.description}
+              <MentionText text={item.description} />
             </p>
           )}
 
@@ -1010,8 +1011,8 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                             <div key={item.id} className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
                               <div className="flex items-start justify-between gap-2 mb-2">
                                 <div className="flex-1 min-w-0">
-                                  <h4 className="text-sm font-medium text-[var(--text-primary)] truncate">{item.title}</h4>
-                                  {item.description && <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2">{item.description}</p>}
+                                  <h4 className="text-sm font-medium text-[var(--text-primary)] truncate"><MentionText text={item.title} /></h4>
+                                  {item.description && <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2"><MentionText text={item.description} /></p>}
                                 </div>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/15 text-yellow-400 flex-shrink-0">
                                   {item.priority}

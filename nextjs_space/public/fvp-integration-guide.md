@@ -440,7 +440,76 @@ curl -X GET "https://dividen.ai/api/federation/mentions?type=all&q=jon" \
 
 ---
 
-## 6. Notification System
+## 6. Clickable @Mentions & Username Resolution
+
+### Overview
+
+As of v2.0.3, all `@username` tokens rendered anywhere in DiviDen are **clickable links** that navigate to the mentioned user's profile page (`/profile/[userId]`). This applies across:
+
+- **Chat** — message bodies (bold/code/mention inline rendering)
+- **Queue** — task titles and descriptions (main list + review suggestions)
+- **Comms** — relay thread peer names and message subjects
+- **Notifications** — activity feed summaries
+
+FVP should implement equivalent rendering on their side for parity. When DiviDen sends relay messages or notifications containing `@username` tokens, FVP can resolve those usernames to user profiles using the endpoint below.
+
+### Username Resolution API
+
+Bulk-resolve usernames to user IDs and profile metadata.
+
+**Endpoint:** `GET /api/users/resolve`
+
+**Query Parameters:**
+
+| Param | Type | Description |
+|-------|------|-------------|
+| `usernames` | string | Comma-separated list of usernames (without `@` prefix) |
+
+**Response (200):**
+
+```json
+{
+  "users": {
+    "jon": { "id": "clx...", "name": "Jon", "username": "jon", "avatar": "/api/avatar/clx..." },
+    "sarah": { "id": "cly...", "name": "Sarah Chen", "username": "sarah", "avatar": null }
+  }
+}
+```
+
+**Notes:**
+- No authentication required (returns public-safe fields only)
+- Unresolvable usernames are silently omitted from the response
+- Maximum 50 usernames per request recommended
+- FVP should cache results client-side (usernames are stable identifiers)
+
+### Rendering Specification
+
+The `@username` pattern is `@[a-z0-9_.-]{2,30}` (matching the username format from [Section 3](#3-username-requirements)).
+
+**Recommended client-side rendering flow:**
+
+1. Split text on the `@username` regex pattern
+2. For each `@username` token, resolve via `/api/users/resolve` (batch all tokens from a render pass)
+3. Render resolved mentions as styled clickable chips → link to `/profile/{userId}`
+4. Render unresolved mentions as styled but non-clickable text (graceful degradation)
+
+**DiviDen's implementation** uses a shared `<MentionText>` component with:
+- Module-level resolution cache (avoids re-fetching known usernames)
+- 50ms batching window (coalesces multiple mentions from a single render cycle into one API call)
+- Brand-colored chip styling with hover state
+
+### Where Mentions Are Active
+
+| Surface | What's Parsed | Input Support |
+|---------|---------------|---------------|
+| Chat messages | Message body text | Yes — autocomplete on `@` keystroke |
+| Queue items | Title + description | Planned — manual `@username` typing works now |
+| Comms/Relays | Subject + peer name | No input (read-only sidebar); relay creation supports manual `@` |
+| Notifications | Activity summary text | No input (read-only feed) |
+
+---
+
+## 7. Notification System
 
 ### How Notifications Work Internally
 
@@ -489,7 +558,7 @@ Returns recent activity items with:
 
 ---
 
-## 7. Federation Notification Relay API
+## 8. Federation Notification Relay API
 
 This is the primary endpoint for FVP to push notifications to DiviDen users.
 
@@ -589,7 +658,7 @@ curl -X POST https://dividen.ai/api/federation/notifications \
 
 ---
 
-## 8. Connection Lifecycle
+## 9. Connection Lifecycle
 
 ### Creating a Federated Connection
 
@@ -641,7 +710,7 @@ Header: `X-Federation-Token: <federation_token>`
 
 ---
 
-## 9. Relay System
+## 10. Relay System
 
 ### Sending a Relay to DiviDen
 
@@ -691,7 +760,7 @@ Header: `X-Federation-Token: <federation_token>`
 
 ---
 
-## 10. Team Integration
+## 11. Team Integration
 
 ### Adding a Federated Member to a Team
 
@@ -733,7 +802,7 @@ Invites can target email, userId, or connectionId. They expire after 7 days.
 
 ---
 
-## 11. Project Integration
+## 12. Project Integration
 
 ### Project Context Sharing
 
@@ -778,7 +847,7 @@ PATCH /api/project-invites              → accept/decline
 
 ---
 
-## 12. Activity Logging Taxonomy
+## 13. Activity Logging Taxonomy
 
 Complete list of all `action` types used in `ActivityLog`:
 
@@ -862,7 +931,7 @@ Complete list of all `action` types used in `ActivityLog`:
 
 ---
 
-## 13. Error Handling
+## 14. Error Handling
 
 ### Standard Error Response
 
@@ -905,6 +974,7 @@ For federation callbacks (accept, relay, notifications):
 5. **Send relays**: Use `POST /api/federation/relay` for agent-to-agent communication
 6. **Add to teams/projects**: DiviDen users can add your connection to teams and projects from their UI
 7. **Implement inline tagging**: Use `GET /api/federation/mentions` to power @mention autocomplete on your side (see [Section 4](#4-inline-tagging-system) and [Section 5](#5-federation-mentions-api))
+8. **Render clickable @mentions**: Resolve `@username` tokens via `GET /api/users/resolve` and render as profile links (see [Section 6](#6-clickable-mentions--username-resolution))
 
 ---
 

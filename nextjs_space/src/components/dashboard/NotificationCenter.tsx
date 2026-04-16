@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useActivityStream } from '@/hooks/use-activity-stream';
+import { MentionText } from '@/components/MentionText';
 
 interface FeedItem {
   id: string;
@@ -259,7 +260,7 @@ export default function NotificationCenter() {
                     <span className="text-base flex-shrink-0 mt-0.5">{item.icon}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-[var(--text-primary)] leading-relaxed">
-                        {item.summary}
+                        <MentionText text={item.summary} />
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '9px' }}>

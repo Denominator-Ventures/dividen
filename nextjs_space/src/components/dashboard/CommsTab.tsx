@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
+import { MentionText } from '@/components/MentionText';
 
 // ─── Types ───
 
@@ -198,7 +199,7 @@ export function CommsTab() {
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
                     <span className="text-[11px] font-medium text-[var(--text-primary)] truncate">
-                      {thread.peerName}
+                      <MentionText text={thread.peerName} />
                     </span>
                     <span className="text-[9px] text-[var(--text-muted)]">
                       {isOutbound ? '↗' : '↙'}
@@ -210,7 +211,7 @@ export function CommsTab() {
                 </div>
 
                 <p className="text-[10px] text-[var(--text-secondary)] line-clamp-1 pl-3">
-                  {INTENT_ICONS[latest.intent] || '💬'} {latest.subject}
+                  {INTENT_ICONS[latest.intent] || '💬'} <MentionText text={latest.subject} />
                 </p>
 
                 {thread.count > 1 && (

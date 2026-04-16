@@ -6,6 +6,7 @@ import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
 import type { WidgetItem, WidgetItemAction, AgentWidgetData } from '@/components/widgets';
 import { emitSignal } from '@/lib/behavior-signals';
 import { OnboardingChatWidgets } from './OnboardingChatWidgets';
+import { MentionText } from '@/components/MentionText';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1426,10 +1427,10 @@ function renderMarkdownLite(text: string): React.ReactNode {
   return <>{elements}</>;
 }
 
-/** Render inline formatting: **bold**, `code`, and preserve special characters */
+/** Render inline formatting: **bold**, `code`, @mentions, and preserve special characters */
 function renderInline(text: string, keyPrefix: string): React.ReactNode {
-  // Split on **bold** and `code` patterns
-  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g);
+  // Split on **bold**, `code`, and @mention patterns
+  const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`|@[a-z0-9_.-]{2,30})/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={`${keyPrefix}-${i}`} className="font-semibold">{part.slice(2, -2)}</strong>;
@@ -1440,6 +1441,9 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode {
           {part.slice(1, -1)}
         </code>
       );
+    }
+    if (/^@[a-z0-9_.-]{2,30}$/.test(part)) {
+      return <MentionText key={`${keyPrefix}-${i}`} text={part} />;
     }
     return <span key={`${keyPrefix}-${i}`}>{part}</span>;
   });
