@@ -1693,15 +1693,26 @@ export async function executeTag(
       case 'task_route': {
         const { assembleCardContext, findSkillMatches, generateBriefMarkdown, storeBrief } = await import('./brief-assembly');
 
-        const { cardId, tasks, routeType: preferredRoute, teamId: routeTeamId, projectId: routeProjectId } = params;
-        if (!cardId || !tasks || !Array.isArray(tasks)) {
-          return { tag: name, success: false, error: 'task_route requires cardId and tasks array' };
+        const { cardId: rawCardId, cardTitle, tasks, routeType: preferredRoute, teamId: routeTeamId, projectId: routeProjectId } = params;
+        if (!tasks || !Array.isArray(tasks)) {
+          return { tag: name, success: false, error: 'task_route requires tasks array' };
         }
 
-        // Assemble the card context
-        const context = await assembleCardContext(cardId, userId);
-        if (!context) {
-          return { tag: name, success: false, error: 'Card not found or not owned by user' };
+        // Resolve cardId — explicit, by title lookup, or null (standalone routing)
+        let resolvedCardId = rawCardId || null;
+        if (!resolvedCardId && cardTitle) {
+          const card = await prisma.kanbanCard.findFirst({
+            where: { userId, title: { contains: cardTitle, mode: 'insensitive' } },
+            orderBy: { updatedAt: 'desc' },
+            select: { id: true },
+          });
+          if (card) resolvedCardId = card.id;
+        }
+
+        // Assemble card context if we have a card — otherwise proceed without it
+        let context: Awaited<ReturnType<typeof assembleCardContext>> | null = null;
+        if (resolvedCardId) {
+          context = await assembleCardContext(resolvedCardId, userId);
         }
 
         const results: any[] = [];
@@ -1713,8 +1724,10 @@ export async function executeTag(
           const matches = await findSkillMatches(userId, requiredSkills, requiredTaskTypes, { teamId: routeTeamId, projectId: routeProjectId });
           const routeMode = route || preferredRoute || 'direct';
 
-          // Generate brief markdown
-          const briefMd = generateBriefMarkdown(context, [{ title, description, requiredSkills, intent, priority }], matches);
+          // Generate brief markdown (context may be null for standalone routing)
+          const briefMd = context
+            ? generateBriefMarkdown(context, [{ title, description, requiredSkills, intent, priority }], matches)
+            : `## Task: ${title}\n${description || ''}\n\nSkills: ${requiredSkills.join(', ') || 'N/A'}`;
 
           // Determine target
           let targetMatch = matches[0] || null;
@@ -1763,8 +1776,8 @@ export async function executeTag(
             userId,
             type: 'task_decomposition',
             title: `Task: ${title}`,
-            sourceCardId: cardId,
-            sourceContactIds: context.linkedContacts.map(c => c.id),
+            sourceCardId: resolvedCardId || undefined,
+            sourceContactIds: context?.linkedContacts?.map(c => c.id) || [],
             briefMarkdown: briefMd,
             promptUsed: description,
             matchedUserId: targetMatch?.userId || undefined,
@@ -1780,7 +1793,7 @@ export async function executeTag(
             const relayPayload: any = {
               _briefId: brief.id,
               task: { title, description, requiredSkills, intent, priority },
-              cardContext: { id: context.card.id, title: context.card.title, status: context.card.status },
+              ...(context?.card ? { cardContext: { id: context.card.id, title: context.card.title, status: context.card.status } } : {}),
             };
             if (routeMode === 'ambient') relayPayload._ambient = true;
 
@@ -1798,8 +1811,8 @@ export async function executeTag(
                   type: 'task_route',
                   routedTo: targetMatch.userName || targetMatch.userEmail,
                   routeMode,
-                  cardId,
-                  cardTitle: context.card.title,
+                  cardId: resolvedCardId || null,
+                  cardTitle: context?.card?.title || title,
                 }),
               },
             });
@@ -1817,7 +1830,7 @@ export async function executeTag(
                 payload: JSON.stringify(relayPayload),
                 status: 'pending',
                 priority,
-                cardId: context.card.id,
+                cardId: resolvedCardId || undefined,
                 queueItemId: queueItem.id,
               },
             });
@@ -1835,7 +1848,7 @@ export async function executeTag(
                     type: 'agent_relay',
                     relayId: relay.id,
                     intent: 'assign_task',
-                    cardContext: { id: context.card.id, title: context.card.title },
+                    ...(context?.card ? { cardContext: { id: context.card.id, title: context.card.title } } : {}),
                   }),
                 },
               });
@@ -1858,7 +1871,7 @@ export async function executeTag(
                   type: 'task_route_sent',
                   relayId: relay.id,
                   routedTo: targetMatch.userName || targetMatch.userEmail,
-                  cardId,
+                  cardId: resolvedCardId || null,
                 }),
               },
             });
@@ -1875,32 +1888,36 @@ export async function executeTag(
                 action: 'task_routed',
                 actor: 'divi',
                 summary: `Routed task "${title}" to ${targetMatch.userName || targetMatch.userEmail} via ${routeMode} relay`,
-                metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId, matchScore: targetMatch.score, queueItemId: queueItem.id }),
+                metadata: JSON.stringify({ briefId: brief.id, relayId: relay.id, cardId: resolvedCardId, matchScore: targetMatch.score, queueItemId: queueItem.id }),
                 userId,
-                cardId: cardId || null,
+                cardId: resolvedCardId || null,
               },
             });
 
-            // ── Create checklist item on the source card for this routed task ──
-            const maxOrderResult = await prisma.checklistItem.aggregate({
-              where: { cardId },
-              _max: { order: true },
-            });
-            const checklistItem = await prisma.checklistItem.create({
-              data: {
-                text: title + (description ? ` — ${description}` : ''),
-                cardId,
-                order: (maxOrderResult._max.order ?? -1) + 1,
-                assigneeType: 'delegated',
-                assigneeName: `${targetMatch.userName || targetMatch.userEmail} via Divi`,
-                assigneeId: targetMatch.connectionId,
-                delegationStatus: 'sent',
-                dueDate: task.dueDate ? new Date(task.dueDate) : null,
-                sourceType: 'relay',
-                sourceId: relay.id,
-                sourceLabel: `Routed to ${targetMatch.userName || targetMatch.userEmail}`,
-              },
-            });
+            // ── Create checklist item on the source card (if card exists) ──
+            let checklistItemId: string | null = null;
+            if (resolvedCardId) {
+              const maxOrderResult = await prisma.checklistItem.aggregate({
+                where: { cardId: resolvedCardId },
+                _max: { order: true },
+              });
+              const checklistItem = await prisma.checklistItem.create({
+                data: {
+                  text: title + (description ? ` — ${description}` : ''),
+                  cardId: resolvedCardId,
+                  order: (maxOrderResult._max.order ?? -1) + 1,
+                  assigneeType: 'delegated',
+                  assigneeName: `${targetMatch.userName || targetMatch.userEmail} via Divi`,
+                  assigneeId: targetMatch.connectionId,
+                  delegationStatus: 'sent',
+                  dueDate: task.dueDate ? new Date(task.dueDate) : null,
+                  sourceType: 'relay',
+                  sourceId: relay.id,
+                  sourceLabel: `Routed to ${targetMatch.userName || targetMatch.userEmail}`,
+                },
+              });
+              checklistItemId = checklistItem.id;
+            }
 
             results.push({
               task: title,
@@ -1911,8 +1928,8 @@ export async function executeTag(
               briefId: brief.id,
               relayId: relay.id,
               queueItemId: queueItem.id,
-              sourceCardId: cardId,
-              checklistItemId: checklistItem.id,
+              sourceCardId: resolvedCardId || null,
+              checklistItemId,
               status: targetMatch.userId ? 'delivered' : 'pending',
             });
           } else {
@@ -1921,10 +1938,10 @@ export async function executeTag(
               data: {
                 action: 'task_decomposed',
                 actor: 'divi',
-                summary: `Decomposed task "${title}" from card "${context.card.title}" — no matching connection found`,
-                metadata: JSON.stringify({ briefId: brief.id, cardId, availableMatches: matches.length }),
+                summary: `Decomposed task "${title}"${context?.card ? ` from card "${context.card.title}"` : ''} — no matching connection found`,
+                metadata: JSON.stringify({ briefId: brief.id, cardId: resolvedCardId, availableMatches: matches.length }),
                 userId,
-                cardId: cardId || null,
+                cardId: resolvedCardId || null,
               },
             });
 

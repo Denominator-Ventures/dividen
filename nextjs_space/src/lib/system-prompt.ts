@@ -153,6 +153,15 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     take: 10,
   });
 
+  // Task routing is CORE when user has connections — always load routing capabilities
+  const activeConnectionCount = await prisma.connection.count({
+    where: { status: 'active', OR: [{ requesterId: userId }, { accepterId: userId }] },
+  });
+  if (activeConnectionCount > 0) {
+    relevantGroups.add('capabilities_routing');
+    relevantGroups.add('relay');
+  }
+
   // ── Batch 1: Pre-fetch shared data (always needed) ──
   const [
     kanbanCards,
@@ -1011,6 +1020,14 @@ Embed action tags in your response using double brackets: [[tag_name:params]]. T
 5. **No phantom work.** If you say "I'll set up X, Y, and Z" — all three must have corresponding tags. If you can only do X now, say "I've set up X. Want me to do Y and Z next?" Don't claim work you didn't tag.
 6. **Cross-user task assignment = task_route, NOT upsert_card.** When the operator says "assign this to [person]" or "have [person] do X", you MUST use [[task_route:...]] with the "to" field. This creates a relay to their Divi, a queue item for tracking, and a comms thread. Using upsert_card only creates a card on the OPERATOR's board — it does NOT reach the other person. upsert_card is for the operator's own projects.
 
+**CONCRETE EXAMPLES — you MUST emit tags like these:**
+- User: "assign this to Alvaro" → You MUST emit: [[task_route:{"tasks":[{"title":"[task description]","to":"Alvaro","dueDate":"2026-04-23"}]}]]
+- User: "have Jaron look at the pitch deck" → [[task_route:{"tasks":[{"title":"Review pitch deck","to":"Jaron","dueDate":"2026-04-19"}]}]]
+- User: "send a task to Alvaro about branding" → [[task_route:{"tasks":[{"title":"Branding work","description":"Handle branding requirements","to":"Alvaro","dueDate":"2026-04-23"}]}]]
+- If discussing a specific card, include cardTitle: [[task_route:{"cardTitle":"Ready Set Food!","tasks":[{"title":"Design landing page","to":"Alvaro","dueDate":"2026-04-20"}]}]]
+- **cardId is OPTIONAL. cardTitle is OPTIONAL.** You can route tasks without either — just include "to" and a title.
+- **NEVER say "I'll dispatch/route/assign" without the [[task_route:...]] tag in the SAME message.**
+
 ### Card Management (Cards = Projects)
 - [[upsert_card:{"title":"...","description":"...","status":"...","priority":"...","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]] — **PREFERRED during triage.** Finds existing card with similar title and updates it, or creates new. Title = PROJECT name, not a task.
 - [[create_card:{"title":"...","status":"leads|qualifying|proposal|negotiation|contracted|active|development|planning|paused|completed","priority":"low|medium|high|urgent","dueDate":"YYYY-MM-DD","assignee":"human|agent"}]]
@@ -1146,7 +1163,7 @@ function buildRoutingCapabilities(): string {
 ### Routing Priority (inner circle first, network last)
 1. **Card contributors** (🟢 DiviDen users) — already have context → [[relay_request:...]] direct assignment
 2. **Team members** — higher trust → [[task_route:...]] which boosts team members in scoring
-3. **Connections** — [[task_route:{"cardId":"...","tasks":[...]}]] with full skill matching (+10 project members, +5 team)
+3. **Connections** — [[task_route:{"tasks":[{"title":"...","to":"name","dueDate":"..."}]}]] with full skill matching (+10 project members, +5 team)
 4. **Network task board** (last resort) → [[propose_task:...]] for approval, then [[post_job:...]]
 
 **NEVER skip to network posting without checking inner circle first.**
@@ -1157,7 +1174,8 @@ function buildRoutingCapabilities(): string {
 - [[propose_task:{"title":"...","description":"...","taskType":"...","urgency":"...","compensation":"...","requiredSkills":"...","estimatedHours":"...","taskBreakdown":[...],"sourceCardId":"optional","routingSuggestion":"inner_circle|team|connections|network"}]]
 
 ### Orchestration
-- [[task_route:{"cardId":"...","tasks":[{"title":"...","description":"...","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast","to":"person name or email (REQUIRED when operator names someone explicitly)","dueDate":"ISO date string (ALWAYS include a reasonable due date)"}],"teamId":"optional","projectId":"optional"}]]
+- [[task_route:{"tasks":[{"title":"...","description":"...","to":"person name (REQUIRED when operator names someone)","dueDate":"ISO date (ALWAYS include)","requiredSkills":[...],"intent":"assign_task","priority":"normal","route":"direct|ambient|broadcast"}],"cardId":"optional - include if discussing a specific card","cardTitle":"optional - used to look up card by name","teamId":"optional","projectId":"optional"}]]
+  **MINIMUM viable tag**: [[task_route:{"tasks":[{"title":"Do X","to":"PersonName","dueDate":"2026-04-20"}]}]] — this is ALL you need.
   **CRITICAL**: When operator says "assign this to [name]", ALWAYS include the "to" field. The "to" field bypasses skill matching — explicit assignment always works regardless of profile skills.
   **CRITICAL**: ALWAYS include a "dueDate" for each task. If the operator doesn't specify one, pick a reasonable default based on urgency/priority (e.g., 3 days for normal, 1 day for urgent, 1 week for low priority).
   Each routed task creates a checklist item on the source card with the assignee and due date visible.
