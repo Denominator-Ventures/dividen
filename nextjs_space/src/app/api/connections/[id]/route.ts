@@ -28,26 +28,62 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const body = await req.json();
     const data: any = {};
 
-    // Accept connection (only accepter can do this)
-    if (body.status === 'active' && connection.accepterId === userId && connection.status === 'pending') {
+    // Accept connection
+    // For local connections: only the accepter can accept
+    // For federated inbound connections: the local user is requesterId (accepterId is null),
+    // so the requester accepts because they are the local recipient
+    const canAccept = connection.isFederated
+      ? (connection.requesterId === userId && !connection.accepterId)
+      : (connection.accepterId === userId);
+
+    if (body.status === 'active' && canAccept && connection.status === 'pending') {
       data.status = 'active';
       data.peerNickname = body.peerNickname || (session.user as any).name || null;
 
-      // Notify the requester
-      await prisma.commsMessage.create({
-        data: {
-          sender: 'system',
-          content: `${(session.user as any).name || (session.user as any).email} accepted your connection request! Your agents can now communicate.`,
-          state: 'new',
-          priority: 'normal',
-          userId: connection.requesterId,
-          metadata: JSON.stringify({ type: 'connection_accepted', connectionId: id }),
-        },
-      });
+      if (connection.isFederated) {
+        // Notify the remote instance that their connection request was accepted
+        if (connection.peerInstanceUrl && connection.federationToken) {
+          try {
+            const fedConfig = await prisma.federationConfig.findFirst();
+            const instanceUrl = fedConfig?.instanceUrl || process.env.NEXTAUTH_URL || '';
+            await fetch(`${connection.peerInstanceUrl}/api/federation/connect/accept`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Federation-Token': connection.federationToken,
+              },
+              body: JSON.stringify({
+                connectionId: id,
+                acceptedByEmail: (session.user as any).email,
+                acceptedByName: (session.user as any).name,
+                instanceUrl,
+              }),
+            });
+          } catch (fedErr) {
+            console.warn('Failed to notify remote instance of acceptance:', fedErr);
+          }
+        }
+      } else {
+        // Notify the requester (local connection)
+        await prisma.commsMessage.create({
+          data: {
+            sender: 'system',
+            content: `${(session.user as any).name || (session.user as any).email} accepted your connection request! Your agents can now communicate.`,
+            state: 'new',
+            priority: 'normal',
+            userId: connection.requesterId,
+            metadata: JSON.stringify({ type: 'connection_accepted', connectionId: id }),
+          },
+        });
+      }
     }
 
     // Decline
-    if (body.status === 'declined' && connection.accepterId === userId && connection.status === 'pending') {
+    const canDecline = connection.isFederated
+      ? (connection.requesterId === userId && !connection.accepterId)
+      : (connection.accepterId === userId);
+
+    if (body.status === 'declined' && canDecline && connection.status === 'pending') {
       data.status = 'declined';
     }
 
@@ -106,6 +142,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     });
 
     // Fire-and-forget: link CRM contacts when connection becomes active
+    // Only for local connections where both users exist
     if (data.status === 'active' && updated.requester && updated.accepter) {
       import('@/lib/contact-platform-bridge').then(({ linkContactsOnConnection }) => {
         linkContactsOnConnection(
@@ -113,6 +150,32 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           updated.accepter!.id, updated.accepter!.email
         ).catch(() => {});
       });
+    }
+
+    // For federated connections, create a CRM contact for the remote user
+    if (data.status === 'active' && updated.isFederated && updated.peerUserEmail) {
+      (async () => {
+        try {
+          const existingContact = await prisma.contact.findFirst({
+            where: { userId: updated.requesterId, email: updated.peerUserEmail! },
+          });
+          if (!existingContact) {
+            await prisma.contact.create({
+              data: {
+                userId: updated.requesterId,
+                name: updated.peerUserName || updated.peerUserEmail!,
+                email: updated.peerUserEmail!,
+                source: 'federation',
+                enrichedData: JSON.stringify({
+                  isFederated: true,
+                  instanceUrl: updated.peerInstanceUrl,
+                  connectionId: updated.id,
+                }),
+              },
+            });
+          }
+        } catch {}
+      })();
     }
 
     return NextResponse.json(updated);

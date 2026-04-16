@@ -17,9 +17,24 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status') || undefined;
   const type = searchParams.get('type') || 'received';
 
-  const where: any = type === 'sent'
-    ? { inviterId: userId }
-    : { inviteeId: userId };
+  let where: any;
+  if (type === 'sent') {
+    where = { inviterId: userId };
+  } else {
+    // Received invites: direct invites + federated invites via connections I own
+    const myFederatedConnections = await prisma.connection.findMany({
+      where: { requesterId: userId, isFederated: true },
+      select: { id: true },
+    });
+    const connIds = myFederatedConnections.map((c: any) => c.id);
+
+    where = {
+      OR: [
+        { inviteeId: userId },
+        ...(connIds.length > 0 ? [{ connectionId: { in: connIds } }] : []),
+      ],
+    };
+  }
   if (status) where.status = status;
 
   const invites = await prisma.projectInvite.findMany({
@@ -57,7 +72,17 @@ export async function PATCH(req: NextRequest) {
 
   const invite = await prisma.projectInvite.findUnique({ where: { id: inviteId } });
   if (!invite) return NextResponse.json({ error: 'Invite not found' }, { status: 404 });
-  if (invite.inviteeId !== userId) return NextResponse.json({ error: 'Not your invite' }, { status: 403 });
+
+  // Authorization: either the direct invitee, or the owner of the federated connection
+  let authorized = invite.inviteeId === userId;
+  if (!authorized && invite.connectionId) {
+    const conn = await prisma.connection.findFirst({
+      where: { id: invite.connectionId, requesterId: userId },
+    });
+    if (conn) authorized = true;
+  }
+  if (!authorized) return NextResponse.json({ error: 'Not your invite' }, { status: 403 });
+
   if (invite.status !== 'pending') return NextResponse.json({ error: `Invite already ${invite.status}` }, { status: 400 });
 
   if (action === 'accept') {
@@ -68,18 +93,35 @@ export async function PATCH(req: NextRequest) {
         data: { status: 'accepted', acceptedAt: new Date() },
       });
 
-      // Check if already a member
-      const existing = await tx.projectMember.findUnique({
-        where: { projectId_userId: { projectId: invite.projectId, userId } },
-      });
-      if (!existing) {
-        await tx.projectMember.create({
-          data: {
-            projectId: invite.projectId,
-            userId,
-            role: invite.role,
-          },
+      if (invite.connectionId) {
+        // Federated member — add via connectionId
+        const existingFed = await tx.projectMember.findFirst({
+          where: { projectId: invite.projectId, connectionId: invite.connectionId },
         });
+        if (!existingFed) {
+          await tx.projectMember.create({
+            data: {
+              projectId: invite.projectId,
+              userId, // Also set the local user who accepted
+              connectionId: invite.connectionId,
+              role: invite.role,
+            },
+          });
+        }
+      } else {
+        // Local member — add via userId
+        const existing = await tx.projectMember.findUnique({
+          where: { projectId_userId: { projectId: invite.projectId, userId } },
+        });
+        if (!existing) {
+          await tx.projectMember.create({
+            data: {
+              projectId: invite.projectId,
+              userId,
+              role: invite.role,
+            },
+          });
+        }
       }
     });
 
