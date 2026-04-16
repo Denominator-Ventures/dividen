@@ -804,6 +804,41 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         },
       },
     },
+    '/api/chat/mentions': {
+      get: {
+        tags: ['Chat'],
+        summary: 'Search mentionable entities (people, teams, agents, commands)',
+        description: 'Returns matching people, teams, agents, or commands for inline @mention autocomplete in the chat input. Results are filtered by the authenticated user\'s access (e.g., teams they belong to).',
+        parameters: [
+          { name: 'type', in: 'query', required: true, schema: { type: 'string', enum: ['people', 'agents', 'teams', 'commands'] }, description: 'Entity type to search' },
+          { name: 'q', in: 'query', required: false, schema: { type: 'string' }, description: 'Search query string (name, username, or team name). Empty returns top results.' },
+        ],
+        responses: {
+          '200': {
+            description: 'Array of matching entities',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      id: { type: 'string' },
+                      name: { type: 'string' },
+                      avatar: { type: 'string', nullable: true },
+                      subtitle: { type: 'string', nullable: true },
+                      type: { type: 'string', enum: ['person', 'agent', 'team', 'command'] },
+                      memberCount: { type: 'integer', nullable: true, description: 'Only present for type=team' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '401': { description: 'Unauthorized' },
+        },
+      },
+    },
     '/api/marketplace/webhook': {
       post: {
         tags: ['Marketplace'],

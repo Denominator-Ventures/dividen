@@ -108,6 +108,7 @@ const NAV = [
   { id: 'card-activity', label: 'Card Activity Feeds' },
   { id: 'intelligence-system', label: 'Intelligence & Learning' },
   { id: 'username-mentions', label: 'Usernames & @Mentions (v2.0)' },
+  { id: 'team-project-assignment', label: 'Team Project Assignment (v2.0.4)' },
   { id: 'notification-v2', label: 'Notification Center (v2.0)' },
 ];
 
@@ -1128,13 +1129,13 @@ onDiscuss={(context: string) => {
           </Section>
 
           {/* ═══ USERNAMES & @MENTIONS ═══════════════════════════════ */}
-          <Section id="username-mentions" title="Usernames & @Mentions (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+          <Section id="username-mentions" title="Usernames & @Mentions (v2.0)" badge={<UpdatedBadge date="Apr 16" />}>
             <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
               Every DiviDen account now has a unique <InlineCode>@username</InlineCode> handle — the identity primitive
               for mentions, federation, and profile URLs. Usernames are enforced at signup with real-time validation.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card title="🏷️ Username Rules">
                 <p>2–30 characters, <InlineCode>[a-z0-9_.-]</InlineCode> format. Reserved words blocked (admin, system, dividen, etc.).
                 Uniqueness enforced at database level. Real-time availability check at <InlineCode>GET /api/username/check</InlineCode>.</p>
@@ -1144,7 +1145,19 @@ onDiscuss={(context: string) => {
                 styled clickable chip linking to <InlineCode>/profile/[userId]</InlineCode>. Batch-resolved via
                 <InlineCode>GET /api/users/resolve</InlineCode> (public, no auth).</p>
               </Card>
+              <Card title="👥 Team @Mentions (v2.0.5)">
+                <p>Type <InlineCode>@</InlineCode> in chat to see people, teams, and agents in one dropdown. Teams display as
+                purple chips with a 👥 prefix. Names are auto-kebab-cased (<InlineCode>@ops-team</InlineCode>).
+                Resolved via the same <InlineCode>/api/users/resolve</InlineCode> endpoint.</p>
+              </Card>
             </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">What @Triggers Search</h3>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li><strong className="text-white">People</strong> — Matched by <strong className="text-white">name</strong>, <strong className="text-white">username</strong>, and <strong className="text-white">email</strong></li>
+              <li><strong className="text-white">Teams</strong> — Matched by <strong className="text-white">team name</strong> and <strong className="text-white">description</strong> (your teams only)</li>
+              <li><strong className="text-white">Agents</strong> — Matched by <strong className="text-white">agent name</strong> and <strong className="text-white">slug</strong> (installed agents only)</li>
+            </ul>
 
             <h3 className="text-lg font-bold text-white mb-3">Where Mentions Render</h3>
             <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
@@ -1160,6 +1173,34 @@ onDiscuss={(context: string) => {
               Push notifications containing @mentions are supported via <InlineCode>POST /api/federation/notifications</InlineCode> (12 notification types).
               Full spec in the <a href="/fvp-integration-guide.md" target="_blank" className="text-brand-400 hover:text-brand-300">FVP Integration Guide</a>.
             </p>
+          </Section>
+
+          {/* ═══ TEAM PROJECT ASSIGNMENT ══════════════════════════════ */}
+          <Section id="team-project-assignment" title="Team Project Assignment (v2.0.4)" badge={<UpdatedBadge date="Apr 16" />}>
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              Convert any personal project into a team project — from the Kanban board UI or by asking Divi in chat.
+              Team members are automatically added as project contributors.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <Card title="🎯 From Kanban Board">
+                <p>Every project badge on the board now has a team assignment dropdown.
+                Click the badge → select a team → done. Sets <InlineCode>visibility: &quot;team&quot;</InlineCode>,
+                adds all team members as contributors, and logs the activity.</p>
+              </Card>
+              <Card title="💬 Via Divi Chat">
+                <p>&quot;Assign the rebrand project to the ops team&quot; — the <InlineCode>assign_team_to_project</InlineCode> action tag
+                handles it with fuzzy matching on both project name and team name. Works with IDs too.</p>
+              </Card>
+            </div>
+
+            <h3 className="text-lg font-bold text-white mb-3">What Happens on Assignment</h3>
+            <ul className="list-disc list-inside text-[var(--text-secondary)] mb-4 space-y-2">
+              <li>Project <InlineCode>teamId</InlineCode> is set to the selected team</li>
+              <li>Project <InlineCode>visibility</InlineCode> changes to <InlineCode>&quot;team&quot;</InlineCode></li>
+              <li>All team members are synced as project contributors (additive — existing members preserved)</li>
+              <li>Activity logged for audit trail</li>
+            </ul>
           </Section>
 
           {/* ═══ NOTIFICATION CENTER v2 ════════════════════════════════ */}
@@ -1188,7 +1229,7 @@ onDiscuss={(context: string) => {
           </Section>
 
           {/* Download */}
-          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 15, 2026" />
+          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 16, 2026" />
 
           {/* Footer */}
           <div className="border-t border-white/[0.06] pt-8 mt-8 text-center" data-no-download>

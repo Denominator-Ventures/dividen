@@ -17,6 +17,47 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'team-mentions-refactoring-v2-0-5',
+    date: '2026-04-16',
+    time: '11:59 PM',
+    title: 'Team @Mentions, Codebase Cleanup & Performance Pass',
+    subtitle: 'The @mention system now searches teams alongside people and agents. Plus a refactoring round — dead code removal, type safety, parallelized DB calls, and accessibility.',
+    tags: ['mentions', 'teams', 'performance', 'accessibility', 'refactoring', 'v2.0.5'],
+    content: `v2.0.5. One new feature, a lot of cleanup.
+
+## Team @Mentions
+
+The inline @mention system now searches three entity types: people, teams, and agents. Type \`@\` in the chat input and you get a unified dropdown — names, usernames, team names, and agent handles all searchable in one place.
+
+Teams show with a 👥 badge, member count in the subtitle, and render as purple chips in message history. Clicking a team mention navigates to that team's page. Resolution works both ways — the \`/api/users/resolve\` endpoint now handles team handles via kebab-cased name matching alongside usernames.
+
+New API endpoint: \`GET /api/chat/mentions?type=teams&q=ops\` — documented in the OpenAPI spec.
+
+## Refactoring Round
+
+Went through the codebase and cleaned house:
+
+**Dead code**: Removed ~160 lines of unused imports, dead functions, and orphaned variables across 10 files. Highlights: the 115-line \`layer18_profileAwareness_optimized\` function in system-prompt.ts that was never called, the 38-line \`LoopBackArrow\` SVG component in HowItWorks.tsx, unused \`parseMappingConfig\` import in webhook-actions.ts.
+
+**Type safety**: Added proper NextAuth type augmentation (\`src/types/next-auth.d.ts\`) so \`session.user.id\` resolves without casting. The 38 API routes still use \`(session?.user as any)?.id\` — that's a future migration, not a quick fix.
+
+**Performance**: Parallelized two sequential DB calls in the chat send pipeline using \`Promise.all\` — message save + user fetch run concurrently, then system prompt build + message history fetch run concurrently. Saves ~2 round-trips per chat message.
+
+**Accessibility**: Full ARIA combobox pattern on the chat input with the mentions dropdown (\`role="combobox"\`, \`aria-expanded\`, \`aria-activedescendant\`, listbox roles). Kanban columns got \`role="region"\` and \`aria-label\`. Decorative elements marked \`aria-hidden\`.
+
+**Error boundaries**: All four NowPanel/QueuePanel instances on the dashboard are now wrapped in \`TabErrorBoundary\` — a crash in one panel won't take down the whole view.
+
+## Homepage
+
+Reverted the hero copy back to "The last interface you'll ever need." The v2.0.4 line was too specific for a hero — it works better as body copy.
+
+## Docs
+
+Documentation, developer docs, release notes, and API spec all updated with the new team mentions feature and accurate dates.
+
+— Jon`
+  },
+  {
     id: 'site-audit-homepage-team-assign-v2-0-4',
     date: '2026-04-15',
     time: '11:59 PM',

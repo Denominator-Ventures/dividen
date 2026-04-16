@@ -1429,7 +1429,7 @@ async function layer19_agentExtensions(userId: string): Promise<string> {
     prompt += `The following extensions augment your capabilities. Apply them according to their scope.\n\n`;
 
     for (const ext of extensions) {
-      let config: ExtensionConfig = {};
+      let config: Record<string, any> = {};
       try { config = JSON.parse(ext.config); } catch { continue; }
 
       const scopeLabel = ext.scope === 'user' ? '👤 Personal'

@@ -41,6 +41,68 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 16, 2026 — v2.0.5 TEAM @MENTIONS, REFACTORING, DOCS AUDIT */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.0.5" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.0.5</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">April 16, 2026</span>
+              <DocDownloadButton containerId="release-v2.0.5" filename="dividen-release-v2.0.5" variant="icon" />
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-6">Team @Mentions, Codebase Refactoring, Performance Optimizations, Accessibility, Documentation Audit</p>
+
+          <div className="space-y-8">
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">👥 Team @Mentions</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>The <code className="code-inline">@</code> trigger in chat now searches <strong className="text-white">people</strong>, <strong className="text-white">teams</strong>, and <strong className="text-white">agents</strong> in parallel.</li>
+                <li>Teams matched by name and description — only teams you&apos;re a member of appear.</li>
+                <li>Team mentions render as purple chips with a 👥 prefix, linking to the team view.</li>
+                <li>Team names auto-kebab-cased for handles (e.g., &quot;Ops Team&quot; → <code className="code-inline">@ops-team</code>).</li>
+                <li><code className="code-inline">/api/users/resolve</code> now resolves both usernames and kebab-cased team names.</li>
+                <li><code className="code-inline">/api/chat/mentions?type=teams</code> — new endpoint for team search in inline autocomplete.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🧹 Codebase Refactoring</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li><strong className="text-white">Dead code removed:</strong> ~15 unused imports/variables across components and lib files. Removed 115-line dead function (<code className="code-inline">layer18_profileAwareness_optimized</code>) from system prompt. Removed unused <code className="code-inline">LoopBackArrow</code> SVG component (38 lines).</li>
+                <li><strong className="text-white">Type safety:</strong> Added <code className="code-inline">next-auth.d.ts</code> type augmentation — <code className="code-inline">session.user.id</code> now typed without <code className="code-inline">as any</code> casting.</li>
+                <li><strong className="text-white">Auth audit:</strong> All API routes verified for auth guards. v2 routes use <code className="code-inline">authenticateAgent()</code>, federation routes use token auth, public routes are intentional.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">⚡ Performance Optimizations</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li><code className="code-inline">/api/chat/send</code>: Message save + user fetch now run in parallel. System prompt build + message history fetch also parallelized. Saves ~2 DB round-trips per chat message.</li>
+                <li>N+1 query audit: All read-heavy endpoints (kanban GET, /api/now, notifications feed) confirmed free of N+1 patterns.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">♿ Accessibility</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Chat input: <code className="code-inline">role=&quot;combobox&quot;</code>, <code className="code-inline">aria-expanded</code>, <code className="code-inline">aria-activedescendant</code> for inline search dropdown.</li>
+                <li>Inline search results: <code className="code-inline">role=&quot;listbox&quot;</code> + <code className="code-inline">role=&quot;option&quot;</code> with <code className="code-inline">aria-selected</code>.</li>
+                <li>Kanban columns: <code className="code-inline">role=&quot;region&quot;</code> with descriptive <code className="code-inline">aria-label</code>. Add-card buttons labeled.</li>
+                <li>Error boundaries: NowPanel and QueuePanel now wrapped in <code className="code-inline">TabErrorBoundary</code> (desktop + mobile).</li>
+              </ul>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🏠 Homepage</h3>
+              <ul className="list-disc list-inside text-sm text-[var(--text-secondary)] space-y-1.5">
+                <li>Hero copy reverted to &quot;The last interface you&apos;ll ever need&quot; per founder preference.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 15, 2026 — v1.9.1 REALTIME DASHBOARD + CATCH-UP + ACTIVITY  */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v1.9.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-white/[0.06] rounded-xl">
@@ -1667,12 +1729,12 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
         </Section>
 
         {/* Download full page */}
-        <DocFooterDownload containerId="" filename="dividen-release-notes-all" lastUpdated="April 14, 2026" />
+        <DocFooterDownload containerId="" filename="dividen-release-notes-all" lastUpdated="April 16, 2026" />
 
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-[var(--border-color)] text-center" data-no-download>
           <p className="text-xs text-[var(--text-muted)]">
-            DiviDen Command Center — Last updated April 14, 2026
+            DiviDen Command Center — Last updated April 16, 2026
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
             <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>

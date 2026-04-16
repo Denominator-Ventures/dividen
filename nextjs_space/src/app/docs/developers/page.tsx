@@ -2164,11 +2164,29 @@ function emitStatusChange() {
         </Section>
 
         {/* ── @Mentions & Resolution (v2.0) ────────────────────── */}
-        <Section id="mentions-system" title="@Mentions & Username Resolution (v2.0)" badge={<UpdatedBadge date="Apr 15" />}>
+        <Section id="mentions-system" title="@Mentions & Username Resolution (v2.0)" badge={<UpdatedBadge date="Apr 16" />}>
           <p className="text-[var(--text-secondary)] mb-4">
             All <InlineCode>@username</InlineCode> tokens rendered anywhere in DiviDen are clickable links
             that navigate to the mentioned user&apos;s profile page (<InlineCode>/profile/[userId]</InlineCode>).
+            Team mentions (<InlineCode>@team-name</InlineCode>) render as purple chips linking to the team view.
           </p>
+
+          <h3 className="text-lg font-bold text-white mb-3">Inline @Search (Chat Input)</h3>
+          <p className="text-[var(--text-secondary)] mb-3 text-sm">
+            Typing <InlineCode>@</InlineCode> in the chat input triggers a debounced search across three entity types in parallel:
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+            {[
+              { surface: '👤 People', detail: 'Matched by name, username, and email via /api/chat/mentions?type=people' },
+              { surface: '👥 Teams', detail: 'Matched by team name and description via /api/chat/mentions?type=teams (your teams only)' },
+              { surface: '🤖 Agents', detail: 'Matched by agent name and slug via /api/chat/mentions?type=agents (installed only)' },
+            ].map((s) => (
+              <div key={s.surface} className="bg-[var(--bg-surface)] border border-white/[0.06] rounded-lg p-3">
+                <div className="text-sm font-bold text-white">{s.surface}</div>
+                <div className="text-xs text-[var(--text-muted)] mt-1">{s.detail}</div>
+              </div>
+            ))}
+          </div>
 
           <h3 className="text-lg font-bold text-white mb-3">Where Mentions Render</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
@@ -2187,7 +2205,7 @@ function emitStatusChange() {
 
           <h3 className="text-lg font-bold text-white mb-3">Resolution API</h3>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-4">
-            <Endpoint method="GET" path="/api/users/resolve?usernames=jon,sarah" description="Bulk username→profile resolution. Returns { users: { [username]: { id, name, username, avatar } } }" auth="None (public)" />
+            <Endpoint method="GET" path="/api/users/resolve?usernames=jon,ops-team" description="Bulk username→profile resolution. Resolves users by username AND teams by kebab-cased name. Returns { [handle]: { id, name, username, avatar, type? } }. type='team' for teams." auth="None (public)" />
           </div>
 
           <h3 className="text-lg font-bold text-white mb-3">Implementation</h3>
@@ -2195,8 +2213,9 @@ function emitStatusChange() {
             The shared <InlineCode>{'<MentionText text={...} />'}</InlineCode> component handles all rendering.
             It splits text on the <InlineCode>@[a-z0-9_.-]{'{2,30}'}</InlineCode> pattern, batch-resolves
             usernames via <InlineCode>/api/users/resolve</InlineCode> (module-level cache + 50ms coalescing window),
-            and renders resolved mentions as styled <InlineCode>{'<Link>'}</InlineCode> chips to <InlineCode>/profile/[userId]</InlineCode>.
-            Unresolved usernames render styled but not linked.
+            and renders resolved mentions as styled <InlineCode>{'<Link>'}</InlineCode> chips. User mentions link
+            to <InlineCode>/profile/[userId]</InlineCode>. Team mentions render as purple chips with a 👥 prefix
+            linking to the team view. Unresolved handles render styled but not linked.
           </p>
         </Section>
 
@@ -2288,7 +2307,7 @@ function emitStatusChange() {
         </Section>
 
         {/* Download */}
-        <DocFooterDownload filename="dividen-developer-docs" lastUpdated="April 14, 2026" />
+        <DocFooterDownload filename="dividen-developer-docs" lastUpdated="April 16, 2026" />
 
         {/* Footer */}
         <div className="border-t border-white/[0.06] pt-8 mt-8 text-center" data-no-download>

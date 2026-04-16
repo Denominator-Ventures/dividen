@@ -534,13 +534,13 @@ export default function DashboardPage() {
           {/* ── Desktop: 3-column layout ── */}
           <div className="hidden md:flex flex-1 gap-3 p-3 min-h-0">
             <div className="w-72 flex-shrink-0" data-walkthrough="now-panel">
-              <NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} refreshKey={nowRefreshKey} />
+              <TabErrorBoundary tabName="NOW"><NowPanel onNewTask={() => {}} onQuickChat={() => setActiveTab('chat')} onItemClick={handleNowItemClick} onOpenBoard={() => setActiveTab('kanban')} onOpenEarnings={() => setActiveTab('earnings')} onDiscuss={handleDiscuss} refreshKey={nowRefreshKey} /></TabErrorBoundary>
             </div>
             <div className="flex-1 min-w-0" data-walkthrough="center-panel">
               <CenterPanel activeTab={activeTab} onTabChange={setActiveTab} marketplacePrefill={marketplacePrefill} onMarketplacePrefillConsumed={() => setMarketplacePrefill(null)} chatPrefill={chatPrefill} onChatPrefillConsumed={() => setChatPrefill(null)} onTriage={handleTriage} onChatWithPrefill={(msg) => { setChatPrefill(msg); setActiveTab("chat"); }} onOpenCatchUpSettings={() => setCatchUpSettingsOpen(true)} chatRefreshKey={chatRefreshKey} />
             </div>
             <div className="w-72 flex-shrink-0" data-walkthrough="queue-panel">
-              <QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
+              <TabErrorBoundary tabName="Queue"><QueuePanel onNavigateToMarketplace={() => setActiveTab('marketplace')} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={handleDiscuss} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} /></TabErrorBoundary>
             </div>
           </div>
 
@@ -550,7 +550,7 @@ export default function DashboardPage() {
             <div className="flex-1 min-h-0 p-1 flex flex-col">
               {mobilePanel === 'now' && (
                 <div className="flex-1 min-h-0" data-walkthrough="now-panel">
-                  <NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} refreshKey={nowRefreshKey} />
+                  <TabErrorBoundary tabName="NOW"><NowPanel onNewTask={() => {}} onQuickChat={() => { setActiveTab('chat'); setMobilePanel('center'); }} onItemClick={(title) => { handleNowItemClick(title); setMobilePanel('center'); }} onOpenBoard={() => { setActiveTab('kanban'); setMobilePanel('center'); }} onOpenEarnings={() => { setActiveTab('earnings'); setMobilePanel('center'); }} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} refreshKey={nowRefreshKey} /></TabErrorBoundary>
                 </div>
               )}
               {mobilePanel === 'center' && (
@@ -560,7 +560,7 @@ export default function DashboardPage() {
               )}
               {mobilePanel === 'queue' && (
                 <div className="flex-1 min-h-0" data-walkthrough="queue-panel">
-                  <QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} />
+                  <TabErrorBoundary tabName="Queue"><QueuePanel onNavigateToMarketplace={() => { setActiveTab('marketplace'); setMobilePanel('center'); }} onNavigateToComms={() => router.push('/dashboard/comms')} onDiscuss={(ctx) => { handleDiscuss(ctx); setMobilePanel('center'); }} mode={mode} onToggleMode={toggleMode} modeLoading={modeLoading} /></TabErrorBoundary>
                 </div>
               )}
             </div>
