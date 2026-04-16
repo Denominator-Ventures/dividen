@@ -190,12 +190,10 @@ export function LandingPage() {
             </p>
 
             <h1 className="font-heading text-4xl sm:text-5xl md:text-7xl font-bold leading-[1.1] tracking-tight mb-8">
-              One agent.{' '}
+              The last interface{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-300">
-                Every workflow.
+                you&apos;ll ever need.
               </span>
-              <br />
-              Zero context switching.
             </h1>
 
             <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto mb-4 leading-relaxed">

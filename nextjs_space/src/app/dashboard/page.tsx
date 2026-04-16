@@ -10,6 +10,7 @@ import { QueuePanel } from '@/components/dashboard/QueuePanel';
 import { ChiefOfStaffView } from '@/components/dashboard/ChiefOfStaffView';
 import { GlobalSearch } from '@/components/dashboard/GlobalSearch';
 import { CockpitBanners } from '@/components/dashboard/CockpitBanners';
+import { TabErrorBoundary } from '@/components/dashboard/TabErrorBoundary';
 import { useDesktopNotifications } from '@/hooks/use-desktop-notifications';
 import NotificationCenter from '@/components/dashboard/NotificationCenter';
 import { FeedbackTab } from '@/components/dashboard/FeedbackTab';

@@ -297,11 +297,11 @@ function KanbanColumn({
   const cardIds = cards.map((c) => c.id);
 
   return (
-    <div className="flex-1 min-w-[200px] bg-[var(--bg-surface)]/30 rounded-lg flex flex-col">
+    <div role="region" aria-label={`${column.label} column, ${cards.length} cards`} className="flex-1 min-w-[200px] bg-[var(--bg-surface)]/30 rounded-lg flex flex-col">
       {/* Column Header */}
       <div className="p-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: column.color }} />
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: column.color }} aria-hidden="true" />
           <span className="text-sm font-semibold text-[var(--text-primary)]">
             {column.label}
           </span>
@@ -311,6 +311,7 @@ function KanbanColumn({
         </div>
         <button
           onClick={() => onAddCard(column.id)}
+          aria-label={`Add card to ${column.label}`}
           className="text-[var(--text-muted)] hover:text-brand-400 text-lg leading-none transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-[var(--bg-surface)]"
         >
           +

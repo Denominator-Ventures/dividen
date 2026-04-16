@@ -3,7 +3,7 @@
 // Supports auto-learned field maps + manual overrides + default sniffing fallback
 
 import { prisma } from '@/lib/prisma';
-import { parseMappingConfig, type WebhookFieldMap } from '@/lib/webhook-learn';
+import { type WebhookFieldMap } from '@/lib/webhook-learn';
 import { deduplicatedQueueCreate } from '@/lib/queue-dedup';
 
 export interface WebhookActionResult {

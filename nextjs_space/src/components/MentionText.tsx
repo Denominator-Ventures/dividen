@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 
 /**
@@ -19,6 +19,7 @@ interface ResolvedUser {
   name: string | null;
   username: string;
   avatar: string | null;
+  type?: string; // 'team' for team mentions, undefined for users
 }
 
 // Module-level cache so we don't re-fetch across component instances
@@ -56,7 +57,6 @@ function scheduleBatchResolve() {
 }
 
 // Regex to match @username tokens — must be preceded by start-of-string or whitespace
-const MENTION_REGEX = /(?:^|(?<=\s))@([a-z0-9_.-]{2,30})(?=\s|$|[.,;:!?)])/g;
 
 export function MentionText({ text, className }: { text: string; className?: string }) {
   const [, forceUpdate] = useState(0);
@@ -115,14 +115,20 @@ export function MentionText({ text, className }: { text: string; className?: str
         }
         const resolved = resolveCache.get(seg.username);
         if (resolved) {
+          const isTeam = resolved.type === 'team';
           return (
             <Link
               key={i}
-              href={`/profile/${resolved.id}`}
-              className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20 transition-colors font-medium cursor-pointer no-underline"
-              title={`${resolved.name || resolved.username} — View profile`}
+              href={isTeam ? `/dashboard?tab=teams&teamId=${resolved.id}` : `/profile/${resolved.id}`}
+              className={`inline-flex items-center gap-0.5 px-1 py-0 rounded transition-colors font-medium cursor-pointer no-underline ${
+                isTeam
+                  ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20'
+                  : 'bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/20'
+              }`}
+              title={isTeam ? `${resolved.name} — Team` : `${resolved.name || resolved.username} — View profile`}
               onClick={(e) => e.stopPropagation()}
             >
+              {isTeam && <span className="text-[0.75em]">👥</span>}
               <span className="text-[0.85em]">@{resolved.username}</span>
             </Link>
           );

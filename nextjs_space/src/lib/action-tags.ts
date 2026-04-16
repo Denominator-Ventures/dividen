@@ -2398,8 +2398,6 @@ export async function executeTag(
         if (!target) return { tag: name, success: false, error: 'Target card not found' };
         if (!source) return { tag: name, success: false, error: 'Source card not found' };
 
-        const nextOrder = target.checklist.length;
-
         // Move all checklist items from source to target
         const movedTasks = await prisma.checklistItem.updateMany({
           where: { cardId: sourceCardId },

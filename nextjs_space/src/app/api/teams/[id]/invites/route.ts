@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
 import { syncNewMemberToTeamProjects } from '@/lib/team-project-sync';
 import { logActivity } from '@/lib/activity';
 

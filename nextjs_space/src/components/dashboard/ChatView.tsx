@@ -27,13 +27,14 @@ interface TagResult {
 
 interface MentionResult {
   id: string;
-  type: 'person' | 'agent';
+  type: 'person' | 'agent' | 'team';
   name: string;
   username?: string | null;
   avatar?: string | null;
   subtitle?: string;
   description?: string;
   diviName?: string;
+  memberCount?: number;
 }
 
 interface CommandResult {
@@ -150,17 +151,19 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       if (mentionFetchRef.current) clearTimeout(mentionFetchRef.current);
       mentionFetchRef.current = setTimeout(async () => {
         try {
-          // Fetch people and agents in parallel
-          const [pRes, aRes] = await Promise.all([
+          // Fetch people, agents, and teams in parallel
+          const [pRes, aRes, tRes] = await Promise.all([
             fetch(`/api/chat/mentions?type=people&q=${encodeURIComponent(query)}`),
             fetch(`/api/chat/mentions?type=agents&q=${encodeURIComponent(query)}`),
+            fetch(`/api/chat/mentions?type=teams&q=${encodeURIComponent(query)}`),
           ]);
-          const [pData, aData] = await Promise.all([pRes.json(), aRes.json()]);
+          const [pData, aData, tData] = await Promise.all([pRes.json(), aRes.json(), tRes.json()]);
           const combined: MentionResult[] = [
             ...(pData.success ? pData.data : []),
+            ...(tData.success ? tData.data : []),
             ...(aData.success ? aData.data : []),
           ];
-          setMentionResults(combined.slice(0, 8));
+          setMentionResults(combined.slice(0, 10));
         } catch { setMentionResults([]); }
       }, 150);
     } else if (bangMatch) {
@@ -203,8 +206,11 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
     if (item.type === 'command') {
       replacement = (item as CommandResult).fullCommand + ' ';
     } else {
-      // Person or agent — use @username or @slug
-      const handle = (item as MentionResult).username || (item as MentionResult).name;
+      const m = item as MentionResult;
+      // Person or agent — use @username or @slug; team — use @teamName
+      const handle = m.type === 'team'
+        ? m.name.toLowerCase().replace(/\s+/g, '-')
+        : (m.username || m.name);
       replacement = `@${handle} `;
     }
 
@@ -996,15 +1002,18 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       <div className="flex-shrink-0 border-t border-[var(--border-color)] p-3 md:p-4">
         {/* Inline search popup — renders above the input */}
         {inlineMode && inlineItems.length > 0 && (
-          <div className="mb-2 bg-[#141419] border border-[var(--border-color)] rounded-lg shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
+          <div id="inline-search-listbox" role="listbox" aria-label={inlineMode === '@' ? 'People, Teams & Agents' : 'Commands'} className="mb-2 bg-[#141419] border border-[var(--border-color)] rounded-lg shadow-2xl overflow-hidden max-h-64 overflow-y-auto">
             <div className="px-3 py-1.5 border-b border-white/[0.06]">
               <span className="text-[10px] font-medium text-white/40 uppercase tracking-wider">
-                {inlineMode === '@' ? '👥 People & Agents' : '⚡ Commands'}
+                {inlineMode === '@' ? '👥 People, Teams & Agents' : '⚡ Commands'}
               </span>
             </div>
             {inlineItems.map((item, idx) => (
               <button
                 key={item.id}
+                id={`inline-item-${idx}`}
+                role="option"
+                aria-selected={idx === selectedIdx}
                 className={cn(
                   'w-full flex items-center gap-3 px-3 py-2 text-left transition-colors',
                   idx === selectedIdx
@@ -1021,8 +1030,10 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                   <>
                     <span className="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-xs flex-shrink-0">
                       {(item as MentionResult).avatar ? (
-                        <img src={(item as MentionResult).avatar!} alt="" className="w-7 h-7 rounded-full object-cover" />
-                      ) : (item as MentionResult).type === 'agent' ? '🤖' : (
+                        (item as MentionResult).type === 'team'
+                          ? <span className="text-sm">{(item as MentionResult).avatar}</span>
+                          : <img src={(item as MentionResult).avatar!} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      ) : (item as MentionResult).type === 'agent' ? '🤖' : (item as MentionResult).type === 'team' ? '👥' : (
                         ((item as MentionResult).name || '?')[0]?.toUpperCase()
                       )}
                     </span>
@@ -1031,7 +1042,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                       <div className="text-[10px] text-white/40 truncate">{(item as MentionResult).subtitle}</div>
                     </div>
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/5 text-white/30 flex-shrink-0">
-                      {(item as MentionResult).type === 'agent' ? 'Agent' : 'Person'}
+                      {(item as MentionResult).type === 'agent' ? 'Agent' : (item as MentionResult).type === 'team' ? 'Team' : 'Person'}
                     </span>
                   </>
                 ) : (
@@ -1060,6 +1071,13 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             placeholder={isStreaming ? `${diviName} is thinking...` : `Message ${diviName}... (@ to mention, ! for commands)`}
             className="input-field flex-1 text-sm md:text-base"
             disabled={isStreaming}
+            role="combobox"
+            aria-expanded={!!(inlineMode && inlineItems.length > 0)}
+            aria-haspopup="listbox"
+            aria-controls="inline-search-listbox"
+            aria-activedescendant={inlineMode && inlineItems.length > 0 ? `inline-item-${selectedIdx}` : undefined}
+            aria-label={`Message ${diviName}`}
+            autoComplete="off"
             onKeyDown={(e) => {
               // Inline search keyboard navigation
               if (inlineMode && inlineItems.length > 0) {

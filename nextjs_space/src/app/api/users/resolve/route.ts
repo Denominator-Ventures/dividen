@@ -18,15 +18,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, data: {} });
   }
 
+  // Resolve users by username
   const users = await prisma.user.findMany({
     where: { username: { in: usernames } },
     select: { id: true, name: true, username: true, profilePhotoUrl: true },
   });
 
-  const map: Record<string, { id: string; name: string | null; username: string; avatar: string | null }> = {};
+  const map: Record<string, { id: string; name: string | null; username: string; avatar: string | null; type?: string }> = {};
+  const resolvedUsernames = new Set<string>();
   for (const u of users) {
     if (u.username) {
       map[u.username] = { id: u.id, name: u.name, username: u.username, avatar: u.profilePhotoUrl };
+      resolvedUsernames.add(u.username);
+    }
+  }
+
+  // For any unresolved usernames, check if they match team names (kebab-cased)
+  const unresolvedHandles = usernames.filter(u => !resolvedUsernames.has(u));
+  if (unresolvedHandles.length > 0) {
+    const teams = await prisma.team.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, avatar: true },
+    });
+    for (const team of teams) {
+      const kebab = team.name.toLowerCase().replace(/\s+/g, '-');
+      if (unresolvedHandles.includes(kebab)) {
+        map[kebab] = { id: team.id, name: team.name, username: kebab, avatar: team.avatar, type: 'team' };
+      }
     }
   }
 

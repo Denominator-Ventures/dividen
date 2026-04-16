@@ -48,20 +48,20 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Save User Message ─────────────────────────────────────────────────
-  await prisma.chatMessage.create({
-    data: {
-      role: 'user',
-      content: message.trim(),
-      userId,
-    },
-  });
-
-  // ── Fetch User Data ───────────────────────────────────────────────────
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { id: true, name: true, mode: true },
-  });
+  // ── Save User Message + Fetch User Data (parallel) ─────────────────
+  const [, user] = await Promise.all([
+    prisma.chatMessage.create({
+      data: {
+        role: 'user',
+        content: message.trim(),
+        userId,
+      },
+    }),
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, mode: true },
+    }),
+  ]);
 
   if (!user) {
     return new Response(JSON.stringify({ error: 'User not found' }), {
@@ -70,35 +70,32 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Build System Prompt (dynamic — loads only relevant groups) ────────
-  let systemPrompt = await buildSystemPrompt({
-    userId: user.id,
-    mode: user.mode,
-    userName: user.name,
-    currentMessage: message.trim(),
-  });
+  // ── Build System Prompt + Fetch Message History (parallel) ──────────
+  const [baseSystemPrompt, recentMessages] = await Promise.all([
+    buildSystemPrompt({
+      userId: user.id,
+      mode: user.mode,
+      userName: user.name,
+      currentMessage: message.trim(),
+    }),
+    prisma.chatMessage.findMany({
+      where: { userId, clearedAt: null },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    }),
+  ]);
+
+  let systemPrompt = baseSystemPrompt;
 
   // ── Catch-Up Mode: Assemble briefing data server-side and inject into prompt ──
   if (catchUpMode) {
     try {
       const briefing = await assembleBriefing(userId);
-      // Append the pre-assembled briefing context + pacing instructions to the system prompt
       systemPrompt += '\n\n---\n\n' + briefing.briefingContext + '\n\n---\n\n' + briefing.pacingPrompt;
     } catch (err: any) {
       console.error('[chat/send] Catch-up pipeline error:', err);
-      // Fallback: continue without briefing data — LLM will use system prompt context
     }
   }
-
-  // ── Build Message History ─────────────────────────────────────────────
-  // Use up to 50 recent non-cleared messages for context continuity.
-  // The thread continues as long as the user wants — clearing starts fresh
-  // but Divi still has underlying knowledge via system prompt + memory.
-  const recentMessages = await prisma.chatMessage.findMany({
-    where: { userId, clearedAt: null },
-    orderBy: { createdAt: 'desc' },
-    take: 50,
-  });
 
   const llmMessages: LLMMessage[] = [
     { role: 'system', content: systemPrompt },

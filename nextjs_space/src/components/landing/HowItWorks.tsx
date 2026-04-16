@@ -197,44 +197,6 @@ function StepCard({
 
 // ─── Loop-back Arrow (curved visual for desktop) ─────────────────────────────
 
-function LoopBackArrow() {
-  return (
-    <div className="hidden lg:flex items-center justify-center py-3">
-      <div className="relative flex items-center gap-2">
-        <svg width="320" height="48" viewBox="0 0 320 48" fill="none" className="opacity-60">
-          {/* Curved path from right (agents) back to left (divi) */}
-          <path
-            d="M310 8 C 310 40, 10 40, 10 8"
-            stroke="url(#loopGrad)"
-            strokeWidth="1"
-            strokeDasharray="4 3"
-            fill="none"
-          />
-          {/* Arrowhead at left end pointing up-left */}
-          <polygon points="6,12 10,2 14,12" fill="rgba(168,85,247,0.5)" />
-          {/* Animated dot along the path */}
-          <circle r="3" fill="#a855f7" opacity="0.8">
-            <animateMotion dur="3s" repeatCount="indefinite">
-              <mpath href="#loopPath" />
-            </animateMotion>
-          </circle>
-          <path id="loopPath" d="M310 8 C 310 40, 10 40, 10 8" fill="none" />
-          <defs>
-            <linearGradient id="loopGrad" x1="310" y1="8" x2="10" y2="8">
-              <stop offset="0%" stopColor="rgba(168,85,247,0.4)" />
-              <stop offset="50%" stopColor="rgba(168,85,247,0.15)" />
-              <stop offset="100%" stopColor="rgba(168,85,247,0.4)" />
-            </linearGradient>
-          </defs>
-        </svg>
-        <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-[30%] text-[10px] font-mono text-purple-400/60 tracking-wider uppercase whitespace-nowrap">
-          results flow back
-        </span>
-      </div>
-    </div>
-  );
-}
-
 // ─── Mobile loop-back indicator ──────────────────────────────────────────────
 
 function MobileLoopBack() {

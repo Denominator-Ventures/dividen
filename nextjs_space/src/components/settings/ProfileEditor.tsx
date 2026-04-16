@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
 import {
-  UserProfileData, CapacityStatus, ProfileVisibility, ProfileSection,
+  UserProfileData, ProfileVisibility,
   CAPACITY_STATUSES, PROFILE_SECTIONS, TASK_TYPES,
 } from '@/types';
 

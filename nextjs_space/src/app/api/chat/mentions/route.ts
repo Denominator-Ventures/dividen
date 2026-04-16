@@ -85,6 +85,55 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    if (type === 'teams') {
+      // Search teams the user is a member of
+      const memberships = await prisma.teamMember.findMany({
+        where: { userId },
+        select: { teamId: true },
+      });
+      const teamIds = memberships.map((m: any) => m.teamId);
+
+      if (teamIds.length === 0) {
+        return NextResponse.json({ success: true, data: [] });
+      }
+
+      const teams = await prisma.team.findMany({
+        where: {
+          id: { in: teamIds },
+          isActive: true,
+          ...(q ? {
+            OR: [
+              { name: { contains: q, mode: 'insensitive' } },
+              { description: { contains: q, mode: 'insensitive' } },
+            ],
+          } : {}),
+        },
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          description: true,
+          type: true,
+          _count: { select: { members: true } },
+        },
+        take: 10,
+        orderBy: { name: 'asc' },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: teams.map((t: any) => ({
+          id: t.id,
+          type: 'team' as const,
+          name: t.name,
+          avatar: t.avatar,
+          subtitle: `${t._count.members} member${t._count.members === 1 ? '' : 's'} · ${t.type}`,
+          description: t.description?.slice(0, 80),
+          memberCount: t._count.members,
+        })),
+      });
+    }
+
     if (type === 'commands') {
       // Search commands from installed agents + installed capabilities
       const results: any[] = [];
