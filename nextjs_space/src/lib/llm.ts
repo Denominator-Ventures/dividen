@@ -220,7 +220,7 @@ async function streamAbacus(
       model: 'claude-sonnet-4-6',
       messages,
       stream: true,
-      max_tokens: 4096,
+      max_tokens: 8192,
     }),
   });
 
@@ -274,7 +274,8 @@ async function streamAbacus(
 
 /**
  * Stream LLM response.
- * Priority: user's own API keys → platform Abacus AI API key as fallback.
+ * Priority: Abacus AI (Claude) for action tag compliance → user Anthropic key → user OpenAI key.
+ * The action tag system ([[tag:params]]) is designed for Claude and doesn't work reliably with GPT-4o.
  */
 export async function streamLLMResponse(
   messages: LLMMessage[],
@@ -282,26 +283,42 @@ export async function streamLLMResponse(
   preferredProvider?: LLMProvider,
   userId?: string
 ): Promise<void> {
-  // Try user's own keys first
-  const available = await getAvailableProvider(preferredProvider, userId);
-
-  if (available) {
+  // ── Priority 1: Platform Abacus AI (Claude) — best action tag compliance ──
+  const abacusKey = process.env.ABACUSAI_API_KEY;
+  if (abacusKey && preferredProvider !== 'openai') {
     try {
-      if (available.provider === 'anthropic') {
-        await streamAnthropic(available.apiKey, messages, callbacks);
-      } else {
-        await streamOpenAI(available.apiKey, messages, callbacks);
-      }
-      return; // Success — done
+      await streamAbacus(abacusKey, messages, callbacks);
+      return;
     } catch (error: any) {
-      console.warn(`[llm] User key (${available.provider}) failed: ${error?.message}. Falling back to platform API.`);
-      // Fall through to platform fallback
+      console.warn(`[llm] Abacus AI failed: ${error?.message}. Falling back to user keys.`);
+      // Fall through to user keys
     }
   }
 
-  // Fallback: platform Abacus AI API key
-  const abacusKey = process.env.ABACUSAI_API_KEY;
-  if (abacusKey) {
+  // ── Priority 2: User's own Anthropic key (Claude) ──
+  const available = await getAvailableProvider('anthropic', userId);
+  if (available && available.provider === 'anthropic') {
+    try {
+      await streamAnthropic(available.apiKey, messages, callbacks);
+      return;
+    } catch (error: any) {
+      console.warn(`[llm] User Anthropic key failed: ${error?.message}. Trying OpenAI.`);
+    }
+  }
+
+  // ── Priority 3: User's OpenAI key ──
+  const openaiKey = await getAvailableProvider('openai', userId);
+  if (openaiKey) {
+    try {
+      await streamOpenAI(openaiKey.apiKey, messages, callbacks);
+      return;
+    } catch (error: any) {
+      console.warn(`[llm] User OpenAI key failed: ${error?.message}.`);
+    }
+  }
+
+  // ── Last resort: try Abacus again if it wasn't tried (e.g. preferredProvider was 'openai') ──
+  if (abacusKey && preferredProvider === 'openai') {
     try {
       await streamAbacus(abacusKey, messages, callbacks);
       return;

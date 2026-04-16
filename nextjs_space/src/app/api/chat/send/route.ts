@@ -129,6 +129,13 @@ export async function POST(request: Request) {
               const tags = parseActionTags(fullText);
               const cleanText = stripActionTags(fullText);
 
+              // Log tag compliance for debugging
+              if (tags.length > 0) {
+                console.log(`[chat] Tags parsed: ${tags.map(t => t.name).join(', ')}`);
+              } else if (/route|assign|dispatch|delegate|send.*task/i.test(fullText) && /\[\[/.test(fullText) === false) {
+                console.warn(`[chat] ⚠️ Response mentions routing/assigning but has NO action tags. Possible LLM compliance issue.`);
+              }
+
               // Execute action tags
               let tagResults: any[] = [];
               if (tags.length > 0) {

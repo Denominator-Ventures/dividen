@@ -1835,12 +1835,14 @@ export async function executeTag(
               },
             });
 
-            // ── Step 3: Deliver to recipient — create comms message on THEIR side ──
+            // ── Step 3: Deliver to recipient — create comms message + kanban card on THEIR side ──
             if (targetMatch.userId) {
+              const senderName = (await prisma.user.findUnique({ where: { id: userId }, select: { name: true } }))?.name || 'your connection';
+
               await prisma.commsMessage.create({
                 data: {
                   sender: 'divi',
-                  content: `📡 Task assigned from ${(await prisma.user.findUnique({ where: { id: userId }, select: { name: true } }))?.name || 'your connection'}: "${title}"${description ? `\n\n${description}` : ''}`,
+                  content: `📡 Task assigned from ${senderName}: "${title}"${description ? `\n\n${description}` : ''}`,
                   state: 'new',
                   priority,
                   userId: targetMatch.userId,
@@ -1852,6 +1854,34 @@ export async function executeTag(
                   }),
                 },
               });
+
+              // ── Auto-create kanban card on recipient's board ──
+              const recipientCard = await prisma.kanbanCard.create({
+                data: {
+                  title,
+                  description: `${description || ''}\n\n---\n📡 Delegated from ${senderName}${context?.card ? ` (project: ${context.card.title})` : ''}`.trim(),
+                  status: 'active',
+                  priority: priority === 'urgent' ? 'urgent' : priority === 'high' ? 'high' : 'medium',
+                  assignee: 'human',
+                  dueDate: task.dueDate ? new Date(task.dueDate) : null,
+                  userId: targetMatch.userId,
+                  originCardId: resolvedCardId || null,
+                  originUserId: userId,
+                },
+              });
+
+              // Log activity on recipient side
+              await prisma.activityLog.create({
+                data: {
+                  action: 'task_received',
+                  actor: 'divi',
+                  summary: `New task from ${senderName}: "${title}"`,
+                  metadata: JSON.stringify({ relayId: relay.id, cardId: recipientCard.id, fromUserId: userId }),
+                  userId: targetMatch.userId,
+                  cardId: recipientCard.id,
+                },
+              });
+
               // Mark relay as delivered
               await prisma.agentRelay.update({
                 where: { id: relay.id },
