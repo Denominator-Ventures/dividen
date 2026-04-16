@@ -686,6 +686,21 @@ export function ConnectionsView() {
                         <div className="shrink-0">
                           {isConnected ? (
                             <span className="text-[10px] px-2.5 py-1 rounded-md bg-green-500/15 text-green-400 font-medium">✓ Connected</span>
+                          ) : isPending && u.connectionDirection === 'inbound' ? (
+                            <button
+                              onClick={() => {
+                                // Find the connection in our loaded connections to open accept modal
+                                const conn = connections.find(c => c.id === u.connectionId);
+                                if (conn) { setAcceptingConnection(conn); }
+                                else {
+                                  // Fallback: auto-accept by sending a connect request (triggers mutual-accept)
+                                  handleDirectoryConnect(u.email, u.name);
+                                }
+                              }}
+                              className="text-[10px] px-2.5 py-1 rounded-md bg-green-500/15 text-green-400 hover:bg-green-500/25 font-medium transition-colors"
+                            >
+                              ✓ Accept
+                            </button>
                           ) : isPending ? (
                             <span className="text-[10px] px-2.5 py-1 rounded-md bg-yellow-500/15 text-yellow-400 font-medium">Pending</span>
                           ) : u.source === 'federated_developer' ? (

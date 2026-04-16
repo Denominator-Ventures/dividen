@@ -144,6 +144,40 @@ export async function POST(req: NextRequest) {
       },
     });
     if (existing) {
+      // If the OTHER user already sent US a pending request, auto-accept it
+      if (existing.requesterId === targetUser.id && existing.accepterId === userId && existing.status === 'pending') {
+        const accepted = await prisma.connection.update({
+          where: { id: existing.id },
+          data: { status: 'active', peerNickname: nickname || (session.user as any).name || null },
+          include: {
+            requester: { select: { id: true, name: true, email: true } },
+            accepter: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        // Notify the original requester
+        await prisma.commsMessage.create({
+          data: {
+            sender: 'system',
+            content: `${(session.user as any).name || (session.user as any).email} accepted your connection request! Your agents can now communicate.`,
+            state: 'new',
+            priority: 'normal',
+            userId: targetUser.id,
+            metadata: JSON.stringify({ type: 'connection_accepted', connectionId: existing.id }),
+          },
+        });
+
+        logActivity({ userId, action: 'connection_accepted', summary: `Accepted connection with ${targetUser.name || targetUser.email} (mutual request)`, metadata: { connectionId: existing.id } });
+        logActivity({ userId: targetUser.id, action: 'connection_accepted', summary: `${(session.user as any).name || (session.user as any).email} accepted your connection request`, actor: 'system', metadata: { connectionId: existing.id } });
+
+        // Fire-and-forget: link CRM contacts
+        import('@/lib/contact-platform-bridge').then(({ linkContactsOnConnection }) => {
+          linkContactsOnConnection(targetUser.id, targetUser.email, userId, (session.user as any).email).catch(() => {});
+        });
+
+        return NextResponse.json(accepted, { status: 200 });
+      }
+
       return NextResponse.json({ error: 'Connection already exists', connection: existing }, { status: 409 });
     }
 

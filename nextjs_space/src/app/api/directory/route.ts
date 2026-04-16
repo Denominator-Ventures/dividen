@@ -47,16 +47,18 @@ export async function GET(req: NextRequest) {
         ],
       },
       select: {
+        id: true,
         requesterId: true,
         accepterId: true,
         status: true,
       },
     });
 
-    const connectionMap = new Map<string, string>();
+    const connectionMap = new Map<string, { status: string; direction: 'outbound' | 'inbound'; connectionId: string }>();
     for (const c of connections) {
       const peerId = c.requesterId === userId ? c.accepterId : c.requesterId;
-      if (peerId) connectionMap.set(peerId, c.status);
+      const direction = c.requesterId === userId ? 'outbound' : 'inbound';
+      if (peerId) connectionMap.set(peerId, { status: c.status, direction, connectionId: c.id });
     }
 
     // Filter and transform
@@ -81,7 +83,9 @@ export async function GET(req: NextRequest) {
           id: u.id,
           name: u.name,
           email: u.email,
-          connectionStatus: connectionMap.get(u.id) || null,
+          connectionStatus: connectionMap.get(u.id)?.status || null,
+          connectionDirection: connectionMap.get(u.id)?.direction || null,
+          connectionId: connectionMap.get(u.id)?.connectionId || null,
           joinedAt: u.createdAt.toISOString(),
           hasProfile: !!p,
         };
