@@ -2991,14 +2991,25 @@ export async function executeTag(
                   accepter: { select: { id: true, name: true, email: true, username: true } },
                 },
               });
-              const match = allConns.find((c: any) => {
+              // Score-based matching: exact > contains > first-name
+              let match: any = null;
+              let bestScore = 0;
+              for (const c of allConns as any[]) {
+                const peer = c.requesterId === userId ? c.accepter : c.requester;
                 const vals = [
-                  c.nickname, c.peerNickname, c.peerUserName, c.peerUserEmail,
-                  c.requester?.name, c.requester?.email, c.requester?.username,
-                  c.accepter?.name, c.accepter?.email, c.accepter?.username,
-                ].map(v => (v || '').toLowerCase());
-                return vals.some(v => v.includes(searchN));
-              });
+                  c.nickname, c.peerNickname, c.peerUserName, c.peerUserEmail, c.peerAgentName,
+                  peer?.name, peer?.email, peer?.username,
+                ].filter(Boolean).map((v: string) => v.toLowerCase());
+                // Exact match on any field
+                if (vals.some(v => v === searchN)) { match = c; break; }
+                // Contains match
+                if (vals.some(v => v.includes(searchN)) && bestScore < 2) { match = c; bestScore = 2; }
+                // First-name match (e.g. "jaron" matches "jaron ray hinds")
+                if (bestScore < 1) {
+                  const firstNames = vals.map(v => v.split(/[\s@.]+/)[0]);
+                  if (firstNames.some(fn => fn === searchN)) { match = c; bestScore = 1; }
+                }
+              }
               if (match) {
                 connId = match.id;
                 inviteeId = match.requesterId === userId ? match.accepterId : match.requesterId;
@@ -3010,7 +3021,8 @@ export async function executeTag(
             }
 
             if (!inviteeId && !connId) {
-              invResults.push({ name: m.name || m.email, status: 'not_found' });
+              console.warn(`[invite_to_project] Could not resolve member: name="${m.name}", email="${m.email}", searchN="${searchN}"`);
+              invResults.push({ name: m.name || m.email, status: 'not_found', searched: searchN || m.email || 'unknown' });
               continue;
             }
 

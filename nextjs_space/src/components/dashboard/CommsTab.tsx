@@ -69,6 +69,9 @@ const RELAY_COMMS_TYPES = new Set([
   'federated_relay',
 ]);
 
+// Resolved statuses — these relays are "done"
+const RESOLVED_STATUSES = new Set(['completed', 'declined', 'expired']);
+
 // ─── Helpers ───
 
 function timeAgo(dateString: string): string {
@@ -118,6 +121,7 @@ export function CommsTab() {
   const [relays, setRelays] = useState<Relay[]>([]);
   const [commsEvents, setCommsEvents] = useState<CommsEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showResolved, setShowResolved] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -173,6 +177,22 @@ export function CommsTab() {
     };
   }, [fetchData]);
 
+  // Dismiss a relay (mark as expired)
+  const dismissRelay = useCallback(async (relayId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await fetch(`/api/relays/${relayId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'expired' }),
+      });
+      setRelays(prev => prev.map(r => r.id === relayId ? { ...r, status: 'expired' } : r));
+    } catch (err) {
+      console.error('Failed to dismiss relay:', err);
+    }
+  }, []);
+
   const threads = useMemo(() => {
     // Index comms events by relayId for quick lookup
     const eventsByRelay = new Map<string, CommsEvent[]>();
@@ -222,7 +242,7 @@ export function CommsTab() {
       }
       threadEvents.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-      const unresolved = items.filter(r => !['completed', 'declined', 'expired'].includes(r.status)).length;
+      const unresolved = items.filter(r => !RESOLVED_STATUSES.has(r.status)).length;
       result.push({ connectionId, peerName, latestRelay: latest, count: items.length, unresolved, events: threadEvents });
     }
 
@@ -230,7 +250,9 @@ export function CommsTab() {
     return result;
   }, [relays, commsEvents, userId]);
 
-  const pendingCount = threads.filter(t => t.unresolved > 0).length;
+  const activeThreads = threads.filter(t => t.unresolved > 0);
+  const resolvedThreads = threads.filter(t => t.unresolved === 0);
+  const pendingCount = activeThreads.length;
 
   // Latest event label for a thread — includes target name when available
   function latestEventLabel(thread: RelayThread): string | null {
@@ -244,12 +266,98 @@ export function CommsTab() {
     return base;
   }
 
+  // Render a single thread row
+  function renderThread(thread: RelayThread) {
+    const latest = thread.latestRelay;
+    const dotColor = STATUS_DOT[latest.status] || 'bg-gray-400';
+    const isOutbound = latest.fromUserId === userId;
+    const isResolved = RESOLVED_STATUSES.has(latest.status);
+    const eventLabel = latestEventLabel(thread);
+
+    // Direction-based colors: green for outbound, purple for inbound
+    const directionBorder = isOutbound ? 'border-l-emerald-500' : 'border-l-purple-500';
+    const directionArrowColor = isOutbound ? 'text-emerald-400' : 'text-purple-400';
+    const directionArrow = isOutbound ? '\u2197' : '\u2199';
+
+    // Most recent timestamp across relay + events
+    const latestTime = thread.events.length > 0
+      ? new Date(Math.max(
+          new Date(latest.createdAt).getTime(),
+          ...thread.events.map(e => new Date(e.createdAt).getTime())
+        )).toISOString()
+      : latest.createdAt;
+
+    return (
+      <Link
+        key={thread.connectionId}
+        href="/dashboard/comms"
+        className={`group relative block px-3 py-2.5 border-b border-[var(--border-color)] hover:bg-[var(--bg-surface)] transition-colors border-l-2 ${directionBorder} ${
+          isResolved ? 'opacity-50' : ''
+        }`}
+      >
+        {/* Dismiss button — visible on hover for unresolved relays */}
+        {!isResolved && (
+          <button
+            onClick={(e) => dismissRelay(latest.id, e)}
+            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            title="Dismiss relay"
+          >
+            <span className="text-[10px] font-bold">{'\u2715'}</span>
+          </button>
+        )}
+
+        <div className="flex items-center justify-between gap-2 mb-0.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
+            <span className={`text-[11px] font-medium truncate ${isResolved ? 'text-[var(--text-muted)] line-through' : 'text-[var(--text-primary)]'}`}>
+              <MentionText text={thread.peerName} />
+            </span>
+            <span className={`text-[9px] font-bold ${directionArrowColor}`}>
+              {directionArrow}
+            </span>
+          </div>
+          <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">
+            {timeAgo(latestTime)}
+          </span>
+        </div>
+
+        <p className={`text-[10px] line-clamp-1 pl-3 ${isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)]'}`}>
+          {INTENT_ICONS[latest.intent] || '\uD83D\uDCAC'} <MentionText text={latest.subject} />
+        </p>
+
+        {/* Status badge for resolved relays */}
+        {isResolved && (
+          <span className={`inline-block ml-3 mt-0.5 text-[8px] font-medium px-1.5 py-0.5 rounded-full ${
+            latest.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
+            latest.status === 'declined' ? 'bg-red-500/15 text-red-400' :
+            'bg-gray-500/15 text-gray-400'
+          }`}>
+            {latest.status === 'completed' ? '\u2705 resolved' : latest.status === 'declined' ? '\u274C declined' : '\u23F3 expired'}
+          </span>
+        )}
+
+        {/* Latest lifecycle event — delivery/ack/completion status */}
+        {eventLabel && !isResolved && (
+          <p className="text-[9px] text-[var(--text-muted)] line-clamp-1 pl-3 mt-0.5">
+            {eventLabel}
+          </p>
+        )}
+
+        {thread.count > 1 && !isResolved && (
+          <span className="text-[9px] text-[var(--text-muted)] pl-3">
+            {thread.count} messages{thread.events.length > 0 ? ` \u00B7 ${thread.events.length} events` : ''}
+          </span>
+        )}
+      </Link>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-[var(--text-primary)]">\uD83D\uDCE1 Comms</span>
+          <span className="text-xs font-semibold text-[var(--text-primary)]">{'\uD83D\uDCE1'} Comms</span>
           {pendingCount > 0 && (
             <span className="bg-[var(--brand-primary)] text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center">
               {pendingCount}
@@ -260,7 +368,7 @@ export function CommsTab() {
           href="/dashboard/comms"
           className="text-[10px] text-[var(--text-muted)] hover:text-brand-400 transition-colors"
         >
-          Expand \u2197
+          Expand {'\u2197'}
         </Link>
       </div>
 
@@ -272,68 +380,30 @@ export function CommsTab() {
           </div>
         ) : threads.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 px-4 text-center">
-            <span className="text-2xl mb-2">\uD83D\uDCE1</span>
+            <span className="text-2xl mb-2">{'\uD83D\uDCE1'}</span>
             <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
               Agent relay conversations appear here. Your Divi&apos;s exchanges with other agents are logged as they happen.
             </p>
           </div>
         ) : (
-          threads.map((thread) => {
-            const latest = thread.latestRelay;
-            const dotColor = STATUS_DOT[latest.status] || 'bg-gray-400';
-            const isOutbound = latest.fromUserId === userId;
-            const eventLabel = latestEventLabel(thread);
+          <>
+            {/* Active (unresolved) threads */}
+            {activeThreads.map(renderThread)}
 
-            // Most recent timestamp across relay + events
-            const latestTime = thread.events.length > 0
-              ? new Date(Math.max(
-                  new Date(latest.createdAt).getTime(),
-                  ...thread.events.map(e => new Date(e.createdAt).getTime())
-                )).toISOString()
-              : latest.createdAt;
-
-            return (
-              <Link
-                key={thread.connectionId}
-                href="/dashboard/comms"
-                className={`block px-3 py-2.5 border-b border-[var(--border-color)] hover:bg-[var(--bg-surface)] transition-colors ${
-                  thread.unresolved > 0 ? 'border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'
-                }`}
-              >
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
-                    <span className="text-[11px] font-medium text-[var(--text-primary)] truncate">
-                      <MentionText text={thread.peerName} />
-                    </span>
-                    <span className="text-[9px] text-[var(--text-muted)]">
-                      {isOutbound ? '\u2197' : '\u2199'}
-                    </span>
-                  </div>
-                  <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">
-                    {timeAgo(latestTime)}
-                  </span>
-                </div>
-
-                <p className="text-[10px] text-[var(--text-secondary)] line-clamp-1 pl-3">
-                  {INTENT_ICONS[latest.intent] || '\uD83D\uDCAC'} <MentionText text={latest.subject} />
-                </p>
-
-                {/* Latest lifecycle event — delivery/ack/completion status */}
-                {eventLabel && (
-                  <p className="text-[9px] text-[var(--text-muted)] line-clamp-1 pl-3 mt-0.5">
-                    {eventLabel}
-                  </p>
-                )}
-
-                {thread.count > 1 && (
-                  <span className="text-[9px] text-[var(--text-muted)] pl-3">
-                    {thread.count} messages{thread.events.length > 0 ? ` \u00B7 ${thread.events.length} events` : ''}
-                  </span>
-                )}
-              </Link>
-            );
-          })
+            {/* Resolved threads — collapsible */}
+            {resolvedThreads.length > 0 && (
+              <>
+                <button
+                  onClick={() => setShowResolved(prev => !prev)}
+                  className="w-full px-3 py-1.5 text-[9px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center gap-1 transition-colors"
+                >
+                  <span className="text-[8px]">{showResolved ? '\u25BC' : '\u25B6'}</span>
+                  {resolvedThreads.length} resolved
+                </button>
+                {showResolved && resolvedThreads.map(renderThread)}
+              </>
+            )}
+          </>
         )}
       </div>
     </div>

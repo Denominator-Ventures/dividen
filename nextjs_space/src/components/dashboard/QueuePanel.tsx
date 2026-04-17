@@ -619,7 +619,17 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
       const res = await fetch('/api/queue');
       const data = await res.json();
       if (data.success) {
-        setItems(data.data);
+        // Filter out behavior_learning items — these belong in Settings > Learnings, not the queue
+        const filtered = (data.data || []).filter((item: QueueItemData) => {
+          try {
+            if (item.metadata) {
+              const meta = JSON.parse(item.metadata);
+              if (meta?.type === 'behavior_learning') return false;
+            }
+          } catch {}
+          return true;
+        });
+        setItems(filtered);
       }
     } catch {
       // ignore

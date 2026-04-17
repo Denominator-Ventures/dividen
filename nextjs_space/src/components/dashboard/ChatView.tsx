@@ -69,7 +69,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
   const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
   const [diviName, setDiviName] = useState('Divi');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // ── Inline @mention and !command search ───────────────────────────────
   const [mentionResults, setMentionResults] = useState<MentionResult[]>([]);
@@ -1077,14 +1077,21 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           </div>
         )}
 
-        <div className="flex gap-2">
-          <input
+        <div className="flex gap-2 items-end">
+          <textarea
             ref={inputRef}
-            type="text"
             value={input}
-            onChange={(e) => handleInputChange(e.target.value)}
+            onChange={(e) => {
+              handleInputChange(e.target.value);
+              // Auto-resize: reset height then grow to scrollHeight
+              const el = e.target;
+              el.style.height = 'auto';
+              el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+            }}
             placeholder={isStreaming ? `${diviName} is thinking...` : `Message ${diviName}... (@ to mention, ! for commands)`}
-            className="input-field flex-1 text-sm md:text-base"
+            className="input-field flex-1 min-w-0 text-sm md:text-base resize-none overflow-y-auto"
+            style={{ maxHeight: '160px', minHeight: '42px' }}
+            rows={1}
             disabled={isStreaming}
             role="combobox"
             aria-expanded={!!(inlineMode && inlineItems.length > 0)}
@@ -1119,19 +1126,26 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                   return;
                 }
               }
-              // Normal send
+              // Normal send on Enter (without shift for newline)
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 sendMessage();
+                // Reset textarea height after sending
+                if (inputRef.current) {
+                  inputRef.current.style.height = 'auto';
+                }
               }
             }}
           />
           <button
             className={cn(
-              'btn-primary px-3 md:px-6 transition-opacity',
+              'btn-primary px-3 md:px-6 transition-opacity flex-shrink-0',
               (isStreaming || !input.trim()) && 'opacity-50 cursor-not-allowed'
             )}
-            onClick={() => sendMessage()}
+            onClick={() => {
+              sendMessage();
+              if (inputRef.current) inputRef.current.style.height = 'auto';
+            }}
             disabled={isStreaming || !input.trim()}
           >
             {isStreaming ? '...' : 'Send'}
