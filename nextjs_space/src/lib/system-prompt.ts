@@ -214,8 +214,8 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
         status: 'active',
       },
       include: {
-        requester: { select: { id: true, name: true, email: true } },
-        accepter: { select: { id: true, name: true, email: true } },
+        requester: { select: { id: true, name: true, email: true, username: true } },
+        accepter: { select: { id: true, name: true, email: true, username: true } },
       },
       take: 20,
     }),
@@ -1337,11 +1337,14 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
     for (const c of connections) {
       const peer = (c as any).requesterId === userId ? (c as any).accepter : (c as any).requester;
       const peerName = peer?.name || peer?.email || c.peerUserName || c.peerUserEmail || 'Unknown';
+      const peerUsername = peer?.username || null;
+      const handleLabel = peerUsername ? ` @${peerUsername}` : '';
       const fedLabel = c.isFederated ? ` [federated: ${c.peerInstanceUrl}]` : '';
       let perms: any = {};
       try { perms = JSON.parse(c.permissions); } catch {}
-      text += `- **${c.nickname || peerName}** (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
+      text += `- **${c.nickname || peerName}**${handleLabel} (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
     }
+    text += `\n**Routing @mentions to relays**: When the user writes \`@handle\` in a message that's clearly asking to send/relay something, match the handle against the connections above (by @username, nickname, name, or email) and emit [[relay_request:{"to":"<handle-or-name>","subject":"...","payload":"..."}]]. The \`to\` field accepts usernames, nicknames, names, or emails — whichever the user used.\n`;
   }
 
   // Separate inbound from outbound for clearer Divi behavior

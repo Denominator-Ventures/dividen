@@ -1162,32 +1162,44 @@ export async function executeTag(
         const intent = params.intent || 'custom';
         const priority = params.priority || 'normal';
 
-        // Find the connection — by nickname, email, or ID
+        // Find the connection — by nickname, username, email, or ID
         let connection: any = null;
         if (params.connectionId) {
           connection = await prisma.connection.findUnique({ where: { id: params.connectionId } });
-        } else if (params.connectionNickname || params.to || params.name) {
-          const search = (params.connectionNickname || params.to || params.name).toLowerCase();
+        } else if (params.connectionNickname || params.to || params.name || params.username || params.handle) {
+          // Normalize search — strip leading @ if present
+          let search = (params.connectionNickname || params.to || params.name || params.username || params.handle || '').toString().toLowerCase().trim();
+          if (search.startsWith('@')) search = search.slice(1);
           const allConns = await prisma.connection.findMany({
             where: {
               OR: [{ requesterId: userId }, { accepterId: userId }],
               status: 'active',
             },
             include: {
-              requester: { select: { id: true, name: true, email: true } },
-              accepter: { select: { id: true, name: true, email: true } },
+              requester: { select: { id: true, name: true, email: true, username: true } },
+              accepter: { select: { id: true, name: true, email: true, username: true } },
             },
           });
+          // Prefer EXACT username match first (most specific), then substring match on other fields
           connection = allConns.find((c: any) => {
-            const nick = (c.nickname || '').toLowerCase();
-            const peerNick = (c.peerNickname || '').toLowerCase();
-            const peerName = (c.peerUserName || '').toLowerCase();
-            const reqName = (c.requester?.name || '').toLowerCase();
-            const accName = (c.accepter?.name || '').toLowerCase();
-            const reqEmail = (c.requester?.email || '').toLowerCase();
-            const accEmail = (c.accepter?.email || '').toLowerCase();
-            return [nick, peerNick, peerName, reqName, accName, reqEmail, accEmail].some(v => v.includes(search));
+            const peer = c.requesterId === userId ? c.accepter : c.requester;
+            const peerUsername = (peer?.username || '').toLowerCase();
+            return peerUsername && peerUsername === search;
           });
+          if (!connection) {
+            connection = allConns.find((c: any) => {
+              const peer = c.requesterId === userId ? c.accepter : c.requester;
+              const nick = (c.nickname || '').toLowerCase();
+              const peerNick = (c.peerNickname || '').toLowerCase();
+              const peerName = (c.peerUserName || '').toLowerCase();
+              const peerUsername = (peer?.username || '').toLowerCase();
+              const reqName = (c.requester?.name || '').toLowerCase();
+              const accName = (c.accepter?.name || '').toLowerCase();
+              const reqEmail = (c.requester?.email || '').toLowerCase();
+              const accEmail = (c.accepter?.email || '').toLowerCase();
+              return [nick, peerNick, peerName, peerUsername, reqName, accName, reqEmail, accEmail].some(v => v && v.includes(search));
+            });
+          }
         }
 
         if (!connection) {
