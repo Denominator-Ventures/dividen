@@ -1293,7 +1293,7 @@ async function layer17_connectionsRelay_optimized(
         fromUser: { select: { id: true, name: true, email: true } },
         toUser: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },  // FIFO — oldest first so relays process in arrival order
       take: 1, // ONE relay at a time — handle sequentially
     }),
     // Most recent completed relay FROM this user (response that came back)
@@ -1320,7 +1320,7 @@ async function layer17_connectionsRelay_optimized(
       include: {
         fromUser: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },  // FIFO — oldest ambient first
       take: 1, // ONE ambient relay at a time
     }),
   ]);

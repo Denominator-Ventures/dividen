@@ -529,6 +529,35 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
   const [batchMode, setBatchMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [batchProcessing, setBatchProcessing] = useState(false);
+  const [commsCount, setCommsCount] = useState(0);
+
+  // Fetch active relay count for comms badge
+  const fetchCommsCount = useCallback(async () => {
+    try {
+      const res = await fetch('/api/relays?limit=50');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const resolvedStatuses = new Set(['completed', 'declined', 'expired']);
+        setCommsCount(data.filter((r: any) => !resolvedStatuses.has(r.status)).length);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchCommsCount();
+    const interval = setInterval(fetchCommsCount, 30000);
+    return () => clearInterval(interval);
+  }, [fetchCommsCount]);
+
+  useEffect(() => {
+    const handler = () => fetchCommsCount();
+    window.addEventListener('dividen:comms-refresh', handler);
+    window.addEventListener('dividen:now-refresh', handler);
+    return () => {
+      window.removeEventListener('dividen:comms-refresh', handler);
+      window.removeEventListener('dividen:now-refresh', handler);
+    };
+  }, [fetchCommsCount]);
 
   const fetchItems = useCallback(async () => {
     try {
@@ -823,7 +852,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                 : 'text-[var(--text-muted)] hover:text-[var(--text-primary)]'
             )}
           >
-            📡 Comms
+            📡 Comms{commsCount > 0 && ` (${commsCount})`}
           </button>
         </div>
       </div>

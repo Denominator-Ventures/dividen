@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),
-    // Fetch active inbound relays for relay-badge metadata on assistant messages
+    // Fetch the ONE oldest inbound relay for relay-badge metadata (FIFO — matches system prompt)
     prisma.agentRelay.findMany({
       where: {
         toUserId: userId,
@@ -100,8 +100,8 @@ export async function POST(request: Request) {
         fromUser: { select: { id: true, name: true, email: true } },
         connection: { select: { nickname: true, peerNickname: true, peerUserName: true } },
       },
-      orderBy: { createdAt: 'desc' },
-      take: 10,
+      orderBy: { createdAt: 'asc' },  // FIFO — oldest first, one per message
+      take: 1,
     }),
   ]);
 
