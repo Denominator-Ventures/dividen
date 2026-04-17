@@ -142,17 +142,34 @@ export default function CommsPage() {
       items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       const latest = items[items.length - 1];
 
-      // Determine peer name (the other party)
+      // Determine peer name — the other party in this conversation, not the current user
       const firstRelay = items[0];
       const conn = firstRelay.connection;
       let peerName = 'Unknown Agent';
       let peerAgentName = conn?.peerAgentName || null;
 
-      if (userId && firstRelay.fromUserId === userId) {
-        // We sent it — peer is the other end
-        peerName = conn?.accepter?.name || conn?.peerUserName || firstRelay.toUser?.name || 'External Agent';
+      if (conn && userId) {
+        // Pick whichever side of the connection is NOT the current user
+        const requesterIsMe = conn.requester?.id === userId;
+        const accepterIsMe = conn.accepter?.id === userId;
+
+        if (requesterIsMe && conn.accepter?.name) {
+          peerName = conn.accepter.name;
+        } else if (accepterIsMe && conn.requester?.name) {
+          peerName = conn.requester.name;
+        } else if (conn.peerUserName) {
+          peerName = conn.peerUserName;
+        } else {
+          // Fallback: look at the relay users themselves
+          const isOutbound = firstRelay.fromUserId === userId;
+          peerName = isOutbound
+            ? (firstRelay.toUser?.name || firstRelay.toUser?.email || 'External Agent')
+            : (firstRelay.fromUser?.name || firstRelay.fromUser?.email || 'External Agent');
+        }
+      } else if (firstRelay.fromUserId === userId) {
+        peerName = firstRelay.toUser?.name || 'External Agent';
       } else {
-        peerName = conn?.requester?.name || firstRelay.fromUser?.name || 'External Agent';
+        peerName = firstRelay.fromUser?.name || 'External Agent';
       }
 
       const unresolved = items.filter(r => !['completed', 'declined', 'expired'].includes(r.status)).length;

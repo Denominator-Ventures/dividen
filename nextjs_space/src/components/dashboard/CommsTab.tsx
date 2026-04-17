@@ -198,10 +198,20 @@ export function CommsTab() {
       const conn = first.connection;
 
       let peerName = 'Unknown';
-      if (userId && first.fromUserId === userId) {
-        peerName = conn?.accepter?.name || conn?.peerUserName || first.toUser?.name || 'Agent';
+      if (conn && userId) {
+        const requesterIsMe = conn.requester?.id === userId;
+        const accepterIsMe = conn.accepter?.id === userId;
+        if (requesterIsMe) {
+          peerName = conn.accepter?.name || conn.peerUserName || first.toUser?.name || 'Agent';
+        } else if (accepterIsMe) {
+          peerName = conn.requester?.name || first.fromUser?.name || 'Agent';
+        } else {
+          peerName = conn.peerUserName || first.toUser?.name || first.fromUser?.name || 'Agent';
+        }
+      } else if (first.fromUserId === userId) {
+        peerName = first.toUser?.name || 'Agent';
       } else {
-        peerName = conn?.requester?.name || first.fromUser?.name || 'Agent';
+        peerName = first.fromUser?.name || 'Agent';
       }
 
       // Collect all lifecycle events for relays in this thread
