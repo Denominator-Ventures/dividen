@@ -979,8 +979,12 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                         {r.data?.status || 'completed'}
                       </span>
                     </div>
+                    {/* For relay_respond: show "Re: <original>" above what the operator actually sent */}
+                    {r.tag === 'relay_respond' && r.data?.originalSubject && (
+                      <p className="text-[9px] text-emerald-300/40 mt-0.5 pl-4 line-clamp-1 italic">Re: {r.data.originalSubject}</p>
+                    )}
                     {r.data?.subject && (
-                      <p className="text-[10px] text-emerald-300/70 mt-0.5 pl-4 line-clamp-1">{r.data.subject}</p>
+                      <p className="text-[10px] text-emerald-300/80 mt-0.5 pl-4 line-clamp-2">{r.data.subject}</p>
                     )}
                   </div>
                 ))}

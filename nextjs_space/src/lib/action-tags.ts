@@ -1721,7 +1721,37 @@ export async function executeTag(
           } catch {}
         }
 
-        return { tag: name, success: true, data: { relayId: updatedRelay.id, status: resolvedStatus, subject: relayToRespond.subject, ambientSignalCaptured: isAmbient } };
+        // Build the display string for the outgoing response card:
+        // - If declined with no payload: show "Declined: <original subject>"
+        // - Otherwise: show the operator's actual response payload (what they sent back)
+        // - Fallback to original subject only if we truly have nothing else
+        const responseText: string = (() => {
+          if (typeof resolvedPayload === 'string' && resolvedPayload.trim()) return resolvedPayload.trim();
+          if (resolvedPayload && typeof resolvedPayload === 'object') {
+            try {
+              const s = JSON.stringify(resolvedPayload);
+              return s.length > 200 ? s.slice(0, 200) + '…' : s;
+            } catch { /* noop */ }
+          }
+          if (resolvedStatus === 'declined') return `Declined: ${relayToRespond.subject}`;
+          if (resolvedStatus === 'completed') return `Acknowledged: ${relayToRespond.subject}`;
+          return relayToRespond.subject;
+        })();
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            relayId: updatedRelay.id,
+            status: resolvedStatus,
+            // `subject` is what the outgoing-response card renders — this must be
+            // the operator's response, NOT the original inbound subject.
+            subject: responseText,
+            originalSubject: relayToRespond.subject,
+            responsePayload: resolvedPayload || null,
+            ambientSignalCaptured: isAmbient,
+          },
+        };
       }
 
       case 'update_profile': {
