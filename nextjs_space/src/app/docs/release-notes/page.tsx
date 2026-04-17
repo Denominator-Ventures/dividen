@@ -4,7 +4,7 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.1.0 Task Routing, Bubble Store, Settings Overhaul, and more.',
+  description: 'DiviDen release notes — v2.1.3 Project Management, Federation Push, Queue-First Routing, and more.',
   openGraph: {
     title: 'DiviDen Release Notes',
     description: 'v2.1.0 — Cross-User Task Routing, Bubble Store Top Tab, Settings Overhaul, Installed Manager.',
@@ -38,6 +38,88 @@ export default function ReleaseNotesPage() {
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 17, 2026 — v2.1.3 PROJECT MANAGEMENT, FEDERATION PUSH     */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.1.3" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/20 rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.3</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">April 17, 2026</span>
+              <DocDownloadButton containerId="release-v2.1.3" filename="dividen-release-v2.1.3" variant="icon" />
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-6">Project Management Tags, Queue-First Task Routing, Federation Relay Push, Directory Discovery Fix, FVP Cross-Operability Guide</p>
+
+          <div className="space-y-8">
+
+            {/* Project Management */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📋 Project Management from Chat</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Two new action tags let Divi create projects and invite members directly from conversation:
+              </p>
+              <ul className="text-sm text-[var(--text-secondary)] space-y-2 mb-3">
+                <li>• <code className="code-inline">create_project</code> — Creates a Project record, adds the creator as lead, and auto-invites listed members. Members are resolved by name/username/email against active connections.</li>
+                <li>• <code className="code-inline">invite_to_project</code> — Invites members to an existing project by name (fuzzy match) or ID. Each invitee gets a <code className="code-inline">ProjectInvite</code> record, a queue item, and a comms notification.</li>
+              </ul>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Example: <em>&quot;create a project called Debugging DiviDen and add @jaron and @alvaro&quot;</em> → project created, both invited with queue items.
+              </p>
+            </div>
+
+            {/* Queue-First Task Routing */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📡 Queue-First Task Routing (v2.1.2)</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                The <code className="code-inline">task_route</code> tag now creates a queue item instead of immediately firing relays. The full pipeline (relay → comms → kanban card on recipient board) executes only when the item is dispatched — either manually or via Chief of Staff mode.
+              </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Flow: <code className="code-inline">task_route</code> → queue (READY) → dispatch → relay + comms + recipient card + sender tracking + checklist on source card.
+              </p>
+            </div>
+
+            {/* Federation Push */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🌐 Outbound Federation Relay Push</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                DiviDen now pushes relays to federated instances. When a task_route dispatch targets a federated connection, the relay payload is POSTed to the remote instance&apos;s <code className="code-inline">/api/federation/relay</code> endpoint with the shared federation token. Fire-and-forget with 10s timeout.
+              </p>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Project invites also push notifications to federated instances via <code className="code-inline">/api/federation/notifications</code>.
+              </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                New utility: <code className="code-inline">src/lib/federation-push.ts</code> — shared <code className="code-inline">pushRelayToFederatedInstance()</code> and <code className="code-inline">pushNotificationToFederatedInstance()</code> helpers.
+              </p>
+            </div>
+
+            {/* Directory Fix */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔍 Directory Discovery Fix</h3>
+              <p className="text-sm text-[var(--text-secondary)]">
+                <code className="code-inline">/api/v2/network/discover</code> now returns profiles with <code className="code-inline">visibility: &apos;connections&apos;</code> (not just <code className="code-inline">&apos;public&apos;</code>). Also returns basic entries for users without profile records. Test accounts excluded.
+              </p>
+            </div>
+
+            {/* LLM Provider */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🧠 LLM Provider Priority</h3>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Abacus AI (Claude) is now the primary LLM provider. GPT-4o doesn&apos;t reliably emit <code className="code-inline">[[tag:params]]</code> action tags. User OpenAI keys are fallback only. Max tokens increased to 8192 for Abacus.
+              </p>
+            </div>
+
+            {/* FVP Guide */}
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">📄 FVP Cross-Operability Guide v2.2</h3>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Comprehensive guide for FVP integration: full event taxonomy (relay + notification types), payload schemas, authentication, endpoint reference, and implementation checklist. Available at <a href="/docs/fvp-cross-operability-v2.2.md" className="text-brand-400 hover:text-brand-300" target="_blank">/docs/fvp-cross-operability-v2.2.md</a>.
+              </p>
+            </div>
+
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -1866,7 +1948,7 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-[var(--border-color)] text-center" data-no-download>
           <p className="text-xs text-[var(--text-muted)]">
-            DiviDen Command Center — Last updated April 16, 2026
+            DiviDen Command Center — Last updated April 17, 2026
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
             <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>

@@ -2855,6 +2855,21 @@ export async function executeTag(
             }
 
             logActivity({ userId, action: 'project_invite_sent', summary: `Invited ${m.name || inviteeEmail || 'user'} to "${project.name}"`, metadata: { projectId: project.id, inviteId: invite.id } });
+
+            // Federation push — notify remote instance if connection is federated
+            if (connId) {
+              const senderU = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+              const { pushNotificationToFederatedInstance } = await import('./federation-push');
+              pushNotificationToFederatedInstance(connId, {
+                type: 'project_invite',
+                fromUserName: senderU?.name || 'A DiviDen user',
+                fromUserEmail: senderU?.email || '',
+                title: `Project invite: ${project.name}`,
+                body: `You've been invited to join "${project.name}" as ${m.role || 'contributor'}.`,
+                metadata: { projectId: project.id, inviteId: invite.id, role: m.role || 'contributor' },
+              }).catch(() => {});
+            }
+
             inviteResults.push({ name: m.name || inviteeEmail, status: 'invited', inviteId: invite.id });
           } catch (invErr: any) {
             inviteResults.push({ name: m.name || m.email, status: 'error', error: invErr.message });
@@ -2991,6 +3006,21 @@ export async function executeTag(
             }
 
             logActivity({ userId, action: 'project_invite_sent', summary: `Invited ${m.name || inviteeEmail || 'user'} to "${proj.name}"`, metadata: { projectId: projId, inviteId: invite.id } });
+
+            // Federation push
+            if (connId) {
+              const senderU2 = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+              const { pushNotificationToFederatedInstance: pushNotif2 } = await import('./federation-push');
+              pushNotif2(connId, {
+                type: 'project_invite',
+                fromUserName: senderU2?.name || 'A DiviDen user',
+                fromUserEmail: senderU2?.email || '',
+                title: `Project invite: ${proj.name}`,
+                body: `You've been invited to join "${proj.name}" as ${m.role || 'contributor'}.`,
+                metadata: { projectId: projId, inviteId: invite.id, role: m.role || 'contributor' },
+              }).catch(() => {});
+            }
+
             invResults.push({ name: m.name || inviteeEmail, status: 'invited', inviteId: invite.id });
           } catch (invErr: any) {
             invResults.push({ name: m.name || m.email, status: 'error', error: invErr.message });

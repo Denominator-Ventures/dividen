@@ -211,6 +211,22 @@ export async function executeTaskRouteDispatch(
     data: { status: 'delivered' },
   });
 
+  // ── Step 2b: Federation push — if connection is federated, POST to remote instance ──
+  const senderUser = await prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+  const { pushRelayToFederatedInstance } = await import('./federation-push');
+  pushRelayToFederatedInstance(connectionId, {
+    relayId: relay.id,
+    fromUserEmail: senderUser?.email || '',
+    fromUserName: senderName,
+    toUserEmail: meta.targetUserEmail,
+    type: 'request',
+    intent,
+    subject: taskTitle,
+    payload: relayPayload,
+    priority: taskPriority,
+    dueDate: taskDueDate || null,
+  }).catch(() => {}); // fire-and-forget
+
   // ── Step 3: Comms on sender side (tracking thread) ──
   await prisma.commsMessage.create({
     data: {

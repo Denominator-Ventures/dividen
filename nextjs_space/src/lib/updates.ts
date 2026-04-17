@@ -17,6 +17,61 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'federation-push-project-mgmt-v2-1-3',
+    date: '2026-04-17',
+    time: '11:59 PM',
+    title: 'Outbound Federation Push, Project Management from Chat & FVP Cross-Operability Guide',
+    subtitle: 'DiviDen now pushes relays and notifications to federated instances in real time. Plus two new action tags for project lifecycle and a comprehensive cross-operability spec for FVP.',
+    tags: ['federation', 'cross-instance', 'projects', 'action-tags', 'queue', 'docs', 'v2.1.3'],
+    content: `v2.1.3. The federation layer got its outbound leg, project management moved into chat, and the cross-operability spec is published.
+
+## Outbound Federation Push
+
+Until now, DiviDen could *receive* federated relays but never *sent* them. If you routed a task to a federated connection, we'd create the relay locally and… hope they polled for it. No more.
+
+New shared utility: \`federation-push.ts\` exports two functions — \`pushRelayToFederatedInstance()\` and \`pushNotificationToFederatedInstance()\`. When the queue dispatcher routes a task to a federated connection, it now POSTs the full relay payload to the remote instance's \`/api/federation/relay\` endpoint with the \`x-federation-token\` header. Fire-and-forget, 10-second timeout, never blocks the caller. If the push fails, the relay still exists locally — the remote can pick it up on their next poll.
+
+Same pattern for notifications. Project invites, status changes, comms — anything that needs to reach a federated peer gets pushed immediately instead of sitting in a queue.
+
+This is the piece that makes cross-instance workflows actually feel real-time.
+
+## Project Management from Chat
+
+Two new action tags:
+
+**\`create_project\`** — Tell Divi "create a project called Q3 Rebrand" and it handles the rest. Creates the project, adds you as owner, sets visibility, and if you specify a team, adds all members as contributors. Responds with a confirmation and a link to the new board.
+
+**\`invite_to_project\`** — "Invite Sarah to the rebrand project" triggers a project invite. Fuzzy-matches the user and project, creates the invite record, and queues a notification. If the invitee is a federated connection, the notification gets pushed to their instance immediately via the new federation push utility.
+
+Both tags support the full parameter set — project name, description, visibility, team assignment, and member role. Divi's system prompt has been updated with the schema so it knows when and how to use them.
+
+## Queue-First Task Routing
+
+Refined the routing pipeline. When Divi decides to route a task, it now creates the QueueItem *first*, then delivers the relay. Previously the relay could fire before the queue entry existed, which caused race conditions on fast networks. Small change, big reliability improvement.
+
+## Directory Discovery Fix
+
+The federation directory was failing to discover connections that hadn't completed the full handshake. Fixed the query to include connections in \`pending_acceptance\` state — they show up in directory results now so the accepting side can find and complete the handshake.
+
+## LLM Provider Priority
+
+DiviDen's prompt routing now tries providers in order: local/custom endpoint → Anthropic → OpenAI → Abacus. Previously it was random selection from available providers. This gives you predictable behavior — if you've configured a local model, it gets used first.
+
+## FVP Cross-Operability Guide
+
+Published a comprehensive spec at \`/docs/fvp-cross-operability-v2.2.md\` covering every federation event type between DiviDen and FVP instances. The guide includes:
+
+- Full event taxonomy: 10 relay intents and 11 notification types with build status
+- TypeScript interfaces for every payload
+- Authentication flow with \`x-federation-token\`
+- Error handling and retry strategy
+- What each side has built vs. what's still needed
+
+This is the reference doc for anyone building cross-instance features on the Ambient Relay Protocol.
+
+— Jon`
+  },
+  {
     id: 'team-mentions-refactoring-v2-0-5',
     date: '2026-04-16',
     time: '11:59 PM',

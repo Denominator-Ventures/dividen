@@ -79,6 +79,7 @@ const TOC = [
   { id: 'cos-engine', label: 'CoS Execution Engine' },
   { id: 'settings-api', label: 'Settings API (v2)' },
   { id: 'teams-api', label: 'Teams & Project Delegation' },
+  { id: 'project-management', label: 'Project Management API' },
   { id: 'behavior-signals', label: 'Behavior Signals API' },
   { id: 'learnings-api', label: 'Learnings API' },
   { id: 'smart-tagging', label: 'Smart Tagging' },
@@ -1017,6 +1018,56 @@ curl -X PATCH /api/v2/settings \\
           <p className="text-[var(--text-secondary)] text-sm">
             See the <a href="/open-source" className="text-brand-400 hover:text-brand-300">open-source guide</a> for general self-hosting setup,
             and the <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">federation docs</a> for cross-instance connectivity.
+          </p>
+        </Section>
+
+        {/* ── Project Management API ──────────────────────────── */}
+        <Section id="project-management" title="Project Management API">
+          <p className="text-[var(--text-secondary)] mb-4">
+            Projects are scoped workspaces with members (local users or federated connections). Members can be leads, contributors, reviewers, or observers.
+            New in v2.1.3: Divi can create projects and invite members directly from chat using action tags.
+          </p>
+
+          <h4 className="text-base font-bold text-white mb-3">REST Endpoints</h4>
+          <div className="space-y-2 mb-6">
+            <Endpoint method="POST" path="/api/projects" description="Create project. Body: { name, description?, teamId?, color?, visibility? }. Creator auto-added as lead." auth="Session" />
+            <Endpoint method="GET" path="/api/projects" description="List projects you created or are a member of" auth="Session" />
+            <Endpoint method="GET" path="/api/projects/:id" description="Project detail with members, cards, invites" auth="Session (member)" />
+            <Endpoint method="PUT" path="/api/projects/:id" description="Update project (lead only)" auth="Session (lead)" />
+            <Endpoint method="POST" path="/api/projects/:id/invite" description="Invite user by userId, email, or connectionId. Creates ProjectInvite + queue notification." auth="Session (lead)" />
+            <Endpoint method="GET" path="/api/projects/:id/invite" description="List pending invites" auth="Session (member)" />
+            <Endpoint method="POST" path="/api/projects/:id/members" description="Direct-add member by email or connectionId (skip invite)" auth="Session (lead/contributor)" />
+            <Endpoint method="DELETE" path="/api/projects/:id/members?memberId=x" description="Remove member" auth="Session (lead)" />
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-3">Action Tags (Chat-Based)</h4>
+          <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
+            <Endpoint method="TAG" path={'[[create_project:{"name":"...","description":"...","members":[{"name":"jaron"},{"name":"alvaro"}]}]]'} description="Creates project + auto-invites members. Resolves names against active connections. Each invitee gets queue item + comms." />
+            <Endpoint method="TAG" path={'[[invite_to_project:{"projectName":"...","members":[{"name":"jaron","role":"contributor"}]}]]'} description="Invites members to existing project by name (fuzzy match) or ID. Same invite pipeline." />
+            <Endpoint method="TAG" path={'[[assign_team_to_project:{"projectName":"...","teamName":"..."}]]'} description="Converts project to team project. All team members auto-added as contributors." />
+          </div>
+
+          <h4 className="text-base font-bold text-white mb-3">Federation: Cross-Instance Project Invites</h4>
+          <p className="text-[var(--text-secondary)] mb-2 text-sm">
+            When a project invite targets a federated connection, DiviDen automatically pushes a notification to the remote instance via <InlineCode>POST /api/federation/notifications</InlineCode> with type <InlineCode>project_invite</InlineCode>.
+          </p>
+          <Code>{`// Federation notification payload for project invite
+{
+  "type": "project_invite",
+  "fromUserName": "Jon Bradford",
+  "fromUserEmail": "jon@colab.la",
+  "toUserEmail": "alvaro@fractionalventure.partners",
+  "title": "Project invite: Debugging DiviDen",
+  "body": "You've been invited to join \\"Debugging DiviDen\\" as contributor.",
+  "metadata": {
+    "projectId": "proj_abc",
+    "inviteId": "inv_xyz",
+    "role": "contributor"
+  },
+  "timestamp": "2026-04-17T19:00:00.000Z"
+}`}</Code>
+          <p className="text-[var(--text-secondary)] mb-2 text-sm">
+            See the <a href="/docs/fvp-cross-operability-v2.2.md" className="text-brand-400 hover:text-brand-300" target="_blank">FVP Cross-Operability Guide</a> for the full event taxonomy and implementation details.
           </p>
         </Section>
 
