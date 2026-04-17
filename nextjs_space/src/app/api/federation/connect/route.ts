@@ -98,6 +98,30 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // If auto-accepted (requireApproval=false), fire acceptance callback to the requesting instance
+    if (!fedConfig.requireApproval && connection.status === 'active') {
+      const instanceUrl = fedConfig.instanceUrl || process.env.NEXTAUTH_URL || '';
+      try {
+        await fetch(`${fromInstanceUrl.replace(/\/$/, '')}/api/federation/connect/accept`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Federation-Token': federationToken,
+          },
+          body: JSON.stringify({
+            connectionId: connection.id,
+            acceptedByEmail: targetUser.email,
+            acceptedByName: targetUser.name,
+            instanceUrl,
+          }),
+          signal: AbortSignal.timeout(10000),
+        });
+        console.log(`[federation/connect] Auto-accept callback sent to ${fromInstanceUrl}`);
+      } catch (cbErr: any) {
+        console.warn(`[federation/connect] Auto-accept callback to ${fromInstanceUrl} failed:`, cbErr?.message);
+      }
+    }
+
     // Register the instance if not known
     await prisma.instanceRegistry.upsert({
       where: { baseUrl: fromInstanceUrl },
