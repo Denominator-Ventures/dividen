@@ -2972,47 +2972,72 @@ export async function executeTag(
               continue;
             }
 
-            // Check for existing pending invite
+            // Check for existing invite — re-send notification if still pending instead of silently skipping
+            let invite: any = null;
+            let isResend = false;
             if (inviteeId) {
               const existingInv = await prisma.projectInvite.findUnique({
                 where: { projectId_inviteeId: { projectId: projId!, inviteeId } },
               });
-              if (existingInv && existingInv.status === 'pending') {
-                invResults.push({ name: m.name || inviteeEmail, status: 'already_invited' });
-                continue;
+              if (existingInv) {
+                if (existingInv.status === 'accepted') {
+                  invResults.push({ name: m.name || inviteeEmail, status: 'already_member', note: 'Invite already accepted' });
+                  continue;
+                }
+                if (existingInv.status === 'pending') {
+                  // Re-send — update the invite timestamp and re-notify
+                  invite = await prisma.projectInvite.update({
+                    where: { id: existingInv.id },
+                    data: { updatedAt: new Date() },
+                  });
+                  isResend = true;
+                } else {
+                  // Declined/expired — allow re-invite by resetting status
+                  invite = await prisma.projectInvite.update({
+                    where: { id: existingInv.id },
+                    data: { status: 'pending', declinedAt: null, updatedAt: new Date() },
+                  });
+                }
               }
             }
 
-            const invite = await prisma.projectInvite.create({
-              data: {
-                projectId: projId!,
-                inviterId: userId,
-                inviteeId,
-                inviteeEmail,
-                connectionId: connId,
-                role: m.role || 'contributor',
-              },
-            });
+            if (!invite) {
+              invite = await prisma.projectInvite.create({
+                data: {
+                  projectId: projId!,
+                  inviterId: userId,
+                  inviteeId,
+                  inviteeEmail,
+                  connectionId: connId,
+                  role: m.role || 'contributor',
+                },
+              });
+            }
 
+            // Always send notifications — even on re-send
             if (inviteeId) {
               await prisma.queueItem.create({
                 data: {
                   type: 'notification',
                   title: `📋 Project invite: ${proj.name}`,
-                  description: `You've been invited to join "${proj.name}" as ${m.role || 'contributor'}.`,
+                  description: isResend
+                    ? `Reminder: You've been invited to join "${proj.name}" as ${m.role || 'contributor'}.`
+                    : `You've been invited to join "${proj.name}" as ${m.role || 'contributor'}.`,
                   priority: 'medium',
                   status: 'ready',
                   source: 'agent',
                   userId: inviteeId,
                   projectId: projId!,
-                  metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id }),
+                  metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id, resend: isResend }),
                 },
               });
 
               await prisma.commsMessage.create({
                 data: {
                   sender: 'system',
-                  content: `📋 You've been invited to project "${proj.name}" as ${m.role || 'contributor'}.`,
+                  content: isResend
+                    ? `📋 Reminder: You've been invited to project "${proj.name}" as ${m.role || 'contributor'}.`
+                    : `📋 You've been invited to project "${proj.name}" as ${m.role || 'contributor'}.`,
                   state: 'new',
                   priority: 'medium',
                   userId: inviteeId,
@@ -3021,7 +3046,7 @@ export async function executeTag(
               });
             }
 
-            logActivity({ userId, action: 'project_invite_sent', summary: `Invited ${m.name || inviteeEmail || 'user'} to "${proj.name}"`, metadata: { projectId: projId, inviteId: invite.id } });
+            logActivity({ userId, action: 'project_invite_sent', summary: `${isResend ? 'Re-sent invite to' : 'Invited'} ${m.name || inviteeEmail || 'user'} to "${proj.name}"`, metadata: { projectId: projId, inviteId: invite.id, resend: isResend } });
 
             // Federation push
             if (connId) {
@@ -3037,7 +3062,7 @@ export async function executeTag(
               }).catch(() => {});
             }
 
-            invResults.push({ name: m.name || inviteeEmail, status: 'invited', inviteId: invite.id });
+            invResults.push({ name: m.name || inviteeEmail, status: isResend ? 're-sent' : 'invited', inviteId: invite.id });
           } catch (invErr: any) {
             invResults.push({ name: m.name || m.email, status: 'error', error: invErr.message });
           }
