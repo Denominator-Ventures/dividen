@@ -84,6 +84,20 @@ export async function dispatchNextItem(
       const result = await executeTaskRouteDispatch(userId, topItem.id, meta);
       relayId = result.relayId;
       recipientCardId = result.recipientCardId;
+    } else if (meta?.kind === 'marketplace_execute' && meta.agentId && meta.prompt) {
+      // FVP Build 522 §2 behavior #5: user approved a marketplace agent run.
+      // Execute it now via action-tags with skipQueue=true so we bypass the gate.
+      try {
+        const { executeTag } = await import('./action-tags');
+        await executeTag(
+          { name: 'execute_agent', params: { agentId: meta.agentId, prompt: meta.prompt, skipQueue: true }, raw: '' },
+          userId,
+        );
+        // Mark done_today so it drops off the active queue
+        await prisma.queueItem.update({ where: { id: topItem.id }, data: { status: 'done_today' } });
+      } catch (err: any) {
+        console.error(`[queue-dispatch] marketplace_execute failed for queue item ${topItem.id}:`, err?.message);
+      }
     }
   } catch (err: any) {
     console.error(`[queue-dispatch] task_route dispatch error for queue item ${topItem.id}:`, err?.message);

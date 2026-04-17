@@ -2387,6 +2387,44 @@ export async function executeTag(
         // Determine if this is the user's own agent (no platform fees)
         const isOwnAgent = agent.developerId === userId;
 
+        // ─── FVP Build 522 §2 behavior #5: marketplace agent tasks must pass
+        //     the approval gate unless the user has queueAutoApprove enabled.
+        //     Explicit bypass is allowed via params.skipQueue === true (used by
+        //     the queue dispatcher itself once the user confirms).
+        const execUser = await prisma.user.findUnique({ where: { id: userId }, select: { queueAutoApprove: true } });
+        const skipQueue = params.skipQueue === true;
+        if (!skipQueue && execUser?.queueAutoApprove !== true) {
+          const pendingItem = await prisma.queueItem.create({
+            data: {
+              type: 'agent_suggestion',
+              title: `Run ${agent.name}`,
+              description: String(params.prompt).substring(0, 500),
+              priority: params.priority || 'medium',
+              status: 'pending_confirmation',
+              source: 'agent',
+              userId,
+              metadata: JSON.stringify({
+                kind: 'marketplace_execute',
+                agentId: params.agentId,
+                agentName: agent.name,
+                prompt: params.prompt,
+                isOwnAgent,
+              }),
+            },
+          });
+          return {
+            tag: name,
+            success: true,
+            data: {
+              queued: true,
+              pending_confirmation: true,
+              queueItemId: pendingItem.id,
+              agentName: agent.name,
+              message: `Queued "${agent.name}" for your approval before running.`,
+            },
+          };
+        }
+
         // Build Integration Kit context for the response
         let integrationKitContext = '';
         if (agent.contextInstructions) {
