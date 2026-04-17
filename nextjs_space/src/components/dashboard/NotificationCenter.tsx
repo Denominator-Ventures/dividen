@@ -13,43 +13,43 @@ interface FeedItem {
   summary: string;
   time: string;
   isNew: boolean;
+  count?: number;
 }
 
 // Maps notification categories to dashboard tabs
 const CATEGORY_TAB_MAP: Record<string, string> = {
   board: 'kanban',
-  queue: 'chat',       // queue panel is alongside chat
+  queue: 'chat',
   crm: 'crm',
   calendar: 'calendar',
   goals: 'goals',
-  comms: 'chat',       // comms is in the queue/chat sidebar
+  comms: 'chat',
   connections: 'connections',
   drive: 'drive',
   marketplace: 'marketplace',
   federation: 'federation',
   teams: 'teams',
-  projects: 'kanban',  // projects are board-centric
-  intelligence: 'chat', // learnings surface in settings, but chat is the entry
+  projects: 'kanban',
+  intelligence: 'chat',
 };
 
-// Special route overrides for specific action types
 const ACTION_ROUTE_MAP: Record<string, string> = {
   learning_generated: '/settings?tab=learnings',
 };
 
 const FILTER_PILLS: { id: string; label: string; icon: string }[] = [
   { id: 'all', label: 'All', icon: '' },
-  { id: 'connections', label: 'Connections', icon: '🤝' },
-  { id: 'teams', label: 'Teams', icon: '👥' },
-  { id: 'projects', label: 'Projects', icon: '📁' },
-  { id: 'federation', label: 'Federation', icon: '🌐' },
-  { id: 'board', label: 'Board', icon: '🗂️' },
-  { id: 'queue', label: 'Queue', icon: '⚡' },
-  { id: 'comms', label: 'Comms', icon: '📡' },
-  { id: 'crm', label: 'CRM', icon: '👤' },
-  { id: 'calendar', label: 'Calendar', icon: '📅' },
-  { id: 'goals', label: 'Goals', icon: '🎯' },
-  { id: 'marketplace', label: 'Bubble Store', icon: '🫧' },
+  { id: 'connections', label: 'Connections', icon: '\uD83E\uDD1D' },
+  { id: 'teams', label: 'Teams', icon: '\uD83D\uDC65' },
+  { id: 'projects', label: 'Projects', icon: '\uD83D\uDCC1' },
+  { id: 'federation', label: 'Federation', icon: '\uD83C\uDF10' },
+  { id: 'board', label: 'Board', icon: '\uD83D\uDDC2\uFE0F' },
+  { id: 'queue', label: 'Queue', icon: '\u26A1' },
+  { id: 'comms', label: 'Comms', icon: '\uD83D\uDCE1' },
+  { id: 'crm', label: 'CRM', icon: '\uD83D\uDC64' },
+  { id: 'calendar', label: 'Calendar', icon: '\uD83D\uDCC5' },
+  { id: 'goals', label: 'Goals', icon: '\uD83C\uDFAF' },
+  { id: 'marketplace', label: 'Bubble Store', icon: '\uD83E\uDEE7' },
 ];
 
 function timeAgo(iso: string): string {
@@ -72,15 +72,12 @@ export default function NotificationCenter() {
   const ref = useRef<HTMLDivElement>(null);
 
   const handleNotificationClick = useCallback((item: FeedItem) => {
-    // Check for special action-specific routes first
     const specialRoute = ACTION_ROUTE_MAP[item.action];
     if (specialRoute) {
       setOpen(false);
       window.location.href = specialRoute;
       return;
     }
-
-    // Navigate to the corresponding dashboard tab
     const targetTab = CATEGORY_TAB_MAP[item.category];
     if (targetTab) {
       setOpen(false);
@@ -101,10 +98,9 @@ export default function NotificationCenter() {
     }
   }, []);
 
-  // SSE stream for real-time updates — no HTTP polling needed
+  // SSE stream for real-time updates
   const { newCount: sseNewCount, resetCount: resetSseCount } = useActivityStream(true);
 
-  // Bump unseen count when SSE delivers new events
   useEffect(() => {
     if (sseNewCount > 0 && !open) {
       setUnseenCount((c) => c + sseNewCount);
@@ -112,7 +108,6 @@ export default function NotificationCenter() {
     }
   }, [sseNewCount, open, resetSseCount]);
 
-  // Initial fetch only — SSE handles ongoing updates (no polling interval)
   useEffect(() => {
     fetchFeed();
   }, [fetchFeed]);
@@ -154,18 +149,15 @@ export default function NotificationCenter() {
     }
   };
 
-  // Filtered items
   const filteredItems = activeFilter === 'all'
     ? items
     : items.filter((i) => i.category === activeFilter);
 
-  // Count items per category for pill badges
   const categoryCounts: Record<string, number> = {};
   items.forEach((i) => {
     categoryCounts[i.category] = (categoryCounts[i.category] || 0) + 1;
   });
 
-  // Only show filter pills that have items
   const visiblePills = FILTER_PILLS.filter(
     (p) => p.id === 'all' || categoryCounts[p.id]
   );
@@ -195,14 +187,26 @@ export default function NotificationCenter() {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border-color)]">
             <span className="text-sm font-semibold text-[var(--text-primary)]">Notifications</span>
-            {unseenCount > 0 && (
+            <div className="flex items-center gap-3">
+              {unseenCount > 0 && (
+                <button
+                  onClick={markSeen}
+                  className="text-[10px] text-brand-400 hover:text-brand-300 transition-colors"
+                >
+                  Mark all read
+                </button>
+              )}
               <button
-                onClick={markSeen}
-                className="text-[10px] text-brand-400 hover:text-brand-300 transition-colors"
+                onClick={() => { setOpen(false); window.location.href = '/settings?tab=notifications'; }}
+                className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+                title="Notification settings"
               >
-                Mark all read
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
               </button>
-            )}
+            </div>
           </div>
 
           {/* Filter Pills */}
@@ -234,12 +238,12 @@ export default function NotificationCenter() {
               <div className="p-6 text-center text-[var(--text-muted)] text-sm">Loading...</div>
             ) : filteredItems.length === 0 ? (
               <div className="p-6 text-center">
-                <div className="text-2xl mb-2">{activeFilter === 'all' ? '🔔' : FILTER_PILLS.find(p => p.id === activeFilter)?.icon || '📋'}</div>
+                <div className="text-2xl mb-2">{activeFilter === 'all' ? '\uD83D\uDD14' : FILTER_PILLS.find(p => p.id === activeFilter)?.icon || '\uD83D\uDCCB'}</div>
                 <div className="text-sm text-[var(--text-muted)]">
                   {activeFilter === 'all' ? 'No notifications yet' : `No ${activeFilter} notifications`}
                 </div>
                 <div className="text-xs text-[var(--text-muted)] mt-1">
-                  {activeFilter === 'all' ? 'Activity from your workspace will appear here' : 'Try selecting "All" to see everything'}
+                  {activeFilter === 'all' ? 'Pertinent events will appear here as they happen' : 'Try selecting "All" to see everything'}
                 </div>
               </div>
             ) : (
@@ -261,12 +265,17 @@ export default function NotificationCenter() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-[var(--text-primary)] leading-relaxed">
                         <MentionText text={item.summary} />
+                        {item.count && item.count > 1 && (
+                          <span className="ml-1.5 text-[9px] bg-white/5 text-[var(--text-muted)] px-1.5 py-0.5 rounded-full">
+                            {item.count}x
+                          </span>
+                        )}
                       </p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="label-mono text-[var(--text-muted)]" style={{ fontSize: '9px' }}>
                           {item.category}
                         </span>
-                        <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>·</span>
+                        <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>\u00B7</span>
                         <span className="text-[var(--text-muted)]" style={{ fontSize: '9px' }}>
                           {timeAgo(item.time)}
                         </span>
@@ -275,7 +284,7 @@ export default function NotificationCenter() {
                         )}
                         {isClickable && (
                           <span className="text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity" style={{ fontSize: '9px' }}>
-                            →
+                            \u2192
                           </span>
                         )}
                       </div>
@@ -291,8 +300,8 @@ export default function NotificationCenter() {
             <div className="px-4 py-2 border-t border-[var(--border-color)] text-center">
               <span className="text-[10px] text-[var(--text-muted)]">
                 {activeFilter === 'all'
-                  ? `Showing last ${items.length} events`
-                  : `${filteredItems.length} of ${items.length} events`
+                  ? `${items.length} notifications`
+                  : `${filteredItems.length} of ${items.length} notifications`
                 }
               </span>
             </div>

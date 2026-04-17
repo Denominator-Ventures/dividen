@@ -11,6 +11,7 @@ import { ServiceApiKeyManager } from '@/components/settings/ServiceApiKeyManager
 import { IntegrationManager } from '@/components/settings/IntegrationManager';
 import { InstallDesktopButton } from '@/components/InstallDesktopButton';
 import { NotificationManager } from '@/components/settings/NotificationManager';
+import { NotificationPreferences } from '@/components/settings/NotificationPreferences';
 import { FederationManager } from '@/components/settings/FederationManager';
 import RelaySettings from '@/components/settings/RelaySettings';
 import PaymentSettings from '@/components/settings/PaymentSettings';
@@ -853,17 +854,35 @@ function SettingsPageInner() {
 
       {/* Notifications Tab */}
       {activeTab === 'notifications' && (
-        <div className="panel">
-          <div className="panel-header">
-            <div>
-              <h2 className="font-semibold">🔔 Cockpit Notifications</h2>
-              <p className="text-xs text-[var(--text-muted)] mt-0.5">
-                Banner alerts that appear in your chat view when events happen
-              </p>
+        <div className="space-y-6">
+          {/* Notification Center Preferences */}
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="font-semibold">🔔 Notification Center</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Control what shows up in the bell icon — toggle categories on/off or pause everything
+                </p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <NotificationPreferences />
             </div>
           </div>
-          <div className="panel-body">
-            <NotificationManager />
+
+          {/* Cockpit Banner Rules */}
+          <div className="panel">
+            <div className="panel-header">
+              <div>
+                <h2 className="font-semibold">⚡ Cockpit Alerts</h2>
+                <p className="text-xs text-[var(--text-muted)] mt-0.5">
+                  Banner alerts that appear in your chat view when events happen
+                </p>
+              </div>
+            </div>
+            <div className="panel-body">
+              <NotificationManager />
+            </div>
           </div>
         </div>
       )}

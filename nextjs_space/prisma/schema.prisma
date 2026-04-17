@@ -27,6 +27,7 @@ model User {
   acceptedTermsAt       DateTime? // null = not yet accepted
   termsVersion          String?   // e.g. "1.0" — which version they accepted
   notificationsLastSeen DateTime? // Timestamp of last notification feed view
+  notificationPrefs     String?   @db.Text  // JSON: { enabled, categories: { board, queue, ... } }
 
   // Stripe integration
   stripeCustomerId        String?   @unique // Stripe customer ID for payment methods
