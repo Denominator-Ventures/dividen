@@ -87,6 +87,22 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       });
     }
 
+    // Push completion ack back to originating federated instance
+    if ((body.status === 'completed' || body.status === 'declined') && relay.peerRelayId && relay.peerInstanceUrl) {
+      try {
+        const { pushRelayAckToFederatedInstance } = await import('@/lib/federation-push');
+        pushRelayAckToFederatedInstance({
+          id: relay.id,
+          peerRelayId: relay.peerRelayId,
+          peerInstanceUrl: relay.peerInstanceUrl,
+          connectionId: relay.connectionId,
+          subject: relay.subject,
+          status: body.status,
+          responsePayload: body.responsePayload || null,
+        }).catch(() => {});
+      } catch {}
+    }
+
     return NextResponse.json(updated);
   } catch (error: any) {
     console.error('PATCH /api/relays/[id] error:', error);

@@ -1629,6 +1629,22 @@ export async function executeTag(
           } catch {}
         }
 
+        // ── Push completion ack back to originating federated instance ──
+        if (relayToRespond.peerRelayId && relayToRespond.peerInstanceUrl) {
+          try {
+            const { pushRelayAckToFederatedInstance } = await import('./federation-push');
+            pushRelayAckToFederatedInstance({
+              id: relayToRespond.id,
+              peerRelayId: relayToRespond.peerRelayId,
+              peerInstanceUrl: relayToRespond.peerInstanceUrl,
+              connectionId: relayToRespond.connectionId,
+              subject: relayToRespond.subject,
+              status: params.status,
+              responsePayload: params.responsePayload ? (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)) : null,
+            }).catch(() => {});
+          } catch {}
+        }
+
         return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status, ambientSignalCaptured: isAmbient } };
       }
 

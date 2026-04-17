@@ -218,6 +218,7 @@ export async function executeTaskRouteDispatch(
     relayId: relay.id,
     fromUserEmail: senderUser?.email || '',
     fromUserName: senderName,
+    fromUserId: userId,
     toUserEmail: meta.targetUserEmail,
     type: 'request',
     intent,

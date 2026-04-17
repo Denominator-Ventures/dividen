@@ -1,20 +1,20 @@
 /**
- * Federation Push — fire-and-forget outbound relay/notification delivery to remote instances.
- * Used by queue-dispatch (task_route), action-tags (project_invite), and future federation events.
+ * Federation Push — outbound relay/notification delivery to remote instances.
+ * 
+ * pushRelayToFederatedInstance: Sends relay, processes ack (logs activity, updates status, comms to sender).
+ * pushNotificationToFederatedInstance: Lightweight notification push (project invites, etc.).
+ * pushRelayAckToFederatedInstance: Sends relay completion/response back to the originating instance.
+ * 
+ * The sending Divi owns the loop — every push expects an ack, every ack advances the task.
  */
 
 import { prisma } from '@/lib/prisma';
-
-interface FederationConnection {
-  isFederated: boolean;
-  peerInstanceUrl: string | null;
-  federationToken: string | null;
-  peerUserEmail: string | null;
-}
+import { logActivity } from '@/lib/activity';
 
 /**
  * Push a relay payload to a remote federated instance.
- * Fire-and-forget — logs errors but never blocks the caller.
+ * On successful ack (200): logs receipt, updates relay → "delivered", posts comms confirmation.
+ * On failure: logs warning, relay stays as-is (remote can poll later).
  */
 export async function pushRelayToFederatedInstance(
   connectionId: string,
@@ -22,6 +22,7 @@ export async function pushRelayToFederatedInstance(
     relayId: string;
     fromUserEmail: string;
     fromUserName: string;
+    fromUserId?: string;
     toUserEmail?: string;
     type: string;
     intent: string;
@@ -41,11 +42,14 @@ export async function pushRelayToFederatedInstance(
       return false; // Not federated or missing config
     }
 
+    // Include our instance's callback URL so the remote can push completion back
+    const selfUrl = process.env.NEXTAUTH_URL || '';
     const remoteUrl = `${conn.peerInstanceUrl.replace(/\/$/, '')}/api/federation/relay`;
     const body = {
       connectionId,
       ...payload,
       toUserEmail: payload.toUserEmail || conn.peerUserEmail,
+      callbackUrl: selfUrl ? `${selfUrl.replace(/\/$/, '')}/api/federation/relay-ack` : undefined,
     };
 
     fetch(remoteUrl, {
@@ -60,8 +64,50 @@ export async function pushRelayToFederatedInstance(
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         console.warn(`[federation-push] ${remoteUrl} returned ${res.status}: ${text}`);
-      } else {
-        console.log(`[federation-push] Pushed ${payload.intent} relay ${payload.relayId} to ${conn.peerInstanceUrl}`);
+        return;
+      }
+
+      // ── Ack received — the remote instance accepted the relay ──
+      const ackData = await res.json().catch(() => ({}));
+      const remoteRelayId = ackData?.relayId || null;
+      console.log(`[federation-push] ✓ Ack for ${payload.intent} relay ${payload.relayId} from ${conn.peerInstanceUrl} (remote: ${remoteRelayId})`);
+
+      // Update local relay: store remote relay ID
+      await prisma.agentRelay.update({
+        where: { id: payload.relayId },
+        data: {
+          peerRelayId: remoteRelayId,
+          peerInstanceUrl: conn.peerInstanceUrl,
+        },
+      }).catch(() => {});
+
+      // Log activity — receipt confirmed
+      const senderId = payload.fromUserId;
+      if (senderId) {
+        await logActivity({
+          userId: senderId,
+          action: 'federation_relay_acked',
+          summary: `📡 Receipt confirmed: "${payload.subject}" delivered to ${conn.peerInstanceUrl}`,
+          metadata: { relayId: payload.relayId, remoteRelayId, connectionId, intent: payload.intent },
+        }).catch(() => {});
+
+        // Comms message — sender sees that the remote accepted
+        await prisma.commsMessage.create({
+          data: {
+            sender: 'divi',
+            content: `📡 Delivery confirmed — "${payload.subject}" received by remote agent at ${conn.peerInstanceUrl?.replace(/https?:\/\//, '')}`,
+            state: 'new',
+            priority: 'low',
+            userId: senderId,
+            metadata: JSON.stringify({
+              type: 'federation_relay_acked',
+              relayId: payload.relayId,
+              remoteRelayId,
+              connectionId,
+              peerInstanceUrl: conn.peerInstanceUrl,
+            }),
+          },
+        }).catch(() => {});
       }
     }).catch((err) => {
       console.warn(`[federation-push] Failed to push to ${conn.peerInstanceUrl}:`, err?.message);
@@ -70,6 +116,67 @@ export async function pushRelayToFederatedInstance(
     return true;
   } catch (err: any) {
     console.warn(`[federation-push] Error:`, err?.message);
+    return false;
+  }
+}
+
+/**
+ * Push a relay completion/response acknowledgment back to the originating instance.
+ * Called when the receiving Divi completes a federated relay (relay_respond tag or completion).
+ */
+export async function pushRelayAckToFederatedInstance(
+  relay: {
+    id: string;
+    peerRelayId: string | null;
+    peerInstanceUrl: string | null;
+    connectionId: string;
+    subject: string;
+    status: string;
+    responsePayload: string | null;
+  }
+): Promise<boolean> {
+  try {
+    if (!relay.peerInstanceUrl || !relay.peerRelayId) {
+      return false; // Not a federated relay or no peer info
+    }
+
+    const conn = await prisma.connection.findUnique({
+      where: { id: relay.connectionId },
+      select: { federationToken: true },
+    });
+    if (!conn?.federationToken) return false;
+
+    const remoteUrl = `${relay.peerInstanceUrl.replace(/\/$/, '')}/api/federation/relay-ack`;
+
+    fetch(remoteUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-federation-token': conn.federationToken,
+      },
+      body: JSON.stringify({
+        relayId: relay.peerRelayId,   // The relay ID on the originating instance
+        localRelayId: relay.id,       // Our local relay ID
+        status: relay.status,         // 'completed' | 'declined'
+        responsePayload: relay.responsePayload,
+        subject: relay.subject,
+        timestamp: new Date().toISOString(),
+      }),
+      signal: AbortSignal.timeout(10000),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.warn(`[federation-push] Ack-back to ${remoteUrl} returned ${res.status}: ${text}`);
+      } else {
+        console.log(`[federation-push] ✓ Completion ack pushed for relay ${relay.peerRelayId} to ${relay.peerInstanceUrl}`);
+      }
+    }).catch((err) => {
+      console.warn(`[federation-push] Failed ack-back to ${relay.peerInstanceUrl}:`, err?.message);
+    });
+
+    return true;
+  } catch (err: any) {
+    console.warn(`[federation-push] Ack-back error:`, err?.message);
     return false;
   }
 }
