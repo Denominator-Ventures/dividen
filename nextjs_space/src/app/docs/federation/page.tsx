@@ -583,9 +583,13 @@ X-Federation-Token: <token-from-connection-handshake>
               <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
                 Federation connection management. Supports both v1 and v2 field naming conventions with automatic duplicate detection.
               </p>
-              <pre className="p-2 bg-white/[0.04] rounded text-[11px] font-mono text-green-400 overflow-x-auto">{`GET  /api/v2/connections       ← list federated connections (Bearer auth)
-POST /api/v2/connections       ← create connection request (no auth needed)
-POST /api/federation/connect   ← v1 alias (same behavior)`}</pre>
+              <pre className="p-2 bg-white/[0.04] rounded text-[11px] font-mono text-green-400 overflow-x-auto">{`GET  /api/v2/connections              ← list federated connections (Bearer auth)
+POST /api/v2/connections              ← create connection request (no auth needed)
+POST /api/federation/connect          ← v1 alias (same behavior)
+POST /api/federation/connect/accept   ← acceptance callback (Federation token)`}</pre>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-2 leading-relaxed">
+                <strong className="text-white">New in v2.1.6:</strong> The <code className="text-[11px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">connectAccept</code> endpoint is advertised in the agent card. When an instance auto-accepts a connection request, it POSTs <code className="text-[11px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">{'{'}connectionId, status: &quot;active&quot;, token{'}'}</code> back to the requester&apos;s callback URL.
+              </p>
             </div>
 
             {/* Agent API v2 */}

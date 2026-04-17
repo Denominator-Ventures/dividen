@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.1.3 Project Management, Federation Push, Queue-First Routing, and more.',
+  description: 'DiviDen release notes — v2.1.6 Ambient Relays Live, Federation Auto-Accept, Sequential Relay Handling, UI Polish.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.1.0 — Cross-User Task Routing, Bubble Store Top Tab, Settings Overhaul, Installed Manager.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.1.0+Task+Routing&tag=release', width: 1200, height: 630 }],
+    description: 'v2.1.6 — Ambient Relays Live, Federation Auto-Accept Fix, Sequential Relay Handling, 6 UI Bug Fixes.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.1.6+Ambient+Relays+Live&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.1.0 — Cross-User Task Routing, Bubble Store Top Tab, Settings Overhaul, Installed Manager.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.1.0+Task+Routing&tag=release'],
+    description: 'v2.1.6 — Ambient Relays Live, Federation Auto-Accept Fix, Sequential Relay Handling, 6 UI Bug Fixes.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.1.6+Ambient+Relays+Live&tag=release'],
   },
 };
 
@@ -38,6 +38,118 @@ export default function ReleaseNotesPage() {
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 17, 2026 — v2.1.6 AMBIENT RELAYS LIVE, FEDERATION FIX    */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.1.6" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
+          {/* Glow accent for latest */}
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.6</span>
+                <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)]">April 17, 2026</span>
+                <DocDownloadButton containerId="release-v2.1.6" filename="dividen-release-v2.1.6" variant="icon" />
+              </div>
+            </div>
+            <p className="text-sm text-[var(--text-muted)] mb-6">Ambient Relays Live, Federation Auto-Accept Fix, Agent Card Updates, 6 UI Bug Fixes, Sequential Relay Handling, FVP Architecture Docs</p>
+
+            {/* Thank you Jaron */}
+            <div className="mb-8 p-4 bg-purple-500/5 border border-purple-500/20 rounded-lg">
+              <p className="text-sm text-purple-300">
+                <strong>🙏 Shoutout to Jaron</strong> — massive thanks for your help stress-testing federation, flagging the auto-accept bug, and surfacing all the UI rough edges. This release is way tighter because of you.
+              </p>
+            </div>
+
+            <div className="space-y-8">
+
+              {/* Ambient Relays */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🌊 Ambient Relays Are Live</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  The ambient relay system is officially live across the federation. Divi can now send low-priority, context-aware observations to connected agents — and receive them back. These aren&apos;t tasks; they&apos;re <strong className="text-white">shared awareness</strong>.
+                </p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-2 mb-3">
+                  <li>• Ambient relays carry <code className="code-inline">_ambient: true</code> in the payload — same transport layer, different handling semantics.</li>
+                  <li>• Divi weaves inbound ambient relays into conversation naturally rather than treating them as action items.</li>
+                  <li>• Broadcast relays (<code className="code-inline">relay_broadcast</code>) now correctly push to all federated connections, not just local ones.</li>
+                  <li>• Comprehensive architecture doc published for FVP integration: <a href="/FVP_AMBIENT_RELAY_ARCHITECTURE.md" className="text-brand-400 hover:text-brand-300" target="_blank">Ambient Relay Architecture Guide</a> (<a href="/FVP_AMBIENT_RELAY_ARCHITECTURE.pdf" className="text-brand-400 hover:text-brand-300" target="_blank">PDF</a>).</li>
+                </ul>
+              </div>
+
+              {/* Federation Auto-Accept Fix */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🔧 Federation Auto-Accept Callback Fix</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  When DiviDen auto-accepts an inbound federation connection request (<code className="code-inline">requireApproval: false</code>), it now correctly fires the acceptance callback to the requesting instance. Previously, the callback was silently skipped — leaving the requesting side stuck in <code className="code-inline">pending</code> forever.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Fixed in <code className="code-inline">/api/federation/connect</code>. The acceptance POST now sends <code className="code-inline">{'{'}connectionId, status: &quot;active&quot;, token{'}'}</code> back to the requester&apos;s callback URL.
+                </p>
+              </div>
+
+              {/* Agent Card Updates */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🪪 Agent Card: New Endpoints</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  <code className="code-inline">/.well-known/agent-card.json</code> now advertises two new federation endpoints:
+                </p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-2">
+                  <li>• <code className="code-inline">connectAccept</code> — <code className="code-inline">/api/federation/connect/accept</code> — Callback endpoint for accepting connection requests.</li>
+                  <li>• <code className="code-inline">relayAck</code> — <code className="code-inline">/api/federation/relay-ack</code> — Acknowledgment endpoint for relay delivery confirmation.</li>
+                </ul>
+              </div>
+
+              {/* FVP Integration Answers */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">📄 FVP Integration Q&amp;A Document</h3>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Answered all 45 integration questions from the FVP team covering relay lifecycle, ambient vs. direct semantics, connection trust, pattern sharing, and error handling. Available at <a href="/FVP_DIVIDEN_INTEGRATION_ANSWERS.md" className="text-brand-400 hover:text-brand-300" target="_blank">FVP Integration Answers</a> (<a href="/FVP_DIVIDEN_INTEGRATION_ANSWERS.pdf" className="text-brand-400 hover:text-brand-300" target="_blank">PDF</a>).
+                </p>
+              </div>
+
+              {/* Sequential Relay Handling */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🔢 One Relay at a Time</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  Divi&apos;s system prompt now injects <strong className="text-white">one relay at a time</strong> instead of batching up to 20. This prevents context overload and ensures each relay gets proper attention.
+                </p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-2">
+                  <li>• All three relay queries (inbound, responses, ambient) changed from <code className="code-inline">take: 10/5/5</code> to <code className="code-inline">take: 1</code>.</li>
+                  <li>• Prompt instructions updated with &quot;HANDLE THIS ONE FIRST&quot; framing.</li>
+                  <li>• Ambient section pre-fills <code className="code-inline">relayId</code> in the respond template for instant action.</li>
+                </ul>
+              </div>
+
+              {/* 6 UI Bug Fixes */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🐛 6 UI Bug Fixes</h3>
+                <p className="text-sm text-[var(--text-muted)] mb-3">From Jaron&apos;s testing feedback:</p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-2">
+                  <li>• <strong className="text-white">Comms direction colors</strong> — Outbound relays now render green, inbound render purple. Previously all same color.</li>
+                  <li>• <strong className="text-white">Relay collapse toggle</strong> — Active relays section in Comms is now collapsible. Click the header to expand/collapse.</li>
+                  <li>• <strong className="text-white">Relay dismiss button</strong> — Each relay in Comms now has a dismiss (×) button that marks it as expired via PATCH.</li>
+                  <li>• <strong className="text-white">Queue filter</strong> — <code className="code-inline">behavior_learning</code> items no longer appear in the task queue. They belong in Settings → Learnings.</li>
+                  <li>• <strong className="text-white">Chat textarea</strong> — Input converted from single-line <code className="code-inline">&lt;input&gt;</code> to auto-resizing <code className="code-inline">&lt;textarea&gt;</code>. Grows vertically up to 160px, resets on send.</li>
+                  <li>• <strong className="text-white">Name resolution</strong> — <code className="code-inline">invite_to_project</code> now uses score-based matching (exact → contains → first-name) and searches <code className="code-inline">peerAgentName</code> field.</li>
+                </ul>
+              </div>
+
+              {/* DB Cleanup */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🧹 Test Data Cleanup</h3>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Expired stuck test relays and archived their associated comms messages from the federation bridge testing phase. Production DB is clean.
+                </p>
+              </div>
+
+            </div>
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
@@ -404,7 +516,6 @@ export default function ReleaseNotesPage() {
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v1.8.1</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Federation v2</span>
             <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Developer Profiles</span>
-            <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
             <DocDownloadButton containerId="release-v1.8.1" filename="dividen-release-v1.8.1" variant="icon" />
           </div>
           <h2 className="text-2xl font-bold mb-4 font-heading">Federation Capabilities, Federated Developer Profiles, Onboarding Overhaul & Approval Hardening</h2>

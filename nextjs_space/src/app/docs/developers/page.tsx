@@ -626,6 +626,8 @@ X-DiviDen-Source: marketplace`}</Code>
             <Endpoint method="POST" path="/api/federation/notifications" description="Push typed notifications (12 types) from federated instance" auth="Federation" />
             <Endpoint method="GET" path="/api/federation/mentions?prefix=jo" description="@mention autocomplete — prefix-search users (max 10)" auth="Federation" />
             <Endpoint method="POST" path="/api/federation/connect" description="Request a federation connection with a user" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/connect/accept" description="Acceptance callback — fires when auto-accept is on (v2.1.6)" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/relay-ack" description="Relay completion/decline acknowledgment callback" auth="Federation" />
           </div>
           <p className="text-[var(--text-secondary)] text-sm">
             Full federation docs at <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">/docs/federation</a>.
