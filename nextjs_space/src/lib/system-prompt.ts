@@ -1013,7 +1013,7 @@ function buildCapabilitiesCore(diviName: string, triageSettings: Record<string, 
 Embed action tags in your response using double brackets: [[tag_name:params]]. Tags are stripped before display. Multiple tags per response OK. Tags go at end or inline. Ask before modifying data if unsure.
 
 **⚠️ CRITICAL EXECUTION RULES:**
-1. **NEVER describe an action without emitting the tag.** If you say "I'll create a project for X", you MUST include [[upsert_card:...]] in that same response. Words without tags = nothing happens.
+1. **NEVER describe an action without emitting the tag.** If you say "I'll create a project for X", you MUST include [[create_project:...]] in that same response. Words without tags = nothing happens.
 2. **One tag per item.** Creating 3 tasks? Emit 3 separate [[add_checklist:...]] tags. Creating a project AND tasks? Emit [[upsert_card:...]] for the project AND [[add_checklist:...]] for each task. Never batch-describe and emit only one.
 3. **Emit ALL tags in the SAME response.** Don't split across messages. If the user asks for a project with 5 tasks, create all 6 tags (1 project + 5 tasks) in one response.
 4. **After sync_signal, continue working.** When you trigger [[sync_signal:...]] and results come back, the system will automatically ask you to analyze and report. Don't stop at "let me sync" — the analysis comes in your next turn.
@@ -1085,11 +1085,21 @@ Status changes on linked cards accumulate silently and appear in "🔗 Linked Ca
 - [[link_cards:{"fromCardId":"...","toCardId":"...","linkType":"delegation|collaboration|reference"}]]
 - [[create_card:{"title":"...","linkedFromCardId":"<source_card_id>","linkType":"delegation"}]]
 
-### Project → Team Assignment
-Convert a project into a team project. All team members are automatically added as contributors. Visibility becomes "team".
+### Project Management
+**Create a project** (and optionally invite members in one shot):
+- [[create_project:{"name":"Project Name","description":"...","members":[{"name":"jaron"},{"name":"alvaro"}]}]]
+- Members are resolved by name/username/email against active connections. Each invitee gets a queue item + comms message.
+- Creator is automatically added as project lead.
+
+**Invite members to an existing project:**
+- [[invite_to_project:{"projectName":"Debugging DiviDen","members":[{"name":"jaron","role":"contributor"},{"name":"alvaro","role":"contributor"}]}]]
+- Resolves by projectName (fuzzy) or projectId. Each invitee gets a queue item and comms notification.
+
+**Convert to team project** (all team members auto-added):
 - [[assign_team_to_project:{"projectName":"...","teamName":"..."}]] — Assign by name (fuzzy match)
 - [[assign_team_to_project:{"projectId":"...","teamId":"..."}]] — Assign by ID
-When the user says "make X a team project" or "assign X to the Y team", use this tag.
+
+When user says "create a project and add X and Y", use [[create_project:...]] with members array — do NOT create the project without members. When user says "make X a team project", use assign_team_to_project.
 
 ### Continuous Task Awareness
 You ALWAYS track the operator's NOW list during conversation:

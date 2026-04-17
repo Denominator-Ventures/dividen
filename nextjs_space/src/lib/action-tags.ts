@@ -102,6 +102,9 @@ export const SUPPORTED_TAGS = [
   'show_google_connect', // render Google Connect button widget in chat (works outside onboarding too)
   // ── Project → Team Assignment ──
   'assign_team_to_project', // assign a project to a team (converts it to a team project)
+  // ── Project Management ──
+  'create_project',          // create a new project and optionally invite members
+  'invite_to_project',       // invite one or more users (by name/email/connectionId) to an existing project
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -2733,6 +2736,268 @@ export async function executeTag(
 
         logActivity({ userId, action: 'project_team_assigned', summary: `Assigned project "${updated.name}" to team "${updated.team?.name}"`, metadata: { projectId, teamId } });
         return { tag: name, success: true, data: { projectId: updated.id, projectName: updated.name, teamId, teamName: updated.team?.name } };
+      }
+
+      // ── Create Project ─────────────────────────────────────────────────
+      case 'create_project': {
+        // params: { name, description?, visibility?, color?, members?: [{ name?, email?, connectionId?, role? }] }
+        const projName = params.name || params.title;
+        if (!projName?.trim()) return { tag: name, success: false, error: 'Project name is required' };
+
+        const vis = ['private', 'team', 'open'].includes(params.visibility) ? params.visibility : 'private';
+
+        const project = await prisma.project.create({
+          data: {
+            name: projName.trim(),
+            description: params.description || null,
+            color: params.color || null,
+            visibility: vis,
+            createdById: userId,
+            members: { create: { userId, role: 'lead' } },
+          },
+        });
+
+        logActivity({ userId, action: 'project_created', summary: `Created project "${project.name}"`, metadata: { projectId: project.id } });
+
+        // Auto-invite members if provided
+        const inviteResults: any[] = [];
+        const members = params.members || [];
+        for (const m of members) {
+          try {
+            // Resolve the member — by connectionId, email, or name search
+            let inviteeId: string | null = null;
+            let inviteeEmail: string | null = m.email || null;
+            let connId: string | null = m.connectionId || null;
+            const searchName = (m.name || m.to || '').toLowerCase().replace(/^@/, '');
+
+            if (!inviteeId && inviteeEmail) {
+              const u = await prisma.user.findUnique({ where: { email: inviteeEmail }, select: { id: true } });
+              if (u) inviteeId = u.id;
+            }
+
+            // Search connections by name/nickname if no direct ID
+            if (!inviteeId && !connId && searchName) {
+              const allConns = await prisma.connection.findMany({
+                where: { OR: [{ requesterId: userId }, { accepterId: userId }], status: 'active' },
+                include: {
+                  requester: { select: { id: true, name: true, email: true, username: true } },
+                  accepter: { select: { id: true, name: true, email: true, username: true } },
+                },
+              });
+              const match = allConns.find((c: any) => {
+                const vals = [
+                  c.nickname, c.peerNickname, c.peerUserName, c.peerUserEmail,
+                  c.requester?.name, c.requester?.email, c.requester?.username,
+                  c.accepter?.name, c.accepter?.email, c.accepter?.username,
+                ].map(v => (v || '').toLowerCase());
+                return vals.some(v => v.includes(searchName));
+              });
+              if (match) {
+                connId = match.id;
+                inviteeId = match.requesterId === userId ? match.accepterId : match.requesterId;
+                if (!inviteeEmail) {
+                  const peer = match.requesterId === userId ? match.accepter : match.requester;
+                  inviteeEmail = peer?.email || match.peerUserEmail || null;
+                }
+              }
+            }
+
+            if (!inviteeId && !connId) {
+              inviteResults.push({ name: m.name || m.email, status: 'not_found', error: 'Could not resolve user' });
+              continue;
+            }
+
+            // Check if already a member (creator)
+            if (inviteeId === userId) {
+              inviteResults.push({ name: m.name || m.email, status: 'skipped', reason: 'Already the project creator' });
+              continue;
+            }
+
+            // Create project invite with queue item for recipient
+            const invite = await prisma.projectInvite.create({
+              data: {
+                projectId: project.id,
+                inviterId: userId,
+                inviteeId,
+                inviteeEmail,
+                connectionId: connId,
+                role: m.role || 'contributor',
+              },
+            });
+
+            // Queue item so recipient sees the invite
+            if (inviteeId) {
+              await prisma.queueItem.create({
+                data: {
+                  type: 'notification',
+                  title: `📋 Project invite: ${project.name}`,
+                  description: `You've been invited to join "${project.name}" as ${m.role || 'contributor'}.`,
+                  priority: 'medium',
+                  status: 'ready',
+                  source: 'agent',
+                  userId: inviteeId,
+                  projectId: project.id,
+                  metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id }),
+                },
+              });
+
+              // Comms message so their Divi sees it
+              await prisma.commsMessage.create({
+                data: {
+                  sender: 'system',
+                  content: `📋 You've been invited to project "${project.name}" as ${m.role || 'contributor'}.`,
+                  state: 'new',
+                  priority: 'medium',
+                  userId: inviteeId,
+                  metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id, projectId: project.id }),
+                },
+              });
+            }
+
+            logActivity({ userId, action: 'project_invite_sent', summary: `Invited ${m.name || inviteeEmail || 'user'} to "${project.name}"`, metadata: { projectId: project.id, inviteId: invite.id } });
+            inviteResults.push({ name: m.name || inviteeEmail, status: 'invited', inviteId: invite.id });
+          } catch (invErr: any) {
+            inviteResults.push({ name: m.name || m.email, status: 'error', error: invErr.message });
+          }
+        }
+
+        return {
+          tag: name,
+          success: true,
+          data: { projectId: project.id, projectName: project.name, visibility: vis, memberInvites: inviteResults },
+        };
+      }
+
+      // ── Invite to Project ──────────────────────────────────────────────
+      case 'invite_to_project': {
+        // params: { projectId? OR projectName?, members: [{ name?, email?, connectionId?, role? }] }
+        let projId = params.projectId;
+
+        // Resolve by name
+        if (!projId && params.projectName) {
+          const proj = await prisma.project.findFirst({
+            where: { createdById: userId, name: { contains: params.projectName, mode: 'insensitive' as any } },
+            select: { id: true, name: true },
+          });
+          if (!proj) return { tag: name, success: false, error: `Project "${params.projectName}" not found` };
+          projId = proj.id;
+        }
+        if (!projId) return { tag: name, success: false, error: 'Missing projectId or projectName' };
+
+        // Verify user is lead/creator
+        const proj = await prisma.project.findUnique({ where: { id: projId }, include: { members: true } });
+        if (!proj) return { tag: name, success: false, error: 'Project not found' };
+        const isLead = proj.createdById === userId || proj.members.some((pm: any) => pm.userId === userId && pm.role === 'lead');
+        if (!isLead) return { tag: name, success: false, error: 'Only project leads can invite members' };
+
+        const invResults: any[] = [];
+        const invMembers = params.members || [];
+        for (const m of invMembers) {
+          try {
+            let inviteeId: string | null = null;
+            let inviteeEmail: string | null = m.email || null;
+            let connId: string | null = m.connectionId || null;
+            const searchN = (m.name || m.to || '').toLowerCase().replace(/^@/, '');
+
+            if (!inviteeId && inviteeEmail) {
+              const u = await prisma.user.findUnique({ where: { email: inviteeEmail }, select: { id: true } });
+              if (u) inviteeId = u.id;
+            }
+
+            if (!inviteeId && !connId && searchN) {
+              const allConns = await prisma.connection.findMany({
+                where: { OR: [{ requesterId: userId }, { accepterId: userId }], status: 'active' },
+                include: {
+                  requester: { select: { id: true, name: true, email: true, username: true } },
+                  accepter: { select: { id: true, name: true, email: true, username: true } },
+                },
+              });
+              const match = allConns.find((c: any) => {
+                const vals = [
+                  c.nickname, c.peerNickname, c.peerUserName, c.peerUserEmail,
+                  c.requester?.name, c.requester?.email, c.requester?.username,
+                  c.accepter?.name, c.accepter?.email, c.accepter?.username,
+                ].map(v => (v || '').toLowerCase());
+                return vals.some(v => v.includes(searchN));
+              });
+              if (match) {
+                connId = match.id;
+                inviteeId = match.requesterId === userId ? match.accepterId : match.requesterId;
+                if (!inviteeEmail) {
+                  const peer = match.requesterId === userId ? match.accepter : match.requester;
+                  inviteeEmail = peer?.email || match.peerUserEmail || null;
+                }
+              }
+            }
+
+            if (!inviteeId && !connId) {
+              invResults.push({ name: m.name || m.email, status: 'not_found' });
+              continue;
+            }
+
+            // Skip if already a member
+            if (inviteeId && proj.members.some((pm: any) => pm.userId === inviteeId)) {
+              invResults.push({ name: m.name || inviteeEmail, status: 'already_member' });
+              continue;
+            }
+
+            // Check for existing pending invite
+            if (inviteeId) {
+              const existingInv = await prisma.projectInvite.findUnique({
+                where: { projectId_inviteeId: { projectId: projId!, inviteeId } },
+              });
+              if (existingInv && existingInv.status === 'pending') {
+                invResults.push({ name: m.name || inviteeEmail, status: 'already_invited' });
+                continue;
+              }
+            }
+
+            const invite = await prisma.projectInvite.create({
+              data: {
+                projectId: projId!,
+                inviterId: userId,
+                inviteeId,
+                inviteeEmail,
+                connectionId: connId,
+                role: m.role || 'contributor',
+              },
+            });
+
+            if (inviteeId) {
+              await prisma.queueItem.create({
+                data: {
+                  type: 'notification',
+                  title: `📋 Project invite: ${proj.name}`,
+                  description: `You've been invited to join "${proj.name}" as ${m.role || 'contributor'}.`,
+                  priority: 'medium',
+                  status: 'ready',
+                  source: 'agent',
+                  userId: inviteeId,
+                  projectId: projId!,
+                  metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id }),
+                },
+              });
+
+              await prisma.commsMessage.create({
+                data: {
+                  sender: 'system',
+                  content: `📋 You've been invited to project "${proj.name}" as ${m.role || 'contributor'}.`,
+                  state: 'new',
+                  priority: 'medium',
+                  userId: inviteeId,
+                  metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id, projectId: projId }),
+                },
+              });
+            }
+
+            logActivity({ userId, action: 'project_invite_sent', summary: `Invited ${m.name || inviteeEmail || 'user'} to "${proj.name}"`, metadata: { projectId: projId, inviteId: invite.id } });
+            invResults.push({ name: m.name || inviteeEmail, status: 'invited', inviteId: invite.id });
+          } catch (invErr: any) {
+            invResults.push({ name: m.name || m.email, status: 'error', error: invErr.message });
+          }
+        }
+
+        return { tag: name, success: true, data: { projectId: projId, projectName: proj.name, invites: invResults } };
       }
 
       default:
