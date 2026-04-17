@@ -1279,7 +1279,8 @@ async function layer17_connectionsRelay_optimized(
   userId: string,
   connections: Awaited<ReturnType<typeof prisma.connection.findMany>>,
 ): Promise<string> {
-  // Fetch active relays (pending/delivered) and recently completed ones (for surfacing responses)
+  // Fetch active relays — ONE AT A TIME rule: only surface the single most recent
+  // relay per category so Divi handles them sequentially, not in bulk.
   const [activeRelays, recentResponses, ambientInbound] = await Promise.all([
     prisma.agentRelay.findMany({
       where: {
@@ -1293,9 +1294,9 @@ async function layer17_connectionsRelay_optimized(
         toUser: { select: { id: true, name: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 10,
+      take: 1, // ONE relay at a time — handle sequentially
     }),
-    // Recently completed relays FROM this user (responses that came back)
+    // Most recent completed relay FROM this user (response that came back)
     prisma.agentRelay.findMany({
       where: {
         fromUserId: userId,
@@ -1307,9 +1308,9 @@ async function layer17_connectionsRelay_optimized(
         connection: { select: { nickname: true, peerNickname: true, peerUserName: true } },
       },
       orderBy: { resolvedAt: 'desc' },
-      take: 5,
+      take: 1, // ONE response at a time
     }),
-    // Ambient inbound relays — delivered to this user, marked ambient in payload
+    // Ambient inbound relay — delivered to this user, marked ambient in payload
     prisma.agentRelay.findMany({
       where: {
         toUserId: userId,
@@ -1320,7 +1321,7 @@ async function layer17_connectionsRelay_optimized(
         fromUser: { select: { id: true, name: true, email: true } },
       },
       orderBy: { createdAt: 'desc' },
-      take: 5,
+      take: 1, // ONE ambient relay at a time
     }),
   ]);
 
@@ -1348,9 +1349,9 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
   const outboundRelays = activeRelays.filter(r => r.fromUserId === userId && r.toUserId !== userId);
 
   if (inboundRelays.length > 0) {
-    text += `\n### 📥 INCOMING RELAYS — WEAVE INTO CONVERSATION (${inboundRelays.length})\n`;
-    text += `You have relay messages from connections. **DO NOT** announce these as a separate notification or interrupt. Instead, WEAVE the relay content INTO whatever you're currently discussing — make it feel like a natural part of the conversation.\n\n`;
-    text += `**How to surface relays:**\n`;
+    text += `\n### 📥 INCOMING RELAY — HANDLE THIS ONE FIRST\n`;
+    text += `**ONE RELAY AT A TIME.** You have exactly one relay to handle right now. Focus on this one completely — weave it into the conversation, get the user's response, and fire relay_respond BEFORE the next relay surfaces.\n\n`;
+    text += `**How to surface this relay:**\n`;
     text += `- Mention who's asking and on whose behalf: "Oh — [name] is checking in about [topic]..." or "By the way, [name]'s asking [question]..."\n`;
     text += `- If the relay is related to what the user is already working on, fold it right in: "That reminds me — [name] actually sent over [content]. [Your take on it]."\n`;
     text += `- If the relay is unrelated, find a natural transition: "Before we move on — [name] wanted to know [thing]."\n`;
@@ -1377,28 +1378,26 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
   }
 
 
-  // Surface recently completed relay responses
+  // Surface the most recent completed relay response
   if (recentResponses.length > 0) {
-    text += `\n### 📬 Relay Responses (last 24h) — SURFACE THESE NATURALLY\n`;
-    text += `These relay responses came back from connections. Work them into your conversation when relevant:\n`;
-    for (const r of recentResponses) {
-      const responderName = r.toUser?.name || r.connection?.peerNickname || r.connection?.peerUserName || 'A connection';
-      text += `- **${responderName}** responded to "${r.subject}": ${r.responsePayload || '[acknowledged]'}\n`;
-    }
-    text += `\n**Important:** Don't dump all responses at once. If the current conversation touches on a topic that a response addresses, mention it: "By the way, [name] got back to us about [topic]..." If the user asks about something a relay answered, share the response immediately.\n`;
+    text += `\n### 📬 Relay Response — SURFACE NATURALLY\n`;
+    text += `A relay response came back. Work it into conversation when relevant:\n`;
+    const r = recentResponses[0];
+    const responderName = r.toUser?.name || r.connection?.peerNickname || r.connection?.peerUserName || 'A connection';
+    text += `- **${responderName}** responded to "${r.subject}": ${r.responsePayload || '[acknowledged]'}\n`;
+    text += `\nMention it when the conversation touches the topic: "By the way, [name] got back to us about [topic]..."\n`;
   }
 
-  // Ambient inbound relays — things other agents want to know, work them in naturally
+  // Ambient inbound relay — one at a time, work it in naturally
   if (ambientInbound.length > 0) {
-    text += `\n### 🌊 Ambient Inbound Relays — WEAVE NATURALLY\n`;
-    text += `Other users' agents have ambient questions for your user. Do NOT announce these as "you have a relay." Instead, when the conversation naturally touches on the relevant topic, ask the question as if YOU are curious — or weave it into your advice.\n\n`;
-    for (const r of ambientInbound) {
-      const fromName = r.fromUser?.name || r.fromUser?.email || 'Someone';
-      let topic = '';
-      try { const p = JSON.parse(r.payload || '{}'); topic = p._topic || ''; } catch {}
-      text += `- From **${fromName}**'s agent${topic ? ` (topic: ${topic})` : ''}: "${r.subject}" [relay ID: ${r.id}]\n`;
-    }
-    text += `\nWhen you get the answer naturally, use [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<the answer>"}]] to send it back.\n`;
+    const r = ambientInbound[0];
+    const fromName = r.fromUser?.name || r.fromUser?.email || 'Someone';
+    let topic = '';
+    try { const p = JSON.parse(r.payload || '{}'); topic = p._topic || ''; } catch {}
+    text += `\n### 🌊 Ambient Relay — WEAVE NATURALLY (ONE AT A TIME)\n`;
+    text += `An agent has an ambient question for your user. Do NOT announce this as "you have a relay." When the conversation naturally touches on the relevant topic, ask the question as if YOU are curious.\n\n`;
+    text += `- From **${fromName}**'s agent${topic ? ` (topic: ${topic})` : ''}: "${r.subject}" [relay ID: ${r.id}]\n`;
+    text += `\nWhen you get the answer naturally, use [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"<the answer>"}]] to send it back. Handle this one before the next ambient relay surfaces.\n`;
   }
 
   // Append ambient learning insights if any patterns exist
