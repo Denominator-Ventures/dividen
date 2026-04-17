@@ -10,10 +10,12 @@ export async function POST(req: NextRequest) {
     // Check federation config
     const fedConfig = await prisma.federationConfig.findFirst({ where: { allowInbound: true }, orderBy: { updatedAt: 'desc' } });
     if (!fedConfig) {
+      console.warn('[federation/connect] Rejected: no allowInbound config');
       return NextResponse.json({ error: 'This instance does not accept inbound federation requests' }, { status: 403 });
     }
 
     const body = await req.json();
+    console.log('[federation/connect] Inbound request:', JSON.stringify({ fromInstanceUrl: body.fromInstanceUrl, fromUserEmail: body.fromUserEmail, toUserEmail: body.toUserEmail }));
     const {
       fromInstanceUrl,
       fromInstanceName,
@@ -46,6 +48,21 @@ export async function POST(req: NextRequest) {
     const targetUser = await prisma.user.findUnique({ where: { email: toUserEmail } });
     if (!targetUser) {
       return NextResponse.json({ error: 'User not found on this instance' }, { status: 404 });
+    }
+
+    // Duplicate guard: check for existing connection from same peer
+    const existingConn = await prisma.connection.findFirst({
+      where: {
+        isFederated: true,
+        peerInstanceUrl: fromInstanceUrl,
+        peerUserEmail: fromUserEmail,
+        requesterId: targetUser.id,
+        status: { in: ['active', 'pending'] },
+      },
+    });
+    if (existingConn) {
+      console.log('[federation/connect] Duplicate guard: existing connection', existingConn.id, existingConn.status);
+      return NextResponse.json({ success: true, connectionId: existingConn.id, status: existingConn.status, message: 'Connection already exists' });
     }
 
     // Create the connection locally (from the remote user's perspective)

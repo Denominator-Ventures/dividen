@@ -242,6 +242,8 @@ export async function GET(req: NextRequest) {
           graph: `${baseUrl}/api/federation/graph`,
         },
         agentApi: `${baseUrl}/api/v2`,
+        v2Connections: `${baseUrl}/api/v2/connections`,
+        v2Relay: `${baseUrl}/api/v2/relay`,
         docs: `${baseUrl}/api/v2/docs`,
         jobs: `${baseUrl}/api/jobs`,
         jobMatch: `${baseUrl}/api/jobs/match`,
