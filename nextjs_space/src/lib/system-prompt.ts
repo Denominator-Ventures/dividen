@@ -1281,21 +1281,40 @@ async function layer17_connectionsRelay_optimized(
 ): Promise<string> {
   // Fetch active relays — ONE AT A TIME rule: only surface the single most recent
   // relay per category so Divi handles them sequentially, not in bulk.
-  const [activeRelays, recentResponses, ambientInbound] = await Promise.all([
+  // ── Fetch inbound and outbound SEPARATELY — an old unresolved outbound should
+  // NEVER crowd out a fresh inbound. Inbound requires user response, outbound is
+  // just status awareness.
+  const [inboundRelay, outboundRelay] = await Promise.all([
     prisma.agentRelay.findMany({
       where: {
-        OR: [
-          { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
-          { fromUserId: userId, status: { in: ['pending', 'delivered', 'agent_handling'] } },
-        ],
+        toUserId: userId,
+        status: { in: ['delivered', 'user_review'] },
+        // Skip ambient relays — they're handled by the separate ambientInbound query
+        NOT: { payload: { contains: '_ambient' } },
       },
       include: {
         fromUser: { select: { id: true, name: true, email: true } },
         toUser: { select: { id: true, name: true, email: true } },
       },
-      orderBy: { createdAt: 'asc' },  // FIFO — oldest first so relays process in arrival order
-      take: 1, // ONE relay at a time — handle sequentially
+      orderBy: { createdAt: 'asc' }, // FIFO — oldest inbound first
+      take: 1,
     }),
+    prisma.agentRelay.findMany({
+      where: {
+        fromUserId: userId,
+        status: { in: ['pending', 'delivered', 'agent_handling'] },
+      },
+      include: {
+        fromUser: { select: { id: true, name: true, email: true } },
+        toUser: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { createdAt: 'desc' }, // most recent outbound — just awareness
+      take: 1,
+    }),
+  ]);
+  const activeRelays = [...inboundRelay, ...outboundRelay];
+
+  const [recentResponses, ambientInbound] = await Promise.all([
     // Most recent completed relay FROM this user (response that came back)
     prisma.agentRelay.findMany({
       where: {
@@ -1354,18 +1373,25 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
   if (inboundRelays.length > 0) {
     text += `\n### 📥 INCOMING RELAY — HANDLE THIS ONE FIRST\n`;
     text += `**ONE RELAY AT A TIME.** You have exactly one relay to handle right now. Focus on this one completely — weave it into the conversation, get the user's response, and fire relay_respond BEFORE the next relay surfaces.\n\n`;
-    text += `**How to surface this relay:**\n`;
-    text += `- Mention who's asking and on whose behalf: "Oh — [name] is checking in about [topic]..." or "By the way, [name]'s asking [question]..."\n`;
-    text += `- If the relay is related to what the user is already working on, fold it right in: "That reminds me — [name] actually sent over [content]. [Your take on it]."\n`;
-    text += `- If the relay is unrelated, find a natural transition: "Before we move on — [name] wanted to know [thing]."\n`;
-    text += `- The UI shows a 📡 relay badge on messages so the user can always see the raw underlying relay. Your job is to make the conversation flow naturally.\n\n`;
     for (const r of inboundRelays) {
       const from = r.fromUser?.name || r.fromUser?.email || 'Unknown';
       let payloadDetail = r.payload || '';
       try { const p = JSON.parse(r.payload || '{}'); payloadDetail = p.detail || p.message || r.payload || ''; } catch {}
-      text += `- 📩 From **${from}**: "${r.subject}" | Intent: ${r.intent} | Payload: ${payloadDetail} | Relay ID: ${r.id}\n`;
+      text += `**📩 Inbound relay from ${from}:**\n`;
+      text += `- Subject (VERBATIM — quote this): "${r.subject}"\n`;
+      if (payloadDetail && payloadDetail !== r.subject) text += `- Extra detail: ${payloadDetail}\n`;
+      text += `- Intent: ${r.intent} | Relay ID: ${r.id}\n\n`;
     }
-    text += `\n**Auto-respond:** When the user's reply clearly addresses a relay (answers the question, accepts/declines the task, provides the requested info), IMMEDIATELY emit [[relay_respond:...]] without asking for confirmation. The user shouldn't have to explicitly say "respond to the relay" — if the content of their message answers it, just send it back.\n`;
+    text += `**How to surface this relay (CRITICAL):**\n`;
+    text += `- On your VERY NEXT message, quote the actual subject text verbatim so the user sees what was asked. Do NOT just say "you have a relay" or "there's a relay in context" — that's useless to the user. They need to see the content.\n`;
+    text += `- Good: "Heads up — Jaron pinged: 'Let's sync when you get back in front of your claw.' Want me to set up a time?"\n`;
+    text += `- Good: "By the way, Alvaro's asking: 'Can you confirm the budget for Q2?' — thoughts?"\n`;
+    text += `- Bad: "You have a relay from Jaron." (vague, doesn't show content)\n`;
+    text += `- Bad: "There's a message in context." (the user has no idea what it says)\n`;
+    text += `- If the user asks "what's the relay?" or "what's in context?", ALWAYS quote the subject and sender by name — do not describe it abstractly.\n`;
+    text += `- The UI shows a 📡 relay badge, but your job is to make sure the user knows the actual content in plain conversation.\n\n`;
+    text += `**Auto-respond:** When the user's reply clearly addresses the relay (answers the question, accepts/declines the task, provides the requested info, or tells you what to send back), IMMEDIATELY emit [[relay_respond:...]] without asking for confirmation. The user shouldn't have to explicitly say "respond to the relay" — if the content of their message answers it, just send it back.\n`;
+    text += `\n**If the user ignores the relay for multiple turns:** After 2-3 user messages that don't address it, gently re-surface it once with the verbatim content again. Do not let an inbound relay fester silently.\n`;
     text += `\nTo respond: [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<response message>"}]]\n`;
     text += `To decline: [[relay_respond:{"relayId":"<id>", "status":"declined", "responsePayload":"reason"}]]\n`;
     text += `To send a relay back to someone: [[relay_request:{"connectionId":"<id>", "type":"request", "intent":"custom", "subject":"...", "payload":"..."}]]\n`;
