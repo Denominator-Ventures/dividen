@@ -945,13 +945,40 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             {/* Tag execution results */}
             {tagResults.length > 0 && (
               <div className="mx-11 space-y-2">
-                {/* Standard action results */}
-                {tagResults.some(r => !r.data?.gated && !r.data?.suggestions) && (
+                {/* Relay action results — green outgoing cards */}
+                {tagResults.filter(r => (r.tag === 'relay_respond' || r.tag === 'relay_request' || r.tag === 'relay_broadcast' || r.tag === 'relay_ambient') && r.success).map((r, i) => (
+                  <div key={`relay-${i}`} className="p-2.5 rounded-lg border-l-2 border-l-emerald-500/70 bg-emerald-500/[0.06] border border-emerald-500/20">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-emerald-400 text-[10px] font-bold">↗</span>
+                      <span className="text-[11px] font-medium text-emerald-300">
+                        {r.tag === 'relay_respond' ? '📡 Relay response sent' : r.tag === 'relay_broadcast' ? '📡 Broadcast sent' : r.tag === 'relay_ambient' ? '🌊 Ambient relay sent' : '📡 Relay sent'}
+                      </span>
+                      <span className="text-[8px] px-1 py-px rounded font-medium text-emerald-400 bg-emerald-500/10">
+                        {r.data?.status || 'completed'}
+                      </span>
+                    </div>
+                    {r.data?.subject && (
+                      <p className="text-[10px] text-emerald-300/70 mt-0.5 pl-4 line-clamp-1">{r.data.subject}</p>
+                    )}
+                  </div>
+                ))}
+                {/* Failed relay results — red warning */}
+                {tagResults.filter(r => (r.tag === 'relay_respond' || r.tag === 'relay_request' || r.tag === 'relay_broadcast' || r.tag === 'relay_ambient') && !r.success).map((r, i) => (
+                  <div key={`relay-err-${i}`} className="p-2 rounded-lg border-l-2 border-l-red-500/70 bg-red-500/[0.06] border border-red-500/20">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-red-400 text-[10px] font-bold">✕</span>
+                      <span className="text-[11px] font-medium text-red-300">{r.tag.replace('_', ' ')} failed</span>
+                    </div>
+                    {r.error && <p className="text-[10px] text-red-300/70 mt-0.5 pl-4">{r.error}</p>}
+                  </div>
+                ))}
+                {/* Standard non-relay action results */}
+                {tagResults.some(r => !r.data?.gated && !r.data?.suggestions && !['relay_respond', 'relay_request', 'relay_broadcast', 'relay_ambient'].includes(r.tag)) && (
                   <div className="p-2 rounded bg-[var(--bg-surface)] border border-[var(--border-color)]">
                     <p className="text-xs text-[var(--text-muted)] mb-1 font-medium">
                       ⚡ Actions executed:
                     </p>
-                    {tagResults.filter(r => !r.data?.gated && !r.data?.suggestions).map((r, i) => (
+                    {tagResults.filter(r => !r.data?.gated && !r.data?.suggestions && !['relay_respond', 'relay_request', 'relay_broadcast', 'relay_ambient'].includes(r.tag)).map((r, i) => (
                       <div key={i} className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                         <span>{r.success ? '✅' : '❌'}</span>
                         <span>{r.tag.replace('_', ' ')}</span>

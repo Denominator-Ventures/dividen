@@ -1579,19 +1579,35 @@ export async function executeTag(
       case 'relay_respond': {
         // params: { relayId, status ("completed"|"declined"), responsePayload?,
         //           _ambientQuality?, _ambientDisruption?, _ambientTopicRelevance?, _conversationTopic?, _questionPhrasing? }
-        if (!params.relayId || !params.status) {
-          return { tag: name, success: false, error: 'relayId and status are required.' };
+        // Flexible: also accept { to, message } or { response } as fallback formats
+        const resolvedPayload = params.responsePayload || params.message || params.response || params.text || null;
+        const resolvedStatus = params.status || 'completed'; // default to completed
+
+        // If relayId is missing, auto-resolve: find the oldest unresolved inbound relay for this user
+        let resolvedRelayId = params.relayId;
+        if (!resolvedRelayId) {
+          const autoRelay = await prisma.agentRelay.findFirst({
+            where: { toUserId: userId, status: { in: ['delivered', 'user_review'] } },
+            orderBy: { createdAt: 'asc' }, // FIFO
+          });
+          if (autoRelay) {
+            resolvedRelayId = autoRelay.id;
+            console.log(`[relay_respond] Auto-resolved relayId: ${resolvedRelayId} (LLM omitted relayId)`);
+          } else {
+            return { tag: name, success: false, error: 'No unresolved inbound relay found to respond to.' };
+          }
         }
-        const relayToRespond = await prisma.agentRelay.findUnique({ where: { id: params.relayId } });
+
+        const relayToRespond = await prisma.agentRelay.findUnique({ where: { id: resolvedRelayId } });
         if (!relayToRespond) {
           return { tag: name, success: false, error: 'Relay not found.' };
         }
         const updatedRelay = await prisma.agentRelay.update({
-          where: { id: params.relayId },
+          where: { id: resolvedRelayId },
           data: {
-            status: params.status,
+            status: resolvedStatus,
             resolvedAt: new Date(),
-            responsePayload: params.responsePayload ? (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)) : null,
+            responsePayload: resolvedPayload ? (typeof resolvedPayload === 'string' ? resolvedPayload : JSON.stringify(resolvedPayload)) : null,
           },
         });
 
@@ -1608,14 +1624,14 @@ export async function executeTag(
           try {
             const { captureAmbientSignal } = await import('./ambient-learning');
             await captureAmbientSignal({
-              relayId: params.relayId,
+              relayId: resolvedRelayId,
               fromUserId: relayToRespond.fromUserId,
               toUserId: userId,
               relayCreatedAt: relayToRespond.createdAt,
-              outcome: params.status === 'completed' ? 'answered' : 'declined',
+              outcome: resolvedStatus === 'completed' ? 'answered' : 'declined',
               responseQuality: params._ambientQuality || (
-                params.responsePayload && (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)).length > 50
-                  ? 'substantive' : params.responsePayload ? 'brief' : null
+                resolvedPayload && (typeof resolvedPayload === 'string' ? resolvedPayload : JSON.stringify(resolvedPayload)).length > 50
+                  ? 'substantive' : resolvedPayload ? 'brief' : null
               ),
               disruptionLevel: params._ambientDisruption || null,
               topicRelevance: params._ambientTopicRelevance || null,
@@ -1630,7 +1646,7 @@ export async function executeTag(
 
         // Notify the original sender
         if (relayToRespond.fromUserId !== userId) {
-          const statusLabel = params.status === 'completed' ? '✅ completed' : '❌ declined';
+          const statusLabel = resolvedStatus === 'completed' ? '✅ completed' : '❌ declined';
           await prisma.commsMessage.create({
             data: {
               sender: 'divi',
@@ -1638,16 +1654,16 @@ export async function executeTag(
               state: 'new',
               priority: relayToRespond.priority || 'normal',
               userId: relayToRespond.fromUserId,
-              metadata: JSON.stringify({ type: 'relay_response', relayId: params.relayId }),
+              metadata: JSON.stringify({ type: 'relay_response', relayId: resolvedRelayId }),
             },
           });
         }
         // Push relay state webhook
         pushRelayStateChanged(relayToRespond.fromUserId, {
-          relayId: params.relayId,
+          relayId: resolvedRelayId,
           threadId: relayToRespond.threadId,
           previousState: relayToRespond.status,
-          newState: params.status,
+          newState: resolvedStatus,
           subject: relayToRespond.subject,
         });
 
@@ -1655,25 +1671,25 @@ export async function executeTag(
         // Find any checklist item linked to this relay (sourceType='relay', sourceId=relayId)
         try {
           const linkedChecklist = await prisma.checklistItem.findFirst({
-            where: { sourceType: 'relay', sourceId: params.relayId },
+            where: { sourceType: 'relay', sourceId: resolvedRelayId },
           });
           if (linkedChecklist) {
-            const newDelegationStatus = params.status === 'completed' ? 'accepted' : params.status === 'declined' ? 'declined' : params.status;
+            const newDelegationStatus = resolvedStatus === 'completed' ? 'accepted' : resolvedStatus === 'declined' ? 'declined' : resolvedStatus;
             await prisma.checklistItem.update({
               where: { id: linkedChecklist.id },
               data: {
                 delegationStatus: newDelegationStatus,
-                completed: params.status === 'completed' ? false : linkedChecklist.completed, // accepted != completed
+                completed: resolvedStatus === 'completed' ? false : linkedChecklist.completed, // accepted != completed
               },
             });
           }
         } catch {}
 
         // ── Sync linked queue item if relay_respond completes the relay ──
-        if (relayToRespond.queueItemId && (params.status === 'completed' || params.status === 'declined')) {
+        if (relayToRespond.queueItemId && (resolvedStatus === 'completed' || resolvedStatus === 'declined')) {
           try {
             const { syncQueueWithRelayCompletion } = await import('./relay-queue-bridge');
-            await syncQueueWithRelayCompletion(params.relayId, relayToRespond.fromUserId, params.responsePayload || params.status);
+            await syncQueueWithRelayCompletion(resolvedRelayId, relayToRespond.fromUserId, resolvedPayload || resolvedStatus);
           } catch {}
         }
 
@@ -1687,13 +1703,13 @@ export async function executeTag(
               peerInstanceUrl: relayToRespond.peerInstanceUrl,
               connectionId: relayToRespond.connectionId,
               subject: relayToRespond.subject,
-              status: params.status,
-              responsePayload: params.responsePayload ? (typeof params.responsePayload === 'string' ? params.responsePayload : JSON.stringify(params.responsePayload)) : null,
+              status: resolvedStatus,
+              responsePayload: resolvedPayload ? (typeof resolvedPayload === 'string' ? resolvedPayload : JSON.stringify(resolvedPayload)) : null,
             }).catch(() => {});
           } catch {}
         }
 
-        return { tag: name, success: true, data: { relayId: updatedRelay.id, status: params.status, ambientSignalCaptured: isAmbient } };
+        return { tag: name, success: true, data: { relayId: updatedRelay.id, status: resolvedStatus, subject: relayToRespond.subject, ambientSignalCaptured: isAmbient } };
       }
 
       case 'update_profile': {

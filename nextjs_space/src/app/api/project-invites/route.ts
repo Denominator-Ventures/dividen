@@ -133,9 +133,20 @@ export async function PATCH(req: NextRequest) {
 
     // Notify accepter
     logActivity({ userId, action: 'project_invite_accepted', summary: `Joined project "${projectName}"`, actor: 'user', metadata: { projectId: invite.projectId, inviteId } });
-    // Notify inviter
+    // Notify inviter — both activity log AND comms message so their Divi surfaces it
     if (invite.inviterId) {
       logActivity({ userId: invite.inviterId, action: 'project_member_joined', summary: `${userName} accepted your invite to "${projectName}"`, actor: 'system', metadata: { projectId: invite.projectId, inviteId, newMemberId: userId } });
+      // Fire comms notification so the requesting Divi knows
+      await prisma.commsMessage.create({
+        data: {
+          sender: 'system',
+          content: `✅ ${userName} accepted your invite to project "${projectName}" and is now a member.`,
+          state: 'new',
+          priority: 'normal',
+          userId: invite.inviterId,
+          metadata: JSON.stringify({ type: 'project_invite_accepted', projectId: invite.projectId, inviteId, newMemberId: userId }),
+        },
+      }).catch(() => {});
     }
 
     return NextResponse.json({ success: true, message: 'Invite accepted — you are now a project member.' });
@@ -147,7 +158,21 @@ export async function PATCH(req: NextRequest) {
     });
 
     const project = await prisma.project.findUnique({ where: { id: invite.projectId }, select: { name: true } });
+    const declineName = (session.user as any).name || (session.user as any).email;
     logActivity({ userId, action: 'project_invite_declined', summary: `Declined invite to "${project?.name || 'a project'}"`, actor: 'user', metadata: { projectId: invite.projectId, inviteId } });
+    // Notify inviter via comms
+    if (invite.inviterId) {
+      await prisma.commsMessage.create({
+        data: {
+          sender: 'system',
+          content: `❌ ${declineName} declined your invite to project "${project?.name || 'a project'}".`,
+          state: 'new',
+          priority: 'normal',
+          userId: invite.inviterId,
+          metadata: JSON.stringify({ type: 'project_invite_declined', projectId: invite.projectId, inviteId }),
+        },
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ success: true, message: 'Invite declined.' });
   }

@@ -508,7 +508,7 @@ function SmartTaskAssembly({
                   disabled={!canSubmit}
                   className="text-[11px] btn-primary px-3 py-1 disabled:opacity-40"
                 >
-                  ✓ Add to Queue
+                  Add to Queue
                 </button>
               </div>
             </div>
@@ -819,7 +819,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                 )}
                 title={batchMode ? 'Exit batch mode' : 'Select multiple items'}
               >
-                {batchMode ? '✕ Cancel' : '☑️'}
+                {batchMode ? 'Cancel' : '☑️'}
               </button>
             )}
             <button
@@ -870,7 +870,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                   disabled={batchProcessing}
                   className="text-[10px] px-2.5 py-1 rounded bg-green-500/15 text-green-400 border border-green-500/20 hover:bg-green-500/25 transition-colors font-medium"
                 >
-                  {batchProcessing ? '...' : '✓ Complete All'}
+                  {batchProcessing ? '...' : 'Complete All'}
                 </button>
                 <button
                   onClick={handleBatchSnooze}
@@ -890,7 +890,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                 onClick={() => { selectAllInCategory('notification'); selectAllInCategory('fyi'); setBatchMode(true); }}
                 className="w-full text-[10px] py-1.5 px-3 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/15 hover:bg-blue-500/15 transition-colors"
               >
-                ✓ Clear {notificationItems.length} notification{notificationItems.length > 1 ? 's' : ''}
+                Clear {notificationItems.length} notification{notificationItems.length > 1 ? 's' : ''}
               </button>
             </div>
           )}
@@ -973,13 +973,13 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                                   onClick={() => handleConfirmAction(item.id, 'approve')}
                                   className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-colors"
                                 >
-                                  ✓ Approve
+                                  Accept
                                 </button>
                                 <button
                                   onClick={() => handleConfirmAction(item.id, 'reject')}
                                   className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
                                 >
-                                  ✕ Reject
+                                  Decline
                                 </button>
                               </div>
                             </div>
@@ -1009,7 +1009,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                                     : 'border-[var(--border-color)] hover:border-[var(--brand-primary)]/50 text-transparent'
                                 )}
                               >
-                                ✓
+                                {selectedIds.has(item.id) && <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>}
                               </button>
                             )}
                             <div className={batchMode ? 'ml-5' : ''}>
