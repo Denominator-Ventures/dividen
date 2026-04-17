@@ -176,193 +176,109 @@ function QueueItemCard({
 
   return (
     <div className={cn(
-      "bg-[var(--bg-secondary)] border rounded-lg px-2.5 py-1.5 group transition-all",
+      "group relative border-l-2 transition-colors",
       isCapabilityAction
-        ? "border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40"
-        : "border-[var(--border-color)] hover:border-brand-500/30"
+        ? "border-l-[var(--brand-primary)]/50 hover:bg-[var(--brand-primary)]/[0.03]"
+        : cat.category === 'relay' ? "border-l-purple-500/50 hover:bg-purple-500/[0.03]"
+        : cat.category === 'action' ? "border-l-red-500/50 hover:bg-red-500/[0.03]"
+        : "border-l-[var(--border-color)] hover:bg-white/[0.02]"
     )}>
-      <div className="flex items-start gap-1.5">
-        <div className={cn('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0', pi.dot)} title={pi.label} />
+      {/* Single-line compact layout */}
+      <div className="px-2 py-1.5 flex items-center gap-1.5 min-w-0">
+        {/* Priority dot */}
+        <div className={cn('w-1.5 h-1.5 rounded-full shrink-0', pi.dot)} title={pi.label} />
+
+        {/* Title — the main info */}
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            {isCapabilityAction && <span className="text-xs">{capIcon}</span>}
-            <h4 className="text-xs font-medium text-[var(--text-primary)] line-clamp-1 leading-snug" title={item.title}>
+          <div className="flex items-center gap-1 min-w-0">
+            {isCapabilityAction && <span className="text-[10px] shrink-0">{capIcon}</span>}
+            <span className="text-[11px] font-medium text-[var(--text-primary)] truncate leading-tight" title={item.title}>
               <MentionText text={displaySummary || item.title} />
-            </h4>
-            <span className={cn('text-[8px] px-1 py-px rounded border font-medium shrink-0', cat.color)}>{cat.label}</span>
-            {optimizing && <span className="text-[8px] text-[var(--brand-primary)] animate-pulse">✨</span>}
-            {hasOptimizedPayload && !optimizing && <span className="text-[8px] text-green-400" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
+            </span>
+            {optimizing && <span className="text-[8px] text-[var(--brand-primary)] animate-pulse shrink-0">✨</span>}
+            {hasOptimizedPayload && !optimizing && <span className="text-[8px] text-green-400 shrink-0" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
           </div>
-          {item.description && (
-            <p className="text-[11px] text-[var(--text-muted)] line-clamp-1 mt-0.5 leading-snug">
-              <MentionText text={item.description} />
-            </p>
-          )}
-
-          {/* Capability-specific details */}
-          {capMeta?.capabilityType === 'email' && capMeta.recipient && (
-            <div className="mt-1.5 text-[10px] text-[var(--text-muted)] flex items-center gap-1.5">
-              <span>To: {capMeta.recipient}</span>
-              {capMeta.subject && <span>· {capMeta.subject}</span>}
-            </div>
-          )}
-          {capMeta?.capabilityType === 'meetings' && capMeta.meetingWith && (
-            <div className="mt-1.5 text-[10px] text-[var(--text-muted)] flex items-center gap-1.5">
-              <span>With: {capMeta.meetingWith}</span>
-              {capMeta.proposedTime && <span>· {capMeta.proposedTime}</span>}
-            </div>
-          )}
-
-          {/* Agent Widget (if metadata contains widgets) */}
-          {(() => {
-            const widgetPayload = parseWidgetPayload(item.metadata);
-            if (!widgetPayload) return null;
-            // Check if this widget came from a comm relay (stored in raw metadata JSON)
-            let relayId: string | undefined;
-            try {
-              const rawMeta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
-              relayId = rawMeta?.widgets?.[0]?.metadata?.relayId;
-            } catch {}
-            return (
-              <AgentWidgetContainer
-                payload={widgetPayload}
-                onAction={relayId ? async (wi, action, widget) => {
-                  try {
-                    await fetch('/api/relays/widget-response', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        relayId,
-                        widgetId: widget.title,
-                        itemId: wi.id,
-                        action: action.action,
-                        payload: action.payload,
-                      }),
-                    });
-                    window.dispatchEvent(new CustomEvent('dividen:queue-refresh'));
-                    window.dispatchEvent(new CustomEvent('dividen:comms-refresh'));
-                  } catch (err) {
-                    console.error('[QueueWidget] Response failed:', err);
-                  }
-                } : undefined}
-                className="mt-2"
-              />
-            );
-          })()}
-
-          {/* Capability action buttons (approve / edit) */}
-          {isCapabilityAction && item.status === 'ready' && (
-            <div className="flex items-center gap-1.5 mt-2">
-              <button
-                onClick={() => onStatusChange(item.id, 'done_today')}
-                className="text-[10px] px-2 py-0.5 rounded-md bg-green-600/15 text-green-400 hover:bg-green-600/25 font-medium"
-              >
-                ✓ Approve
-              </button>
-              <button
-                onClick={() => onStatusChange(item.id, 'in_progress')}
-                className="text-[10px] px-2 py-0.5 rounded-md bg-blue-600/15 text-blue-400 hover:bg-blue-600/25 font-medium"
-              >
-                ✏️ Review
-              </button>
-              <button
-                onClick={() => onStatusChange(item.id, 'blocked')}
-                className="text-[10px] px-2 py-0.5 rounded-md bg-red-600/10 text-red-400/70 hover:bg-red-600/20 font-medium"
-              >
-                ✕ Skip
-              </button>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 mt-1">
-            <span className="text-[9px] text-[var(--text-muted)]">
-              {timeAgo(item.createdAt)}
-            </span>
-            <span className={cn(
-              "text-[9px] px-1 py-px rounded",
-              isCapabilityAction
-                ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
-                : "bg-[var(--bg-surface)] text-[var(--text-muted)]"
-            )}>
-              {isCapabilityAction ? `${capMeta.capabilityType}` : item.type}
-            </span>
+          {/* Metadata row — time + type + optional context */}
+          <div className="flex items-center gap-1.5 mt-px">
+            <span className="text-[9px] text-[var(--text-muted)]">{timeAgo(item.createdAt)}</span>
+            <span className={cn('text-[8px] px-1 py-px rounded font-medium shrink-0', cat.color)}>{cat.label}</span>
+            {capMeta?.capabilityType === 'email' && capMeta.recipient && (
+              <span className="text-[9px] text-[var(--text-muted)] truncate">\u2192 {capMeta.recipient}</span>
+            )}
+            {capMeta?.capabilityType === 'meetings' && capMeta.meetingWith && (
+              <span className="text-[9px] text-[var(--text-muted)] truncate">w/ {capMeta.meetingWith}</span>
+            )}
           </div>
         </div>
-        {/* Quick actions */}
-        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+
+        {/* Inline quick actions — always visible for active items */}
+        <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
           {item.status === 'ready' && (
-            <button
-              onClick={() => onStatusChange(item.id, 'in_progress')}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400 hover:bg-blue-600/30"
-              title="Start"
-            >
-              ▶
-            </button>
+            <button onClick={() => onStatusChange(item.id, 'done_today')} className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-green-400 hover:bg-green-500/15" title="Complete">\u2713</button>
+          )}
+          {item.status === 'ready' && (
+            <button onClick={() => onStatusChange(item.id, 'in_progress')} className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-blue-400 hover:bg-blue-500/15" title="Start">\u25B6</button>
           )}
           {item.status === 'in_progress' && (
-            <>
-              <button
-                onClick={() => onStatusChange(item.id, 'done_today')}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-green-600/20 text-green-400 hover:bg-green-600/30"
-                title="Done"
-              >
-                ✓
-              </button>
-              <button
-                onClick={() => onStatusChange(item.id, 'blocked')}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 hover:bg-red-600/30"
-                title="Block"
-              >
-                ✕
-              </button>
-            </>
-          )}
-          {item.status === 'blocked' && (
-            <button
-              onClick={() => onStatusChange(item.id, 'ready')}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-green-600/20 text-green-400 hover:bg-green-600/30"
-              title="Unblock"
-            >
-              ↩
-            </button>
-          )}
-          {/* Edit button */}
-          {onEdit && (
-            <button
-              onClick={() => setEditing(true)}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-amber-600/15 text-amber-400 hover:bg-amber-600/25"
-              title="Edit task"
-            >
-              ✏️
-            </button>
+            <button onClick={() => onStatusChange(item.id, 'done_today')} className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-green-400 hover:bg-green-500/15" title="Done">\u2713</button>
           )}
           {onDiscuss && (
-            <button
-              onClick={() => onDiscuss(`Let's discuss this task: "${item.title}". ${item.description ? `Description: ${item.description}` : ''} Status: ${item.status}, Priority: ${item.priority}. Help me work through this.`)}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20"
-              title="Discuss with Divi"
-            >
-              💬
-            </button>
+            <button onClick={() => onDiscuss(`Let's discuss this task: "${item.title}". ${item.description ? `Description: ${item.description}` : ''} Status: ${item.status}, Priority: ${item.priority}. Help me work through this.`)} className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-brand-400 hover:bg-brand-500/15" title="Discuss">\uD83D\uDCAC</button>
           )}
-          {onSendToComms && (
-            <button
-              onClick={() => onSendToComms(item.id, item.title)}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-purple-600/20 text-purple-400 hover:bg-purple-600/30"
-              title="Send to Comms"
-            >
-              📡
-            </button>
+          {onEdit && (
+            <button onClick={() => setEditing(true)} className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-amber-400 hover:bg-amber-500/15" title="Edit">\u270F\uFE0F</button>
           )}
-          <button
-            onClick={() => onDelete(item.id)}
-            className="text-[10px] px-1.5 py-0.5 rounded text-[var(--text-muted)] hover:bg-red-600/20 hover:text-red-400"
-            title="Delete"
-          >
-            🗑
-          </button>
+          <button onClick={() => onDelete(item.id)} className="w-5 h-5 rounded flex items-center justify-center text-[10px] text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/15" title="Delete">\uD83D\uDDD1</button>
         </div>
       </div>
+
+      {/* Description — only show if present, ultra-compact */}
+      {item.description && !isCapabilityAction && (
+        <p className="px-2 pb-1 pl-5 text-[10px] text-[var(--text-muted)] line-clamp-1 leading-tight">
+          <MentionText text={item.description} />
+        </p>
+      )}
+
+      {/* Capability action buttons */}
+      {isCapabilityAction && item.status === 'ready' && (
+        <div className="flex items-center gap-1 px-2 pb-1.5 pl-5">
+          <button onClick={() => onStatusChange(item.id, 'done_today')} className="text-[9px] px-1.5 py-0.5 rounded bg-green-600/15 text-green-400 hover:bg-green-600/25 font-medium">\u2713 Approve</button>
+          <button onClick={() => onStatusChange(item.id, 'in_progress')} className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600/15 text-blue-400 hover:bg-blue-600/25 font-medium">\u270F\uFE0F Review</button>
+          <button onClick={() => onStatusChange(item.id, 'blocked')} className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/10 text-red-400/70 hover:bg-red-600/20 font-medium">\u2715 Skip</button>
+        </div>
+      )}
+
+      {/* Agent Widget */}
+      {(() => {
+        const widgetPayload = parseWidgetPayload(item.metadata);
+        if (!widgetPayload) return null;
+        let relayId: string | undefined;
+        try {
+          const rawMeta = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+          relayId = rawMeta?.widgets?.[0]?.metadata?.relayId;
+        } catch {}
+        return (
+          <div className="px-2 pb-1.5 pl-5">
+            <AgentWidgetContainer
+              payload={widgetPayload}
+              onAction={relayId ? async (wi, action, widget) => {
+                try {
+                  await fetch('/api/relays/widget-response', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ relayId, widgetId: widget.title, itemId: wi.id, action: action.action, payload: action.payload }),
+                  });
+                  window.dispatchEvent(new CustomEvent('dividen:queue-refresh'));
+                  window.dispatchEvent(new CustomEvent('dividen:comms-refresh'));
+                } catch (err) {
+                  console.error('[QueueWidget] Response failed:', err);
+                }
+              } : undefined}
+              className=""
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1047,18 +963,18 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                   return (
                     <div key={section.id}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm">{section.icon}</span>
-                        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
-                        <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
+                        <span className="text-[11px]">{section.icon}</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
+                        <span className="text-[9px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
                       </div>
-                      <div className="space-y-1">
+                      <div className="border border-[var(--border-color)] rounded-lg overflow-hidden divide-y divide-[var(--border-color)]">
                         {sectionItems.map((item) => (
                           <div key={item.id} className="relative">
                             {batchMode && (
                               <button
                                 onClick={() => toggleSelect(item.id)}
                                 className={cn(
-                                  'absolute -left-1 top-3 w-4 h-4 rounded border flex items-center justify-center text-[9px] z-10 transition-all',
+                                  'absolute left-0.5 top-2 w-4 h-4 rounded border flex items-center justify-center text-[9px] z-10 transition-all',
                                   selectedIds.has(item.id)
                                     ? 'bg-[var(--brand-primary)] border-[var(--brand-primary)] text-white'
                                     : 'border-[var(--border-color)] hover:border-[var(--brand-primary)]/50 text-transparent'

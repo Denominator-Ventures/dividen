@@ -136,7 +136,7 @@ export default function ReleaseNotesPage() {
                   <li>• <strong className="text-white">Relay dismiss button</strong> — Each relay in Comms now has a dismiss (×) button that marks it as expired via PATCH.</li>
                   <li>• <strong className="text-white">Queue filter</strong> — <code className="code-inline">behavior_learning</code> items no longer appear in the task queue. They belong in Settings → Learnings.</li>
                   <li>• <strong className="text-white">Chat textarea</strong> — Input converted from single-line <code className="code-inline">&lt;input&gt;</code> to auto-resizing <code className="code-inline">&lt;textarea&gt;</code>. Grows vertically up to 160px, resets on send.</li>
-                  <li>• <strong className="text-white">Name resolution</strong> — <code className="code-inline">invite_to_project</code> now uses score-based matching (exact → contains → first-name) and searches <code className="code-inline">peerAgentName</code> field.</li>
+                  <li>• <strong className="text-white">Name resolution</strong> — <code className="code-inline">invite_to_project</code> now uses score-based matching (exact → contains → first-name) across all connection fields.</li>
                 </ul>
               </div>
 

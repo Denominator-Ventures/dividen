@@ -2997,7 +2997,7 @@ export async function executeTag(
               for (const c of allConns as any[]) {
                 const peer = c.requesterId === userId ? c.accepter : c.requester;
                 const vals = [
-                  c.nickname, c.peerNickname, c.peerUserName, c.peerUserEmail, c.peerAgentName,
+                  c.nickname, c.peerNickname, c.peerUserName, c.peerUserEmail,
                   peer?.name, peer?.email, peer?.username,
                 ].filter(Boolean).map((v: string) => v.toLowerCase());
                 // Exact match on any field

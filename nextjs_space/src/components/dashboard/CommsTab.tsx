@@ -32,42 +32,11 @@ interface Relay {
     id: string;
     requester: RelayUser;
     accepter: RelayUser | null;
-    peerAgentName?: string | null;
     peerUserName?: string | null;
   };
   fromUser: RelayUser;
   toUser: RelayUser | null;
 }
-
-/** Comms message that tracks relay lifecycle events */
-interface CommsEvent {
-  id: string;
-  content: string;
-  createdAt: string;
-  metadata: string | null;
-  _type: string;
-  _relayId?: string;
-  _targetName?: string;
-}
-
-interface RelayThread {
-  connectionId: string;
-  peerName: string;
-  latestRelay: Relay;
-  count: number;
-  unresolved: number;
-  events: CommsEvent[];
-}
-
-// Comms metadata types that represent relay lifecycle events
-const RELAY_COMMS_TYPES = new Set([
-  'task_route_sent',
-  'federation_relay_acked',
-  'federation_relay_completed',
-  'relay_response',
-  'agent_relay',
-  'federated_relay',
-]);
 
 // Resolved statuses — these relays are "done"
 const RESOLVED_STATUSES = new Set(['completed', 'declined', 'expired']);
@@ -84,14 +53,14 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-const STATUS_DOT: Record<string, string> = {
-  pending: 'bg-amber-400',
-  delivered: 'bg-blue-400',
-  agent_handling: 'bg-purple-400',
-  user_review: 'bg-pink-400',
-  completed: 'bg-emerald-400',
-  declined: 'bg-red-400',
-  expired: 'bg-gray-400',
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  pending: { label: 'pending', color: 'text-amber-400 bg-amber-500/10' },
+  delivered: { label: 'delivered', color: 'text-blue-400 bg-blue-500/10' },
+  agent_handling: { label: 'handling', color: 'text-purple-400 bg-purple-500/10' },
+  user_review: { label: 'review', color: 'text-pink-400 bg-pink-500/10' },
+  completed: { label: 'done', color: 'text-emerald-400 bg-emerald-500/10' },
+  declined: { label: 'declined', color: 'text-red-400 bg-red-500/10' },
+  expired: { label: 'expired', color: 'text-gray-400 bg-gray-500/10' },
 };
 
 const INTENT_ICONS: Record<string, string> = {
@@ -104,55 +73,21 @@ const INTENT_ICONS: Record<string, string> = {
   custom: '\uD83D\uDCAC',
 };
 
-const EVENT_LABELS: Record<string, string> = {
-  task_route_sent: '\uD83D\uDCE4 Dispatched',
-  federation_relay_acked: '\u2713 Delivery confirmed',
-  federation_relay_completed: '\u2705 Completed by remote',
-  relay_response: '\u21A9 Response received',
-  agent_relay: '\uD83D\uDCE1 Relay received',
-  federated_relay: '\uD83C\uDF10 Federation relay',
-};
-
 // ─── Component ───
 
 export function CommsTab() {
   const { data: session } = useSession() || {};
   const userId = (session?.user as any)?.id;
   const [relays, setRelays] = useState<Relay[]>([]);
-  const [commsEvents, setCommsEvents] = useState<CommsEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const [relayRes, commsRes] = await Promise.all([
-        fetch('/api/relays?limit=50'),
-        fetch('/api/comms?limit=80&state=all'),
-      ]);
-      const relayData = await relayRes.json();
-      if (Array.isArray(relayData)) setRelays(relayData);
-
-      // Parse comms messages and filter to relay lifecycle events
-      const commsData = await commsRes.json();
-      const messages = Array.isArray(commsData) ? commsData : commsData?.data || commsData?.messages || [];
-      const events: CommsEvent[] = [];
-      for (const msg of messages) {
-        try {
-          const meta = msg.metadata ? JSON.parse(msg.metadata) : null;
-          if (meta?.type && RELAY_COMMS_TYPES.has(meta.type)) {
-            events.push({
-              id: msg.id,
-              content: msg.content,
-              createdAt: msg.createdAt,
-              metadata: msg.metadata,
-              _type: meta.type,
-              _relayId: meta.relayId,
-              _targetName: meta.targetName || meta.routedTo || undefined,
-            });
-          }
-        } catch {}
-      }
-      setCommsEvents(events);
+      const res = await fetch('/api/relays?limit=50');
+      const data = await res.json();
+      if (Array.isArray(data)) setRelays(data);
     } catch (e) {
       console.error('Comms fetch error:', e);
     } finally {
@@ -166,7 +101,6 @@ export function CommsTab() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Listen for custom refresh events
   useEffect(() => {
     const handler = () => fetchData();
     window.addEventListener('dividen:comms-refresh', handler);
@@ -193,174 +127,155 @@ export function CommsTab() {
     }
   }, []);
 
-  const threads = useMemo(() => {
-    // Index comms events by relayId for quick lookup
-    const eventsByRelay = new Map<string, CommsEvent[]>();
-    for (const ev of commsEvents) {
-      if (ev._relayId) {
-        if (!eventsByRelay.has(ev._relayId)) eventsByRelay.set(ev._relayId, []);
-        eventsByRelay.get(ev._relayId)!.push(ev);
-      }
+  // Split relays into active vs resolved, sorted by time
+  const { active, resolved } = useMemo(() => {
+    const sorted = [...relays].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const active: Relay[] = [];
+    const resolved: Relay[] = [];
+    for (const r of sorted) {
+      if (RESOLVED_STATUSES.has(r.status)) resolved.push(r);
+      else active.push(r);
     }
+    return { active, resolved };
+  }, [relays]);
 
-    const map = new Map<string, Relay[]>();
-    for (const r of relays) {
-      const cid = r.connectionId;
-      if (!map.has(cid)) map.set(cid, []);
-      map.get(cid)!.push(r);
+  // Get peer name for a relay
+  function getPeerName(r: Relay): string {
+    if (!userId) return 'Unknown';
+    const isOutbound = r.fromUserId === userId;
+    if (isOutbound) {
+      return r.toUser?.name || r.connection?.accepter?.name || r.connection?.peerUserName || 'Agent';
     }
-
-    const result: RelayThread[] = [];
-    for (const [connectionId, items] of map) {
-      items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      const latest = items[items.length - 1];
-      const first = items[0];
-      const conn = first.connection;
-
-      let peerName = 'Unknown';
-      if (conn && userId) {
-        const requesterIsMe = conn.requester?.id === userId;
-        const accepterIsMe = conn.accepter?.id === userId;
-        if (requesterIsMe) {
-          peerName = conn.accepter?.name || conn.peerUserName || first.toUser?.name || 'Agent';
-        } else if (accepterIsMe) {
-          peerName = conn.requester?.name || first.fromUser?.name || 'Agent';
-        } else {
-          peerName = conn.peerUserName || first.toUser?.name || first.fromUser?.name || 'Agent';
-        }
-      } else if (first.fromUserId === userId) {
-        peerName = first.toUser?.name || 'Agent';
-      } else {
-        peerName = first.fromUser?.name || 'Agent';
-      }
-
-      // Collect all lifecycle events for relays in this thread
-      const threadEvents: CommsEvent[] = [];
-      for (const r of items) {
-        const evs = eventsByRelay.get(r.id) || [];
-        threadEvents.push(...evs);
-      }
-      threadEvents.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-
-      const unresolved = items.filter(r => !RESOLVED_STATUSES.has(r.status)).length;
-      result.push({ connectionId, peerName, latestRelay: latest, count: items.length, unresolved, events: threadEvents });
-    }
-
-    result.sort((a, b) => new Date(b.latestRelay.createdAt).getTime() - new Date(a.latestRelay.createdAt).getTime());
-    return result;
-  }, [relays, commsEvents, userId]);
-
-  const activeThreads = threads.filter(t => t.unresolved > 0);
-  const resolvedThreads = threads.filter(t => t.unresolved === 0);
-  const pendingCount = activeThreads.length;
-
-  // Latest event label for a thread — includes target name when available
-  function latestEventLabel(thread: RelayThread): string | null {
-    if (thread.events.length === 0) return null;
-    const last = thread.events[thread.events.length - 1];
-    const base = EVENT_LABELS[last._type] || null;
-    if (!base) return null;
-    if (last._targetName) {
-      return `${base} \u2192 ${last._targetName}`;
-    }
-    return base;
+    return r.fromUser?.name || r.connection?.requester?.name || r.connection?.peerUserName || 'Agent';
   }
 
-  // Render a single thread row
-  function renderThread(thread: RelayThread) {
-    const latest = thread.latestRelay;
-    const dotColor = STATUS_DOT[latest.status] || 'bg-gray-400';
-    const isOutbound = latest.fromUserId === userId;
-    const isResolved = RESOLVED_STATUSES.has(latest.status);
-    const eventLabel = latestEventLabel(thread);
+  // Render a single relay card
+  function renderRelay(r: Relay) {
+    const isOutbound = r.fromUserId === userId;
+    const isResolved = RESOLVED_STATUSES.has(r.status);
+    const isExpanded = expandedId === r.id;
+    const statusInfo = STATUS_LABELS[r.status] || STATUS_LABELS.pending;
+    const peerName = getPeerName(r);
+    const icon = INTENT_ICONS[r.intent] || '\uD83D\uDCAC';
 
-    // Direction-based colors: green for outbound, purple for inbound
-    const directionBorder = isOutbound ? 'border-l-emerald-500' : 'border-l-purple-500';
-    const directionArrowColor = isOutbound ? 'text-emerald-400' : 'text-purple-400';
-    const directionArrow = isOutbound ? '\u2197' : '\u2199';
+    // Parse payload for details
+    let payloadText = '';
+    try {
+      if (r.payload) {
+        const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
+        payloadText = p.message || p.description || p.details || p.body || '';
+      }
+    } catch { /* not json */ payloadText = typeof r.payload === 'string' ? r.payload : ''; }
 
-    // Most recent timestamp across relay + events
-    const latestTime = thread.events.length > 0
-      ? new Date(Math.max(
-          new Date(latest.createdAt).getTime(),
-          ...thread.events.map(e => new Date(e.createdAt).getTime())
-        )).toISOString()
-      : latest.createdAt;
+    let responseText = '';
+    try {
+      if (r.responsePayload) {
+        const p = typeof r.responsePayload === 'string' ? JSON.parse(r.responsePayload) : r.responsePayload;
+        responseText = typeof p === 'string' ? p : (p.message || p.response || p.text || JSON.stringify(p));
+      }
+    } catch { responseText = typeof r.responsePayload === 'string' ? r.responsePayload : ''; }
+
+    // Direction colors
+    const borderColor = isOutbound ? 'border-l-emerald-500/70' : 'border-l-purple-500/70';
+    const bgHover = isOutbound ? 'hover:bg-emerald-500/[0.03]' : 'hover:bg-purple-500/[0.03]';
+    const dirArrow = isOutbound ? '↗' : '↙';
+    const dirColor = isOutbound ? 'text-emerald-400' : 'text-purple-400';
+    const dirLabel = isOutbound ? 'sent' : 'received';
 
     return (
-      <Link
-        key={thread.connectionId}
-        href="/dashboard/comms"
-        className={`group relative block px-3 py-2.5 border-b border-[var(--border-color)] hover:bg-[var(--bg-surface)] transition-colors border-l-2 ${directionBorder} ${
-          isResolved ? 'opacity-50' : ''
+      <div
+        key={r.id}
+        className={`group relative border-l-2 ${borderColor} ${bgHover} transition-colors cursor-pointer ${
+          isResolved ? 'opacity-40' : ''
         }`}
+        onClick={() => setExpandedId(isExpanded ? null : r.id)}
       >
-        {/* Dismiss button — visible on hover for unresolved relays */}
+        {/* Dismiss button */}
         {!isResolved && (
           <button
-            onClick={(e) => dismissRelay(latest.id, e)}
-            className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            title="Dismiss relay"
+            onClick={(e) => dismissRelay(r.id, e)}
+            className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+            title="Dismiss"
           >
-            <span className="text-[10px] font-bold">{'\u2715'}</span>
+            <span className="text-[8px] font-bold">\u2715</span>
           </button>
         )}
 
-        <div className="flex items-center justify-between gap-2 mb-0.5">
+        {/* Compact row */}
+        <div className="px-2.5 py-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${dotColor}`} />
-            <span className={`text-[11px] font-medium truncate ${isResolved ? 'text-[var(--text-muted)] line-through' : 'text-[var(--text-primary)]'}`}>
-              <MentionText text={thread.peerName} />
+            {/* Direction arrow */}
+            <span className={`text-[10px] font-bold flex-shrink-0 ${dirColor}`}>{dirArrow}</span>
+            {/* Peer name */}
+            <span className={`text-[11px] font-medium truncate flex-1 min-w-0 ${
+              isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'
+            }`}>
+              <MentionText text={peerName} />
             </span>
-            <span className={`text-[9px] font-bold ${directionArrowColor}`}>
-              {directionArrow}
+            {/* Status pill */}
+            <span className={`text-[8px] px-1 py-px rounded font-medium flex-shrink-0 ${statusInfo.color}`}>
+              {statusInfo.label}
             </span>
+            {/* Time */}
+            <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">{timeAgo(r.createdAt)}</span>
           </div>
-          <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">
-            {timeAgo(latestTime)}
-          </span>
+          {/* Subject line */}
+          <p className={`text-[10px] line-clamp-1 mt-0.5 pl-4 ${
+            isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)]'
+          }`}>
+            {icon} <MentionText text={r.subject} />
+          </p>
         </div>
 
-        <p className={`text-[10px] line-clamp-1 pl-3 ${isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)]'}`}>
-          {INTENT_ICONS[latest.intent] || '\uD83D\uDCAC'} <MentionText text={latest.subject} />
-        </p>
-
-        {/* Status badge for resolved relays */}
-        {isResolved && (
-          <span className={`inline-block ml-3 mt-0.5 text-[8px] font-medium px-1.5 py-0.5 rounded-full ${
-            latest.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' :
-            latest.status === 'declined' ? 'bg-red-500/15 text-red-400' :
-            'bg-gray-500/15 text-gray-400'
-          }`}>
-            {latest.status === 'completed' ? '\u2705 resolved' : latest.status === 'declined' ? '\u274C declined' : '\u23F3 expired'}
-          </span>
+        {/* Expanded detail */}
+        {isExpanded && (
+          <div className="px-2.5 pb-2 space-y-1.5">
+            <div className="ml-4 text-[10px] text-[var(--text-muted)] flex flex-wrap gap-x-3 gap-y-0.5">
+              <span>{dirLabel} · {r.type} · {r.intent}</span>
+              <span>priority: {r.priority}</span>
+              {r.threadId && <span>thread: {r.threadId.slice(0, 8)}…</span>}
+            </div>
+            {payloadText && (
+              <div className="ml-4 p-1.5 rounded bg-[var(--bg-surface)] text-[10px] text-[var(--text-secondary)] leading-relaxed max-h-20 overflow-y-auto">
+                <MentionText text={payloadText.slice(0, 400)} />
+                {payloadText.length > 400 && <span className="text-[var(--text-muted)]">…</span>}
+              </div>
+            )}
+            {responseText && (
+              <div className={`ml-4 p-1.5 rounded text-[10px] leading-relaxed max-h-20 overflow-y-auto ${
+                isOutbound ? 'bg-purple-500/5 text-purple-300' : 'bg-emerald-500/5 text-emerald-300'
+              }`}>
+                <span className="font-medium">Response: </span>
+                <MentionText text={responseText.slice(0, 400)} />
+                {responseText.length > 400 && <span className="opacity-50">…</span>}
+              </div>
+            )}
+            <div className="ml-4 flex items-center gap-2">
+              <Link
+                href="/dashboard/comms"
+                className="text-[9px] text-brand-400 hover:text-brand-300"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Open full thread →
+              </Link>
+            </div>
+          </div>
         )}
-
-        {/* Latest lifecycle event — delivery/ack/completion status */}
-        {eventLabel && !isResolved && (
-          <p className="text-[9px] text-[var(--text-muted)] line-clamp-1 pl-3 mt-0.5">
-            {eventLabel}
-          </p>
-        )}
-
-        {thread.count > 1 && !isResolved && (
-          <span className="text-[9px] text-[var(--text-muted)] pl-3">
-            {thread.count} messages{thread.events.length > 0 ? ` \u00B7 ${thread.events.length} events` : ''}
-          </span>
-        )}
-      </Link>
+      </div>
     );
   }
+
+  const activeCount = active.length;
 
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs font-semibold text-[var(--text-primary)]">{'\uD83D\uDCE1'} Comms</span>
-          {pendingCount > 0 && (
+          <span className="text-xs font-semibold text-[var(--text-primary)]">\uD83D\uDCE1 Comms</span>
+          {activeCount > 0 && (
             <span className="bg-[var(--brand-primary)] text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center">
-              {pendingCount}
+              {activeCount}
             </span>
           )}
         </div>
@@ -368,39 +283,43 @@ export function CommsTab() {
           href="/dashboard/comms"
           className="text-[10px] text-[var(--text-muted)] hover:text-brand-400 transition-colors"
         >
-          Expand {'\u2197'}
+          Expand \u2197
         </Link>
       </div>
 
-      {/* Thread list */}
+      {/* Relay list */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center h-24">
             <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : threads.length === 0 ? (
+        ) : relays.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 px-4 text-center">
-            <span className="text-2xl mb-2">{'\uD83D\uDCE1'}</span>
+            <span className="text-2xl mb-2">\uD83D\uDCE1</span>
             <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
               Agent relay conversations appear here. Your Divi&apos;s exchanges with other agents are logged as they happen.
             </p>
           </div>
         ) : (
           <>
-            {/* Active (unresolved) threads */}
-            {activeThreads.map(renderThread)}
+            {/* Active relays — each renders individually */}
+            {active.length > 0 && (
+              <div>
+                {active.map(renderRelay)}
+              </div>
+            )}
 
-            {/* Resolved threads — collapsible */}
-            {resolvedThreads.length > 0 && (
+            {/* Resolved — collapsible */}
+            {resolved.length > 0 && (
               <>
                 <button
                   onClick={() => setShowResolved(prev => !prev)}
-                  className="w-full px-3 py-1.5 text-[9px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center gap-1 transition-colors"
+                  className="w-full px-3 py-1.5 text-[9px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center gap-1 transition-colors border-t border-[var(--border-color)]"
                 >
                   <span className="text-[8px]">{showResolved ? '\u25BC' : '\u25B6'}</span>
-                  {resolvedThreads.length} resolved
+                  {resolved.length} resolved
                 </button>
-                {showResolved && resolvedThreads.map(renderThread)}
+                {showResolved && resolved.map(renderRelay)}
               </>
             )}
           </>
