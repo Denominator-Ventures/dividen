@@ -3014,6 +3014,28 @@ export async function executeTag(
               });
             }
 
+            // On re-send, close previous queue items and comms messages for this invite
+            if (isResend && inviteeId) {
+              await prisma.queueItem.updateMany({
+                where: {
+                  userId: inviteeId,
+                  type: 'notification',
+                  status: { notIn: ['done_today', 'dismissed', 'archived'] },
+                  metadata: { contains: invite.id },
+                },
+                data: { status: 'dismissed' },
+              });
+              await prisma.commsMessage.updateMany({
+                where: {
+                  userId: inviteeId,
+                  sender: 'system',
+                  state: { not: 'archived' },
+                  metadata: { contains: invite.id },
+                },
+                data: { state: 'archived' },
+              });
+            }
+
             // Always send notifications — even on re-send
             if (inviteeId) {
               await prisma.queueItem.create({

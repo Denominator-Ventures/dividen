@@ -51,7 +51,7 @@ interface CommsEvent {
 }
 
 interface RelayThread {
-  threadId: string;
+  connectionId: string;
   peerName: string;
   latestRelay: Relay;
   count: number;
@@ -185,13 +185,13 @@ export function CommsTab() {
 
     const map = new Map<string, Relay[]>();
     for (const r of relays) {
-      const tid = r.threadId || r.id;
-      if (!map.has(tid)) map.set(tid, []);
-      map.get(tid)!.push(r);
+      const cid = r.connectionId;
+      if (!map.has(cid)) map.set(cid, []);
+      map.get(cid)!.push(r);
     }
 
     const result: RelayThread[] = [];
-    for (const [threadId, items] of map) {
+    for (const [connectionId, items] of map) {
       items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       const latest = items[items.length - 1];
       const first = items[0];
@@ -223,7 +223,7 @@ export function CommsTab() {
       threadEvents.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
       const unresolved = items.filter(r => !['completed', 'declined', 'expired'].includes(r.status)).length;
-      result.push({ threadId, peerName, latestRelay: latest, count: items.length, unresolved, events: threadEvents });
+      result.push({ connectionId, peerName, latestRelay: latest, count: items.length, unresolved, events: threadEvents });
     }
 
     result.sort((a, b) => new Date(b.latestRelay.createdAt).getTime() - new Date(a.latestRelay.createdAt).getTime());
@@ -294,7 +294,7 @@ export function CommsTab() {
 
             return (
               <Link
-                key={thread.threadId}
+                key={thread.connectionId}
                 href="/dashboard/comms"
                 className={`block px-3 py-2.5 border-b border-[var(--border-color)] hover:bg-[var(--bg-surface)] transition-colors ${
                   thread.unresolved > 0 ? 'border-l-2 border-l-brand-500' : 'border-l-2 border-l-transparent'

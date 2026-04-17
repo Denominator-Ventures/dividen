@@ -51,7 +51,7 @@ interface Relay {
 }
 
 interface RelayThread {
-  threadId: string;
+  connectionId: string;
   peerName: string;
   peerAgentName: string | null;
   latestRelay: Relay;
@@ -127,18 +127,18 @@ export default function CommsPage() {
     fetchRelays();
   }, [fetchRelays]);
 
-  // Group relays into threads
+  // Group relays by connection (person), not by threadId
   const threads = useMemo(() => {
-    const threadMap = new Map<string, Relay[]>();
+    const connMap = new Map<string, Relay[]>();
 
     for (const r of relays) {
-      const tid = r.threadId || r.id; // solo relays get their own thread
-      if (!threadMap.has(tid)) threadMap.set(tid, []);
-      threadMap.get(tid)!.push(r);
+      const cid = r.connectionId;
+      if (!connMap.has(cid)) connMap.set(cid, []);
+      connMap.get(cid)!.push(r);
     }
 
     const result: RelayThread[] = [];
-    for (const [threadId, items] of threadMap) {
+    for (const [connectionId, items] of connMap) {
       items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       const latest = items[items.length - 1];
 
@@ -149,7 +149,6 @@ export default function CommsPage() {
       let peerAgentName = conn?.peerAgentName || null;
 
       if (conn && userId) {
-        // Pick whichever side of the connection is NOT the current user
         const requesterIsMe = conn.requester?.id === userId;
         const accepterIsMe = conn.accepter?.id === userId;
 
@@ -160,7 +159,6 @@ export default function CommsPage() {
         } else if (conn.peerUserName) {
           peerName = conn.peerUserName;
         } else {
-          // Fallback: look at the relay users themselves
           const isOutbound = firstRelay.fromUserId === userId;
           peerName = isOutbound
             ? (firstRelay.toUser?.name || firstRelay.toUser?.email || 'External Agent')
@@ -174,7 +172,7 @@ export default function CommsPage() {
 
       const unresolved = items.filter(r => !['completed', 'declined', 'expired'].includes(r.status)).length;
 
-      result.push({ threadId, peerName, peerAgentName, latestRelay: latest, relays: items, unresolved });
+      result.push({ connectionId, peerName, peerAgentName, latestRelay: latest, relays: items, unresolved });
     }
 
     // Sort by latest activity
@@ -191,7 +189,7 @@ export default function CommsPage() {
     return threads;
   }, [threads, filter]);
 
-  const activeThread = threads.find(t => t.threadId === selectedThread);
+  const activeThread = threads.find(t => t.connectionId === selectedThread);
   const pendingCount = threads.filter(t => t.unresolved > 0).length;
 
   return (
@@ -272,15 +270,15 @@ export default function CommsPage() {
               </div>
             ) : (
               filteredThreads.map((thread) => {
-                const isSelected = selectedThread === thread.threadId;
+                const isSelected = selectedThread === thread.connectionId;
                 const latest = thread.latestRelay;
                 const statusInfo = STATUS_CONFIG[latest.status] || STATUS_CONFIG.pending;
                 const isOutbound = latest.fromUserId === userId;
 
                 return (
                   <button
-                    key={thread.threadId}
-                    onClick={() => setSelectedThread(thread.threadId)}
+                    key={thread.connectionId}
+                    onClick={() => setSelectedThread(thread.connectionId)}
                     className={`w-full text-left px-3 py-3 border-b border-[var(--border-color)] transition-colors ${
                       isSelected ? 'bg-[var(--brand-primary)]/8' : 'hover:bg-[var(--bg-surface)]'
                     } ${thread.unresolved > 0 ? 'border-l-2 border-l-[var(--brand-primary)]' : 'border-l-2 border-l-transparent'}`}
@@ -359,7 +357,7 @@ export default function CommsPage() {
                   </span>
                 </div>
                 <p className="text-[10px] text-[var(--text-muted)]">
-                  {activeThread.relays.length} relay{activeThread.relays.length !== 1 ? 's' : ''} in this thread
+                  {activeThread.relays.length} relay{activeThread.relays.length !== 1 ? 's' : ''} with this connection
                   {activeThread.latestRelay.peerInstanceUrl && ` · Federated: ${activeThread.latestRelay.peerInstanceUrl}`}
                 </p>
               </div>
