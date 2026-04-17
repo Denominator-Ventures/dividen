@@ -876,6 +876,92 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         },
       },
     },
+    '/connections': {
+      get: {
+        tags: ['Federation'],
+        summary: 'List federated connections',
+        description: 'Returns active federated connections for the authenticated user. Requires Bearer token auth.',
+        responses: {
+          '200': {
+            description: 'List of federated connections',
+            content: {
+              'application/json': {
+                example: {
+                  connections: [{ id: 'clx...', status: 'active', peerInstanceUrl: 'https://other.instance.com', peerUserEmail: 'user@other.com', peerUserName: 'User Name' }],
+                },
+              },
+            },
+          },
+        },
+      },
+      post: {
+        tags: ['Federation'],
+        summary: 'Create federation connection request',
+        description: 'Receive an inbound connection request from a remote instance. No auth required — uses federation token in body. Supports both v1 and v2 field naming conventions. Includes automatic duplicate detection.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['fromInstanceUrl', 'fromUserEmail', 'toUserEmail', 'federationToken'],
+                properties: {
+                  fromInstanceUrl: { type: 'string', description: 'URL of the requesting instance' },
+                  fromInstanceName: { type: 'string', description: 'Name of the requesting instance' },
+                  fromUserEmail: { type: 'string', description: 'Email of the requesting user' },
+                  fromUserName: { type: 'string', description: 'Name of the requesting user' },
+                  toUserEmail: { type: 'string', description: 'Email of the target user on this instance' },
+                  federationToken: { type: 'string', description: 'Token for authenticating future requests' },
+                  connectionId: { type: 'string', description: 'Remote connection ID (for linking)' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Connection created or already exists', content: { 'application/json': { example: { success: true, connectionId: 'clx...', status: 'active' } } } },
+          '403': { description: 'Federation disabled or instance not in allowlist' },
+          '404': { description: 'Target user not found on this instance' },
+        },
+      },
+    },
+    '/relay': {
+      post: {
+        tags: ['Federation'],
+        summary: 'Send federation relay (v2 proxy)',
+        description: 'Proxies to /api/federation/relay. Use X-Federation-Token header for auth. This endpoint exists for v2 protocol compatibility.',
+        parameters: [
+          { name: 'X-Federation-Token', in: 'header', required: true, schema: { type: 'string' }, description: 'Federation token from connection handshake' },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  connectionId: { type: 'string' },
+                  relayId: { type: 'string', description: 'Remote relay ID' },
+                  fromUserEmail: { type: 'string' },
+                  fromUserName: { type: 'string' },
+                  toUserEmail: { type: 'string' },
+                  type: { type: 'string', enum: ['request', 'response', 'notification'] },
+                  intent: { type: 'string', enum: ['get_info', 'assign_task', 'request_approval', 'share_update', 'schedule', 'introduce', 'custom'] },
+                  subject: { type: 'string' },
+                  payload: { type: 'object' },
+                  priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '200': { description: 'Relay accepted', content: { 'application/json': { example: { success: true, relayId: 'clx...' } } } },
+          '401': { description: 'Missing or invalid federation token' },
+          '404': { description: 'No active connection for this token' },
+        },
+      },
+    },
   },
 };
 

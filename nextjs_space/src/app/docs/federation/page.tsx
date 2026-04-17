@@ -450,7 +450,7 @@ export default function FederationDocsPage() {
                 <li>• <code className="text-[11px] font-mono text-brand-400">dividen.relayIntents</code> — array of supported relay intents</li>
                 <li>• <code className="text-[11px] font-mono text-brand-400">dividen.trustLevels</code> — array of supported trust levels</li>
                 <li>• <code className="text-[11px] font-mono text-brand-400">dividen.taskTypes</code> — self-identified task types this instance excels at</li>
-                <li>• <code className="text-[11px] font-mono text-brand-400">endpoints</code> — all API endpoints (a2a, federation, agentApi, docs)</li>
+                <li>• <code className="text-[11px] font-mono text-brand-400">endpoints</code> — all API endpoints (a2a, federation, v2Connections, v2Relay, agentApi, docs)</li>
                 <li>• <code className="text-[11px] font-mono text-brand-400">authentication</code> — Bearer token scheme with <code className="text-[11px] font-mono">dvd_</code> prefix</li>
               </ul>
             </div>
@@ -526,11 +526,13 @@ export default function FederationDocsPage() {
 
             {/* Federation Relay Endpoint */}
             <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
-              <h3 className="font-semibold text-sm mb-2">🌐 Federation Relay Endpoint</h3>
+              <h3 className="font-semibold text-sm mb-2">🌐 Federation Relay Endpoints</h3>
               <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
                 For cross-instance relay delivery. Authenticated with federation tokens (not Bearer API keys).
+                Two equivalent paths are supported for compatibility with both v1 and v2 protocol instances:
               </p>
-              <pre className="p-2 bg-white/[0.04] rounded text-[11px] font-mono text-green-400 overflow-x-auto">POST /api/federation/relay</pre>
+              <pre className="p-2 bg-white/[0.04] rounded text-[11px] font-mono text-green-400 overflow-x-auto">{`POST /api/federation/relay    ← v1 (original)
+POST /api/v2/relay            ← v2 (alias, same behavior)`}</pre>
               <pre className="mt-2 p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto leading-relaxed">{`// Header:
 X-Federation-Token: <token-from-connection-handshake>
 
@@ -550,6 +552,42 @@ X-Federation-Token: <token-from-connection-handshake>
 }`}</pre>
             </div>
 
+            {/* Relay Ack (Response) Endpoint */}
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <h3 className="font-semibold text-sm mb-2">📬 Relay Acknowledgment (Completion Callback)</h3>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
+                When the receiving instance completes or declines a relay, it pushes the response back to the originating instance.
+                Relay responses skip the queue and go directly into the sender&apos;s comms and chat context.
+              </p>
+              <pre className="p-2 bg-white/[0.04] rounded text-[11px] font-mono text-green-400 overflow-x-auto">POST /api/federation/relay-ack</pre>
+              <pre className="mt-2 p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto leading-relaxed">{`// Header:
+X-Federation-Token: <token-from-connection-handshake>
+
+// Body:
+{
+  "relayId": "original-sender-relay-id",
+  "localRelayId": "remote-instance-relay-id",
+  "status": "completed",
+  "responsePayload": "Here is the analysis...",
+  "subject": "Review the Q2 budget",
+  "timestamp": "2026-04-15T12:00:00Z"
+}`}</pre>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-2 leading-relaxed">
+                On receipt: updates relay status → creates CommsMessage for sender → advances linked queue item → updates checklist delegation status → fires webhook.
+              </p>
+            </div>
+
+            {/* v2 Connections Endpoint */}
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
+              <h3 className="font-semibold text-sm mb-2">🔗 v2 Connections Endpoint</h3>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-2">
+                Federation connection management. Supports both v1 and v2 field naming conventions with automatic duplicate detection.
+              </p>
+              <pre className="p-2 bg-white/[0.04] rounded text-[11px] font-mono text-green-400 overflow-x-auto">{`GET  /api/v2/connections       ← list federated connections (Bearer auth)
+POST /api/v2/connections       ← create connection request (no auth needed)
+POST /api/federation/connect   ← v1 alias (same behavior)`}</pre>
+            </div>
+
             {/* Agent API v2 */}
             <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-semibold text-sm mb-2">📋 Agent API v2 (REST)</h3>
@@ -563,6 +601,8 @@ X-Federation-Token: <token-from-connection-handshake>
                   { method: 'GET/POST', path: '/api/v2/kanban', desc: 'Kanban cards' },
                   { method: 'GET/POST', path: '/api/v2/contacts', desc: 'Contacts (CRM)' },
                   { method: 'GET/POST', path: '/api/v2/queue', desc: 'Queue items' },
+                  { method: 'GET/POST', path: '/api/v2/connections', desc: 'Federated connections' },
+                  { method: 'POST', path: '/api/v2/relay', desc: 'Federation relay (proxy)' },
                   { method: 'POST', path: '/api/v2/shared-chat/send', desc: 'Chat with Divi' },
                 ].map((e) => (
                   <div key={e.path} className="p-2 bg-white/[0.04] rounded flex items-center gap-2">
@@ -585,32 +625,31 @@ X-Federation-Token: <token-from-connection-handshake>
          │ ─────────────────────────────>
          │         (discover capabilities)
          │                              │
-    2. POST /api/federation/connect     │
+    2. POST /api/v2/connections         │
          │ ─────────────────────────────>
+         │   (or /api/federation/connect)│
          │   (connection request + token)│
          │                              │
          │   3. User B approves         │
          │       (or auto-accept)       │
          │                              │
-    4. POST /api/federation/relay       │
+    4. POST /api/v2/relay               │
          │ ─────────────────────────────>
+         │   (or /api/federation/relay)  │
          │   (X-Federation-Token header) │
          │   (intent, subject, payload)  │
          │                              │
          │    5. Relay delivered to      │
          │       User B's Divi          │
          │                              │
-         │    6. POST /api/federation/relay
+         │    6. POST /api/federation/relay-ack
          │ <─────────────────────────────
-         │   (response relay)           │
+         │   (status, responsePayload)  │
+         │   (skips queue → comms only) │
          │                              │
     7. GET /api/federation/jobs         │
          │ ─────────────────────────────>
          │   (fetch network-visible jobs)│
-         │                              │
-    8. POST /api/federation/jobs        │
-         │ <─────────────────────────────
-         │   (push local jobs to peer)  │
          │                              │`}</pre>
             </div>
 
@@ -786,7 +825,7 @@ X-Federation-Token: <token-from-connection-handshake>
 
 
         {/* Download */}
-        <DocFooterDownload filename="dividen-federation-guide" lastUpdated="April 14, 2026" />
+        <DocFooterDownload filename="dividen-federation-guide" lastUpdated="April 16, 2026" />
 
         {/* Footer */}
         <div className="border-t border-[var(--border-primary)] pt-6 mt-8 text-center space-y-2" data-no-download>
