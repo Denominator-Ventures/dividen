@@ -47,6 +47,7 @@ interface CommsEvent {
   metadata: string | null;
   _type: string;
   _relayId?: string;
+  _targetName?: string;
 }
 
 interface RelayThread {
@@ -142,6 +143,7 @@ export function CommsTab() {
               metadata: msg.metadata,
               _type: meta.type,
               _relayId: meta.relayId,
+              _targetName: meta.targetName || meta.routedTo || undefined,
             });
           }
         } catch {}
@@ -220,11 +222,16 @@ export function CommsTab() {
 
   const pendingCount = threads.filter(t => t.unresolved > 0).length;
 
-  // Latest event label for a thread
+  // Latest event label for a thread — includes target name when available
   function latestEventLabel(thread: RelayThread): string | null {
     if (thread.events.length === 0) return null;
     const last = thread.events[thread.events.length - 1];
-    return EVENT_LABELS[last._type] || null;
+    const base = EVENT_LABELS[last._type] || null;
+    if (!base) return null;
+    if (last._targetName) {
+      return `${base} \u2192 ${last._targetName}`;
+    }
+    return base;
   }
 
   return (

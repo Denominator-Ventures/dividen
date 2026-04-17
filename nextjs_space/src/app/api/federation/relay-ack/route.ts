@@ -62,6 +62,19 @@ export async function POST(req: NextRequest) {
     const statusLabel = status === 'completed' ? '✅ completed' : status === 'declined' ? '❌ declined' : `→ ${status}`;
     const senderUserId = relay.fromUserId;
 
+    // Resolve the target name — who was this relay sent to?
+    let targetName = 'remote agent';
+    try {
+      const toUser = relay.toUserId ? await prisma.user.findUnique({ where: { id: relay.toUserId }, select: { name: true, email: true } }) : null;
+      if (toUser?.name) {
+        targetName = toUser.name;
+      } else if (connection.peerUserName) {
+        targetName = connection.peerUserName;
+      } else if (connection.peerUserEmail) {
+        targetName = connection.peerUserEmail;
+      }
+    } catch {}
+
     // ── 1. Update relay status ──
     await prisma.agentRelay.update({
       where: { id: relayId },
@@ -76,21 +89,22 @@ export async function POST(req: NextRequest) {
     await logActivity({
       userId: senderUserId,
       action: 'federation_relay_completed',
-      summary: `📡 Remote agent ${statusLabel} relay: "${relay.subject}"`,
+      summary: `📡 ${targetName} ${statusLabel} relay: "${relay.subject}"`,
       metadata: {
         relayId,
         remoteRelayId: localRelayId,
         connectionId: connection.id,
         status,
+        targetName,
         peerInstanceUrl: connection.peerInstanceUrl,
       },
     }).catch(() => {});
 
-    // ── 3. Comms message to sender — response received ──
+    // ── 3. Comms message to sender — response received, with target name ──
     await prisma.commsMessage.create({
       data: {
         sender: 'divi',
-        content: `📡 Remote agent ${statusLabel} the task: "${relay.subject}"${responsePayload ? `\n\nResponse: ${typeof responsePayload === 'string' ? responsePayload : JSON.stringify(responsePayload)}` : ''}`,
+        content: `📡 ${targetName} ${statusLabel} the task: "${relay.subject}"${responsePayload ? `\n\nResponse: ${typeof responsePayload === 'string' ? responsePayload : JSON.stringify(responsePayload)}` : ''}`,
         state: 'new',
         priority: relay.priority || 'normal',
         userId: senderUserId,
@@ -99,6 +113,7 @@ export async function POST(req: NextRequest) {
           relayId,
           remoteRelayId: localRelayId,
           status,
+          targetName,
           connectionId: connection.id,
           peerInstanceUrl: connection.peerInstanceUrl,
         }),
@@ -144,15 +159,7 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    // ── 6. Update card status if all delegated items are done ──
-    if (relay.cardId && isTerminal) {
-      try {
-        const { checkAndAutoCompleteCard } = await import('@/lib/card-auto-complete');
-        await checkAndAutoCompleteCard(relay.cardId);
-      } catch {}
-    }
-
-    // ── 7. Push relay state webhook (local webhook subscribers) ──
+    // ── 6. Push relay state webhook (local webhook subscribers) ──
     try {
       const { pushRelayStateChanged } = await import('@/lib/webhook-push');
       pushRelayStateChanged(senderUserId, {

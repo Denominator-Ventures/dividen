@@ -23,7 +23,7 @@ export async function GET() {
 
   const items = await prisma.queueItem.findMany({
     where: { userId },
-    orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'desc' }],
+    orderBy: [{ status: 'asc' }, { priority: 'desc' }, { createdAt: 'asc' }],
     take: 200,
   });
 

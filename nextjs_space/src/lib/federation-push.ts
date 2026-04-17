@@ -24,6 +24,7 @@ export async function pushRelayToFederatedInstance(
     fromUserName: string;
     fromUserId?: string;
     toUserEmail?: string;
+    toUserName?: string;
     type: string;
     intent: string;
     subject: string;
@@ -84,18 +85,20 @@ export async function pushRelayToFederatedInstance(
       // Log activity — receipt confirmed
       const senderId = payload.fromUserId;
       if (senderId) {
+        const targetLabel = payload.toUserName || conn.peerUserEmail || conn.peerInstanceUrl?.replace(/https?:\/\//, '') || 'remote agent';
+
         await logActivity({
           userId: senderId,
           action: 'federation_relay_acked',
-          summary: `📡 Receipt confirmed: "${payload.subject}" delivered to ${conn.peerInstanceUrl}`,
-          metadata: { relayId: payload.relayId, remoteRelayId, connectionId, intent: payload.intent },
+          summary: `📡 Receipt confirmed: "${payload.subject}" delivered to ${targetLabel}`,
+          metadata: { relayId: payload.relayId, remoteRelayId, connectionId, intent: payload.intent, targetName: targetLabel },
         }).catch(() => {});
 
-        // Comms message — sender sees that the remote accepted
+        // Comms message — sender sees that the remote accepted, with target name
         await prisma.commsMessage.create({
           data: {
             sender: 'divi',
-            content: `📡 Delivery confirmed — "${payload.subject}" received by remote agent at ${conn.peerInstanceUrl?.replace(/https?:\/\//, '')}`,
+            content: `📡 Delivery confirmed — "${payload.subject}" received by ${targetLabel}`,
             state: 'new',
             priority: 'low',
             userId: senderId,
@@ -104,6 +107,7 @@ export async function pushRelayToFederatedInstance(
               relayId: payload.relayId,
               remoteRelayId,
               connectionId,
+              targetName: targetLabel,
               peerInstanceUrl: conn.peerInstanceUrl,
             }),
           },
