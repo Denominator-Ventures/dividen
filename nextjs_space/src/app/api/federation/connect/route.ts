@@ -8,8 +8,8 @@ import { logActivity } from '@/lib/activity';
 export async function POST(req: NextRequest) {
   try {
     // Check federation config
-    const fedConfig = await prisma.federationConfig.findFirst();
-    if (!fedConfig || !fedConfig.allowInbound) {
+    const fedConfig = await prisma.federationConfig.findFirst({ where: { allowInbound: true }, orderBy: { updatedAt: 'desc' } });
+    if (!fedConfig) {
       return NextResponse.json({ error: 'This instance does not accept inbound federation requests' }, { status: 403 });
     }
 

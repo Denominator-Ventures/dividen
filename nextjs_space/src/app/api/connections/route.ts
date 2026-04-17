@@ -70,6 +70,75 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Remote instance URL and user email are required for federated connections' }, { status: 400 });
       }
 
+      // Check for existing federated connection to same peer
+      const existingFed = await prisma.connection.findFirst({
+        where: {
+          requesterId: userId,
+          isFederated: true,
+          peerInstanceUrl,
+          peerUserEmail,
+        },
+        include: {
+          requester: { select: { id: true, name: true, email: true } },
+          accepter: { select: { id: true, name: true, email: true } },
+        },
+      });
+      if (existingFed) {
+        if (existingFed.status === 'active') {
+          return NextResponse.json({ error: 'Already connected to this user', existing: existingFed }, { status: 409 });
+        }
+        // Re-activate a pending/stale connection and re-send the federation request
+        const connection = await prisma.connection.update({
+          where: { id: existingFed.id },
+          data: {
+            status: 'pending',
+            nickname: nickname || peerUserName || peerUserEmail,
+            federationToken: crypto.randomBytes(32).toString('hex'),
+            updatedAt: new Date(),
+          },
+          include: {
+            requester: { select: { id: true, name: true, email: true } },
+            accepter: { select: { id: true, name: true, email: true } },
+          },
+        });
+
+        // Re-send federation request
+        try {
+          const fedConfig = await prisma.federationConfig.findFirst({ where: { allowOutbound: true, instanceUrl: { not: '' } }, orderBy: { updatedAt: 'desc' } });
+          const instanceUrl = fedConfig?.instanceUrl || process.env.NEXTAUTH_URL || '';
+          const instanceName = fedConfig?.instanceName || 'DiviDen';
+          const requesterName = (session.user as any).name || (session.user as any).email;
+          const fedResponse = await fetch(`${peerInstanceUrl}/api/federation/connect`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              fromInstanceUrl: instanceUrl,
+              fromInstanceName: instanceName,
+              fromUserEmail: (session.user as any).email,
+              fromUserName: requesterName,
+              toUserEmail: peerUserEmail,
+              federationToken: connection.federationToken,
+              connectionId: connection.id,
+            }),
+          });
+          if (fedResponse.ok) {
+            const fedData = await fedResponse.json().catch(() => ({}));
+            if (fedData.connectionId) {
+              await prisma.connection.update({ where: { id: connection.id }, data: { status: 'active' } });
+            }
+            console.log(`[federation/connect] Re-sent, remote accepted, connection ${connection.id} activated`);
+          } else {
+            const errBody = await fedResponse.text().catch(() => 'no body');
+            console.error(`[federation/connect] Re-send remote rejected: ${fedResponse.status} — ${errBody}`);
+          }
+        } catch (fedErr: any) {
+          console.error('[federation/connect] Re-send failed:', fedErr.message);
+        }
+
+        logActivity({ userId, action: 'connection_resent', summary: `Re-sent federated connection request to ${peerUserName || peerUserEmail} on ${peerInstanceUrl}`, actor: 'user', metadata: { connectionId: connection.id, federated: true } });
+        return NextResponse.json(connection, { status: 200 });
+      }
+
       const federationToken = crypto.randomBytes(32).toString('hex');
 
       const connection = await prisma.connection.create({
@@ -92,12 +161,12 @@ export async function POST(req: NextRequest) {
 
       // Attempt to send the connection request to the remote instance
       try {
-        const fedConfig = await prisma.federationConfig.findFirst();
+        const fedConfig = await prisma.federationConfig.findFirst({ where: { allowOutbound: true, instanceUrl: { not: '' } }, orderBy: { updatedAt: 'desc' } });
         const instanceUrl = fedConfig?.instanceUrl || process.env.NEXTAUTH_URL || '';
         const instanceName = fedConfig?.instanceName || 'DiviDen';
         const requesterName = (session.user as any).name || (session.user as any).email;
 
-        await fetch(`${peerInstanceUrl}/api/federation/connect`, {
+        const fedResponse = await fetch(`${peerInstanceUrl}/api/federation/connect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -110,8 +179,22 @@ export async function POST(req: NextRequest) {
             connectionId: connection.id,
           }),
         });
-      } catch (fedErr) {
-        console.warn('Failed to notify remote instance:', fedErr);
+        if (!fedResponse.ok) {
+          const errBody = await fedResponse.text().catch(() => 'no body');
+          console.error(`[federation/connect] Remote rejected: ${fedResponse.status} — ${errBody}`);
+        } else {
+          // Mark connection as active if remote accepted immediately (no approval required)
+          const fedData = await fedResponse.json().catch(() => ({}));
+          if (fedData.connectionId) {
+            await prisma.connection.update({
+              where: { id: connection.id },
+              data: { status: 'active' },
+            });
+          }
+          console.log(`[federation/connect] Remote accepted, connection ${connection.id} activated`);
+        }
+      } catch (fedErr: any) {
+        console.error('[federation/connect] Failed to notify remote instance:', fedErr.message);
         // Connection still created locally — will sync when remote comes online
       }
 

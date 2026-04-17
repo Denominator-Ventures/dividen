@@ -86,9 +86,8 @@ function createPrismaClient() {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.prisma = prisma;
-}
+// Always cache on globalThis — prevents connection leaks in BOTH dev (hot-reload) and prod (module re-evaluation)
+globalForPrisma.prisma = prisma;
 
 /**
  * Appends connection pool limits to DATABASE_URL if not already present.
@@ -98,7 +97,7 @@ function appendConnectionParams(url: string): string {
   if (!url) return url;
   const sep = url.includes('?') ? '&' : '?';
   const params: string[] = [];
-  if (!url.includes('connection_limit=')) params.push('connection_limit=10');
+  if (!url.includes('connection_limit=')) params.push('connection_limit=5');
   if (!url.includes('pool_timeout=')) params.push('pool_timeout=15');
   return params.length > 0 ? `${url}${sep}${params.join('&')}` : url;
 }
