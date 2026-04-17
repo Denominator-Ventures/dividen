@@ -68,7 +68,7 @@ const RELAY_STATUS_MAP: Record<string, { color: string; label: string; icon: str
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) {
+export function ChiefOfStaffView({ onIntervene, onExitMode, modeLoading }: { onIntervene?: () => void; onExitMode?: () => void; modeLoading?: boolean }) {
   const [queue, setQueue] = useState<QueueItemData[]>([]);
   const [relays, setRelays] = useState<RelayItem[]>([]);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
@@ -218,6 +218,16 @@ export function ChiefOfStaffView({ onIntervene }: { onIntervene?: () => void }) 
             >
               {paused ? '▶ Resume' : '⏸ Pause All'}
             </button>
+            {onExitMode && (
+              <button
+                onClick={onExitMode}
+                disabled={modeLoading}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--brand-primary)]/15 text-[var(--brand-primary)] hover:bg-[var(--brand-primary)]/25 transition-colors disabled:opacity-50 whitespace-nowrap"
+                title="Return to Cockpit mode"
+              >
+                {modeLoading ? '...' : '🎮 Cockpit'}
+              </button>
+            )}
           </div>
         </div>
       </div>

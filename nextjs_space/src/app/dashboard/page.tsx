@@ -524,7 +524,7 @@ export default function DashboardPage() {
       {/* ── Chief of Staff mode: locked-down observer view ── */}
       {mode === 'chief_of_staff' ? (
         <div className="flex-1 min-h-0">
-          <ChiefOfStaffView onIntervene={() => {}} />
+          <ChiefOfStaffView onIntervene={() => {}} onExitMode={toggleMode} modeLoading={modeLoading} />
         </div>
       ) : (
         <>
