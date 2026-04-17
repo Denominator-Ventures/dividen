@@ -230,7 +230,9 @@ export async function GET(req: NextRequest) {
         handoff: `${baseUrl}/api/main-handoff`,
         federation: {
           connect: `${baseUrl}/api/federation/connect`,
+          connectAccept: `${baseUrl}/api/federation/connect/accept`,
           relay: `${baseUrl}/api/federation/relay`,
+          relayAck: `${baseUrl}/api/federation/relay-ack`,
           jobs: `${baseUrl}/api/federation/jobs`,
           jobApply: `${baseUrl}/api/federation/jobs/apply`,
           reputation: `${baseUrl}/api/federation/reputation`,

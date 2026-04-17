@@ -1344,8 +1344,32 @@ export async function executeTag(
             },
           });
 
-          // Notify local users
-          if (!conn.isFederated && toId) {
+          // Deliver: local users get comms, federated connections get pushed
+          if (conn.isFederated) {
+            // Push to federated instance
+            try {
+              const { pushRelayToFederatedInstance } = await import('./federation-push');
+              const senderUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+              pushRelayToFederatedInstance(conn.id, {
+                relayId: relay.id,
+                fromUserEmail: senderUser?.email || '',
+                fromUserName: senderUser?.name || '',
+                fromUserId: userId,
+                toUserEmail: conn.peerUserEmail || undefined,
+                type: 'request',
+                intent: broadcastIntent,
+                subject: broadcastSubject,
+                payload: {
+                  ...(params.payload ? (typeof params.payload === 'object' ? params.payload : { data: params.payload }) : {}),
+                  _broadcast: true,
+                  _context: params.context || null,
+                },
+                priority: broadcastPriority,
+              });
+            } catch (fedErr: any) {
+              console.warn('[relay_broadcast] Failed to push federated relay:', fedErr?.message);
+            }
+          } else if (toId) {
             await prisma.commsMessage.create({
               data: {
                 sender: 'divi',
@@ -1473,8 +1497,32 @@ export async function executeTag(
           },
         });
 
-        // For local users, deliver but mark as ambient (no urgent notification)
-        if (!ambientConn.isFederated && ambientToId) {
+        // Deliver: local users get silent delivery, federated connections get pushed
+        if (ambientConn.isFederated) {
+          try {
+            const { pushRelayToFederatedInstance } = await import('./federation-push');
+            const senderUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+            pushRelayToFederatedInstance(ambientConn.id, {
+              relayId: ambientRelay.id,
+              fromUserEmail: senderUser?.email || '',
+              fromUserName: senderUser?.name || '',
+              fromUserId: userId,
+              toUserEmail: ambientConn.peerUserEmail || undefined,
+              type: 'request',
+              intent: 'ask',
+              subject: ambientQuestion,
+              payload: {
+                _ambient: true,
+                _context: params.context || null,
+                _topic: params.topic || null,
+                _instruction: 'This is an ambient relay. Do NOT interrupt the user. Weave naturally into conversation.',
+              },
+              priority: 'low',
+            });
+          } catch (fedErr: any) {
+            console.warn('[relay_ambient] Failed to push federated ambient relay:', fedErr?.message);
+          }
+        } else if (ambientToId) {
           await prisma.agentRelay.update({ where: { id: ambientRelay.id }, data: { status: 'delivered' } });
           // No comms notification for ambient relays — the receiving agent picks it up silently
         }
