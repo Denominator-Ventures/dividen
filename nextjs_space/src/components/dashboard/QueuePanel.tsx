@@ -176,31 +176,25 @@ function QueueItemCard({
 
   return (
     <div className={cn(
-      "bg-[var(--bg-secondary)] border rounded-lg p-3 group transition-all",
+      "bg-[var(--bg-secondary)] border rounded-lg px-2.5 py-1.5 group transition-all",
       isCapabilityAction
         ? "border-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/40"
         : "border-[var(--border-color)] hover:border-brand-500/30"
     )}>
-      <div className="flex items-start gap-2">
-        <div className={cn('w-2 h-2 rounded-full mt-1.5 shrink-0', pi.dot)} title={pi.label} />
+      <div className="flex items-start gap-1.5">
+        <div className={cn('w-1.5 h-1.5 rounded-full mt-1.5 shrink-0', pi.dot)} title={pi.label} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            {isCapabilityAction && <span className="text-sm">{capIcon}</span>}
-            <h4 className="text-sm font-medium text-[var(--text-primary)] line-clamp-2 leading-tight" title={item.title}>
+            {isCapabilityAction && <span className="text-xs">{capIcon}</span>}
+            <h4 className="text-xs font-medium text-[var(--text-primary)] line-clamp-1 leading-snug" title={item.title}>
               <MentionText text={displaySummary || item.title} />
             </h4>
-            <span className={cn('text-[9px] px-1.5 py-0.5 rounded border font-medium', cat.color)}>{cat.label}</span>
-            {optimizing && <span className="text-[9px] text-[var(--brand-primary)] animate-pulse">✨ optimizing...</span>}
-            {hasOptimizedPayload && !optimizing && <span className="text-[9px] text-green-400" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
+            <span className={cn('text-[8px] px-1 py-px rounded border font-medium shrink-0', cat.color)}>{cat.label}</span>
+            {optimizing && <span className="text-[8px] text-[var(--brand-primary)] animate-pulse">✨</span>}
+            {hasOptimizedPayload && !optimizing && <span className="text-[8px] text-green-400" title={`Optimized for ${optimizedForAgent || 'agent'}`}>⚡</span>}
           </div>
-          {/* Show full title if summary is truncated */}
-          {displaySummary && displaySummary !== item.title && (
-            <p className="text-[11px] text-[var(--text-secondary)] line-clamp-1 mt-0.5 leading-tight">
-              <MentionText text={item.title} />
-            </p>
-          )}
           {item.description && (
-            <p className="text-xs text-[var(--text-muted)] line-clamp-2 mt-1">
+            <p className="text-[11px] text-[var(--text-muted)] line-clamp-1 mt-0.5 leading-snug">
               <MentionText text={item.description} />
             </p>
           )}
@@ -280,17 +274,17 @@ function QueueItemCard({
             </div>
           )}
 
-          <div className="flex items-center gap-2 mt-2">
-            <span className="text-[10px] text-[var(--text-muted)]">
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-[9px] text-[var(--text-muted)]">
               {timeAgo(item.createdAt)}
             </span>
             <span className={cn(
-              "text-[10px] px-1.5 py-0.5 rounded",
+              "text-[9px] px-1 py-px rounded",
               isCapabilityAction
                 ? "bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]"
                 : "bg-[var(--bg-surface)] text-[var(--text-muted)]"
             )}>
-              {isCapabilityAction ? `${capMeta.capabilityType} · ${capMeta.action || 'outbound'}` : item.type}
+              {isCapabilityAction ? `${capMeta.capabilityType}` : item.type}
             </span>
           </div>
         </div>
@@ -964,7 +958,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
           )}
 
           {/* Body */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-4">
+          <div className="flex-1 overflow-y-auto p-3 space-y-3">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <span className="text-sm text-[var(--text-muted)]">Loading...</span>
@@ -1001,15 +995,15 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                   if (section.id === 'pending_confirmation') {
                     return (
                       <div key={section.id}>
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm">{section.icon}</span>
                           <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
                           <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
                         </div>
-                        <div className="space-y-2">
+                        <div className="space-y-1">
                           {sectionItems.map((item) => (
-                            <div key={item.id} className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-3">
-                              <div className="flex items-start justify-between gap-2 mb-2">
+                            <div key={item.id} className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-2">
+                              <div className="flex items-start justify-between gap-2 mb-1">
                                 <div className="flex-1 min-w-0">
                                   <h4 className="text-sm font-medium text-[var(--text-primary)] truncate"><MentionText text={item.title} /></h4>
                                   {item.description && <p className="text-xs text-[var(--text-muted)] mt-0.5 line-clamp-2"><MentionText text={item.description} /></p>}
@@ -1018,17 +1012,17 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                                   {item.priority}
                                 </span>
                               </div>
-                              <p className="text-[10px] text-yellow-400/80 mb-2">Divi suggests adding this to your queue. Approve?</p>
+                              <p className="text-[10px] text-yellow-400/80 mb-1">Divi suggests adding this to your queue. Approve?</p>
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => handleConfirmAction(item.id, 'approve')}
-                                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-colors"
+                                  className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 transition-colors"
                                 >
                                   ✓ Approve
                                 </button>
                                 <button
                                   onClick={() => handleConfirmAction(item.id, 'reject')}
-                                  className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                                  className="flex-1 px-2 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
                                 >
                                   ✕ Reject
                                 </button>
@@ -1042,12 +1036,12 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
 
                   return (
                     <div key={section.id}>
-                      <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm">{section.icon}</span>
                         <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: section.color }}>{section.label}</span>
                         <span className="text-[10px] bg-[var(--bg-surface)] px-1.5 py-0.5 rounded text-[var(--text-muted)]">{sectionItems.length}</span>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {sectionItems.map((item) => (
                           <div key={item.id} className="relative">
                             {batchMode && (

@@ -1348,14 +1348,20 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
   const outboundRelays = activeRelays.filter(r => r.fromUserId === userId && r.toUserId !== userId);
 
   if (inboundRelays.length > 0) {
-    text += `\n### 📥 INCOMING RELAYS — MUST SURFACE IMMEDIATELY (${inboundRelays.length})\n`;
-    text += `**⚠️ CRITICAL**: You have unread relay messages from connections. You MUST tell the operator about these at the START of your next response. Do NOT wait for them to ask. Say something like: "Hey, [name] sent you a relay: [subject]. [summary of payload]. Want me to respond, or want to handle it?"\n\n`;
+    text += `\n### 📥 INCOMING RELAYS — WEAVE INTO CONVERSATION (${inboundRelays.length})\n`;
+    text += `You have relay messages from connections. **DO NOT** announce these as a separate notification or interrupt. Instead, WEAVE the relay content INTO whatever you're currently discussing — make it feel like a natural part of the conversation.\n\n`;
+    text += `**How to surface relays:**\n`;
+    text += `- Mention who's asking and on whose behalf: "Oh — [name] is checking in about [topic]..." or "By the way, [name]'s asking [question]..."\n`;
+    text += `- If the relay is related to what the user is already working on, fold it right in: "That reminds me — [name] actually sent over [content]. [Your take on it]."\n`;
+    text += `- If the relay is unrelated, find a natural transition: "Before we move on — [name] wanted to know [thing]."\n`;
+    text += `- The UI shows a 📡 relay badge on messages so the user can always see the raw underlying relay. Your job is to make the conversation flow naturally.\n\n`;
     for (const r of inboundRelays) {
       const from = r.fromUser?.name || r.fromUser?.email || 'Unknown';
       let payloadDetail = r.payload || '';
       try { const p = JSON.parse(r.payload || '{}'); payloadDetail = p.detail || p.message || r.payload || ''; } catch {}
       text += `- 📩 From **${from}**: "${r.subject}" | Intent: ${r.intent} | Payload: ${payloadDetail} | Relay ID: ${r.id}\n`;
     }
+    text += `\n**Auto-respond:** When the user's reply clearly addresses a relay (answers the question, accepts/declines the task, provides the requested info), IMMEDIATELY emit [[relay_respond:...]] without asking for confirmation. The user shouldn't have to explicitly say "respond to the relay" — if the content of their message answers it, just send it back.\n`;
     text += `\nTo respond: [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<response message>"}]]\n`;
     text += `To decline: [[relay_respond:{"relayId":"<id>", "status":"declined", "responsePayload":"reason"}]]\n`;
     text += `To send a relay back to someone: [[relay_request:{"connectionId":"<id>", "type":"request", "intent":"custom", "subject":"...", "payload":"..."}]]\n`;
