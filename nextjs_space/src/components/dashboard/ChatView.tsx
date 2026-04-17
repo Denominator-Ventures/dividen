@@ -97,6 +97,28 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       .catch(() => {});
   }, []);
 
+  // ── Resolved relay IDs (for collapsing relay badges on old messages) ──
+  const resolvedRelayIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const msg of messages) {
+      if (!msg.metadata) continue;
+      const meta = typeof msg.metadata === 'string' ? (() => { try { return JSON.parse(msg.metadata as string); } catch { return null; } })() : msg.metadata;
+      if (!meta?.tags || !Array.isArray(meta.tags)) continue;
+      for (const t of meta.tags) {
+        if (t.tag === 'relay_respond' && t.success && t.data?.relayId) {
+          ids.add(t.data.relayId);
+        }
+      }
+    }
+    // Also include currently-streaming tag results
+    for (const t of tagResults) {
+      if (t.tag === 'relay_respond' && t.success && (t as any).data?.relayId) {
+        ids.add((t as any).data.relayId);
+      }
+    }
+    return ids;
+  }, [messages, tagResults]);
+
   // ── Scroll to bottom ──────────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -908,7 +930,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} onSignalsSetupComplete={handleSignalsSetupComplete} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} resolvedRelayIds={resolvedRelayIds} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} onSignalsSetupComplete={handleSignalsSetupComplete} />
             ))}
 
             {/* Streaming response */}
@@ -1285,7 +1307,7 @@ function SignalsSetupButtons({ onDone, onSkip }: { onDone: () => void; onSkip: (
   );
 }
 
-function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask, onSignalsSetupComplete }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void; onSignalsSetupComplete?: (choice: 'done' | 'skip') => void }) {
+function MessageBubble({ message, userPhoto, userName, diviName, resolvedRelayIds, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask, onSignalsSetupComplete }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; resolvedRelayIds?: Set<string>; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void; onSignalsSetupComplete?: (choice: 'done' | 'skip') => void }) {
   const [relayExpanded, setRelayExpanded] = useState(false);
   const isUser = message.role === 'user';
   const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
@@ -1357,14 +1379,21 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
         </div>
 
         {/* Relay context badge — shows when Divi's response was informed by inbound relays */}
-        {relayContext && (
-          <div className="mt-2">
+        {relayContext && (() => {
+          const allResolved = resolvedRelayIds ? relayContext.every(r => resolvedRelayIds.has(r.id)) : false;
+          return (
+          <div className={cn('mt-2 transition-opacity', allResolved && !relayExpanded && 'opacity-40')}>
             <button
               onClick={() => setRelayExpanded(!relayExpanded)}
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium hover:bg-purple-500/15 transition-colors"
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors',
+                allResolved
+                  ? 'bg-gray-500/10 border border-gray-500/20 text-gray-500 hover:bg-gray-500/15'
+                  : 'bg-purple-500/10 border border-purple-500/20 text-purple-400 hover:bg-purple-500/15'
+              )}
             >
-              <span>📡</span>
-              <span>{relayContext.length} relay{relayContext.length !== 1 ? 's' : ''} in context</span>
+              <span>{allResolved ? '✓' : '📡'}</span>
+              <span>{relayContext.length} relay{relayContext.length !== 1 ? 's' : ''} {allResolved ? 'resolved' : 'in context'}</span>
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={cn('transition-transform', relayExpanded && 'rotate-180')}>
                 <polyline points="6 9 12 15 18 9" />
               </svg>
@@ -1372,15 +1401,17 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
             {relayExpanded && (
               <div className="mt-2 space-y-2">
                 {relayContext.map((relay) => {
+                  const isResolved = resolvedRelayIds?.has(relay.id) ?? false;
                   let payloadText = relay.payload || '';
                   try { const p = JSON.parse(relay.payload || '{}'); payloadText = p.message || p.body || p.detail || p.text || (typeof p === 'string' ? p : relay.payload || ''); } catch {}
                   return (
-                    <div key={relay.id} className="rounded-lg bg-purple-500/5 border border-purple-500/10 p-2.5">
+                    <div key={relay.id} className={cn('rounded-lg p-2.5', isResolved ? 'bg-gray-500/5 border border-gray-500/10' : 'bg-purple-500/5 border border-purple-500/10')}>
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-[10px] font-bold text-purple-400 uppercase">From {relay.fromName}</span>
+                        <span className={cn('text-[10px] font-bold uppercase', isResolved ? 'text-gray-500' : 'text-purple-400')}>From {relay.fromName}</span>
                         <span className="text-[9px] text-[var(--text-muted)]">· {relay.intent}</span>
+                        {isResolved && <span className="text-[9px] px-1 py-px rounded bg-emerald-500/10 text-emerald-400 font-medium">resolved</span>}
                       </div>
-                      <p className="text-xs font-medium text-[var(--text-primary)] mb-0.5">{relay.subject}</p>
+                      <p className={cn('text-xs font-medium mb-0.5', isResolved ? 'text-[var(--text-muted)] line-through' : 'text-[var(--text-primary)]')}>{relay.subject}</p>
                       {payloadText && payloadText !== relay.subject && (
                         <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{payloadText}</p>
                       )}
@@ -1391,7 +1422,8 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
               </div>
             )}
           </div>
-        )}
+          );
+        })()}
 
         {/* Agent Widget rendering */}
         {(() => {

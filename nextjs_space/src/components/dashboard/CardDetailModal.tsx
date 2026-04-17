@@ -28,6 +28,244 @@ const priorities: { id: CardPriority; label: string; color: string }[] = [
   { id: 'urgent', label: 'Urgent', color: 'bg-red-600/30 text-red-400' },
 ];
 
+// ─── Members Section (project-linked cards) ─────────────────────────────────
+type MemberData = {
+  id: string;
+  role: string;
+  userId: string | null;
+  user: { id: string; name: string | null; email: string } | null;
+  connection: { id: string; peerUserName: string | null; peerUserEmail: string | null } | null;
+};
+
+type ConnectionOption = {
+  id: string;
+  peerUserName: string | null;
+  peerUserEmail: string | null;
+};
+
+function MembersSection({ projectId, projectName, initialMembers }: {
+  projectId: string;
+  projectName: string;
+  initialMembers: MemberData[];
+}) {
+  const [members, setMembers] = useState<MemberData[]>(initialMembers);
+  const [open, setOpen] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [connections, setConnections] = useState<ConnectionOption[]>([]);
+  const [loadingConn, setLoadingConn] = useState(false);
+  const [selectedConnId, setSelectedConnId] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addRole, setAddRole] = useState('contributor');
+  const [adding, setAdding] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  // Fetch connections when add form opens
+  const loadConnections = useCallback(async () => {
+    if (connections.length > 0) return;
+    setLoadingConn(true);
+    try {
+      const res = await fetch('/api/connections?status=active');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        // Filter out connections already in members
+        const existingConnIds = new Set(members.filter(m => m.connection).map(m => m.connection!.id));
+        setConnections(data.filter((c: any) => !existingConnIds.has(c.id)).map((c: any) => ({
+          id: c.id,
+          peerUserName: c.peerUserName,
+          peerUserEmail: c.peerUserEmail,
+        })));
+      }
+    } catch { /* ignore */ }
+    setLoadingConn(false);
+  }, [connections.length, members]);
+
+  const handleAdd = async () => {
+    setError('');
+    if (!selectedConnId && !addEmail.trim()) {
+      setError('Select a connection or enter an email');
+      return;
+    }
+    setAdding(true);
+    try {
+      const body: any = { role: addRole };
+      if (selectedConnId) body.connectionId = selectedConnId;
+      else body.email = addEmail.trim();
+
+      const res = await fetch(`/api/projects/${projectId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || 'Failed to add member');
+      } else {
+        setMembers(prev => [...prev, data]);
+        setShowAdd(false);
+        setSelectedConnId('');
+        setAddEmail('');
+        // Remove from available connections
+        if (selectedConnId) {
+          setConnections(prev => prev.filter(c => c.id !== selectedConnId));
+        }
+      }
+    } catch (e: any) {
+      setError(e.message);
+    }
+    setAdding(false);
+  };
+
+  const handleRemove = async (memberId: string) => {
+    setRemoving(memberId);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/members?memberId=${memberId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setMembers(prev => prev.filter(m => m.id !== memberId));
+      }
+    } catch { /* ignore */ }
+    setRemoving(null);
+  };
+
+  const getMemberLabel = (m: MemberData) => {
+    if (m.user) return m.user.name || m.user.email;
+    if (m.connection) return m.connection.peerUserName || m.connection.peerUserEmail || 'Federated';
+    return 'Unknown';
+  };
+
+  const getRoleBadge = (role: string) => {
+    const colors: Record<string, string> = {
+      lead: 'bg-amber-600/30 text-amber-400',
+      contributor: 'bg-blue-600/30 text-blue-400',
+      observer: 'bg-gray-600/30 text-gray-400',
+    };
+    return colors[role] || colors.contributor;
+  };
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-2 w-full text-left"
+      >
+        <svg
+          className={cn('w-3 h-3 text-[var(--text-muted)] transition-transform', open && 'rotate-90')}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+        <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider cursor-pointer">
+          Members
+        </label>
+        <span className="text-xs text-[var(--text-muted)]">({members.length})</span>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-2 pl-5">
+          {members.map(m => (
+            <div key={m.id} className="flex items-center justify-between gap-2 text-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-6 h-6 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-xs font-medium text-[var(--text-secondary)] shrink-0">
+                  {(getMemberLabel(m) || '?')[0].toUpperCase()}
+                </div>
+                <span className="truncate text-[var(--text-primary)]">{getMemberLabel(m)}</span>
+                <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getRoleBadge(m.role))}>
+                  {m.role}
+                </span>
+                {m.connection && (
+                  <span className="text-[10px] text-purple-400">federated</span>
+                )}
+              </div>
+              {m.role !== 'lead' && (
+                <button
+                  onClick={() => handleRemove(m.id)}
+                  disabled={removing === m.id}
+                  className="text-xs text-red-400 hover:text-red-300 shrink-0 disabled:opacity-50"
+                >
+                  {removing === m.id ? '...' : 'Remove'}
+                </button>
+              )}
+            </div>
+          ))}
+
+          {!showAdd ? (
+            <button
+              onClick={() => { setShowAdd(true); loadConnections(); }}
+              className="text-xs text-[var(--accent)] hover:underline"
+            >
+              + Add member
+            </button>
+          ) : (
+            <div className="space-y-2 p-2 rounded-lg bg-[var(--bg-tertiary)]">
+              {error && <p className="text-xs text-red-400">{error}</p>}
+
+              {/* Connection dropdown */}
+              <div>
+                <label className="text-[10px] text-[var(--text-muted)] uppercase">From connections</label>
+                <select
+                  value={selectedConnId}
+                  onChange={e => { setSelectedConnId(e.target.value); if (e.target.value) setAddEmail(''); }}
+                  className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)]"
+                >
+                  <option value="">— select connection —</option>
+                  {loadingConn && <option disabled>Loading...</option>}
+                  {connections.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.peerUserName || c.peerUserEmail || c.id}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Or by email */}
+              <div>
+                <label className="text-[10px] text-[var(--text-muted)] uppercase">Or by email</label>
+                <input
+                  type="email"
+                  placeholder="user@example.com"
+                  value={addEmail}
+                  onChange={e => { setAddEmail(e.target.value); if (e.target.value) setSelectedConnId(''); }}
+                  className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                />
+              </div>
+
+              {/* Role */}
+              <div>
+                <label className="text-[10px] text-[var(--text-muted)] uppercase">Role</label>
+                <select
+                  value={addRole}
+                  onChange={e => setAddRole(e.target.value)}
+                  className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)]"
+                >
+                  <option value="contributor">Contributor</option>
+                  <option value="observer">Observer</option>
+                  <option value="lead">Lead</option>
+                </select>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAdd}
+                  disabled={adding}
+                  className="px-3 py-1 text-xs rounded bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {adding ? 'Adding...' : 'Add'}
+                </button>
+                <button
+                  onClick={() => { setShowAdd(false); setError(''); }}
+                  className="px-3 py-1 text-xs rounded text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards, onMerged, onDiscuss }: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
@@ -469,6 +707,11 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Members (only for project-linked cards) */}
+          {card.project && (
+            <MembersSection projectId={card.project.id} projectName={card.project.name} initialMembers={card.project.members} />
           )}
 
           {/* Metadata */}
