@@ -70,8 +70,8 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Build System Prompt + Fetch Message History (parallel) ──────────
-  const [baseSystemPrompt, recentMessages] = await Promise.all([
+  // ── Build System Prompt + Fetch Message History + Inbound Relays (parallel) ──
+  const [baseSystemPrompt, recentMessages, inboundRelays] = await Promise.all([
     buildSystemPrompt({
       userId: user.id,
       mode: user.mode,
@@ -82,6 +82,26 @@ export async function POST(request: Request) {
       where: { userId, clearedAt: null },
       orderBy: { createdAt: 'desc' },
       take: 50,
+    }),
+    // Fetch active inbound relays for relay-badge metadata on assistant messages
+    prisma.agentRelay.findMany({
+      where: {
+        toUserId: userId,
+        status: { in: ['delivered', 'user_review'] },
+      },
+      select: {
+        id: true,
+        subject: true,
+        intent: true,
+        payload: true,
+        status: true,
+        connectionId: true,
+        createdAt: true,
+        fromUser: { select: { id: true, name: true, email: true } },
+        connection: { select: { nickname: true, peerNickname: true, peerUserName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
     }),
   ]);
 
@@ -163,7 +183,21 @@ export async function POST(request: Request) {
               // Check if any tag result is a settings widget — merge widget data into metadata
               const settingsTag = tagResults.find((r: any) => r.data?.isSettingsWidget);
               const googleConnectTag = tagResults.find((r: any) => r.data?.widgetType === 'google_connect');
+              // Attach relay context for UI badges (which relays were in Divi's context)
+              const relayContext = inboundRelays.length > 0 ? inboundRelays.map(r => ({
+                id: r.id,
+                subject: r.subject,
+                intent: r.intent,
+                payload: r.payload,
+                connectionId: r.connectionId,
+                fromName: r.fromUser?.name || r.connection?.peerNickname || r.connection?.peerUserName || r.fromUser?.email || 'Unknown',
+                createdAt: r.createdAt,
+              })) : undefined;
+
               let msgMetadata: any = tags.length > 0 ? { tags: tagResults } : null;
+              if (relayContext) {
+                msgMetadata = { ...msgMetadata, relayContext };
+              }
               if (settingsTag?.data) {
                 msgMetadata = {
                   ...msgMetadata,
@@ -212,7 +246,7 @@ export async function POST(request: Request) {
                 content: cleanText,
                 tagsExecuted: tagResults.length,
               };
-              if (settingsTag?.data || googleConnectTag?.data) {
+              if (settingsTag?.data || googleConnectTag?.data || relayContext) {
                 donePayload.metadata = msgMetadata;
               }
               const doneData = JSON.stringify(donePayload);

@@ -1245,6 +1245,7 @@ function SignalsSetupButtons({ onDone, onSkip }: { onDone: () => void; onSkip: (
 }
 
 function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask, onSignalsSetupComplete }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void; onSignalsSetupComplete?: (choice: 'done' | 'skip') => void }) {
+  const [relayExpanded, setRelayExpanded] = useState(false);
   const isUser = message.role === 'user';
   const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
   const initials = isUser
@@ -1281,6 +1282,14 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
     return meta?.isSignalsSetup === true;
   })();
 
+  // Parse relay context — inbound relays Divi had in context when generating this message
+  const relayContext: Array<{ id: string; subject: string; intent: string; payload: string | null; fromName: string; connectionId: string; createdAt: string }> | null = (() => {
+    if (!message.metadata || isUser) return null;
+    const meta = typeof message.metadata === 'string' ? (() => { try { return JSON.parse(message.metadata as string); } catch { return null; } })() : message.metadata;
+    if (meta?.relayContext && Array.isArray(meta.relayContext) && meta.relayContext.length > 0) return meta.relayContext;
+    return null;
+  })();
+
   // Hide system-triggered messages
   if (isSystemHidden) return null;
 
@@ -1305,6 +1314,44 @@ function MessageBubble({ message, userPhoto, userName, diviName, onAddMessage, o
         <div className="text-sm text-[var(--text-primary)] leading-relaxed">
           {renderMarkdownLite(message.content)}
         </div>
+
+        {/* Relay context badge — shows when Divi's response was informed by inbound relays */}
+        {relayContext && (
+          <div className="mt-2">
+            <button
+              onClick={() => setRelayExpanded(!relayExpanded)}
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[10px] font-medium hover:bg-purple-500/15 transition-colors"
+            >
+              <span>📡</span>
+              <span>{relayContext.length} relay{relayContext.length !== 1 ? 's' : ''} in context</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={cn('transition-transform', relayExpanded && 'rotate-180')}>
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {relayExpanded && (
+              <div className="mt-2 space-y-2">
+                {relayContext.map((relay) => {
+                  let payloadText = relay.payload || '';
+                  try { const p = JSON.parse(relay.payload || '{}'); payloadText = p.message || p.body || p.detail || p.text || (typeof p === 'string' ? p : relay.payload || ''); } catch {}
+                  return (
+                    <div key={relay.id} className="rounded-lg bg-purple-500/5 border border-purple-500/10 p-2.5">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-bold text-purple-400 uppercase">From {relay.fromName}</span>
+                        <span className="text-[9px] text-[var(--text-muted)]">· {relay.intent}</span>
+                      </div>
+                      <p className="text-xs font-medium text-[var(--text-primary)] mb-0.5">{relay.subject}</p>
+                      {payloadText && payloadText !== relay.subject && (
+                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{payloadText}</p>
+                      )}
+                      <p className="text-[9px] text-[var(--text-muted)] mt-1">Relay ID: {relay.id}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Agent Widget rendering */}
         {(() => {
           const widgetPayload = parseWidgetPayload(message.metadata);
