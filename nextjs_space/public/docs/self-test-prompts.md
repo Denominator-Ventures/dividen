@@ -237,7 +237,16 @@ Self-test Bug 25b. Emit [[invite_to_project:{"projectName":"<a real project>","m
 
 ## New bugs noticed by user in session 3
 
-### Bug 27 — "Duplicate tag emission" (diagnosed + fixed Apr 18 session 3.3)
+### Bug 27 — "Duplicate tag emission" (FIXED + VERIFIED Apr 18 session 3.3.1)
+
+**VERIFICATION**: Jon retested with a clean prompt. Divi emitted the tag, one fire, server created real invite `cmo4vikgb0075x1ht26jej0oh` (project `DiviDen Setup`, invitee @djjaron, status pending). No duplicate summary, no fabricated IDs, no contradictory results. **Fix holds.**
+
+**KEY IMPLICATION**: Every previous "duplicate emission", "second fire failed", "contradictory results" report in Tier 1 retest was poisoned by this hallucination. The actual tags were firing correctly the whole time — Divi was fabricating the "failure" half. This means:
+- Bug 14 scopes retest that came back "OK" is reliable (server confirmed scopes are present).
+- Any Tier 1 bug retest that reported "duplicate emission" as a new failure → disregard, that was hallucination noise.
+- Tier 1 bugs that failed for OTHER reasons (e.g., no inviteId returned, card didn't render) still need re-verification.
+
+
 
 **Report from Divi**: "Same tag firing twice with contradictory results — first OK, second FAIL with 'Project not found'. Happens on every tag test."
 
