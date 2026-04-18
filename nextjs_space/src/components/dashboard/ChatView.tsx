@@ -98,6 +98,10 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       .catch(() => {});
   }, []);
 
+  // ── Local state: relay IDs that have been dismissed client-side ──
+  // (used to instantly gray-out purple cards without waiting for refetch)
+  const [dismissedRelayIds, setDismissedRelayIds] = useState<Set<string>>(() => new Set());
+
   // ── Resolved relay IDs (for collapsing relay badges on old messages) ──
   const resolvedRelayIds = useMemo(() => {
     const ids = new Set<string>();
@@ -110,6 +114,14 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           ids.add(t.data.relayId);
         }
       }
+      // Check if any relayContext items have resolved status (from refetch after dismiss/complete)
+      if (meta?.relayContext && Array.isArray(meta.relayContext)) {
+        for (const r of meta.relayContext) {
+          if (r?.id && (r.status === 'completed' || r.status === 'declined' || r.status === 'expired' || r.resolvedAt)) {
+            ids.add(r.id);
+          }
+        }
+      }
     }
     // Also include currently-streaming tag results
     for (const t of tagResults) {
@@ -117,8 +129,10 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ids.add((t as any).data.relayId);
       }
     }
+    // Include dismissed IDs (client-side tracking)
+    for (const id of Array.from(dismissedRelayIds)) ids.add(id);
     return ids;
-  }, [messages, tagResults]);
+  }, [messages, tagResults, dismissedRelayIds]);
 
   // ── Scroll to bottom ──────────────────────────────────────────────────
   const scrollToBottom = useCallback(() => {
@@ -257,22 +271,38 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
   }, [input, inlineTriggerIdx]);
 
   // ── Fetch chat history ────────────────────────────────────────────────
-  useEffect(() => {
-    async function loadMessages() {
-      try {
-        const res = await fetch('/api/chat/messages?limit=50');
-        const data = await res.json();
-        if (data.success && data.data?.messages) {
-          setMessages(data.data.messages);
-        }
-      } catch (err) {
-        console.error('Failed to load messages:', err);
-      } finally {
-        setIsLoading(false);
+  const loadMessages = useCallback(async (opts?: { silent?: boolean }) => {
+    try {
+      if (!opts?.silent) setIsLoading(true);
+      const res = await fetch('/api/chat/messages?limit=50');
+      const data = await res.json();
+      if (data.success && data.data?.messages) {
+        setMessages(data.data.messages);
       }
+    } catch (err) {
+      console.error('Failed to load messages:', err);
+    } finally {
+      if (!opts?.silent) setIsLoading(false);
     }
-    loadMessages();
   }, []);
+
+  useEffect(() => {
+    loadMessages();
+  }, [loadMessages]);
+
+  // ── Listen for relay dismissal / comms refresh events ──
+  useEffect(() => {
+    const handler = () => {
+      // Re-fetch messages silently so metadata.relayContext reflects latest statuses
+      loadMessages({ silent: true });
+    };
+    window.addEventListener('dividen:comms-refresh', handler);
+    window.addEventListener('dividen:now-refresh', handler);
+    return () => {
+      window.removeEventListener('dividen:comms-refresh', handler);
+      window.removeEventListener('dividen:now-refresh', handler);
+    };
+  }, [loadMessages]);
 
   // ── Send message with SSE streaming ───────────────────────────────────
   const sendMessage = useCallback(
@@ -931,7 +961,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} resolvedRelayIds={resolvedRelayIds} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} onSignalsSetupComplete={handleSignalsSetupComplete} />
+              <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} resolvedRelayIds={resolvedRelayIds} onRelayDismissed={(id: string) => setDismissedRelayIds(prev => { const n = new Set(prev); n.add(id); return n; })} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} onSignalsSetupComplete={handleSignalsSetupComplete} />
             ))}
 
             {/* Streaming response */}
@@ -1149,7 +1179,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
           </div>
         )}
 
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-2 items-end w-full min-w-0">
           <textarea
             ref={inputRef}
             value={input}
@@ -1161,9 +1191,10 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
               el.style.height = Math.min(el.scrollHeight, 160) + 'px';
             }}
             placeholder={isStreaming ? `${diviName} is thinking...` : `Message ${diviName}... (@ to mention, ! for commands)`}
-            className="input-field flex-1 min-w-0 text-sm md:text-base resize-none overflow-y-auto"
-            style={{ maxHeight: '160px', minHeight: '42px' }}
+            className="input-field flex-1 min-w-0 w-0 text-sm md:text-base resize-none overflow-y-auto"
+            style={{ maxHeight: '160px', minHeight: '42px', overflowWrap: 'anywhere', wordBreak: 'break-word' }}
             rows={1}
+            wrap="soft"
             disabled={isStreaming}
             role="combobox"
             aria-expanded={!!(inlineMode && inlineItems.length > 0)}
@@ -1330,7 +1361,7 @@ function SignalsSetupButtons({ onDone, onSkip }: { onDone: () => void; onSkip: (
   );
 }
 
-function MessageBubble({ message, userPhoto, userName, diviName, resolvedRelayIds, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask, onSignalsSetupComplete }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; resolvedRelayIds?: Set<string>; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void; onSignalsSetupComplete?: (choice: 'done' | 'skip') => void }) {
+function MessageBubble({ message, userPhoto, userName, diviName, resolvedRelayIds, onRelayDismissed, onAddMessage, onOnboardingAction, onSetupNextTask, onSetupSkipTask, onSignalsSetupComplete }: { message: ChatMessage; userPhoto?: string | null; userName?: string | null; diviName?: string; resolvedRelayIds?: Set<string>; onRelayDismissed?: (id: string) => void; onAddMessage?: (msg: ChatMessage) => void; onOnboardingAction?: (action: 'submit' | 'skip' | 'google_connect', phase: number, data?: any) => void; onSetupNextTask?: (taskText: string, action: any) => void; onSetupSkipTask?: (taskText: string) => void; onSignalsSetupComplete?: (choice: 'done' | 'skip') => void }) {
   const [relayExpanded, setRelayExpanded] = useState(false);
   const isUser = message.role === 'user';
   const isSystemHidden = message.role === 'user' && message.content?.startsWith('[SYSTEM:');
@@ -1426,7 +1457,12 @@ function MessageBubble({ message, userPhoto, userName, diviName, resolvedRelayId
                 {relayContext.map((relay) => {
                   const isResolved = resolvedRelayIds?.has(relay.id) ?? false;
                   let payloadText = relay.payload || '';
-                  try { const p = JSON.parse(relay.payload || '{}'); payloadText = p.message || p.body || p.detail || p.text || (typeof p === 'string' ? p : relay.payload || ''); } catch {}
+                  let isAmbient = false;
+                  try {
+                    const p = JSON.parse(relay.payload || '{}');
+                    payloadText = p.message || p.body || p.detail || p.text || (typeof p === 'string' ? p : relay.payload || '');
+                    isAmbient = !!p._ambient;
+                  } catch {}
                   return (
                     <div key={relay.id} className={cn('rounded-lg p-2.5', isResolved ? 'bg-gray-500/5 border border-gray-500/10' : 'bg-purple-500/5 border border-purple-500/10')}>
                       <div className="flex items-center gap-2 mb-1">
@@ -1436,9 +1472,20 @@ function MessageBubble({ message, userPhoto, userName, diviName, resolvedRelayId
                       </div>
                       <p className={cn('text-xs font-medium mb-0.5', isResolved ? 'text-[var(--text-muted)] line-through' : 'text-[var(--text-primary)]')}>{relay.subject}</p>
                       {payloadText && payloadText !== relay.subject && (
-                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{payloadText}</p>
+                        <p className={cn('text-[11px] leading-relaxed', isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)]')}>{payloadText}</p>
                       )}
-                      <p className="text-[9px] text-[var(--text-muted)] mt-1">Relay ID: {relay.id}</p>
+                      <div className="mt-1.5 pt-1 border-t border-purple-500/10">
+                        <RelayFootnote
+                          relayId={relay.id}
+                          sender={relay.fromName}
+                          type={isAmbient ? 'ambient' : 'direct'}
+                          timestamp={relay.createdAt}
+                          status={isResolved ? 'completed' : 'delivered'}
+                          tone="purple"
+                          dismissible={!isResolved}
+                          onDismissed={() => onRelayDismissed?.(relay.id)}
+                        />
+                      </div>
                     </div>
                   );
                 })}

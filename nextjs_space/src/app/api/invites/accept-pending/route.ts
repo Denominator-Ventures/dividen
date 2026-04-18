@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
               peerInstanceUrl: invite.sourceInstance!,
               peerUserEmail: invite.inviterEmail,
               peerUserName: invite.inviterName,
-              permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+              permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
             },
           });
         } else {
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
               status: 'active',
               nickname: invite.inviteeName || userEmail,
               peerNickname: invite.inviterName || invite.inviterEmail,
-              permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+              permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
             },
           });
 

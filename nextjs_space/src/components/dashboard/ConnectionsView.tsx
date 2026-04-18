@@ -831,7 +831,7 @@ export function ConnectionsView() {
                   {activeConnections.map(c => {
                     const peer = getConnectionPeer(c);
                     const isSelected = selectedConnection?.id === c.id;
-                    let perms: { trustLevel: TrustLevel; scopes: ConnectionScope[] } = { trustLevel: 'supervised', scopes: [] };
+                    let perms: { trustLevel: TrustLevel; scopes: ConnectionScope[] } = { trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] };
                     try { perms = JSON.parse(c.permissions); } catch {}
                     const trustDef = TRUST_LEVELS.find(t => t.id === perms.trustLevel);
 

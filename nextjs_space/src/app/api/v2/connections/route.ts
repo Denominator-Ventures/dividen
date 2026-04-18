@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
         peerUserName: fromUserName || null,
         federationToken,
         nickname: fromUserName || fromUserEmail,
-        permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+        permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
       },
     });
 

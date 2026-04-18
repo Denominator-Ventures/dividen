@@ -44,13 +44,40 @@ export async function GET(request: NextRequest) {
   const messages = await prisma.chatMessage.findMany(queryOptions);
 
   // Strip action tags from assistant messages for client display
-  const cleanMessages = messages.reverse().map((m: any) => ({
+  const rawMessages = messages.reverse().map((m: any) => ({
     id: m.id,
     role: m.role,
     content: m.role === 'assistant' ? stripActionTags(m.content) : m.content,
     createdAt: m.createdAt.toISOString(),
     metadata: m.metadata ? JSON.parse(m.metadata) : null,
   }));
+
+  // Rehydrate current relay status for any message that has relayContext
+  // This ensures purple cards collapse to "resolved" once the relay is completed/dismissed,
+  // even if the resolution happened outside this chat flow.
+  const relayIds = new Set<string>();
+  for (const msg of rawMessages) {
+    const rc = (msg as any).metadata?.relayContext;
+    if (Array.isArray(rc)) for (const r of rc) if (r?.id) relayIds.add(r.id);
+  }
+  let statusById: Record<string, { status: string; resolvedAt: Date | null }> = {};
+  if (relayIds.size > 0) {
+    const current = await prisma.agentRelay.findMany({
+      where: { id: { in: Array.from(relayIds) } },
+      select: { id: true, status: true, resolvedAt: true },
+    });
+    statusById = Object.fromEntries(current.map((r: any) => [r.id, { status: r.status, resolvedAt: r.resolvedAt }]));
+  }
+  const cleanMessages = rawMessages.map((msg: any) => {
+    if (msg.metadata?.relayContext && Array.isArray(msg.metadata.relayContext)) {
+      msg.metadata.relayContext = msg.metadata.relayContext.map((r: any) => {
+        const live = statusById[r.id];
+        if (!live) return r;
+        return { ...r, status: live.status, resolvedAt: live.resolvedAt ? live.resolvedAt.toISOString() : null };
+      });
+    }
+    return msg;
+  });
 
   // Check if there are more messages
   const hasMore = messages.length === limit;

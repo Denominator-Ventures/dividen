@@ -80,7 +80,7 @@ export async function POST(
           peerInstanceUrl: invite.sourceInstance!,
           peerUserEmail: invite.inviterEmail,
           peerUserName: invite.inviterName,
-          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
         },
       });
     } else {
@@ -92,7 +92,7 @@ export async function POST(
           status: 'active', // Auto-accept since they signed up via invite
           nickname: invite.inviteeName || userEmail,
           peerNickname: invite.inviterName || invite.inviterEmail,
-          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
         },
       });
 

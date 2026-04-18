@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
           peerUserEmail,
           peerUserName: peerUserName || null,
           federationToken,
-          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
         },
         include: {
           requester: { select: { id: true, name: true, email: true } },
@@ -270,7 +270,7 @@ export async function POST(req: NextRequest) {
         accepterId: targetUser.id,
         status: 'pending',
         nickname: nickname || targetUser.name || targetUser.email,
-        permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+        permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
       },
       include: {
         requester: { select: { id: true, name: true, email: true } },

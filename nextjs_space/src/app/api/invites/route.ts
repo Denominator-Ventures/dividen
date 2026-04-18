@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
           accepterId: existingUser.id,
           status: 'pending',
           nickname: name || existingUser.name || existingUser.email,
-          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: [] }),
+          permissions: JSON.stringify({ trustLevel: 'supervised', scopes: ['relay', 'task', 'project', 'ambient'] }),
         },
       });
 

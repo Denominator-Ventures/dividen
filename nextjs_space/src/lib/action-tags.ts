@@ -1262,7 +1262,40 @@ export async function executeTag(
         // Push relay state webhook
         pushRelayStateChanged(userId, { relayId: relay.id, threadId: relayThreadId, previousState: null, newState: 'pending', subject });
 
-        return { tag: name, success: true, data: { relayId: relay.id, threadId: relayThreadId, subject, intent, status: 'delivered' } };
+        // Resolve recipient label for UI (green card)
+        let peerLabel = '';
+        try {
+          const connFull = await prisma.connection.findUnique({
+            where: { id: connection.id },
+            include: {
+              requester: { select: { name: true, email: true, username: true } },
+              accepter: { select: { name: true, email: true, username: true } },
+            },
+          });
+          if (connFull) {
+            const peer = connFull.requesterId === userId ? connFull.accepter : connFull.requester;
+            peerLabel = (connFull as any).peerNickname || (connFull as any).peerUserName || peer?.name || peer?.username || peer?.email || (connFull as any).nickname || '';
+          }
+        } catch {}
+
+        const payloadMsg = params.payload
+          ? (typeof params.payload === 'string' ? params.payload : (params.payload.message || params.payload.question || JSON.stringify(params.payload)))
+          : null;
+
+        return {
+          tag: name,
+          success: true,
+          data: {
+            relayId: relay.id,
+            threadId: relayThreadId,
+            subject,
+            message: payloadMsg || subject,
+            intent,
+            status: connection.isFederated ? 'pending' : 'delivered',
+            to: peerLabel || undefined,
+            recipient: peerLabel || undefined,
+          },
+        };
       }
 
       case 'relay_broadcast': {
@@ -1730,7 +1763,7 @@ export async function executeTag(
         // Build the display string for the outgoing response card:
         // - If declined with no payload: show "Declined: <original subject>"
         // - Otherwise: show the operator's actual response payload (what they sent back)
-        // - Fallback to original subject only if we truly have nothing else
+        // - Fallback: explicit acknowledgement — NEVER echo the raw inbound subject (bug #2)
         const responseText: string = (() => {
           if (typeof resolvedPayload === 'string' && resolvedPayload.trim()) return resolvedPayload.trim();
           if (resolvedPayload && typeof resolvedPayload === 'object') {
@@ -1741,8 +1774,28 @@ export async function executeTag(
           }
           if (resolvedStatus === 'declined') return `Declined: ${relayToRespond.subject}`;
           if (resolvedStatus === 'completed') return `Acknowledged: ${relayToRespond.subject}`;
-          return relayToRespond.subject;
+          // Any other status with no payload: show the status + hint, NOT the raw inbound subject
+          return `${resolvedStatus}: ${relayToRespond.subject}`;
         })();
+
+        // Resolve recipient label for the green outgoing card (who this response went to)
+        let respondToLabel = '';
+        try {
+          if (relayToRespond.fromUserId) {
+            const fromUser = await prisma.user.findUnique({
+              where: { id: relayToRespond.fromUserId },
+              select: { name: true, email: true, username: true },
+            });
+            respondToLabel = fromUser?.name || fromUser?.username || fromUser?.email || '';
+          }
+          if (!respondToLabel && relayToRespond.connectionId) {
+            const connFull = await prisma.connection.findUnique({
+              where: { id: relayToRespond.connectionId },
+              select: { peerUserName: true, peerNickname: true, nickname: true },
+            });
+            respondToLabel = connFull?.peerUserName || connFull?.peerNickname || connFull?.nickname || '';
+          }
+        } catch {}
 
         return {
           tag: name,
@@ -1756,6 +1809,8 @@ export async function executeTag(
             originalSubject: relayToRespond.subject,
             responsePayload: resolvedPayload || null,
             ambientSignalCaptured: isAmbient,
+            to: respondToLabel || undefined,
+            recipient: respondToLabel || undefined,
           },
         };
       }

@@ -306,7 +306,7 @@ export const COMMS_STATES: { id: CommsState; label: string; color: string }[] = 
 
 export type ConnectionStatus = 'pending' | 'active' | 'blocked' | 'declined';
 export type TrustLevel = 'full_auto' | 'supervised' | 'restricted';
-export type ConnectionScope = 'request_files' | 'assign_tasks' | 'read_status' | 'schedule' | 'share_updates' | 'request_approval';
+export type ConnectionScope = 'request_files' | 'assign_tasks' | 'read_status' | 'schedule' | 'share_updates' | 'request_approval' | 'relay' | 'task' | 'project' | 'ambient';
 
 export interface ConnectionPermissions {
   trustLevel: TrustLevel;
