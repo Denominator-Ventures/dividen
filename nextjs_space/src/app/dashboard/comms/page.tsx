@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
 import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
@@ -104,10 +105,20 @@ const DIRECTION_ICONS = {
 export default function CommsPage() {
   const { data: session } = useSession() || {};
   const userId = (session?.user as any)?.id;
+  const searchParams = useSearchParams();
+  const threadParam = searchParams?.get('thread') || null;
   const [relays, setRelays] = useState<Relay[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterType>('all');
-  const [selectedThread, setSelectedThread] = useState<string | null>(null);
+  const [selectedThread, setSelectedThread] = useState<string | null>(threadParam);
+
+  // Sync selectedThread when query param changes
+  useEffect(() => {
+    if (threadParam && threadParam !== selectedThread) {
+      setSelectedThread(threadParam);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadParam]);
 
   const fetchRelays = useCallback(async () => {
     try {

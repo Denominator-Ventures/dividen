@@ -72,5 +72,64 @@ export async function POST(
 
   logActivity({ userId, action: 'card_moved', summary: `Moved "${updated.title}" from ${card.status} → ${status}`, metadata: { cardId: updated.id, from: card.status, to: status }, cardId: updated.id });
 
+  // v2: Propagate status change to linked cards
+  if (status !== card.status) {
+    try {
+      const { propagateCardStatusChange } = await import('@/lib/card-links');
+      await propagateCardStatusChange(updated.id, status);
+    } catch {}
+
+    // v2.2.0: Federation outbound push — mirror the stage move to any federated peer
+    try {
+      const federatedLinks = await prisma.cardLink.findMany({
+        where: {
+          OR: [{ fromCardId: updated.id }, { toCardId: updated.id }],
+          externalInstanceUrl: { not: null },
+          externalCardId: { not: null },
+        },
+      }).catch(() => [] as any[]);
+
+      if (Array.isArray(federatedLinks) && federatedLinks.length > 0) {
+        const { pushCardUpdate } = await import('@/lib/federation-push');
+        const senderUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+        for (const link of federatedLinks as any[]) {
+          const conn = await prisma.connection.findFirst({
+            where: {
+              OR: [{ requesterId: userId }, { accepterId: userId }],
+              isFederated: true,
+              peerInstanceUrl: link.externalInstanceUrl,
+              status: 'active',
+            },
+            select: { id: true },
+          });
+          if (!conn) continue;
+
+          let peerRelayId: string | null = null;
+          if (link.relayId) {
+            const rel = await prisma.agentRelay.findUnique({
+              where: { id: link.relayId },
+              select: { peerRelayId: true },
+            }).catch(() => null);
+            peerRelayId = rel?.peerRelayId || null;
+          }
+
+          pushCardUpdate(conn.id, {
+            localCardId: updated.id,
+            peerCardId: link.externalCardId,
+            relayId: link.relayId || null,
+            peerRelayId,
+            newStage: status,
+            reason: `Card moved from ${card.status} → ${status}`,
+            fromUserId: userId,
+            fromUserName: senderUser?.name || '',
+            fromUserEmail: senderUser?.email || '',
+          });
+        }
+      }
+    } catch (fedErr: any) {
+      console.warn('[kanban/move] federation push failed (non-fatal):', fedErr?.message);
+    }
+  }
+
   return NextResponse.json({ success: true, data: updated });
 }

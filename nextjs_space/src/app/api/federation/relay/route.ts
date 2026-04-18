@@ -102,6 +102,9 @@ export async function POST(req: NextRequest) {
       payload,
       priority,
       dueDate,
+      threadId: remoteThreadId,          // v2.2.0 / FVP Build 525 — inbound thread continuity
+      parentRelayId: remoteParentRelayId,// v2.2.0 — who this relay is replying to
+      attachments: bodyAttachments,      // v2.2.0 — FVP attachments passthrough
     } = body;
 
     // Find the local connection by federation token
@@ -133,6 +136,24 @@ export async function POST(req: NextRequest) {
       ? parseJsonSafe<any>(payload, {})
       : (payload || {});
 
+    // ── v2.2.0: Attachments passthrough (max 10) ──
+    // FVP sends attachments either in the top-level body OR in payload.attachments.
+    // Normalize to an array, cap at 10, persist in payload so the receiving UI can render.
+    const rawAttachments = (Array.isArray(bodyAttachments) ? bodyAttachments : null)
+      || (Array.isArray(parsedPayload?.attachments) ? parsedPayload.attachments : null)
+      || [];
+    const attachments = rawAttachments.slice(0, 10).map((a: any) => ({
+      name: String(a?.name || a?.filename || 'attachment'),
+      url: String(a?.url || a?.href || ''),
+      size: a?.size ?? null,
+      mimeType: a?.mimeType || a?.mime || a?.type || null,
+    })).filter((a: any) => a.url);
+
+    // Fold attachments back into payload so round-trips keep them
+    if (attachments.length > 0) {
+      parsedPayload.attachments = attachments;
+    }
+
     // Ambient detection: FVP signals via payload._ambient === true
     const isAmbient = parsedPayload?._ambient === true
       || parsedPayload?.ambient === true
@@ -158,6 +179,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ── v2.2.0: threadId resolution (FVP Build 525 Q6 pattern) ──
+    // If the peer sends threadId/parentRelayId, resolve parent → our local parentRelayId
+    // (by peerRelayId) and keep the shared threadId for continuity.
+    let resolvedParentRelayId: string | null = null;
+    let resolvedThreadId: string | null = null;
+    if (remoteParentRelayId) {
+      const parentLocal = await prisma.agentRelay.findFirst({
+        where: { peerRelayId: remoteParentRelayId, connectionId: connection.id },
+        select: { id: true, threadId: true },
+      });
+      if (parentLocal) {
+        resolvedParentRelayId = parentLocal.id;
+        resolvedThreadId = parentLocal.threadId || remoteThreadId || parentLocal.id;
+      }
+    }
+    if (!resolvedThreadId && remoteThreadId) {
+      resolvedThreadId = remoteThreadId;
+    }
+
     // ── Create the AgentRelay record ──
     const relay = await prisma.agentRelay.create({
       data: {
@@ -174,8 +214,18 @@ export async function POST(req: NextRequest) {
         dueDate: dueDate ? new Date(dueDate) : null,
         peerRelayId: remoteRelayId || null,
         peerInstanceUrl: connection.peerInstanceUrl,
+        threadId: resolvedThreadId || undefined,
+        parentRelayId: resolvedParentRelayId || undefined,
       },
     });
+
+    // Self-threadId: if no parent, this relay is the thread root — use its own id
+    if (!resolvedThreadId) {
+      await prisma.agentRelay.update({
+        where: { id: relay.id },
+        data: { threadId: relay.id },
+      }).catch(() => {});
+    }
 
     // ── FVP Build 522 §2 behavior #2: task relays land on Kanban board ──
     let kanbanCardId: string | null = null;
@@ -230,10 +280,18 @@ export async function POST(req: NextRequest) {
     const commsPriority = isAmbient ? 'low' : (priority || 'normal');
     const commsState = isAmbient ? 'read' : 'new'; // ambient auto-read so it doesn't beep
 
+    // v2.2.0: Append attachments as a markdown list so the comms UI renders links
+    let attachmentsText = '';
+    if (attachments.length > 0) {
+      attachmentsText = '\n\n📎 Attachments:\n' + attachments.map(
+        (a: any) => `• [${a.name}](${a.url})${a.size ? ` (${(a.size / 1024).toFixed(0)} KB)` : ''}`
+      ).join('\n');
+    }
+
     await prisma.commsMessage.create({
       data: {
         sender: 'system',
-        content: `${commsPrefix} Relay from ${fromUserName || fromUserEmail} (${connection.peerInstanceUrl}): ${subject}`,
+        content: `${commsPrefix} Relay from ${fromUserName || fromUserEmail} (${connection.peerInstanceUrl}): ${subject}${attachmentsText}`,
         state: commsState,
         priority: commsPriority,
         userId: targetUserId,
@@ -244,6 +302,9 @@ export async function POST(req: NextRequest) {
           ambient: isAmbient,
           taskIntent: isTaskIntent,
           cardId: kanbanCardId,
+          threadId: resolvedThreadId || relay.id,
+          parentRelayId: resolvedParentRelayId || null,
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       },
     });
@@ -267,6 +328,9 @@ export async function POST(req: NextRequest) {
       relayId: relay.id,
       ambient: isAmbient,
       cardId: kanbanCardId,
+      threadId: resolvedThreadId || relay.id, // v2.2.0 — echo threadId back so peer can thread
+      parentRelayId: resolvedParentRelayId || null,
+      attachmentCount: attachments.length,
       fallback: !localUser, // Tell FVP we couldn't route to the specified email
     });
   } catch (error: any) {

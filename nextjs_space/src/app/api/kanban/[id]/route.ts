@@ -95,6 +95,63 @@ export async function PATCH(
     await propagateCardStatusChange(card.id, status, priority);
   }
 
+  // v2.2.0: Federation outbound push — if this card is linked to a federated peer's board,
+  // push the update so their side stays in sync (title/status/priority).
+  if (status !== undefined || priority !== undefined || title !== undefined) {
+    try {
+      const federatedLinks = await prisma.cardLink.findMany({
+        where: {
+          OR: [{ fromCardId: card.id }, { toCardId: card.id }],
+          externalInstanceUrl: { not: null },
+          externalCardId: { not: null },
+        },
+      }).catch(() => [] as any[]);
+
+      if (Array.isArray(federatedLinks) && federatedLinks.length > 0) {
+        const { pushCardUpdate } = await import('@/lib/federation-push');
+        const senderUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true } });
+        for (const link of federatedLinks as any[]) {
+          // Find the connection for this peer instance
+          const conn = await prisma.connection.findFirst({
+            where: {
+              OR: [{ requesterId: userId }, { accepterId: userId }],
+              isFederated: true,
+              peerInstanceUrl: link.externalInstanceUrl,
+              status: 'active',
+            },
+            select: { id: true },
+          });
+          if (!conn) continue;
+
+          // Look up relay peer info for thread context (best effort)
+          let peerRelayId: string | null = null;
+          if (link.relayId) {
+            const rel = await prisma.agentRelay.findUnique({
+              where: { id: link.relayId },
+              select: { peerRelayId: true },
+            }).catch(() => null);
+            peerRelayId = rel?.peerRelayId || null;
+          }
+
+          pushCardUpdate(conn.id, {
+            localCardId: card.id,
+            peerCardId: link.externalCardId,
+            relayId: link.relayId || null,
+            peerRelayId,
+            newStage: status,
+            newPriority: priority,
+            title,
+            fromUserId: userId,
+            fromUserName: senderUser?.name || '',
+            fromUserEmail: senderUser?.email || '',
+          });
+        }
+      }
+    } catch (fedErr: any) {
+      console.warn('[kanban/PATCH] federation push failed (non-fatal):', fedErr?.message);
+    }
+  }
+
   return NextResponse.json({ success: true, data: card });
 }
 

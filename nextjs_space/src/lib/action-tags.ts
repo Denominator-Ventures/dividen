@@ -1420,18 +1420,22 @@ export async function executeTag(
       }
 
       case 'relay_ambient': {
-        // params: { to (name/email), question, context?, topic? }
+        // params: { to (name/email), message|question|subject, intent?, context?, topic? }
         // Creates a LOW-PRIORITY relay that the receiving agent should weave naturally into conversation
-        // rather than interrupting with a notification
-        const ambientQuestion = params.question || params.subject || params.message || '';
-        if (!ambientQuestion) {
-          return { tag: name, success: false, error: 'Missing question for ambient relay' };
+        // rather than interrupting with a notification. Accepts ANY message type — updates, questions, intros,
+        // schedules, opinions, observations — not just questions.
+        const ambientMessage = params.message || params.subject || params.question || params.text || '';
+        if (!ambientMessage) {
+          return { tag: name, success: false, error: 'Missing message for ambient relay' };
         }
 
         const searchTerm = (params.to || params.name || params.connectionNickname || '').toLowerCase();
         if (!searchTerm) {
-          return { tag: name, success: false, error: 'Must specify who to ask (to/name)' };
+          return { tag: name, success: false, error: 'Must specify who to send to (to/name)' };
         }
+
+        // Intent defaults to 'custom' — ambient can convey any of: ask, share_update, intro, schedule, opinion, note, custom
+        const ambientIntent = (params.intent || 'custom').toString();
 
         const ambientConns = await prisma.connection.findMany({
           where: {
@@ -1493,13 +1497,13 @@ export async function executeTag(
             toUserId: ambientConn.isFederated ? null : ambientToId,
             direction: 'outbound',
             type: 'request',
-            intent: 'ask',
-            subject: ambientQuestion,
+            intent: ambientIntent,
+            subject: ambientMessage,
             payload: JSON.stringify({
               _ambient: true,
               _context: params.context || null,
               _topic: params.topic || null,
-              _instruction: 'This is an ambient relay. Do NOT interrupt the user. Instead, naturally weave this question into your next conversation when contextually relevant. Respond when you have a natural answer.',
+              _instruction: 'This is an ambient relay. Do NOT interrupt the user. Instead, naturally weave this message into your next conversation when contextually relevant. Respond if/when you have a natural answer.',
             }),
             status: 'pending',
             priority: 'low',
@@ -1521,8 +1525,8 @@ export async function executeTag(
               fromUserId: userId,
               toUserEmail: ambientConn.peerUserEmail || undefined,
               type: 'request',
-              intent: 'ask',
-              subject: ambientQuestion,
+              intent: ambientIntent,
+              subject: ambientMessage,
               payload: {
                 _ambient: true,
                 _context: params.context || null,
@@ -1543,8 +1547,8 @@ export async function executeTag(
           data: {
             action: 'relay_ambient',
             actor: 'divi',
-            summary: `Divi sent ambient ask to ${searchTerm}: "${ambientQuestion.slice(0, 60)}..."`,
-            metadata: JSON.stringify({ relayId: ambientRelay.id }),
+            summary: `Divi sent ambient ${ambientIntent} to ${searchTerm}: "${ambientMessage.slice(0, 60)}..."`,
+            metadata: JSON.stringify({ relayId: ambientRelay.id, intent: ambientIntent }),
             userId,
           },
         }).catch(() => {});
@@ -1555,9 +1559,11 @@ export async function executeTag(
           data: {
             relayId: ambientRelay.id,
             to: searchTerm,
-            question: ambientQuestion,
+            subject: ambientMessage,
+            message: ambientMessage,
+            intent: ambientIntent,
             mode: 'ambient',
-            note: 'Sent as ambient relay — their agent will work this into conversation naturally.',
+            note: `Sent as ambient ${ambientIntent} relay — their agent will work this into conversation naturally.`,
           },
         };
       }

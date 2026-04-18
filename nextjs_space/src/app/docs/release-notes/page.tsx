@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.1.15 FVP Build 522 Compliance: federation idempotency, ambient gates, inbound Kanban, marketplace queue gate.',
+  description: 'DiviDen release notes — v2.2.0 Comms Threading & Bidirectional Federation: thread-grouped comms, intent-flexible ambient relays, federated Kanban sync, attachments passthrough.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.1.15 — FVP Build 522 Compliance, federation idempotency, ambient gates, inbound Kanban, marketplace queue gate.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.1.15+FVP+Build+522+Compliance&tag=release', width: 1200, height: 630 }],
+    description: 'v2.2.0 — Comms Threading & Bidirectional Federation. v2.1.15 — FVP Build 522 Compliance.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.2.0+Comms+Threading+%26+Federation+Kanban&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.1.15 — FVP Build 522 Compliance, federation idempotency, ambient gates, inbound Kanban, marketplace queue gate.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.1.15+FVP+Build+522+Compliance&tag=release'],
+    description: 'v2.2.0 — Comms Threading & Bidirectional Federation. v2.1.15 — FVP Build 522 Compliance.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.2.0+Comms+Threading+%26+Federation+Kanban&tag=release'],
   },
 };
 
@@ -41,16 +41,125 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 17, 2026 — v2.1.15 FVP BUILD 522 COMPLIANCE                */}
+        {/* APRIL 17, 2026 — v2.2.0 COMMS THREADING & BIDIRECTIONAL FEDERATION */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div id="release-v2.1.15" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
+        <div id="release-v2.2.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
           {/* Glow accent for latest */}
           <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent pointer-events-none" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.15</span>
+                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.2.0</span>
                 <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)]">April 17, 2026</span>
+                <DocDownloadButton containerId="release-v2.2.0" filename="dividen-release-v2.2.0" variant="icon" />
+              </div>
+            </div>
+            <p className="text-sm text-[var(--text-muted)] mb-6">Comms Threading & Bidirectional Federation — Thread-Grouped Inbox, Intent-Flexible Ambient Relays, Federated Kanban Sync, Attachments Passthrough</p>
+
+            <div className="mb-8 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
+              <p className="text-sm text-cyan-300">
+                <strong>🧵 Comms re-thought around threads.</strong> The main Comms tab used to show one row per relay — 5 messages with the same person meant 5 cards cluttering the list. Now every peer collapses to a single row with a live count of open/active relays, the latest subject preview, and a direct link to the expanded thread view. Meanwhile, ambient relays are no longer question-only — they carry any intent: share updates, drop an intro, acknowledge a schedule, voice an opinion. FVP Build 524/525 parity on cross-instance Kanban sync + attachments passthrough.
+              </p>
+            </div>
+
+            <div className="space-y-8">
+
+              {/* Comms Threading */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🧵 Comms Tab → Thread-Grouped View</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  The Comms surface on the main dashboard is now grouped by peer (connectionId), matching the expanded <code className="code-inline">/dashboard/comms</code> view. Every peer shows as a single row with:
+                </p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-1 mb-3 ml-2">
+                  <li>• Live open-relay count (pending/delivered/ack) + total message count</li>
+                  <li>• Latest subject preview + intent icon (📡 request · 🌊 ambient · ✅ response · 📢 broadcast)</li>
+                  <li>• Outbound vs inbound direction arrow</li>
+                  <li>• Relative timestamp of most recent activity</li>
+                  <li>• Click through to <code className="code-inline">/dashboard/comms?thread=&lt;connectionId&gt;</code> which auto-opens that thread</li>
+                </ul>
+                <p className="text-sm text-[var(--text-muted)]">
+                  The main tab also now surfaces open outbound relays (previously hidden when no inbound), so you always see what&apos;s in flight.
+                </p>
+              </div>
+
+              {/* Ambient relay intents */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🌊 Ambient Relays → Any Intent</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  <code className="code-inline">relay_ambient</code> used to accept only <code className="code-inline">params.question</code> and hardcoded <code className="code-inline">intent: &apos;ask&apos;</code>. That collapsed the entire surface to &quot;one agent asking another agent a question.&quot; Ambient was supposed to be the broader concept: <strong>any fire-and-forget message the peer agent can weave into conversation naturally.</strong>
+                </p>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">Now accepts:</p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-1 mb-3 ml-2">
+                  <li>• <code className="code-inline">params.message</code> (new) · <code className="code-inline">params.subject</code> · <code className="code-inline">params.question</code> (legacy)</li>
+                  <li>• <code className="code-inline">params.intent</code> — default <code className="code-inline">&apos;custom&apos;</code>, but explicitly supports: <code className="code-inline">ask</code>, <code className="code-inline">share_update</code>, <code className="code-inline">intro</code>, <code className="code-inline">schedule</code>, <code className="code-inline">opinion</code>, <code className="code-inline">note</code></li>
+                  <li>• Receiving agent now sees the intent in the system prompt and adapts how it weaves the message in (updates don&apos;t need a reply, questions do)</li>
+                </ul>
+                <p className="text-sm text-[var(--text-muted)]">
+                  <strong>Rule of thumb:</strong> if the user would be fine waiting hours/days for a natural reply, use ambient. If they need an answer now or a commitment tracked, use <code className="code-inline">relay_request</code> (still tracked, status-bearing, ack-required).
+                </p>
+              </div>
+
+              {/* Federation Card-Update */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">📡 Federation: Bidirectional Kanban Sync</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  New <code className="code-inline">POST /api/federation/card-update</code> endpoint (FVP Build 524 parity). When a peer moves a card that&apos;s linked to ours via <code className="code-inline">CardLink</code>, they push the delta to us and our card advances too. Lookup precedence: <code className="code-inline">localCardId</code> → <code className="code-inline">CardLink.externalCardId</code> → <code className="code-inline">AgentRelay.peerRelayId</code> → <code className="code-inline">AgentRelay.cardId</code>.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  Symmetric: our <code className="code-inline">PATCH /api/kanban/[id]</code> and <code className="code-inline">POST /api/kanban/[id]/move</code> now call a new <code className="code-inline">pushCardUpdate()</code> helper that fires the same payload outbound to any federated peer whose <code className="code-inline">CardLink.externalInstanceUrl</code> matches. Changelog entries (max 50) are persisted on both sides for audit.
+                </p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Consistent envelope: success returns <code className="code-inline">{'{'} success: true, matched: true, localCardId, newStage, ... {'}'}</code>; failure returns <code className="code-inline">{'{'} success: false, error, code {'}'}</code> where code ∈ <code className="code-inline">[&apos;missing_token&apos;, &apos;federation_disabled&apos;, &apos;invalid_payload&apos;, &apos;connection_not_found&apos;, &apos;card_not_found&apos;, &apos;internal_error&apos;]</code>.
+                </p>
+              </div>
+
+              {/* Thread continuity */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🧷 Federation: Thread Continuity (threadId + parentRelayId)</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  Inbound <code className="code-inline">/api/federation/relay</code> now reads optional <code className="code-inline">threadId</code> and <code className="code-inline">parentRelayId</code> from the body. <code className="code-inline">parentRelayId</code> is resolved against <code className="code-inline">AgentRelay.peerRelayId</code> on our side, and we inherit the parent&apos;s <code className="code-inline">threadId</code> (or fall back to the remote-supplied value). Thread-root relays get <code className="code-inline">threadId = self.id</code>.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Outbound <code className="code-inline">pushRelayToFederatedInstance</code> auto-hydrates <code className="code-inline">threadId</code>/<code className="code-inline">parentRelayId</code> from the local <code className="code-inline">AgentRelay</code> row if not passed in. So replies (via <code className="code-inline">relay_respond</code> with <code className="code-inline">parentRelayId</code>) now carry the parent&apos;s thread identity across the federation hop automatically. Response echoes <code className="code-inline">threadId</code> + <code className="code-inline">parentRelayId</code> so peers can thread on their side.
+                </p>
+              </div>
+
+              {/* Attachments */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">📎 Federation: Attachments Passthrough (max 10)</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  Inbound federation relays now parse <code className="code-inline">body.attachments</code> or <code className="code-inline">payload.attachments</code> as an array of <code className="code-inline">{'{'}name, url, size?, mimeType?{'}'}</code>. Capped at 10 entries per FVP spec. Folded into the AgentRelay payload JSON for round-trip, rendered in the CommsMessage body as a markdown list (<code className="code-inline">📎 Attachments: • [name](url)</code>) so links are clickable.
+                </p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Attachments are passed through only — we don&apos;t re-host or proxy. The peer&apos;s storage URLs are used directly. Response includes <code className="code-inline">attachmentCount</code>.
+                </p>
+              </div>
+
+              {/* Green card fix */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🟢 ChatView Green Card Fix (outbound relay preview)</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  When Divi sends a relay, the green confirmation card in the chat stream sometimes showed empty/wrong content — especially for ambient relays that returned <code className="code-inline">question</code> instead of <code className="code-inline">subject</code>. Now falls back through a robust chain: <code className="code-inline">subject → responseText → message → question → note</code>. Also surfaces the <code className="code-inline">to</code>/recipient name on the card so you can tell at a glance where it went.
+                </p>
+              </div>
+
+            </div>
+
+            <DocFooterDownload containerId="release-v2.2.0" filename="dividen-release-v2.2.0" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.1.15 FVP BUILD 522 COMPLIANCE                 */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.1.15" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/20 rounded-xl relative overflow-hidden">
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.15</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text-muted)]">April 18, 2026</span>

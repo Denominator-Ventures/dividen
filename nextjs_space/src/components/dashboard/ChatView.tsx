@@ -983,9 +983,20 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                     {r.tag === 'relay_respond' && r.data?.originalSubject && (
                       <p className="text-[9px] text-emerald-300/40 mt-0.5 pl-4 line-clamp-1 italic">Re: {r.data.originalSubject}</p>
                     )}
-                    {r.data?.subject && (
-                      <p className="text-[10px] text-emerald-300/80 mt-0.5 pl-4 line-clamp-2">{r.data.subject}</p>
-                    )}
+                    {(() => {
+                      const body = r.data?.subject || r.data?.responseText || r.data?.message || r.data?.question || r.data?.note;
+                      const to = r.data?.to || r.data?.recipient;
+                      return (
+                        <>
+                          {to && (
+                            <p className="text-[9px] text-emerald-300/50 mt-0.5 pl-4 line-clamp-1">→ {to}</p>
+                          )}
+                          {body && (
+                            <p className="text-[10px] text-emerald-300/80 mt-0.5 pl-4 line-clamp-2">{body}</p>
+                          )}
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
                 {/* Failed relay results — red warning */}

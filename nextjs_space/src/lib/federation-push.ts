@@ -31,6 +31,8 @@ export async function pushRelayToFederatedInstance(
     payload?: any;
     priority?: string;
     dueDate?: string | null;
+    threadId?: string | null;
+    parentRelayId?: string | null;
   }
 ): Promise<boolean> {
   try {
@@ -43,12 +45,30 @@ export async function pushRelayToFederatedInstance(
       return false; // Not federated or missing config
     }
 
+    // ── v2.2.0: Auto-hydrate threadId/parentRelayId from the local relay if not passed in ──
+    let threadId = payload.threadId || null;
+    let parentRelayId = payload.parentRelayId || null;
+    if (!threadId || !parentRelayId) {
+      try {
+        const localRelay = await prisma.agentRelay.findUnique({
+          where: { id: payload.relayId },
+          select: { threadId: true, parentRelayId: true },
+        });
+        if (localRelay) {
+          threadId = threadId || localRelay.threadId;
+          parentRelayId = parentRelayId || localRelay.parentRelayId;
+        }
+      } catch {}
+    }
+
     // Include our instance's callback URL so the remote can push completion back
     const selfUrl = process.env.NEXTAUTH_URL || '';
     const remoteUrl = `${conn.peerInstanceUrl.replace(/\/$/, '')}/api/federation/relay`;
     const body = {
       connectionId,
       ...payload,
+      threadId,
+      parentRelayId,
       toUserEmail: payload.toUserEmail || conn.peerUserEmail,
       callbackUrl: selfUrl ? `${selfUrl.replace(/\/$/, '')}/api/federation/relay-ack` : undefined,
     };
@@ -244,6 +264,115 @@ export async function pushNotificationToFederatedInstance(
     return true;
   } catch (err: any) {
     console.warn(`[federation-push] Notification error:`, err?.message);
+    return false;
+  }
+}
+
+/**
+ * v2.2.0 — Push a Kanban card update to a federated peer that mirrors the card.
+ * Called from the kanban PATCH/move route when a card with a linked CardLink
+ * (externalInstanceUrl set) changes status/priority/title.
+ *
+ * The receiving instance exposes POST /api/federation/card-update with the same
+ * envelope shape documented there.
+ *
+ * Non-blocking: fire-and-forget with a short timeout, logs on failure.
+ */
+export async function pushCardUpdate(
+  connectionId: string,
+  payload: {
+    localCardId: string;        // OUR card ID — what the peer will look up as `peerCardId` on their side
+    peerCardId?: string | null; // THEIR card ID — if we have it recorded
+    relayId?: string | null;    // The relay that originated this card link (optional)
+    peerRelayId?: string | null;
+    newStage?: string;
+    newPriority?: string;
+    title?: string;
+    reason?: string | null;
+    fromUserId?: string;
+    fromUserName?: string;
+    fromUserEmail?: string;
+  }
+): Promise<boolean> {
+  try {
+    const conn = await prisma.connection.findUnique({
+      where: { id: connectionId },
+      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, peerUserEmail: true, peerUserName: true },
+    });
+
+    if (!conn?.isFederated || !conn.peerInstanceUrl || !conn.federationToken) {
+      return false;
+    }
+
+    const remoteUrl = `${conn.peerInstanceUrl.replace(/\/$/, '')}/api/federation/card-update`;
+    const body = {
+      // Translate OUR local ID → peer's view: localCardId becomes peerCardId for them,
+      // and vice versa. We always echo BOTH sides so the peer can pick whichever works.
+      peerCardId: payload.localCardId,        // on peer side, OUR id is THEIR "peer"
+      localCardId: payload.peerCardId || null, // if we know their id, include it
+      relayId: payload.peerRelayId || null,    // echo their relay id if we have it
+      peerRelayId: payload.relayId || null,    // echo our relay id as "peer"
+      newStage: payload.newStage,
+      newPriority: payload.newPriority,
+      title: payload.title,
+      reason: payload.reason || null,
+      fromUserName: payload.fromUserName,
+      fromUserEmail: payload.fromUserEmail,
+      timestamp: new Date().toISOString(),
+    };
+
+    fetch(remoteUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-federation-token': conn.federationToken,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10000),
+    }).then(async (res) => {
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        console.warn(`[federation-push] card-update to ${remoteUrl} returned ${res.status}: ${text}`);
+      } else {
+        const ack = await res.json().catch(() => ({}));
+        console.log(`[federation-push] ✓ Card update pushed for ${payload.localCardId} to ${conn.peerInstanceUrl} (matched=${ack?.matched})`);
+
+        // Log activity on our side for audit
+        if (payload.fromUserId) {
+          await logActivity({
+            userId: payload.fromUserId,
+            action: 'federation_card_update_sent',
+            summary: `📡 Card update pushed to ${conn.peerUserName || conn.peerUserEmail || 'peer'}: ${payload.newStage ? `→ ${payload.newStage}` : ''}${payload.title ? ` "${payload.title}"` : ''}`,
+            metadata: {
+              connectionId,
+              localCardId: payload.localCardId,
+              peerCardId: payload.peerCardId,
+              newStage: payload.newStage,
+              newPriority: payload.newPriority,
+              peerInstanceUrl: conn.peerInstanceUrl,
+              matched: ack?.matched,
+            },
+          }).catch(() => {});
+        }
+
+        // Update CardLink.lastSyncedAt
+        try {
+          await prisma.cardLink.updateMany({
+            where: {
+              OR: [{ fromCardId: payload.localCardId }, { toCardId: payload.localCardId }],
+              externalInstanceUrl: conn.peerInstanceUrl || undefined,
+            },
+            data: { lastSyncedAt: new Date() },
+          });
+        } catch {}
+      }
+    }).catch((err) => {
+      console.warn(`[federation-push] Failed card-update push to ${conn.peerInstanceUrl}:`, err?.message);
+    });
+
+    return true;
+  } catch (err: any) {
+    console.warn(`[federation-push] card-update error:`, err?.message);
     return false;
   }
 }

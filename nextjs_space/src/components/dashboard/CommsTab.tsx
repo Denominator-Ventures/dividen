@@ -33,9 +33,20 @@ interface Relay {
     requester: RelayUser;
     accepter: RelayUser | null;
     peerUserName?: string | null;
+    peerAgentName?: string | null;
   };
   fromUser: RelayUser;
   toUser: RelayUser | null;
+}
+
+interface Thread {
+  connectionId: string;
+  peerName: string;
+  peerEmail: string | null;
+  latestRelay: Relay;
+  totalCount: number;
+  activeCount: number;
+  isOutbound: boolean; // direction of latest
 }
 
 // Resolved statuses — these relays are "done"
@@ -53,16 +64,6 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(hours / 24)}d`;
 }
 
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: 'pending', color: 'text-amber-400 bg-amber-500/10' },
-  delivered: { label: 'delivered', color: 'text-blue-400 bg-blue-500/10' },
-  agent_handling: { label: 'handling', color: 'text-purple-400 bg-purple-500/10' },
-  user_review: { label: 'review', color: 'text-pink-400 bg-pink-500/10' },
-  completed: { label: 'done', color: 'text-emerald-400 bg-emerald-500/10' },
-  declined: { label: 'declined', color: 'text-red-400 bg-red-500/10' },
-  expired: { label: 'expired', color: 'text-gray-400 bg-gray-500/10' },
-};
-
 const INTENT_ICONS: Record<string, string> = {
   get_info: '\uD83D\uDD0D',
   assign_task: '\uD83D\uDCCB',
@@ -70,8 +71,30 @@ const INTENT_ICONS: Record<string, string> = {
   share_update: '\uD83D\uDCE2',
   schedule: '\uD83D\uDCC5',
   introduce: '\uD83E\uDD1D',
+  delegate: '\uD83D\uDCCB',
+  escalate: '\uD83D\uDEA8',
+  ask: '\u2753',
   custom: '\uD83D\uDCAC',
 };
+
+// Derive the subject preview used in the thread row.
+// For outbound relay_respond, prefer the response text over the original subject
+// so the thread row shows what *we sent*, not what we received.
+function getPreviewText(r: Relay, isOutbound: boolean): string {
+  // Outbound response — try to pull response text first
+  if (isOutbound && r.type === 'response' && r.responsePayload) {
+    try {
+      const p = typeof r.responsePayload === 'string' ? JSON.parse(r.responsePayload) : r.responsePayload;
+      const txt = typeof p === 'string' ? p : (p?.message || p?.response || p?.text || '');
+      if (txt) return String(txt).slice(0, 140);
+    } catch {
+      if (typeof r.responsePayload === 'string' && r.responsePayload.trim()) {
+        return r.responsePayload.trim().slice(0, 140);
+      }
+    }
+  }
+  return r.subject || '';
+}
 
 // ─── Component ───
 
@@ -81,11 +104,10 @@ export function CommsTab() {
   const [relays, setRelays] = useState<Relay[]>([]);
   const [loading, setLoading] = useState(true);
   const [showResolved, setShowResolved] = useState(false);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch('/api/relays?limit=50');
+      const res = await fetch('/api/relays?limit=100');
       const data = await res.json();
       if (Array.isArray(data)) setRelays(data);
     } catch (e) {
@@ -111,161 +133,113 @@ export function CommsTab() {
     };
   }, [fetchData]);
 
-  // Dismiss a relay (mark as expired)
-  const dismissRelay = useCallback(async (relayId: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await fetch(`/api/relays/${relayId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'expired' }),
-      });
-      setRelays(prev => prev.map(r => r.id === relayId ? { ...r, status: 'expired' } : r));
-    } catch (err) {
-      console.error('Failed to dismiss relay:', err);
+  // Group relays by connectionId (peer) — matches the expanded comms page layout.
+  const threads = useMemo((): Thread[] => {
+    if (!userId) return [];
+    const byConn = new Map<string, Relay[]>();
+    for (const r of relays) {
+      if (!byConn.has(r.connectionId)) byConn.set(r.connectionId, []);
+      byConn.get(r.connectionId)!.push(r);
     }
-  }, []);
 
-  // Split relays into active vs resolved, sorted by time
-  const { active, resolved } = useMemo(() => {
-    const sorted = [...relays].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const active: Relay[] = [];
-    const resolved: Relay[] = [];
-    for (const r of sorted) {
-      if (RESOLVED_STATUSES.has(r.status)) resolved.push(r);
-      else active.push(r);
+    const result: Thread[] = [];
+    for (const [connectionId, items] of byConn) {
+      // Sort chronologically — latest last
+      items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const latest = items[items.length - 1];
+      const conn = latest.connection;
+
+      // Resolve peer name (the OTHER party, not the current user)
+      let peerName = 'Unknown';
+      let peerEmail: string | null = null;
+      if (conn) {
+        const requesterIsMe = conn.requester?.id === userId;
+        const accepterIsMe = conn.accepter?.id === userId;
+        if (requesterIsMe && conn.accepter) {
+          peerName = conn.accepter.name || conn.accepter.email || 'External Agent';
+          peerEmail = conn.accepter.email || null;
+        } else if (accepterIsMe && conn.requester) {
+          peerName = conn.requester.name || conn.requester.email || 'External Agent';
+          peerEmail = conn.requester.email || null;
+        } else if (conn.peerUserName) {
+          peerName = conn.peerUserName;
+        } else {
+          // Federated fallback — use the first outbound/inbound user on the wire
+          const isOutbound = latest.fromUserId === userId;
+          peerName = isOutbound
+            ? (latest.toUser?.name || latest.toUser?.email || 'External Agent')
+            : (latest.fromUser?.name || latest.fromUser?.email || 'External Agent');
+          peerEmail = (isOutbound ? latest.toUser?.email : latest.fromUser?.email) || null;
+        }
+      }
+
+      const activeCount = items.filter((r) => !RESOLVED_STATUSES.has(r.status)).length;
+      const isOutbound = latest.fromUserId === userId;
+      result.push({ connectionId, peerName, peerEmail, latestRelay: latest, totalCount: items.length, activeCount, isOutbound });
     }
-    return { active, resolved };
-  }, [relays]);
 
-  // Get peer name for a relay
-  function getPeerName(r: Relay): string {
-    if (!userId) return 'Unknown';
-    const isOutbound = r.fromUserId === userId;
-    if (isOutbound) {
-      return r.toUser?.name || r.connection?.accepter?.name || r.connection?.peerUserName || 'Agent';
+    // Sort threads by latest activity — newest first
+    result.sort((a, b) => new Date(b.latestRelay.createdAt).getTime() - new Date(a.latestRelay.createdAt).getTime());
+    return result;
+  }, [relays, userId]);
+
+  const { activeThreads, resolvedThreads } = useMemo(() => {
+    const active: Thread[] = [];
+    const resolved: Thread[] = [];
+    for (const t of threads) {
+      if (t.activeCount > 0) active.push(t);
+      else resolved.push(t);
     }
-    return r.fromUser?.name || r.connection?.requester?.name || r.connection?.peerUserName || 'Agent';
-  }
+    return { activeThreads: active, resolvedThreads: resolved };
+  }, [threads]);
 
-  // Render a single relay card
-  function renderRelay(r: Relay) {
-    const isOutbound = r.fromUserId === userId;
-    const isResolved = RESOLVED_STATUSES.has(r.status);
-    const isExpanded = expandedId === r.id;
-    const statusInfo = STATUS_LABELS[r.status] || STATUS_LABELS.pending;
-    const peerName = getPeerName(r);
+  function renderThread(t: Thread) {
+    const r = t.latestRelay;
+    const isResolved = t.activeCount === 0;
+    const dirArrow = t.isOutbound ? '\u2197' : '\u2199';
+    const dirColor = t.isOutbound ? 'text-emerald-400' : 'text-purple-400';
+    const borderColor = t.isOutbound ? 'border-l-emerald-500/70' : 'border-l-purple-500/70';
+    const bgHover = t.isOutbound ? 'hover:bg-emerald-500/[0.03]' : 'hover:bg-purple-500/[0.03]';
     const icon = INTENT_ICONS[r.intent] || '\uD83D\uDCAC';
-
-    // Parse payload for details
-    let payloadText = '';
-    try {
-      if (r.payload) {
-        const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
-        payloadText = p.message || p.description || p.details || p.body || '';
-      }
-    } catch { /* not json */ payloadText = typeof r.payload === 'string' ? r.payload : ''; }
-
-    let responseText = '';
-    try {
-      if (r.responsePayload) {
-        const p = typeof r.responsePayload === 'string' ? JSON.parse(r.responsePayload) : r.responsePayload;
-        responseText = typeof p === 'string' ? p : (p.message || p.response || p.text || JSON.stringify(p));
-      }
-    } catch { responseText = typeof r.responsePayload === 'string' ? r.responsePayload : ''; }
-
-    // Direction colors
-    const borderColor = isOutbound ? 'border-l-emerald-500/70' : 'border-l-purple-500/70';
-    const bgHover = isOutbound ? 'hover:bg-emerald-500/[0.03]' : 'hover:bg-purple-500/[0.03]';
-    const dirArrow = isOutbound ? '↗' : '↙';
-    const dirColor = isOutbound ? 'text-emerald-400' : 'text-purple-400';
-    const dirLabel = isOutbound ? 'sent' : 'received';
+    const preview = getPreviewText(r, t.isOutbound);
 
     return (
-      <div
-        key={r.id}
-        className={`group relative border-l-2 ${borderColor} ${bgHover} transition-colors cursor-pointer ${
+      <Link
+        key={t.connectionId}
+        href={`/dashboard/comms?thread=${t.connectionId}`}
+        className={`block border-l-2 ${borderColor} ${bgHover} transition-colors ${
           isResolved ? 'opacity-40' : ''
         }`}
-        onClick={() => setExpandedId(isExpanded ? null : r.id)}
       >
-        {/* Dismiss button */}
-        {!isResolved && (
-          <button
-            onClick={(e) => dismissRelay(r.id, e)}
-            className="absolute top-1 right-1 w-4 h-4 rounded-full flex items-center justify-center text-[var(--text-muted)] hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            title="Dismiss"
-          >
-            <span className="text-[8px] font-bold">\u2715</span>
-          </button>
-        )}
-
-        {/* Compact row */}
         <div className="px-2.5 py-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
-            {/* Direction arrow */}
             <span className={`text-[10px] font-bold flex-shrink-0 ${dirColor}`}>{dirArrow}</span>
-            {/* Peer name */}
             <span className={`text-[11px] font-medium truncate flex-1 min-w-0 ${
               isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'
             }`}>
-              <MentionText text={peerName} />
+              <MentionText text={t.peerName} />
             </span>
-            {/* Status pill */}
-            <span className={`text-[8px] px-1 py-px rounded font-medium flex-shrink-0 ${statusInfo.color}`}>
-              {statusInfo.label}
+            {t.activeCount > 0 && (
+              <span className="text-[8px] px-1 py-px rounded font-medium text-amber-400 bg-amber-500/10 flex-shrink-0">
+                {t.activeCount} active
+              </span>
+            )}
+            <span className="text-[8px] text-[var(--text-muted)] flex-shrink-0">
+              {t.totalCount}
             </span>
-            {/* Time */}
             <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">{timeAgo(r.createdAt)}</span>
           </div>
-          {/* Subject line */}
           <p className={`text-[10px] line-clamp-1 mt-0.5 pl-4 ${
             isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)]'
           }`}>
-            {icon} <MentionText text={r.subject} />
+            {icon} <MentionText text={preview} />
           </p>
         </div>
-
-        {/* Expanded detail */}
-        {isExpanded && (
-          <div className="px-2.5 pb-2 space-y-1.5">
-            <div className="ml-4 text-[10px] text-[var(--text-muted)] flex flex-wrap gap-x-3 gap-y-0.5">
-              <span>{dirLabel} · {r.type} · {r.intent}</span>
-              <span>priority: {r.priority}</span>
-              {r.threadId && <span>thread: {r.threadId.slice(0, 8)}…</span>}
-            </div>
-            {payloadText && (
-              <div className="ml-4 p-1.5 rounded bg-[var(--bg-surface)] text-[10px] text-[var(--text-secondary)] leading-relaxed max-h-20 overflow-y-auto">
-                <MentionText text={payloadText.slice(0, 400)} />
-                {payloadText.length > 400 && <span className="text-[var(--text-muted)]">…</span>}
-              </div>
-            )}
-            {responseText && (
-              <div className={`ml-4 p-1.5 rounded text-[10px] leading-relaxed max-h-20 overflow-y-auto ${
-                isOutbound ? 'bg-purple-500/5 text-purple-300' : 'bg-emerald-500/5 text-emerald-300'
-              }`}>
-                <span className="font-medium">Response: </span>
-                <MentionText text={responseText.slice(0, 400)} />
-                {responseText.length > 400 && <span className="opacity-50">…</span>}
-              </div>
-            )}
-            <div className="ml-4 flex items-center gap-2">
-              <Link
-                href="/dashboard/comms"
-                className="text-[9px] text-brand-400 hover:text-brand-300"
-                onClick={(e) => e.stopPropagation()}
-              >
-                Open full thread →
-              </Link>
-            </div>
-          </div>
-        )}
-      </div>
+      </Link>
     );
   }
 
-  const activeCount = active.length;
+  const totalActive = activeThreads.reduce((acc, t) => acc + t.activeCount, 0);
 
   return (
     <div className="h-full flex flex-col">
@@ -273,9 +247,9 @@ export function CommsTab() {
       <div className="flex-shrink-0 px-3 py-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-[var(--text-primary)]">\uD83D\uDCE1 Comms</span>
-          {activeCount > 0 && (
+          {totalActive > 0 && (
             <span className="bg-[var(--brand-primary)] text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center">
-              {activeCount}
+              {totalActive}
             </span>
           )}
         </div>
@@ -287,39 +261,37 @@ export function CommsTab() {
         </Link>
       </div>
 
-      {/* Relay list */}
+      {/* Thread list */}
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center h-24">
             <div className="w-4 h-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : relays.length === 0 ? (
+        ) : threads.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 px-4 text-center">
             <span className="text-2xl mb-2">\uD83D\uDCE1</span>
             <p className="text-[10px] text-[var(--text-muted)] leading-relaxed">
-              Agent relay conversations appear here. Your Divi&apos;s exchanges with other agents are logged as they happen.
+              Agent relay conversations appear here. One row per peer — tap to open the full thread.
             </p>
           </div>
         ) : (
           <>
-            {/* Active relays — each renders individually */}
-            {active.length > 0 && (
+            {activeThreads.length > 0 && (
               <div>
-                {active.map(renderRelay)}
+                {activeThreads.map(renderThread)}
               </div>
             )}
 
-            {/* Resolved — collapsible */}
-            {resolved.length > 0 && (
+            {resolvedThreads.length > 0 && (
               <>
                 <button
-                  onClick={() => setShowResolved(prev => !prev)}
+                  onClick={() => setShowResolved((prev) => !prev)}
                   className="w-full px-3 py-1.5 text-[9px] text-[var(--text-muted)] hover:text-[var(--text-secondary)] flex items-center gap-1 transition-colors border-t border-[var(--border-color)]"
                 >
                   <span className="text-[8px]">{showResolved ? '\u25BC' : '\u25B6'}</span>
-                  {resolved.length} resolved
+                  {resolvedThreads.length} resolved thread{resolvedThreads.length !== 1 ? 's' : ''}
                 </button>
-                {showResolved && resolved.map(renderRelay)}
+                {showResolved && resolvedThreads.map(renderThread)}
               </>
             )}
           </>
