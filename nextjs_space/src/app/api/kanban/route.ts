@@ -46,6 +46,16 @@ export async function GET() {
               connection: { select: { id: true, peerUserName: true, peerUserEmail: true } },
             },
           },
+          projectInvites: {
+            where: { status: 'pending' },
+            select: {
+              id: true,
+              role: true,
+              inviteeEmail: true,
+              invitee: { select: { id: true, name: true, email: true, username: true } },
+              connection: { select: { id: true, peerUserName: true, peerUserEmail: true } },
+            },
+          },
         },
       },
     },

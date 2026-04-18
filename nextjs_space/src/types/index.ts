@@ -45,6 +45,13 @@ export interface KanbanCardData {
       user: { id: string; name: string | null; email: string } | null;
       connection: { id: string; peerUserName: string | null; peerUserEmail: string | null } | null;
     }>;
+    projectInvites?: Array<{
+      id: string;
+      role: string;
+      inviteeEmail?: string | null;
+      invitee?: { id?: string; name?: string | null; email?: string | null; username?: string | null } | null;
+      connection?: { id?: string; peerUserName?: string | null; peerUserEmail?: string | null } | null;
+    }>;
   } | null;
   // v2: Delegation provenance
   originCardId?: string | null;

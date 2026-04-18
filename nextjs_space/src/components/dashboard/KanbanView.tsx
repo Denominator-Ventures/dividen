@@ -172,41 +172,77 @@ function KanbanCard({
               onAssigned={() => window.dispatchEvent(new Event('dividen:board-refresh'))}
             />
           </div>
-          {card.project.members && card.project.members.length > 0 && <div className="flex items-center -space-x-1.5">
-            {card.project.members.slice(0, 5).map((m) => {
-              const name = m.user?.name || m.connection?.peerUserName || '?';
-              const initial = name.charAt(0).toUpperCase();
-              const isFederated = !!m.connection;
-              const roleColors: Record<string, string> = {
-                lead: 'ring-amber-500/60',
-                contributor: 'ring-brand-500/40',
-                reviewer: 'ring-purple-500/40',
-                observer: 'ring-white/20',
-              };
-              return (
-                <div
-                  key={m.id}
-                  title={`${name} (${m.role})${isFederated ? ' — federated' : ''}`}
-                  className={cn(
-                    'w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[9px] font-medium text-[var(--text-secondary)] ring-1 cursor-pointer hover:ring-2 transition-all',
-                    isFederated ? 'ring-purple-500/60' : (roleColors[m.role] || 'ring-white/20')
-                  )}
-                >
-                  {initial}
-                </div>
-              );
-            })}
-            {card.project.members.length > 5 && (
-              <div className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[8px] text-[var(--text-muted)] ring-1 ring-white/10">
-                +{card.project.members.length - 5}
+          {(() => {
+            const members = card.project.members || [];
+            const invites = ((card.project as any).projectInvites || []) as Array<{
+              id: string;
+              role: string;
+              inviteeEmail?: string | null;
+              invitee?: { id?: string; name?: string | null; email?: string | null; username?: string | null } | null;
+              connection?: { id?: string; peerUserName?: string | null; peerUserEmail?: string | null } | null;
+            }>;
+            // Filter invites to exclude any whose invitee is already an active member (edge case)
+            const memberUserIds = new Set(members.map((m: any) => m.userId).filter(Boolean));
+            const visibleInvites = invites.filter(inv => !(inv.invitee?.id && memberUserIds.has(inv.invitee.id)));
+            if (members.length === 0 && visibleInvites.length === 0) return null;
+            return (
+              <div className="flex items-center -space-x-1.5">
+                {members.slice(0, 5).map((m) => {
+                  const name = m.user?.name || m.connection?.peerUserName || '?';
+                  const initial = name.charAt(0).toUpperCase();
+                  const isFederated = !!m.connection;
+                  const roleColors: Record<string, string> = {
+                    lead: 'ring-amber-500/60',
+                    contributor: 'ring-brand-500/40',
+                    reviewer: 'ring-purple-500/40',
+                    observer: 'ring-white/20',
+                  };
+                  return (
+                    <div
+                      key={m.id}
+                      title={`${name} (${m.role})${isFederated ? ' — federated' : ''}`}
+                      className={cn(
+                        'w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[9px] font-medium text-[var(--text-secondary)] ring-1 cursor-pointer hover:ring-2 transition-all',
+                        isFederated ? 'ring-purple-500/60' : (roleColors[m.role] || 'ring-white/20')
+                      )}
+                    >
+                      {initial}
+                    </div>
+                  );
+                })}
+                {visibleInvites.slice(0, Math.max(0, 5 - Math.min(members.length, 5))).map((inv) => {
+                  const name = inv.invitee?.name || inv.connection?.peerUserName || inv.inviteeEmail || '?';
+                  const initial = (name || '?').charAt(0).toUpperCase();
+                  return (
+                    <div
+                      key={`inv-${inv.id}`}
+                      title={`${name} (pending • ${inv.role})`}
+                      className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[9px] font-medium text-amber-300/80 ring-1 ring-dashed ring-amber-400/60 cursor-pointer hover:ring-2 transition-all relative"
+                      style={{ borderStyle: 'dashed' }}
+                    >
+                      {initial}
+                      <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400 ring-1 ring-[var(--bg-card)]" />
+                    </div>
+                  );
+                })}
+                {(members.length + visibleInvites.length) > 5 && (
+                  <div className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[8px] text-[var(--text-muted)] ring-1 ring-white/10">
+                    +{(members.length + visibleInvites.length) - 5}
+                  </div>
+                )}
+                {visibleInvites.length > 0 && (
+                  <span className="ml-2 pl-2 text-[9px] text-amber-400/70 whitespace-nowrap">
+                    {visibleInvites.length} pending
+                  </span>
+                )}
               </div>
-            )}
-          </div>}
+            );
+          })()}
         </div>
       )}
 
       {/* Contacts count */}
-      {card.contacts && card.contacts.length > 0 && !card.project?.members?.length && (
+      {card.contacts && card.contacts.length > 0 && !card.project?.members?.length && !((card.project as any)?.projectInvites?.length) && (
         <div className="mt-2 flex items-center gap-1 text-[10px] text-[var(--text-muted)]">
           <span>👥</span>
           <span>{card.contacts.length} contact{card.contacts.length > 1 ? 's' : ''}</span>

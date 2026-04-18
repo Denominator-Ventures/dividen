@@ -37,18 +37,28 @@ type MemberData = {
   connection: { id: string; peerUserName: string | null; peerUserEmail: string | null } | null;
 };
 
+type PendingInvite = {
+  id: string;
+  role: string;
+  inviteeEmail?: string | null;
+  invitee?: { id?: string; name?: string | null; email?: string | null; username?: string | null } | null;
+  connection?: { id?: string; peerUserName?: string | null; peerUserEmail?: string | null } | null;
+};
+
 type ConnectionOption = {
   id: string;
   peerUserName: string | null;
   peerUserEmail: string | null;
 };
 
-function MembersSection({ projectId, projectName, initialMembers }: {
+function MembersSection({ projectId, projectName, initialMembers, initialInvites }: {
   projectId: string;
   projectName: string;
   initialMembers: MemberData[];
+  initialInvites?: PendingInvite[];
 }) {
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
+  const [invites] = useState<PendingInvite[]>(initialInvites || []);
   const [open, setOpen] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
@@ -157,7 +167,9 @@ function MembersSection({ projectId, projectName, initialMembers }: {
         <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider cursor-pointer">
           Members
         </label>
-        <span className="text-xs text-[var(--text-muted)]">({members.length})</span>
+        <span className="text-xs text-[var(--text-muted)]">
+          ({members.length}{invites.length > 0 ? ` + ${invites.length} pending` : ''})
+        </span>
       </button>
 
       {open && (
@@ -187,6 +199,35 @@ function MembersSection({ projectId, projectName, initialMembers }: {
               )}
             </div>
           ))}
+
+          {invites.length > 0 && (
+            <div className="pt-2 mt-2 border-t border-dashed border-[var(--border-primary)] space-y-1.5">
+              <div className="text-[10px] uppercase tracking-wider text-amber-400/70">Pending invites</div>
+              {invites.map(inv => {
+                const label = inv.invitee?.name
+                  || inv.connection?.peerUserName
+                  || inv.inviteeEmail
+                  || inv.invitee?.email
+                  || 'Unknown';
+                const initial = (label || '?')[0].toUpperCase();
+                return (
+                  <div key={inv.id} className="flex items-center gap-2 text-sm opacity-80">
+                    <div className="w-6 h-6 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-xs font-medium text-amber-300 shrink-0 ring-1 ring-amber-400/50"
+                      style={{ borderStyle: 'dashed' }}>
+                      {initial}
+                    </div>
+                    <span className="truncate text-[var(--text-primary)]">{label}</span>
+                    <span className={cn('text-[10px] px-1.5 py-0.5 rounded-full font-medium', getRoleBadge(inv.role))}>
+                      {inv.role}
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-amber-600/20 text-amber-400">
+                      pending
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {!showAdd ? (
             <button
@@ -711,7 +752,12 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
 
           {/* Members (only for project-linked cards) */}
           {card.project && (
-            <MembersSection projectId={card.project.id} projectName={card.project.name} initialMembers={card.project.members} />
+            <MembersSection
+              projectId={card.project.id}
+              projectName={card.project.name}
+              initialMembers={card.project.members}
+              initialInvites={(card.project as any).projectInvites || []}
+            />
           )}
 
           {/* Metadata */}
