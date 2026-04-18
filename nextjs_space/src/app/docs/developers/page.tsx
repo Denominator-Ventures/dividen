@@ -611,7 +611,7 @@ X-DiviDen-Source: marketplace`}</Code>
             Cross-instance endpoints for federated DiviDen instances. All require <InlineCode>x-federation-token</InlineCode> or <InlineCode>Authorization: Bearer</InlineCode> header.
           </p>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/federation/relay" description="Send a relay message to this instance" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/relay" description="Send a relay message to this instance (v2.1.15: idempotent on peerRelayId, ambient gates, auto-Kanban for tasks)" auth="Federation" />
             <Endpoint method="GET" path="/api/federation/patterns" description="Export shareable ambient patterns" auth="API Key" />
             <Endpoint method="POST" path="/api/federation/patterns" description="Import patterns, reciprocate with local patterns" auth="API Key" />
             <Endpoint method="GET" path="/api/federation/jobs" description="List network-visible jobs for gossip" auth="Federation" />

@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.1.6 Ambient Relays Live, Federation Auto-Accept, Sequential Relay Handling, UI Polish.',
+  description: 'DiviDen release notes — v2.1.15 FVP Build 522 Compliance: federation idempotency, ambient gates, inbound Kanban, marketplace queue gate.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.1.6 — Ambient Relays Live, Federation Auto-Accept Fix, Sequential Relay Handling, 6 UI Bug Fixes.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.1.6+Ambient+Relays+Live&tag=release', width: 1200, height: 630 }],
+    description: 'v2.1.15 — FVP Build 522 Compliance, federation idempotency, ambient gates, inbound Kanban, marketplace queue gate.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.1.15+FVP+Build+522+Compliance&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.1.6 — Ambient Relays Live, Federation Auto-Accept Fix, Sequential Relay Handling, 6 UI Bug Fixes.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.1.6+Ambient+Relays+Live&tag=release'],
+    description: 'v2.1.15 — FVP Build 522 Compliance, federation idempotency, ambient gates, inbound Kanban, marketplace queue gate.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.1.15+FVP+Build+522+Compliance&tag=release'],
   },
 };
 
@@ -41,16 +41,183 @@ export default function ReleaseNotesPage() {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        {/* APRIL 17, 2026 — v2.1.6 AMBIENT RELAYS LIVE, FEDERATION FIX    */}
+        {/* APRIL 17, 2026 — v2.1.15 FVP BUILD 522 COMPLIANCE                */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div id="release-v2.1.6" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
+        <div id="release-v2.1.15" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
           {/* Glow accent for latest */}
           <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent pointer-events-none" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.6</span>
+                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.15</span>
                 <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-muted)]">April 18, 2026</span>
+                <DocDownloadButton containerId="release-v2.1.15" filename="dividen-release-v2.1.15" variant="icon" />
+              </div>
+            </div>
+            <p className="text-sm text-[var(--text-muted)] mb-6">FVP Build 522 Compliance — Federation Idempotency, Ambient Preference Gates, Inbound Task → Kanban, Marketplace Queue Gate</p>
+
+            {/* Audit shoutout */}
+            <div className="mb-8 p-4 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
+              <p className="text-sm text-cyan-300">
+                <strong>🔬 Symmetry audit complete.</strong> Audited every behavior in Jon&apos;s Comms Unification Vision against the FVP Build 522 architecture spec. Found 4 gaps on our side, fixed all of them, and shipped a reply. Same six behaviors now hold whether you&apos;re on dividen.ai or cc.fractionalventure.partners.
+              </p>
+            </div>
+
+            <div className="space-y-8">
+
+              {/* Federation Inbound Idempotency */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🔁 Federation Inbound: Idempotency Dedup</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  <code className="code-inline">/api/federation/relay</code> now dedupes on <code className="code-inline">peerRelayId + connectionId</code> at the top of the handler. Duplicate requests return <code className="code-inline">{'{'} success: true, duplicate: true, relayId {'}'}</code> with HTTP 200 — no double-creation on transient retries.
+                </p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Aligns with FVP Build 522 §4. Recommended that peer instances adopt the same shape for retry safety with exponential backoff.
+                </p>
+              </div>
+
+              {/* Ambient Preference Gates */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🌊 Ambient Inbound: Preference Gates</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  Inbound ambient relays (those carrying <code className="code-inline">payload._ambient: true</code>) are now silently filtered against the recipient&apos;s <code className="code-inline">UserProfile</code> preferences before any DB rows are written:
+                </p>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-2 mb-3">
+                  <li>• <code className="code-inline">relayMode === &apos;off&apos;</code> → reason: <code className="code-inline">relay_mode_off</code></li>
+                  <li>• <code className="code-inline">relayMode === &apos;minimal&apos;</code> → reason: <code className="code-inline">relay_mode_minimal_blocks_ambient</code></li>
+                  <li>• <code className="code-inline">allowAmbientInbound === false</code> → reason: <code className="code-inline">ambient_inbound_disabled</code></li>
+                  <li>• Topic matches <code className="code-inline">relayTopicFilters</code> → reason: <code className="code-inline">topic_filtered:&lt;topic&gt;</code></li>
+                  <li>• Current hour in <code className="code-inline">relayQuietHours</code> → reason: <code className="code-inline">quiet_hours</code></li>
+                </ul>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Blocked relays return <code className="code-inline">{'{'} ok: true, filtered: true, reason {'}'}</code> with HTTP 200. Allowed ambient relays land as <code className="code-inline">priority=low</code>, <code className="code-inline">state=read</code> with a 🌊 prefix — designed to be woven into the next Divi message rather than generate a notification (Jon&apos;s Comms Vision behavior #3).
+                </p>
+              </div>
+
+              {/* Inbound Task → Kanban */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">📋 Inbound Task Relays → Kanban Card</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  When a federated peer pushes a relay with <code className="code-inline">intent</code> in <code className="code-inline">{`['assign_task', 'delegate', 'schedule', 'request_approval']`}</code>, our inbound handler now auto-creates a <code className="code-inline">KanbanCard</code> at the <code className="code-inline">leads</code> stage on the recipient&apos;s board, linked back to the <code className="code-inline">AgentRelay</code> via <code className="code-inline">sourceRelayId</code> + <code className="code-inline">cardId</code>.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Implements Jon&apos;s Comms Vision behavior #2: tasks from other Divis land directly on your Kanban board rather than requiring you to manually triage from a notification. The associated comms entry includes <code className="code-inline">linkedCardId</code> for quick navigation.
+                </p>
+              </div>
+
+              {/* Marketplace Queue Gate */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">🛒 Marketplace Agent: Approval Gate</h3>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  The <code className="code-inline">execute_agent</code> action tag now respects the user&apos;s <code className="code-inline">queueAutoApprove</code> preference. When auto-approve is off, the call creates a <code className="code-inline">pending_confirmation</code> queue item with <code className="code-inline">kind: &apos;marketplace_execute&apos;</code> instead of immediately POSTing to the agent endpoint.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  When the user approves and the queue dispatcher fires the item, <code className="code-inline">dispatchNextItem</code> calls <code className="code-inline">execute_agent</code> with <code className="code-inline">skipQueue: true</code> to bypass the gate and run the agent.
+                </p>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Implements Jon&apos;s Comms Vision behavior #5: outbound tasks to marketplace agents pass through the same approval gate as outbound tasks to people.
+                </p>
+              </div>
+
+              {/* FVP Reply */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">📨 Reply to FVP Sent</h3>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Drafted and sent a section-by-section reply covering all of FVP&apos;s §9 open questions: <a href="/FVP_BUILD_522_REPLY.md" className="text-brand-400 hover:text-brand-300" target="_blank">FVP Build 522 Reply</a> (<a href="/FVP_BUILD_522_REPLY.pdf" className="text-brand-400 hover:text-brand-300" target="_blank">PDF</a>). Headlines: key threads off email not display name, adopt <code className="code-inline">threadId</code>/<code className="code-inline">parentRelayId</code> for cross-instance threading, merge multi-instance peer by email, and offered a new <code className="code-inline">/api/federation/card-update</code> endpoint for bi-directional Kanban stage sync if useful.
+                </p>
+              </div>
+
+              {/* Files Changed */}
+              <div>
+                <h3 className="text-base font-bold text-white mb-2">📁 Files Changed</h3>
+                <ul className="text-sm text-[var(--text-secondary)] space-y-1 font-mono text-[12px]">
+                  <li>• <code className="code-inline">src/app/api/federation/relay/route.ts</code> (rewritten — ambient gates, idempotency, Kanban creation)</li>
+                  <li>• <code className="code-inline">src/lib/action-tags.ts</code> (execute_agent queue gate)</li>
+                  <li>• <code className="code-inline">src/lib/queue-dispatch.ts</code> (handles marketplace_execute kind)</li>
+                  <li>• <code className="code-inline">FVP_BUILD_522_REPLY.md</code> (+ PDF)</li>
+                </ul>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 17, 2026 — v2.1.7 → v2.1.14 (CONSOLIDATED)                  */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.1.7-14" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/20 rounded-xl">
+          <div className="flex items-center justify-between mb-4">
+            <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.7 → v2.1.14</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[var(--text-muted)]">April 17, 2026</span>
+              <DocDownloadButton containerId="release-v2.1.7-14" filename="dividen-release-v2.1.7-14" variant="icon" />
+            </div>
+          </div>
+          <p className="text-sm text-[var(--text-muted)] mb-6">Universal @username Routing, Stuck Relay Fix, Outbound Response Display, Ambient Pattern Synthesis, Federated Developer Profiles</p>
+
+          <div className="space-y-8">
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">@️ Universal @username Relay Routing (v2.1.12)</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                The <code className="code-inline">relay_request</code> action tag now accepts <code className="code-inline">username</code> / <code className="code-inline">handle</code> parameters and resolves them against the federated connection set with exact-match priority. Saying &quot;send to @alvaro&quot; in chat now resolves directly to Alvaro&apos;s federated connection regardless of nickname or display name drift.
+              </p>
+              <p className="text-sm text-[var(--text-muted)]">
+                Connection queries in <code className="code-inline">action-tags.ts</code> and <code className="code-inline">system-prompt.ts</code> now include <code className="code-inline">username: true</code> on both requester and accepter sides for symmetric resolution.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🔓 Stuck Outbound Relay Fix (v2.1.13)</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Inbound and outbound relay queries in <code className="code-inline">layer17_connectionsRelay_optimized()</code> are now fetched separately via <code className="code-inline">Promise.all</code>. An old unresolved outbound relay (e.g., a stale <code className="code-inline">agent_handling</code> from days ago) no longer blocks newer inbound relays from reaching Divi&apos;s system prompt context.
+              </p>
+              <p className="text-sm text-[var(--text-muted)]">
+                <code className="code-inline">inbound</code> uses FIFO ordering; <code className="code-inline">outbound</code> uses most-recent-first for awareness only.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">💬 Outbound Relay Response Display (v2.1.14)</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                The green <code className="code-inline">relay_respond</code> card in chat now shows the operator&apos;s actual response content rather than the original inbound subject. The card now includes an italicized &quot;Re: &lt;original subject&gt;&quot; line above the response, with <code className="code-inline">line-clamp-2</code> on the response text for readability.
+              </p>
+              <p className="text-sm text-[var(--text-muted)]">
+                <code className="code-inline">data.subject</code> = response text; <code className="code-inline">data.originalSubject</code> = inbound relay subject; <code className="code-inline">data.responsePayload</code> = full structured response.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🧠 Ambient Pattern Synthesis (v2.1.9 → v2.1.11)</h3>
+              <p className="text-sm text-[var(--text-secondary)] mb-3">
+                Ambient relay outcomes (latency, response quality, disruption level, topic relevance) are now captured in <code className="code-inline">AmbientRelaySignal</code> rows on every relay-ack. Cross-user patterns are synthesized into <code className="code-inline">AmbientPattern</code> rows that feed back into the system prompt — making ambient communication progressively better at picking moments to weave in.
+              </p>
+              <p className="text-sm text-[var(--text-muted)]">
+                Trigger via <code className="code-inline">/api/ambient-learning/synthesize</code>. Fed by <code className="code-inline">pushRelayAckToFederatedInstance</code> with quality metadata from the recipient.
+              </p>
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-white mb-2">🪪 Federated Developer Profiles (v2.1.8)</h3>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Marketplace agent developer profiles are now resolvable across federated DiviDen instances. When a peer&apos;s Divi recommends an agent built by a developer on another instance, the developer card renders with full context (name, instance, profile link) instead of a bare ID.
+              </p>
+            </div>
+
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 17, 2026 — v2.1.6 AMBIENT RELAYS LIVE, FEDERATION FIX    */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.1.6" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/20 rounded-xl">
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.1.6</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text-muted)]">April 17, 2026</span>

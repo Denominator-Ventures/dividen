@@ -956,7 +956,20 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
           },
         },
         responses: {
-          '200': { description: 'Relay accepted', content: { 'application/json': { example: { success: true, relayId: 'clx...' } } } },
+          '200': {
+            description: 'Relay accepted (v2.1.15: idempotent on peerRelayId, may return duplicate=true, ambient=true with filtered=true, or task=true with cardId)',
+            content: {
+              'application/json': {
+                examples: {
+                  newTask: { value: { success: true, relayId: 'clx...', task: true, cardId: 'kc...', message: 'Task assigned and saved as Kanban card' } },
+                  duplicate: { value: { success: true, relayId: 'clx...', duplicate: true, message: 'Relay already received' } },
+                  ambientFiltered: { value: { success: true, ambient: true, filtered: true, reason: 'topic-filter | quiet-hours | ambient-disabled' } },
+                  ambientAccepted: { value: { success: true, relayId: 'clx...', ambient: true, message: 'Ambient broadcast received' } },
+                  fallback: { value: { success: true, relayId: 'clx...', fallback: true, message: 'Recipient unknown — surfaced to instance owner' } },
+                },
+              },
+            },
+          },
           '401': { description: 'Missing or invalid federation token' },
           '404': { description: 'No active connection for this token' },
         },

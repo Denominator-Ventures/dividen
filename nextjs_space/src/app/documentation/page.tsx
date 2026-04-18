@@ -112,6 +112,7 @@ const NAV = [
   { id: 'notification-v2', label: 'Notification Center (v2.0)' },
   { id: 'task-routing', label: 'Task Routing (v2.1.0)' },
   { id: 'installed-manager', label: 'Installed Manager (v2.1.0)' },
+  { id: 'inbound-relay-contract', label: 'Inbound Relay Contract (v2.1.15)' },
 ];
 
 /* ── PAGE ─────────────────────────────────────────────────────────────────── */
@@ -1308,8 +1309,54 @@ onDiscuss={(context: string) => {
             <Endpoint method="DELETE" path="/api/marketplace-capabilities/[id]" description="Uninstall a capability" auth="Session" />
           </Section>
 
+          {/* ═══ INBOUND RELAY CONTRACT (v2.1.15) ═════════════════════ */}
+          <Section id="inbound-relay-contract" title="Inbound Relay Contract (v2.1.15)" badge={<UpdatedBadge date="Apr 18" />}>
+            <p className="text-[var(--text-secondary)] mb-4 text-lg leading-relaxed">
+              The behavior of <InlineCode>POST /api/federation/relay</InlineCode> when this instance receives a message
+              from a peer. Hardened in v2.1.15 to add idempotency, ambient gating, and automatic Kanban-on-inbound for tasks.
+            </p>
+
+            <h3 className="text-lg font-bold text-white mb-3">Pipeline (in order)</h3>
+            <ol className="list-decimal list-inside space-y-2 text-[var(--text-secondary)] mb-6">
+              <li><strong>Idempotency</strong> — relays are deduped on (<InlineCode>connectionId</InlineCode>, <InlineCode>peerRelayId</InlineCode>). Re-deliveries return <InlineCode>{`{ success: true, duplicate: true }`}</InlineCode> and do not double-create cards or notifications.</li>
+              <li><strong>Ambient detection</strong> — derived from <InlineCode>type === &apos;notification&apos;</InlineCode> or explicit <InlineCode>kind === &apos;ambient&apos;</InlineCode>. Ambient is broadcast-style; non-ambient is addressed.</li>
+              <li><strong>Ambient gates</strong> — per-recipient: <InlineCode>UserProfile.allowAmbientInbound</InlineCode>, <InlineCode>relayTopicFilters</InlineCode>, <InlineCode>relayQuietHours</InlineCode>. Filtered ambient returns <InlineCode>{`{ filtered: true, reason }`}</InlineCode>; the relay row is still persisted for audit.</li>
+              <li><strong>Task → Kanban</strong> — when <InlineCode>intent === &apos;assign_task&apos;</InlineCode>, a card is created on the recipient&apos;s board with status <InlineCode>leads</InlineCode> (intake stage). The card&apos;s <InlineCode>sourceRelayId</InlineCode> ↔ relay&apos;s <InlineCode>cardId</InlineCode> form a direct FK pair.</li>
+              <li><strong>Comms surfacing</strong> — every accepted relay produces a <InlineCode>CommsMessage</InlineCode> in the recipient&apos;s inbox. For task relays, <InlineCode>CommsMessage.linkedCardId</InlineCode> points at the new card so it appears in the Kanban context.</li>
+              <li><strong>Fallback</strong> — if the recipient cannot be resolved (no matching user), the relay is still saved with <InlineCode>fallback: true</InlineCode> and surfaced to the instance owner so nothing is silently dropped.</li>
+            </ol>
+
+            <h3 className="text-lg font-bold text-white mb-3">Response Shapes</h3>
+            <Code>{`// New task
+{ "success": true, "relayId": "...", "task": true, "cardId": "kc...", "message": "Task assigned and saved as Kanban card" }
+
+// Duplicate (idempotent)
+{ "success": true, "relayId": "...", "duplicate": true, "message": "Relay already received" }
+
+// Ambient — accepted
+{ "success": true, "relayId": "...", "ambient": true, "message": "Ambient broadcast received" }
+
+// Ambient — filtered (gates blocked)
+{ "success": true, "ambient": true, "filtered": true, "reason": "topic-filter" }
+
+// Fallback (recipient unknown)
+{ "success": true, "relayId": "...", "fallback": true, "message": "Recipient unknown — surfaced to instance owner" }`}</Code>
+
+            <h3 className="text-lg font-bold text-white mb-3 mt-4">Key Schema</h3>
+            <ul className="list-disc list-inside space-y-1 text-[var(--text-secondary)] text-sm">
+              <li><InlineCode>AgentRelay.peerRelayId</InlineCode> + <InlineCode>connectionId</InlineCode> — dedup key for idempotency.</li>
+              <li><InlineCode>AgentRelay.cardId</InlineCode> ↔ <InlineCode>KanbanCard.sourceRelayId</InlineCode> — direct FK between a relay and the card it created.</li>
+              <li><InlineCode>CommsMessage.linkedCardId</InlineCode> — links the inbox surface to the auto-created card.</li>
+              <li><InlineCode>UserProfile.allowAmbientInbound</InlineCode>, <InlineCode>relayTopicFilters</InlineCode>, <InlineCode>relayQuietHours</InlineCode> — ambient gates owned by the recipient.</li>
+            </ul>
+
+            <p className="text-xs text-[var(--text-muted)] mt-4">
+              Full federation docs at <a href="/docs/federation" className="text-brand-400 hover:text-brand-300">/docs/federation</a>.
+            </p>
+          </Section>
+
           {/* Download */}
-          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 16, 2026" />
+          <DocFooterDownload filename="dividen-documentation" lastUpdated="April 18, 2026" />
 
           {/* Footer */}
           <div className="border-t border-white/[0.06] pt-8 mt-8 text-center" data-no-download>

@@ -552,6 +552,90 @@ X-Federation-Token: <token-from-connection-handshake>
 }`}</pre>
             </div>
 
+            {/* v2.1.15 Inbound Contract */}
+            <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-cyan-500/20">
+              <h3 className="font-semibold text-sm mb-2">🔬 Inbound Relay Contract (v2.1.15)</h3>
+              <p className="text-xs text-[var(--text-secondary)] leading-relaxed mb-3">
+                Effective <strong>April 18, 2026</strong>. Aligned with FVP Build 522. The inbound handler at <code className="text-[11px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">POST /api/federation/relay</code> applies the following processing pipeline before persisting:
+              </p>
+
+              <div className="space-y-3">
+                <div>
+                  <h4 className="text-xs font-semibold text-cyan-300 mb-1">1. Idempotency check</h4>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed mb-1">
+                    Dedupes on <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">peerRelayId + connectionId</code>. Duplicate requests return:
+                  </p>
+                  <pre className="p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto">{`{ success: true, duplicate: true, relayId: "<existing-relay-id>" }   // HTTP 200`}</pre>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-semibold text-cyan-300 mb-1">2. Ambient detection</h4>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+                    A relay is treated as ambient when <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">payload._ambient === true</code> or <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">payload.ambient === true</code> or (<code className="text-[10px] font-mono">intent === &apos;share_update&apos;</code> AND <code className="text-[10px] font-mono">priority === &apos;low&apos;</code>).
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-semibold text-cyan-300 mb-1">3. Ambient gate (only for ambient relays)</h4>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed mb-1">
+                    Recipient&apos;s <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">UserProfile</code> preferences checked in this order. First failing gate short-circuits with HTTP 200:
+                  </p>
+                  <pre className="p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto leading-relaxed">{`relayMode === 'off'                  → reason: 'relay_mode_off'
+relayMode === 'minimal'              → reason: 'relay_mode_minimal_blocks_ambient'
+allowAmbientInbound === false        → reason: 'ambient_inbound_disabled'
+topic in relayTopicFilters[]         → reason: 'topic_filtered:<topic>'
+now in relayQuietHours window        → reason: 'quiet_hours'
+
+// Response shape:
+{ ok: true, filtered: true, reason: '<reason>' }   // HTTP 200`}</pre>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-semibold text-cyan-300 mb-1">4. Task-intent → Kanban card</h4>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed mb-1">
+                    For non-ambient relays where <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">intent</code> is one of <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">{`['assign_task', 'delegate', 'schedule', 'request_approval']`}</code>, a <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">KanbanCard</code> is auto-created at the <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">leads</code> stage with:
+                  </p>
+                  <pre className="p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto leading-relaxed">{`KanbanCard {
+  status: 'leads',
+  sourceRelayId: <relay.id>,    // back-link to the relay
+  // ... card fields derived from subject/description/priority
+}
+
+AgentRelay {
+  cardId: <card.id>,            // forward-link to the card
+  // ... relay fields
+}`}</pre>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-semibold text-cyan-300 mb-1">5. Comms surfacing</h4>
+                  <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed mb-1">
+                    Both ambient and task relays surface to <code className="text-[10px] font-mono px-1 py-0.5 bg-white/[0.06] rounded">CommsMessage</code>, with different defaults:
+                  </p>
+                  <pre className="p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto leading-relaxed">{`// Ambient
+{ priority: 'low', state: 'read', content: '🌊 Relay from ...', linkedCardId: null }
+
+// Task / non-ambient
+{ priority: <relay.priority>, state: 'new', content: '🌐 Relay from ...', linkedCardId: <card.id> }`}</pre>
+                </div>
+
+                <div>
+                  <h4 className="text-xs font-semibold text-cyan-300 mb-1">6. Success response</h4>
+                  <pre className="p-2 bg-white/[0.04] rounded text-[10px] font-mono text-green-400 overflow-x-auto leading-relaxed">{`{
+  success: true,
+  relayId: '<local-relay-id>',
+  ambient: <boolean>,
+  cardId: '<created-card-id-or-null>',
+  fallback: <boolean>     // true if toUserEmail did not match a local user
+}`}</pre>
+                </div>
+              </div>
+
+              <p className="text-[10px] text-[var(--text-muted)] leading-relaxed mt-3">
+                <strong className="text-white">Symmetry note:</strong> all six behaviors from <a href="/docs/comms-vision" className="text-brand-400 hover:text-brand-300">Jon&apos;s Comms Unification Vision</a> now hold in both directions across DiviDen ↔ FVP. See the <a href="/FVP_BUILD_522_REPLY.md" className="text-brand-400 hover:text-brand-300">FVP Build 522 reply</a> for the full audit.
+              </p>
+            </div>
+
             {/* Relay Ack (Response) Endpoint */}
             <div className="p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
               <h3 className="font-semibold text-sm mb-2">📬 Relay Acknowledgment (Completion Callback)</h3>
