@@ -155,6 +155,8 @@ export default function DocumentationPage() {
           <div className="mt-8 pt-4 border-t border-white/[0.06]">
             <div className="text-[10px] uppercase tracking-wider font-bold text-[var(--text-muted)] mb-2">Quick Links</div>
             <a href="/docs/developers" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">API Reference</a>
+            <a href="/docs/federation" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Federation Guide</a>
+            <a href="/docs/relay-spec" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Relay Protocol Spec</a>
             <a href="/docs/integrations" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Integrations</a>
             <a href="/docs/release-notes" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Changelog</a>
             <a href="https://github.com/Denominator-Ventures/dividen" target="_blank" rel="noopener noreferrer" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">GitHub ↗</a>
