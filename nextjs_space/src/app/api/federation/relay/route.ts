@@ -154,6 +154,19 @@ export async function POST(req: NextRequest) {
       parsedPayload.attachments = attachments;
     }
 
+    // ── v2.2.1: Sender identity persistence ──
+    // The AgentRelay.fromUserId field for federated inbounds stores connection.requesterId
+    // as a placeholder (the local user row doesn't exist for the remote sender). We persist
+    // the real sender identity into payload._sender so Divi can resolve who the relay is
+    // actually from when surfacing it naturally in conversation.
+    parsedPayload._sender = {
+      name: fromUserName || null,
+      email: fromUserEmail || null,
+      instanceUrl: connection.peerInstanceUrl || null,
+      connectionId: connection.id,
+      isFederated: true,
+    };
+
     // Ambient detection: FVP signals via payload._ambient === true
     const isAmbient = parsedPayload?._ambient === true
       || parsedPayload?.ambient === true

@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.2.0 Comms Threading & Bidirectional Federation: thread-grouped comms, intent-flexible ambient relays, federated Kanban sync, attachments passthrough.',
+  description: 'DiviDen release notes — v2.2.1 Relay Context Handling: federated sender resolution, natural conversational weaving, no more backend jargon.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.2.0 — Comms Threading & Bidirectional Federation. v2.1.15 — FVP Build 522 Compliance.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.2.0+Comms+Threading+%26+Federation+Kanban&tag=release', width: 1200, height: 630 }],
+    description: 'v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.2.1+Relay+Context+Handling&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.2.0 — Comms Threading & Bidirectional Federation. v2.1.15 — FVP Build 522 Compliance.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.2.0+Comms+Threading+%26+Federation+Kanban&tag=release'],
+    description: 'v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.2.1+Relay+Context+Handling&tag=release'],
   },
 };
 
@@ -38,6 +38,70 @@ export default function ReleaseNotesPage() {
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.2.1 RELAY CONTEXT HANDLING                      */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.2.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/5 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.2.1</span>
+                  <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
+                  <span className="px-2 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">Agent Behavior</span>
+                </div>
+                <h2 className="text-2xl font-bold font-heading">Divi Relay Context Handling</h2>
+              </div>
+              <DocDownloadButton containerId="release-v2.2.1" filename="dividen-release-v2.2.1" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] leading-relaxed mb-4">
+              Targeted behavior fix for how Divi identifies relay senders and weaves relay content into conversation.
+              Resolves three upstream issues reported against the v2.2.0 surfacing pass.
+            </p>
+
+            <div className="space-y-4">
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🎯 Problem</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li><strong>Sender misidentification</strong>: on federated inbound relays, <code className="code-inline">AgentRelay.fromUserId</code> stores <code className="code-inline">connection.requesterId</code> as a placeholder — which resolves back to the operator themselves. Divi was surfacing inbound relays as if they came from the operator&apos;s own contact list.</li>
+                  <li><strong>Missing federation context</strong>: the layer-17 relay fetch didn&apos;t include the connection row, so Divi had no access to the nickname, peer display name, or instance URL needed to say &quot;your FVP account&quot;.</li>
+                  <li><strong>Backend jargon</strong>: the surface directives used phrases like &quot;inbound relay from X&quot; instead of conversational English. Divi was reading out system events verbatim.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🔧 Fix</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li><strong>Sender identity persistence</strong>: <code className="code-inline">POST /api/federation/relay</code> now writes <code className="code-inline">payload._sender = &#123; name, email, instanceUrl, connectionId, isFederated &#125;</code> into every inbound federated relay, so the real sender identity survives the placeholder <code className="code-inline">fromUserId</code>.</li>
+                  <li><strong>Canonical sender resolver</strong>: new <code className="code-inline">resolveSender()</code> / <code className="code-inline">resolveRecipient()</code> helpers in <code className="code-inline">system-prompt.ts</code> layer 17. Priority: connection nickname → payload._sender.name → connection.peerUserName → fromUser.name → fallback. For federated peers, produces a federation hint like <em>&quot;your FVP account&quot;</em> derived from the instance hostname.</li>
+                  <li><strong>Connection relation included</strong>: all four relay fetches (inbound, outbound, ambient inbound, recent responses) now <code className="code-inline">include: &#123; connection: &#123; nickname, peerNickname, peerUserName, peerUserEmail, isFederated, peerInstanceUrl, requesterId, accepterId &#125; &#125;</code>.</li>
+                  <li><strong>Natural weaving directives</strong>: surface hints rewritten to instruct Divi to use the resolved sender label verbatim. Explicit bad/good examples added. New &quot;Never describe backend mechanics&quot; rule (no &quot;relay fired&quot;, &quot;green card&quot;, &quot;inbound event&quot;, &quot;endpoint&quot;).</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🗣️ Expected Operator Experience</h3>
+                <div className="text-sm text-[var(--text-secondary)] space-y-2">
+                  <div><span className="text-red-400">Before:</span> <em>&quot;You have an inbound relay from Jon Bradford. Did a green component fire?&quot;</em></div>
+                  <div><span className="text-green-400">After:</span> <em>&quot;Your FVP account just got back to you — they confirmed it came through: &apos;…&apos;. Want to act on that?&quot;</em></div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">📁 Files Touched</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm font-mono">
+                  <li>src/app/api/federation/relay/route.ts — sender identity persistence</li>
+                  <li>src/lib/system-prompt.ts — resolveSender / resolveRecipient + directive rewrite</li>
+                </ul>
+              </section>
+            </div>
+
+            <DocFooterDownload containerId="release-v2.2.1" filename="dividen-release-v2.2.1" />
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}

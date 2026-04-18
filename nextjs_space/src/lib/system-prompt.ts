@@ -1284,6 +1284,21 @@ async function layer17_connectionsRelay_optimized(
   // ── Fetch inbound and outbound SEPARATELY — an old unresolved outbound should
   // NEVER crowd out a fresh inbound. Inbound requires user response, outbound is
   // just status awareness.
+  // ── v2.2.1: Include the full connection row so sender identity can be resolved
+  // correctly even when fromUserId is a placeholder (federated inbound).
+  const connectionInclude = {
+    select: {
+      id: true,
+      nickname: true,
+      peerNickname: true,
+      peerUserName: true,
+      peerUserEmail: true,
+      isFederated: true,
+      peerInstanceUrl: true,
+      requesterId: true,
+      accepterId: true,
+    },
+  };
   const [inboundRelay, outboundRelay] = await Promise.all([
     prisma.agentRelay.findMany({
       where: {
@@ -1293,8 +1308,9 @@ async function layer17_connectionsRelay_optimized(
         NOT: { payload: { contains: '_ambient' } },
       },
       include: {
-        fromUser: { select: { id: true, name: true, email: true } },
+        fromUser: { select: { id: true, name: true, email: true, username: true } },
         toUser: { select: { id: true, name: true, email: true } },
+        connection: connectionInclude,
       },
       orderBy: { createdAt: 'asc' }, // FIFO — oldest inbound first
       take: 1,
@@ -1306,7 +1322,8 @@ async function layer17_connectionsRelay_optimized(
       },
       include: {
         fromUser: { select: { id: true, name: true, email: true } },
-        toUser: { select: { id: true, name: true, email: true } },
+        toUser: { select: { id: true, name: true, email: true, username: true } },
+        connection: connectionInclude,
       },
       orderBy: { createdAt: 'desc' }, // most recent outbound — just awareness
       take: 1,
@@ -1323,8 +1340,8 @@ async function layer17_connectionsRelay_optimized(
         resolvedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }, // last 24h
       },
       include: {
-        toUser: { select: { id: true, name: true, email: true } },
-        connection: { select: { nickname: true, peerNickname: true, peerUserName: true } },
+        toUser: { select: { id: true, name: true, email: true, username: true } },
+        connection: connectionInclude,
       },
       orderBy: { resolvedAt: 'desc' },
       take: 1, // ONE response at a time
@@ -1337,12 +1354,127 @@ async function layer17_connectionsRelay_optimized(
         payload: { contains: '_ambient' },
       },
       include: {
-        fromUser: { select: { id: true, name: true, email: true } },
+        fromUser: { select: { id: true, name: true, email: true, username: true } },
+        connection: connectionInclude,
       },
       orderBy: { createdAt: 'asc' },  // FIFO — oldest ambient first
       take: 1, // ONE ambient relay at a time
     }),
   ]);
+
+  // ── v2.2.1: Canonical sender resolution ──
+  // For any relay, compute a single "sender label" that Divi should use when
+  // mentioning the relay to the operator. Priority order:
+  //   1. Connection nickname (how THIS operator labels the peer — most personal)
+  //   2. payload._sender.name (the real human name sent via federation)
+  //   3. connection.peerUserName (federated peer display name)
+  //   4. fromUser.name / fromUser.email (local relays — the real local user)
+  //   5. 'your connection' fallback
+  // Also returns federationHint: a short phrase like "your FVP account" when the
+  // connection is federated, so Divi can say "your FVP account just got back to you".
+  function resolveSender(r: any): {
+    label: string;
+    handle: string | null;
+    federationHint: string | null;
+    isFederated: boolean;
+    instanceUrl: string | null;
+  } {
+    const conn = r.connection || null;
+    let payloadSender: any = null;
+    try {
+      const p = JSON.parse(r.payload || '{}');
+      payloadSender = p._sender || null;
+    } catch {}
+
+    const isFederated = !!conn?.isFederated;
+    const instanceUrl = conn?.peerInstanceUrl || payloadSender?.instanceUrl || null;
+
+    // Operator's own label for this peer (nickname direction depends on who requested)
+    const operatorNickname = conn
+      ? (conn.requesterId === userId ? conn.nickname : conn.peerNickname)
+      : null;
+
+    // Handle derivation
+    const handle = r.fromUser?.username
+      ? `@${r.fromUser.username}`
+      : (conn?.peerUserName && /^@/.test(conn.peerUserName) ? conn.peerUserName : null);
+
+    // Core label — for federated inbound, fromUser is a placeholder so we prefer
+    // payload._sender.name > connection.peerUserName. For local, fromUser is real.
+    let label: string;
+    if (isFederated) {
+      label = operatorNickname
+        || payloadSender?.name
+        || conn?.peerUserName
+        || payloadSender?.email
+        || conn?.peerUserEmail
+        || 'your federated connection';
+    } else {
+      label = operatorNickname
+        || r.fromUser?.name
+        || r.fromUser?.email
+        || 'your connection';
+    }
+
+    // Federation hint: short phrase Divi can use in natural speech
+    let federationHint: string | null = null;
+    if (isFederated) {
+      // Derive a short instance name from the URL (e.g. "fvp.ai" from "https://fvp.ai")
+      let shortInstance: string | null = null;
+      if (instanceUrl) {
+        try {
+          const u = new URL(instanceUrl.startsWith('http') ? instanceUrl : `https://${instanceUrl}`);
+          shortInstance = u.hostname.replace(/^www\./, '').split('.')[0];
+        } catch {}
+      }
+      if (shortInstance) {
+        federationHint = `your ${shortInstance.toUpperCase()} account`;
+      } else if (conn?.peerUserName) {
+        federationHint = `your federated account (${conn.peerUserName})`;
+      } else {
+        federationHint = 'your federated account';
+      }
+    }
+
+    return { label, handle, federationHint, isFederated, instanceUrl };
+  }
+
+  // Same idea for the recipient on an outbound relay / recent response.
+  function resolveRecipient(r: any): {
+    label: string;
+    handle: string | null;
+    federationHint: string | null;
+    isFederated: boolean;
+  } {
+    const conn = r.connection || null;
+    const isFederated = !!conn?.isFederated;
+
+    const operatorNickname = conn
+      ? (conn.requesterId === userId ? conn.nickname : conn.peerNickname)
+      : null;
+
+    const handle = r.toUser?.username ? `@${r.toUser.username}` : null;
+
+    const label = operatorNickname
+      || r.toUser?.name
+      || conn?.peerUserName
+      || r.toUser?.email
+      || conn?.peerUserEmail
+      || 'your connection';
+
+    let federationHint: string | null = null;
+    if (isFederated && conn?.peerInstanceUrl) {
+      try {
+        const u = new URL(conn.peerInstanceUrl.startsWith('http') ? conn.peerInstanceUrl : `https://${conn.peerInstanceUrl}`);
+        const shortInstance = u.hostname.replace(/^www\./, '').split('.')[0];
+        federationHint = `${shortInstance.toUpperCase()} account`;
+      } catch {
+        federationHint = 'federated account';
+      }
+    }
+
+    return { label, handle, federationHint, isFederated };
+  }
 
   let text = `## Layer 17: Connections & Agentic Relay Protocol
 You operate within DiviDen's agent-to-agent communication protocol. This is NOT messaging — it is a new communication layer where agents coordinate on behalf of their humans.
@@ -1374,22 +1506,30 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
     text += `\n### 📥 INCOMING RELAY — HANDLE THIS ONE FIRST\n`;
     text += `**ONE RELAY AT A TIME.** You have exactly one relay to handle right now. Focus on this one completely — weave it into the conversation, get the user's response, and fire relay_respond BEFORE the next relay surfaces.\n\n`;
     for (const r of inboundRelays) {
-      const from = r.fromUser?.name || r.fromUser?.email || 'Unknown';
+      const s = resolveSender(r);
       let payloadDetail = r.payload || '';
       try { const p = JSON.parse(r.payload || '{}'); payloadDetail = p.detail || p.message || r.payload || ''; } catch {}
-      text += `**📩 Inbound relay from ${from}:**\n`;
+
+      // Build a rich sender line that Divi can translate into natural language
+      text += `**📩 From: ${s.label}${s.handle ? ` (${s.handle})` : ''}**`;
+      if (s.federationHint) text += ` — ${s.federationHint}`;
+      text += `\n`;
       text += `- Subject (VERBATIM — quote this): "${r.subject}"\n`;
       if (payloadDetail && payloadDetail !== r.subject) text += `- Extra detail: ${payloadDetail}\n`;
       text += `- Intent: ${r.intent} | Relay ID: ${r.id}\n\n`;
     }
-    text += `**How to surface this relay (CRITICAL):**\n`;
-    text += `- On your VERY NEXT message, quote the actual subject text verbatim so the user sees what was asked. Do NOT just say "you have a relay" or "there's a relay in context" — that's useless to the user. They need to see the content.\n`;
-    text += `- Good: "Heads up — Jaron pinged: 'Let's sync when you get back in front of your claw.' Want me to set up a time?"\n`;
-    text += `- Good: "By the way, Alvaro's asking: 'Can you confirm the budget for Q2?' — thoughts?"\n`;
-    text += `- Bad: "You have a relay from Jaron." (vague, doesn't show content)\n`;
-    text += `- Bad: "There's a message in context." (the user has no idea what it says)\n`;
-    text += `- If the user asks "what's the relay?" or "what's in context?", ALWAYS quote the subject and sender by name — do not describe it abstractly.\n`;
-    text += `- The UI shows a 📡 relay badge, but your job is to make sure the user knows the actual content in plain conversation.\n\n`;
+    text += `**CRITICAL — Sender identity (v2.2.1):**\n`;
+    text += `- The "From" line above is already resolved. Use that label literally. Do NOT invent a different name, do NOT default to "Jon" or another contact, and do NOT say "a relay from [wrong name]". If the sender label says "your FVP account", SAY "your FVP account". If it says "Jaron", say "Jaron".\n`;
+    text += `- When a federation hint is present (e.g. "your FVP account"), lead with it — that's how operators think about their federated instances.\n\n`;
+    text += `**CRITICAL — Natural weaving:**\n`;
+    text += `- Translate the relay into conversational English, don't read out system events. The operator never needs to hear "relay", "green card", "inbound event", or any backend term.\n`;
+    text += `- Good: "Your FVP account just got back to you — they confirmed it came through: '<verbatim subject>'. Want to act on that?"\n`;
+    text += `- Good: "Jaron pinged — '<verbatim subject>'. Thoughts?"\n`;
+    text += `- Good: "Heads up, Alvaro wants to know: '<verbatim subject>' — how do you want me to reply?"\n`;
+    text += `- Bad: "You have an inbound relay from [name]." (robotic / backend jargon)\n`;
+    text += `- Bad: "A relay_request was delivered." (system event language)\n`;
+    text += `- Bad: "Did a green component fire?" (never mention UI mechanics)\n`;
+    text += `- Always include the verbatim subject so the operator sees the actual content — but wrap it in natural framing, not a bullet list.\n\n`;
     text += `**Auto-respond:** When the user's reply clearly addresses the relay (answers the question, accepts/declines the task, provides the requested info, or tells you what to send back), IMMEDIATELY emit [[relay_respond:...]] without asking for confirmation. The user shouldn't have to explicitly say "respond to the relay" — if the content of their message answers it, just send it back.\n`;
     text += `\n**If the user ignores the relay for multiple turns:** After 2-3 user messages that don't address it, gently re-surface it once with the verbatim content again. Do not let an inbound relay fester silently.\n`;
     text += `\nTo respond: [[relay_respond:{"relayId":"<id>", "status":"completed", "responsePayload":"<response message>"}]]\n`;
@@ -1401,34 +1541,48 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
   if (outboundRelays.length > 0) {
     text += `\n### 📤 Outbound Relays (${outboundRelays.length})\n`;
     for (const r of outboundRelays) {
-      const to = r.toUser?.name || r.toUser?.email || 'Remote';
-      text += `- Sent to **${to}**: "${r.subject}" | Status: ${r.status}\n`;
+      const rc = resolveRecipient(r);
+      const toDisplay = rc.federationHint ? `${rc.label} (${rc.federationHint})` : rc.label;
+      text += `- Sent to **${toDisplay}**${rc.handle ? ` [${rc.handle}]` : ''}: "${r.subject}" | Status: ${r.status}\n`;
     }
+    text += `\nWhen the operator asks about what you've sent, reference the recipient naturally — e.g. "I fired it over to your FVP account a minute ago, still waiting on their ack" — not "relay <id> is pending".\n`;
   }
 
 
   // Surface the most recent completed relay response
   if (recentResponses.length > 0) {
     text += `\n### 📬 Relay Response — SURFACE NATURALLY\n`;
-    text += `A relay response came back. Work it into conversation when relevant:\n`;
     const r = recentResponses[0];
-    const responderName = r.toUser?.name || r.connection?.peerNickname || r.connection?.peerUserName || 'A connection';
-    text += `- **${responderName}** responded to "${r.subject}": ${r.responsePayload || '[acknowledged]'}\n`;
-    text += `\nMention it when the conversation touches the topic: "By the way, [name] got back to us about [topic]..."\n`;
+    const rc = resolveRecipient(r);
+    const responderLabel = rc.federationHint
+      ? `${rc.label} (${rc.federationHint})`
+      : rc.label;
+    text += `A response came back from **${responderLabel}** to your earlier relay "${r.subject}":\n`;
+    text += `> ${r.responsePayload || '[acknowledged]'}\n\n`;
+    text += `Weave this into the conversation when the topic comes up, using the responder's name (NOT "a relay completed"). Good examples:\n`;
+    if (rc.federationHint && rc.federationHint.includes('account')) {
+      text += `- "${rc.federationHint} just got back to you — they confirmed it came through: '${(r.responsePayload || '').slice(0, 80)}...'"\n`;
+      text += `- "Heard back from ${rc.federationHint}: ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+    } else {
+      text += `- "${rc.label} got back to us: ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+      text += `- "Oh — ${rc.label} mentioned ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+    }
+    text += `- Treat the response as information YOU are sharing with the operator, not a system notification.\n`;
   }
 
   // Ambient inbound relay — one at a time, work it in naturally
   if (ambientInbound.length > 0) {
     const r = ambientInbound[0];
-    const fromName = r.fromUser?.name || r.fromUser?.email || 'Someone';
+    const s = resolveSender(r);
     let topic = '';
     let intent = (r as any).intent || 'custom';
     try { const p = JSON.parse(r.payload || '{}'); topic = p._topic || ''; } catch {}
     const intentLabel = intent === 'ask' ? 'question' : intent === 'share_update' ? 'update' : intent === 'intro' ? 'intro' : intent === 'schedule' ? 'scheduling note' : intent === 'opinion' ? 'opinion' : 'message';
     text += `\n### 🌊 Ambient Relay — WEAVE NATURALLY (ONE AT A TIME)\n`;
-    text += `An agent has sent an ambient ${intentLabel} for your user. Do NOT announce this as "you have a relay." When the conversation naturally touches on the relevant topic, work it in as if YOU are thinking of it yourself.\n\n`;
-    text += `- From **${fromName}**'s agent${topic ? ` (topic: ${topic})` : ''} (intent: **${intent}**): "${r.subject}" [relay ID: ${r.id}]\n`;
-    text += `\nIf the ambient message merits a reply (questions/polls often do, updates/intros may not), use [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"<the reply>"}]] to send it back. If it doesn't need a reply, silently mark with [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"(acknowledged)"}]] after weaving it in. Handle this one before the next ambient relay surfaces.\n`;
+    text += `**From: ${s.label}${s.handle ? ` (${s.handle})` : ''}${s.federationHint ? ` — ${s.federationHint}` : ''}** sent an ambient ${intentLabel}${topic ? ` (topic: ${topic})` : ''} (intent: **${intent}**):\n`;
+    text += `> "${r.subject}" [relay ID: ${r.id}]\n\n`;
+    text += `Do NOT announce this as "you have a relay" or "an ambient message arrived". Use the sender label above (e.g. "${s.label}${s.federationHint ? ` — ${s.federationHint}` : ''}") and weave the content into the conversation when the topic naturally comes up. If the topic isn't relevant yet, you can silently acknowledge and wait.\n\n`;
+    text += `If the ambient message merits a reply (questions/polls often do, updates/intros may not), use [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"<the reply>"}]] to send it back. If it doesn't need a reply, silently mark with [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"(acknowledged)"}]] after weaving it in. Handle this one before the next ambient relay surfaces.\n`;
   }
 
   // Append ambient learning insights if any patterns exist
@@ -1467,6 +1621,8 @@ You are not just a passive relay tool. You are an intelligent communication agen
 - When relay responses arrive, don't announce "Relay completed." Instead say "Oh — [name] mentioned that..." or "Interesting, [name]'s take on this is..."
 - If multiple broadcast responses come back, synthesize them: "I heard back from the team — the consensus seems to be..."
 - Treat relay responses like information you gathered, not like notifications you're forwarding
+- **For federated peers, use the operator's mental model**: they think of another instance as "their FVP account" or "their Abacus account", not "a federated connection". When the relay context shows a federation hint like "your FVP account", lead with that exact phrase. Example: "Your FVP account just got back to you — they confirmed it came through." NOT "a federated relay completed" or "Jon responded" (Jon is the operator themself on the other side).
+- **Never describe backend mechanics**: no "relay fired", "green card", "inbound event", "tag emitted", "webhook", "endpoint". Translate to how a human would describe an agent doing work on their behalf.
 
 **3. Ambient Protocol (the key differentiator):**
 - Ambient relays are NOT interruptions. They are context-aware low-priority messages of ANY kind — questions, updates, intros, scheduling notes, opinions, observations.
