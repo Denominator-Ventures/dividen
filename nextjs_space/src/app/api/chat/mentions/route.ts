@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     const q = (url.searchParams.get('q') || '').toLowerCase().trim();
 
     if (type === 'people') {
-      // Search users by name, username, or email
+      // 1) Local users on this instance (by name / username / email)
       const users = await prisma.user.findMany({
         where: {
           OR: [
@@ -35,18 +35,107 @@ export async function GET(req: NextRequest) {
         orderBy: { name: 'asc' },
       });
 
-      return NextResponse.json({
-        success: true,
-        data: users.map((u: any) => ({
-          id: u.id,
-          type: 'person' as const,
-          name: u.name || u.email,
-          username: u.username,
-          avatar: u.profilePhotoUrl,
-          subtitle: u.username ? `@${u.username}` : u.email,
-          diviName: u.diviName,
-        })),
+      const localResults = users.map((u: any) => ({
+        id: u.id,
+        type: 'person' as const,
+        name: u.name || u.email,
+        username: u.username,
+        avatar: u.profilePhotoUrl,
+        subtitle: u.username ? `@${u.username}` : u.email,
+        diviName: u.diviName,
+      }));
+
+      // 2) Federated connections (peer users on OTHER DiviDen instances — e.g. FVP)
+      // These peers don't have a local User row, so they'd never surface via the user
+      // search above. Surface them here so users can @-mention them in chat.
+      const fedConns = await prisma.connection.findMany({
+        where: {
+          OR: [
+            { requesterId: userId },
+            { accepterId: userId },
+          ],
+          isFederated: true,
+          status: 'active',
+          ...(q
+            ? {
+                AND: [
+                  {
+                    OR: [
+                      { nickname: { contains: q, mode: 'insensitive' } },
+                      { peerNickname: { contains: q, mode: 'insensitive' } },
+                      { peerUserName: { contains: q, mode: 'insensitive' } },
+                      { peerUserEmail: { contains: q, mode: 'insensitive' } },
+                      { peerInstanceUrl: { contains: q, mode: 'insensitive' } },
+                    ],
+                  },
+                ],
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+          requesterId: true,
+          accepterId: true,
+          nickname: true,
+          peerNickname: true,
+          peerInstanceUrl: true,
+          peerUserId: true,
+          peerUserName: true,
+          peerUserEmail: true,
+        },
+        take: 10,
       });
+
+      const federatedResults = fedConns.map((c: any) => {
+        // Pick the best display name — prefer the nickname WE set, then peer's own name/email.
+        const isRequester = c.requesterId === userId;
+        const myNickname = isRequester ? c.nickname : c.peerNickname;
+        const displayName = myNickname || c.peerUserName || c.peerUserEmail || 'Peer';
+
+        // Build a handle: nickname → peer username slug → peer email local part → peer user id.
+        const handleSource = myNickname || c.peerUserName || c.peerUserEmail || c.peerUserId || 'peer';
+        const cleanedHandle = String(handleSource)
+          .toLowerCase()
+          .split('@')[0] // strip email domain
+          .replace(/[^a-z0-9_.-]/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .slice(0, 30);
+
+        // Pretty-print the instance origin (e.g. fvp.dividen.ai → "FVP")
+        let instanceLabel = '';
+        try {
+          if (c.peerInstanceUrl) {
+            const host = new URL(c.peerInstanceUrl).hostname.replace(/^www\./, '');
+            instanceLabel = host;
+          }
+        } catch {
+          instanceLabel = c.peerInstanceUrl || '';
+        }
+
+        const subtitleParts: string[] = [];
+        if (cleanedHandle) subtitleParts.push(`@${cleanedHandle}`);
+        if (instanceLabel) subtitleParts.push(`on ${instanceLabel}`);
+
+        return {
+          id: c.id, // connection id — not a user id
+          type: 'person' as const,
+          name: displayName,
+          username: cleanedHandle || null,
+          avatar: null,
+          subtitle: subtitleParts.join(' · ') || 'Federated peer',
+          // Extra hints for consumers that understand federation:
+          federated: true as const,
+          peerInstanceUrl: c.peerInstanceUrl || null,
+          peerUserId: c.peerUserId || null,
+          connectionId: c.id,
+        };
+      });
+
+      // Merge: local users first, then federated peers. Cap at 12 total so the
+      // dropdown stays compact but federated peers aren't hidden behind 10 locals.
+      const merged = [...localResults, ...federatedResults].slice(0, 12);
+
+      return NextResponse.json({ success: true, data: merged });
     }
 
     if (type === 'agents') {
