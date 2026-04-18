@@ -163,10 +163,35 @@ export function parseActionTags(text: string): ParsedTag[] {
 
 /**
  * Strip all action tags from text, returning clean message for display.
+ *
+ * Also strips fabricated "[Tag execution summary ...]" blocks. These blocks are
+ * ONLY meant to be injected by the server as system messages between turns.
+ * If they appear inside an assistant message's content, it's because the LLM
+ * hallucinated/regurgitated the pattern from prior context — strip them here
+ * so they don't reach users, don't loop back into the LLM context, and don't
+ * create fake "duplicate summary" noise.
  */
 export function stripActionTags(text: string): string {
   return text
     .replace(/\[\[\w+:\s*\{[\s\S]*?\}\s*\]\]/g, '')
+    .replace(/\[Tag execution summary[\s\S]*?\[End of tag summary[^\]]*\]/g, '')
+    // Also strip orphaned opening markers if the LLM never closed the block
+    .replace(/\[Tag execution summary from your previous turn[^\]]*\][\s\S]*?(?=\n\n|$)/g, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * Sanitize assistant content before persisting to the database. Removes
+ * fabricated tag-summary blocks (the LLM sometimes regurgitates our system
+ * notes) so they don't pollute future context windows. Preserves action tags
+ * themselves (we need those for replay/context), just strips the fake summary
+ * text the LLM shouldn't be writing.
+ */
+export function sanitizeAssistantContent(text: string): string {
+  return text
+    .replace(/\[Tag execution summary[\s\S]*?\[End of tag summary[^\]]*\]/g, '')
+    .replace(/\[Tag execution summary from your previous turn[^\]]*\][\s\S]*?(?=\n\n|$)/g, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }

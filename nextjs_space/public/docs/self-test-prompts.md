@@ -237,6 +237,45 @@ Self-test Bug 25b. Emit [[invite_to_project:{"projectName":"<a real project>","m
 
 ## New bugs noticed by user in session 3
 
+### Bug 27 — "Duplicate tag emission" (diagnosed + fixed Apr 18 session 3.3)
+
+**Report from Divi**: "Same tag firing twice with contradictory results — first OK, second FAIL with 'Project not found'. Happens on every tag test."
+
+**Root cause** (confirmed via DB inspection of messages `cmo4sr4og`, `cmo4st9d9`, `cmo4sukz4` and checking invite IDs against `projectInvite` table):
+1. The tag IS only firing ONCE server-side (confirmed: `metadata.tags.length === 1` on every message; invite IDs in the "OK" summary don't exist in the database → they are LLM fabrications).
+2. The LLM (Divi) is **regurgitating / hallucinating** the `[Tag execution summary from your previous turn...]` block IN HER OWN RESPONSE. She sees the system-injected summaries in her context window and copies the format, inventing fake IDs.
+3. The fabricated summary gets saved as part of her `content`, then on the next turn it re-enters her context as PRIOR MESSAGE CONTENT → reinforcing the pattern.
+4. When Divi reads her own response after execution, she sees TWO summaries: (a) her own fabricated "OK" at the top of her message, (b) the REAL system-injected summary at the top of the next turn's context showing FAIL. She interprets this as "two fires with contradictory results" = "duplicate emission bug".
+5. There is NO real duplicate execution. The FAIL result is legitimate — "DiviDen Platform Build" doesn't exist in the database, so the tag correctly fails.
+
+**Fixes deployed (session 3.3)**:
+1. **`stripActionTags`** (`src/lib/action-tags.ts:174`) now also strips `[Tag execution summary ...][End of tag summary...]` blocks from assistant content when feeding prior messages back into the LLM context. Prevents propagation of any existing corruption.
+2. **`sanitizeAssistantContent`** (new export in `src/lib/action-tags.ts:191`) strips the same pattern from `fullText` **before persisting** to the DB. Ensures new content is clean.
+3. **Chat route** (`src/app/api/chat/send/route.ts:298`) applies `sanitizeAssistantContent` to the LLM output before saving.
+4. **System prompt** (`src/lib/system-prompt.ts:1656`) adds an explicit section forbidding Divi from writing tag summary blocks or fabricating backend IDs — any such output is hallucination, full stop.
+
+**Test prompt (verify the fix holds)**:
+```
+Self-test Bug 27. Emit this exactly (must be a project you actually own):
+
+[[invite_to_project:{"projectName":"DiviDen Setup","members":[{"name":"Jaron","role":"contributor"}]}]]
+
+Say "Fired — I'll have the result next turn." and STOP. Do NOT generate any [Tag execution summary...] text — that must come only from the server. On the next turn, quote back what the system-injected summary said (not anything you write yourself). If you notice yourself starting to write "[Tag execution summary..." anywhere in your response, STOP immediately and report it as a compliance failure.
+```
+
+**Pass criteria**:
+- Turn 1: Response contains ONLY the action tag + one short line. No summary block.
+- Turn 2: Response quotes the REAL system note with the REAL invite ID. That invite ID must match a row in `projectInvite` table.
+- No "duplicate summary" claim. No fabricated IDs.
+
+**How to verify real IDs**:
+```bash
+# In dev server terminal
+cd nextjs_space && npx tsx scripts/check_invs2.ts  # update script to check the IDs Divi quotes
+```
+
+---
+
 ### Bug 26 — Stale context at session start
 
 **Report**: User observed that at session start, Divi's loaded context for @alvaro was showing "jon bradford" — but live `query_connections` returned the correct data. This means context loading on session start happened BEFORE the display fix was deployed. Once deployment propagates, this should resolve on any new session. If it persists after deployment, it's a separate bug.

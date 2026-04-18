@@ -10,7 +10,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { buildSystemPrompt } from '@/lib/system-prompt';
-import { parseActionTags, executeActionTags, stripActionTags } from '@/lib/action-tags';
+import { parseActionTags, executeActionTags, stripActionTags, sanitizeAssistantContent } from '@/lib/action-tags';
 import { streamLLMResponse, type LLMMessage } from '@/lib/llm';
 import { assembleBriefing } from '@/lib/catch-up-pipeline';
 
@@ -290,11 +290,16 @@ export async function POST(request: Request) {
                 };
               }
 
-              // Save assistant message (with raw content including tags for context)
+              // Save assistant message (with raw content including tags for context).
+              // Sanitize to strip any fabricated "[Tag execution summary ...]" blocks
+              // the LLM may have regurgitated — those pollute future context windows
+              // and create fake "duplicate fire" noise. Action tags themselves are
+              // preserved (needed for future replay).
+              const sanitizedContent = sanitizeAssistantContent(fullText);
               await prisma.chatMessage.create({
                 data: {
                   role: 'assistant',
-                  content: fullText,
+                  content: sanitizedContent,
                   userId,
                   metadata: msgMetadata ? JSON.stringify(msgMetadata) : null,
                 },
