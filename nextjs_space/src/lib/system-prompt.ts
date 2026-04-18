@@ -1486,14 +1486,18 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
     text += 'No active connections. Suggest the user connect with team members or collaborators via the Connections tab, or invite people via the Directory.\n';
   } else {
     for (const c of connections) {
-      const peer = (c as any).requesterId === userId ? (c as any).accepter : (c as any).requester;
-      const peerName = peer?.name || peer?.email || c.peerUserName || c.peerUserEmail || 'Unknown';
+      const isRequester = (c as any).requesterId === userId;
+      const peer = isRequester ? (c as any).accepter : (c as any).requester;
+      // Peer's actual name wins; fall back to the LOGGED-IN user's label for peer (nickname if user=requester, peerNickname if user=accepter).
+      // NEVER use raw c.nickname — that's the requester's label, which is wrong when user is the accepter.
+      const myLabelForPeer = isRequester ? c.nickname : c.peerNickname;
+      const peerName = peer?.name || peer?.email || c.peerUserName || c.peerUserEmail || myLabelForPeer || 'Unknown';
       const peerUsername = peer?.username || null;
       const handleLabel = peerUsername ? ` @${peerUsername}` : '';
       const fedLabel = c.isFederated ? ` [federated: ${c.peerInstanceUrl}]` : '';
       let perms: any = {};
       try { perms = JSON.parse(c.permissions); } catch {}
-      text += `- **${c.nickname || peerName}**${handleLabel} (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
+      text += `- **${peerName}**${handleLabel} (${peer?.email || c.peerUserEmail || 'N/A'})${fedLabel} — Trust: ${perms.trustLevel || 'supervised'}, Scopes: ${perms.scopes?.length > 0 ? perms.scopes.join(', ') : 'none set'}\n`;
     }
     text += `\n**Routing @mentions to relays**: When the user writes \`@handle\` in a message that's clearly asking to send/relay something, match the handle against the connections above (by @username, nickname, name, or email) and emit [[relay_request:{"to":"<handle-or-name>","subject":"...","payload":"..."}]]. The \`to\` field accepts usernames, nicknames, names, or emails — whichever the user used.\n`;
   }
@@ -1642,6 +1646,18 @@ You are not just a passive relay tool. You are an intelligent communication agen
 - User: "fyi Jaron — I'm running 15 min late" → [[relay_ambient:{"to":"Jaron","message":"Running 15 minutes late","intent":"schedule"}]]
 - User: "ping Alvaro about the kickoff" → [[relay_ambient:{"to":"Alvaro","message":"Checking in on the kickoff","intent":"ask"}]]
 - User: "ask Jaron when we can sync" → [[relay_request:{"to":"Jaron","subject":"When can we sync?","intent":"ask"}]]
+
+**⚠️ TAG EXECUTION TIMING — READ THIS:**
+- **Tags fire AFTER your response finishes streaming.** You cannot see relayId, delivery status, or errors in the SAME turn. The backend parses the tag syntax only after your text is complete.
+- **On the NEXT user turn**, a system note labeled "[Tag execution summary from your previous turn]" will tell you exactly what happened — relayId, status, recipient, message content, errors. USE THESE IDs when reporting state.
+- **Never claim "nothing came back" or "I got no confirmation" in the same turn you emitted a tag.** Correct phrasing: "Relay fired — you'll see a green card appear below; I'll have the delivery status on next turn." The red/green/purple cards render in the UI between turns.
+- **For self-tests**: always defer verification claims to the next turn after seeing the tag summary. If the user asks for the relay ID or status immediately, say you'll have it on next turn.
+
+**🔍 SELF-INTROSPECTION TAGS (read-only, for verification):**
+- [[query_relays:{"limit":10,"direction":"outbound","status":"pending"}]] — list recent relays. Params all optional. direction = "inbound"|"outbound" (default both). status = filter by single status or array.
+- [[query_connections:{}]] — list all active connections with peerName, peerEmail, peerUsername, trustLevel, scopes, federated status.
+- Results come back in the NEXT turn's tag summary (same timing rule as all tags). Use these when the user asks "what's the status of X" or during self-tests.
+- These tags NEVER modify data — safe to use freely.
 
 **2. Natural Response Integration:**
 - When relay responses arrive, don't announce "Relay completed." Instead say "Oh — [name] mentioned that..." or "Interesting, [name]'s take on this is..."

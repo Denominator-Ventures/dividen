@@ -117,13 +117,61 @@ export async function POST(request: Request) {
     }
   }
 
+  // Build message history. For assistant messages that executed tags, inject a
+  // post-message system note so Divi sees what actually happened (tags execute
+  // AFTER her response streams, so inline awareness is impossible).
   const llmMessages: LLMMessage[] = [
     { role: 'system', content: systemPrompt },
-    ...recentMessages.reverse().map((m: any) => ({
+  ];
+  for (const m of recentMessages.reverse()) {
+    llmMessages.push({
       role: m.role as 'user' | 'assistant' | 'system',
       content: m.role === 'assistant' ? stripActionTags(m.content) : m.content,
-    })),
-  ];
+    });
+    if (m.role === 'assistant' && m.metadata) {
+      try {
+        const meta = JSON.parse(m.metadata);
+        const tagResults: any[] = Array.isArray(meta?.tags) ? meta.tags : [];
+        if (tagResults.length > 0) {
+          const lines: string[] = ['[Tag execution summary from your previous turn — this is what actually happened after you emitted:]'];
+          for (const t of tagResults) {
+            const d = t.data || {};
+            if (!t.success) {
+              lines.push(`- ${t.tag} FAILED: ${t.error || 'unknown error'}`);
+              continue;
+            }
+            if (t.tag === 'relay_request') {
+              lines.push(`- relay_request OK. relayId=${d.relayId}, to=${d.to || d.recipient || '?'}, status=${d.status}, intent=${d.intent}, message="${(d.message || d.subject || '').slice(0, 120)}"`);
+            } else if (t.tag === 'relay_respond') {
+              lines.push(`- relay_respond OK. relayId=${d.relayId}, status=${d.status}, response="${(d.subject || '').slice(0, 120)}"`);
+            } else if (t.tag === 'relay_ambient') {
+              lines.push(`- relay_ambient OK. ${d.ambientSignalCaptured ? 'signal captured' : ''} ${d.deliveredTo ? `delivered to ${d.deliveredTo}` : ''} ${d.skipped ? `skipped: ${d.skipped}` : ''}`);
+            } else if (t.tag === 'task_route') {
+              lines.push(`- task_route OK. queueItemId=${d.queueItemId || d.id}, assigned=${d.assignedTo || 'routing'}`);
+            } else if (t.tag === 'accept_connection') {
+              lines.push(`- accept_connection OK. connectionId=${d.connectionId}, peer=${d.peerName || '?'}`);
+            } else if (t.tag === 'upsert_card') {
+              lines.push(`- upsert_card OK. cardId=${d.cardId}, title="${(d.title || '').slice(0, 80)}"`);
+            } else if (t.tag === 'query_relays') {
+              lines.push(`- query_relays returned ${d.count || 0} relays:`);
+              for (const r of (d.relays || []).slice(0, 15)) {
+                lines.push(`    • ${r.id} | ${r.direction} | ${r.from} → ${r.to} | status=${r.status} | intent=${r.intent} | "${(r.subject || '').slice(0, 60)}"`);
+              }
+            } else if (t.tag === 'query_connections') {
+              lines.push(`- query_connections returned ${d.count || 0} connections:`);
+              for (const c of (d.connections || [])) {
+                lines.push(`    • ${c.id} | ${c.peerName}${c.peerUsername ? ` (@${c.peerUsername})` : ''} | ${c.peerEmail || 'no-email'} | fed=${c.isFederated} | trust=${c.trustLevel} | scopes=[${(c.scopes || []).join(',')}]`);
+              }
+            } else {
+              lines.push(`- ${t.tag} OK. ${JSON.stringify(d).slice(0, 200)}`);
+            }
+          }
+          lines.push('[End of tag summary. The green/red/purple cards from these tags rendered in the chat UI AFTER your previous response finished streaming. If the user asks you to verify state, reference the IDs above.]');
+          llmMessages.push({ role: 'system', content: lines.join('\n') });
+        }
+      } catch {}
+    }
+  }
 
   // ── Stream Response via SSE ───────────────────────────────────────────
   const encoder = new TextEncoder();

@@ -105,6 +105,9 @@ export const SUPPORTED_TAGS = [
   // ── Project Management ──
   'create_project',          // create a new project and optionally invite members
   'invite_to_project',       // invite one or more users (by name/email/connectionId) to an existing project
+  // ── Introspection / Self-Test ──
+  'query_relays',            // list recent relays (inbound/outbound) with status — Divi can self-check delivery
+  'query_connections',       // list active connections with scopes and peer info — Divi can self-verify peer state
 ] as const;
 
 // Map alias tag names to their canonical implementation
@@ -1273,8 +1276,13 @@ export async function executeTag(
             },
           });
           if (connFull) {
-            const peer = connFull.requesterId === userId ? connFull.accepter : connFull.requester;
-            peerLabel = (connFull as any).peerNickname || (connFull as any).peerUserName || peer?.name || peer?.username || peer?.email || (connFull as any).nickname || '';
+            const isRequester = connFull.requesterId === userId;
+            const peer = isRequester ? connFull.accepter : connFull.requester;
+            // Jon's label for peer depends on which side of the connection Jon is on:
+            // - requester side: `nickname` (the requester's own label for the accepter)
+            // - accepter side: `peerNickname` (the accepter's own label for the requester)
+            const myLabelForPeer = isRequester ? (connFull as any).nickname : (connFull as any).peerNickname;
+            peerLabel = myLabelForPeer || (connFull as any).peerUserName || peer?.name || peer?.username || peer?.email || '';
           }
         } catch {}
 
@@ -3308,6 +3316,82 @@ export async function executeTag(
         }
 
         return { tag: name, success: true, data: { projectId: projId, projectName: proj.name, invites: invResults } };
+      }
+
+      // ── Introspection / Self-Test Tags ──
+      // These tags let Divi self-verify state via the next-turn feedback summary.
+      // They do NOT alter any data — read-only.
+      case 'query_relays': {
+        const limit = Math.min(Math.max(Number(params.limit) || 10, 1), 50);
+        const directionFilter = params.direction; // 'inbound' | 'outbound' | undefined
+        const statusFilter = params.status; // optional status filter
+        const where: any = {};
+        if (directionFilter === 'inbound') {
+          where.toUserId = userId;
+        } else if (directionFilter === 'outbound') {
+          where.fromUserId = userId;
+        } else {
+          where.OR = [{ toUserId: userId }, { fromUserId: userId }];
+        }
+        if (statusFilter) {
+          where.status = Array.isArray(statusFilter) ? { in: statusFilter } : statusFilter;
+        }
+        const relays = await prisma.agentRelay.findMany({
+          where,
+          include: {
+            fromUser: { select: { id: true, name: true, email: true, username: true } },
+            toUser: { select: { id: true, name: true, email: true, username: true } },
+            connection: { select: { id: true, isFederated: true, peerUserName: true, peerUserEmail: true } },
+          },
+          orderBy: { createdAt: 'desc' },
+          take: limit,
+        });
+        const relaySummary = relays.map(r => ({
+          id: r.id,
+          direction: r.fromUserId === userId ? 'outbound' : 'inbound',
+          from: r.fromUser?.name || r.fromUser?.email || 'Unknown',
+          to: r.toUser?.name || r.connection?.peerUserName || r.connection?.peerUserEmail || 'Unknown',
+          status: r.status,
+          intent: r.intent,
+          subject: r.subject,
+          isFederated: !!r.connection?.isFederated,
+          createdAt: r.createdAt,
+          resolvedAt: r.resolvedAt,
+        }));
+        return { tag: name, success: true, data: { count: relaySummary.length, relays: relaySummary } };
+      }
+
+      case 'query_connections': {
+        const conns = await prisma.connection.findMany({
+          where: {
+            OR: [{ requesterId: userId }, { accepterId: userId }],
+            status: params.status || 'active',
+          },
+          include: {
+            requester: { select: { id: true, name: true, email: true, username: true } },
+            accepter: { select: { id: true, name: true, email: true, username: true } },
+          },
+          orderBy: { updatedAt: 'desc' },
+        });
+        const connSummary = conns.map(c => {
+          const isRequester = c.requesterId === userId;
+          const peer = isRequester ? c.accepter : c.requester;
+          const myLabelForPeer = isRequester ? c.nickname : c.peerNickname;
+          let perms: any = {};
+          try { perms = JSON.parse(c.permissions); } catch {}
+          return {
+            id: c.id,
+            peerName: peer?.name || c.peerUserName || myLabelForPeer || 'Unknown',
+            peerEmail: peer?.email || c.peerUserEmail || null,
+            peerUsername: peer?.username || null,
+            isFederated: c.isFederated,
+            peerInstanceUrl: c.peerInstanceUrl || null,
+            status: c.status,
+            trustLevel: perms.trustLevel || 'supervised',
+            scopes: perms.scopes || [],
+          };
+        });
+        return { tag: name, success: true, data: { count: connSummary.length, connections: connSummary } };
       }
 
       default:
