@@ -45,21 +45,26 @@ export async function pushRelayToFederatedInstance(
       return false; // Not federated or missing config
     }
 
-    // ── v2.2.0: Auto-hydrate threadId/parentRelayId from the local relay if not passed in ──
+    // ── v2.3.0: Idempotency — if this relay was already pushed successfully (has peerRelayId
+    // or is already marked delivered) DO NOT push again. Prevents the "relay loop" bug where
+    // re-invocations of the same relay create duplicate peer records on the remote side.
     let threadId = payload.threadId || null;
     let parentRelayId = payload.parentRelayId || null;
-    if (!threadId || !parentRelayId) {
-      try {
-        const localRelay = await prisma.agentRelay.findUnique({
-          where: { id: payload.relayId },
-          select: { threadId: true, parentRelayId: true },
-        });
-        if (localRelay) {
-          threadId = threadId || localRelay.threadId;
-          parentRelayId = parentRelayId || localRelay.parentRelayId;
+    try {
+      const localRelay = await prisma.agentRelay.findUnique({
+        where: { id: payload.relayId },
+        select: { threadId: true, parentRelayId: true, peerRelayId: true, status: true },
+      });
+      if (localRelay) {
+        threadId = threadId || localRelay.threadId;
+        parentRelayId = parentRelayId || localRelay.parentRelayId;
+        // Skip duplicate push
+        if (localRelay.peerRelayId || localRelay.status === 'delivered' || localRelay.status === 'completed' || localRelay.status === 'declined') {
+          console.log(`[federation-push] Skipping duplicate push for relay ${payload.relayId} (peerRelayId=${localRelay.peerRelayId}, status=${localRelay.status})`);
+          return true;
         }
-      } catch {}
-    }
+      }
+    } catch {}
 
     // Include our instance's callback URL so the remote can push completion back
     const selfUrl = process.env.NEXTAUTH_URL || '';
@@ -93,12 +98,15 @@ export async function pushRelayToFederatedInstance(
       const remoteRelayId = ackData?.relayId || null;
       console.log(`[federation-push] ✓ Ack for ${payload.intent} relay ${payload.relayId} from ${conn.peerInstanceUrl} (remote: ${remoteRelayId})`);
 
-      // Update local relay: store remote relay ID
+      // Update local relay: store remote relay ID AND mark delivered (v2.3.0 loop fix).
+      // Without this, status stays 'pending' forever — Divi keeps re-surfacing it and can
+      // end up re-dispatching, which creates duplicate peer records.
       await prisma.agentRelay.update({
         where: { id: payload.relayId },
         data: {
           peerRelayId: remoteRelayId,
           peerInstanceUrl: conn.peerInstanceUrl,
+          status: 'delivered',
         },
       }).catch(() => {});
 

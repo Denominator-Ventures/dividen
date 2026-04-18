@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.2.1 Relay Context Handling: federated sender resolution, natural conversational weaving, no more backend jargon.',
+  description: 'DiviDen release notes — v2.3.0 Relay Protocol Overhaul: standardized component footnote, dismiss control, outbound loop prevention, and HOLD-and-weave ambient surfacing directives.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.2.1+Relay+Context+Handling&tag=release', width: 1200, height: 630 }],
+    description: 'v2.3.0 — Relay Protocol Overhaul. v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.3.0+Relay+Protocol+Overhaul&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.2.1+Relay+Context+Handling&tag=release'],
+    description: 'v2.3.0 — Relay Protocol Overhaul. v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.3.0+Relay+Protocol+Overhaul&tag=release'],
   },
 };
 
@@ -38,6 +38,96 @@ export default function ReleaseNotesPage() {
           <p className="text-[var(--text-secondary)] leading-relaxed max-w-2xl mt-2">
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.3.0 RELAY PROTOCOL OVERHAUL                     */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.3.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.0</span>
+                  <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
+                  <span className="px-2 py-1 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">Relay Protocol</span>
+                </div>
+                <h2 className="text-2xl font-bold font-heading">Relay Protocol Overhaul</h2>
+              </div>
+              <DocDownloadButton containerId="release-v2.3.0" filename="dividen-release-v2.3.0" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] leading-relaxed mb-4">
+              Twelve bug pass against the Relay Protocol — the mechanism for agent-to-agent messaging.
+              Rewires component UX, kills the relay-loop, adds a dismiss control, and rewrites the
+              ambient surfacing directives so Divi holds context silently and weaves on topic match rather
+              than announcing relays as notifications.
+            </p>
+
+            <div className="space-y-4">
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🎯 Problems (12 bugs)</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li>Ambient relays silently rejected any non-question statements.</li>
+                  <li>Green outgoing component rendered empty or with wrong content.</li>
+                  <li>Divi not reading the real sender from metadata (partial v2.2.1 fix).</li>
+                  <li>Divi not weaving relay content into conversation (partial v2.2.1 fix).</li>
+                  <li>Purple inbound components not visibly resolving after the response fires.</li>
+                  <li><strong>Footnote missing</strong> on both green and purple components — operator had no visible metadata for sender, type, timestamp, or status.</li>
+                  <li>Outgoing green component inconsistent — sometimes the status was omitted.</li>
+                  <li><strong>Relay loop</strong> — outbound push never stamped <code className="code-inline">status=&apos;delivered&apos;</code> so <code className="code-inline">pushRelayToFederatedInstance</code> could re-run for the same relay, duplicating peer records.</li>
+                  <li><strong>No dismiss / clear control</strong> on any relay component.</li>
+                  <li>No topic-matching for ambient surfacing — ambient relays either got ignored or got announced, never organically woven.</li>
+                  <li>Ambient response had no passive collection mechanism — operator had no path to reply in flow.</li>
+                  <li>Divi announced relay responses as &quot;I got a reply&quot; instead of treating the response as information she now owns.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🔧 Fix</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li><strong>Shared <code className="code-inline">RelayFootnote</code> component</strong>: new <code className="code-inline">src/components/dashboard/RelayFootnote.tsx</code>. Tiny metadata strip — <em>sender · type (direct/ambient) · timestamp · status</em> — with optional dismiss (×). Used by ChatView green cards, Comms thread rows, and Comms page bubbles so every relay surface carries the same footnote.</li>
+                  <li><strong>Dismiss API</strong>: new <code className="code-inline">POST /api/relays/[id]/dismiss</code>. Marks relay as <code className="code-inline">declined</code> with a <code className="code-inline">(dismissed by operator)</code> marker, logs activity, pushes state-change webhook, and fires ack-back to federated peers so their Divi also sees it resolved. Dismiss buttons appear next to every active footnote.</li>
+                  <li><strong>Loop prevention (outbound idempotency)</strong>: <code className="code-inline">pushRelayToFederatedInstance</code> now checks <code className="code-inline">peerRelayId / status</code> before pushing and skips if the relay is already delivered/completed/declined. On successful ack it also stamps <code className="code-inline">status=&apos;delivered&apos;</code>, not just <code className="code-inline">peerRelayId</code>. This kills the duplicate-delivery cascade.</li>
+                  <li><strong>Ambient HOLD directive</strong>: layer-17 ambient surfacing rewritten with 7 hard rules — never announce, hold silently, only weave on fuzzy topic-match OR when sender is named, respond silently via <code className="code-inline">relay_respond</code> in background. Operator may never even hear about the relay if the topic doesn&apos;t come up.</li>
+                  <li><strong>Response weaving rewrite</strong>: relay response section now has 5 hard rules forbidding announcement phrasing. Divi must treat inbound responses as information she OWNS, not system notifications. Good examples pinned.</li>
+                  <li><strong>Green card body fix</strong>: fallback chain <code className="code-inline">subject → responseText → message → question → note</code> plus recipient line (→ to) and consistent footnote. No more empty outgoing cards.</li>
+                  <li><strong>Resolved visual state</strong>: resolved Comms thread rows now render with strike-through on peer name plus opacity reduction so the resolution transition is visible.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🗣️ Expected Operator Experience</h3>
+                <div className="text-sm text-[var(--text-secondary)] space-y-2">
+                  <div><strong>Ambient surfacing:</strong></div>
+                  <div className="pl-4"><span className="text-red-400">Before:</span> <em>&quot;You have an ambient relay from Jon Bradford.&quot;</em> (first turn, regardless of topic)</div>
+                  <div className="pl-4"><span className="text-green-400">After:</span> nothing on first turn. Then when operator says &quot;any update on Q3?&quot;: <em>&quot;Oh — your FVP account actually pinged me about that: &apos;…&apos; — want me to reply?&quot;</em></div>
+                  <div className="pt-2"><strong>Response arrival:</strong></div>
+                  <div className="pl-4"><span className="text-red-400">Before:</span> <em>&quot;A relay completed. X responded to your relay.&quot;</em></div>
+                  <div className="pl-4"><span className="text-green-400">After:</span> <em>&quot;Heard back from your FVP account — they confirmed it came through.&quot;</em></div>
+                  <div className="pt-2"><strong>Component footnote:</strong></div>
+                  <div className="pl-4 font-mono text-xs">FVP account (jon@fvp) · direct · 2m ago · delivered · ×</div>
+                  <div className="pt-2"><strong>Dismiss:</strong> × button on any active component clears it locally and notifies the peer — loop ends.</div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">📁 Files Touched</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm font-mono">
+                  <li>src/components/dashboard/RelayFootnote.tsx — NEW shared footnote component</li>
+                  <li>src/app/api/relays/[id]/dismiss/route.ts — NEW dismiss endpoint with federation ack-back</li>
+                  <li>src/lib/federation-push.ts — outbound idempotency + status=delivered on ack</li>
+                  <li>src/components/dashboard/ChatView.tsx — green card footnote + fallback chain</li>
+                  <li>src/components/dashboard/CommsTab.tsx — thread row footnote + resolved strikethrough + dismiss</li>
+                  <li>src/app/dashboard/comms/page.tsx — bubble footnote + dismiss per-bubble</li>
+                  <li>src/lib/system-prompt.ts — ambient HOLD rules + response never-announce rules</li>
+                </ul>
+              </section>
+            </div>
+
+            <DocFooterDownload containerId="release-v2.3.0" filename="dividen-release-v2.3.0" />
+          </div>
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════════ */}

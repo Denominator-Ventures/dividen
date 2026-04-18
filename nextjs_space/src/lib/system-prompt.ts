@@ -1549,9 +1549,9 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
   }
 
 
-  // Surface the most recent completed relay response
+  // Surface the most recent completed relay response — WEAVE as information, do NOT announce
   if (recentResponses.length > 0) {
-    text += `\n### 📬 Relay Response — SURFACE NATURALLY\n`;
+    text += `\n### 📬 Relay Response — WEAVE NATURALLY, NEVER ANNOUNCE\n`;
     const r = recentResponses[0];
     const rc = resolveRecipient(r);
     const responderLabel = rc.federationHint
@@ -1559,18 +1559,25 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
       : rc.label;
     text += `A response came back from **${responderLabel}** to your earlier relay "${r.subject}":\n`;
     text += `> ${r.responsePayload || '[acknowledged]'}\n\n`;
-    text += `Weave this into the conversation when the topic comes up, using the responder's name (NOT "a relay completed"). Good examples:\n`;
+    text += `**🛑 HARD RULES:**\n`;
+    text += `1. NEVER announce this response as a notification. Not "a relay completed", not "X responded to your relay", not "I got a reply". You are the agent who sent the relay, so you OWN this information now.\n`;
+    text += `2. Weave it into the CURRENT conversation as information YOU are sharing with the operator. The operator should hear this as "I have an update" not "a system event happened".\n`;
     if (rc.federationHint && rc.federationHint.includes('account')) {
-      text += `- "${rc.federationHint} just got back to you — they confirmed it came through: '${(r.responsePayload || '').slice(0, 80)}...'"\n`;
-      text += `- "Heard back from ${rc.federationHint}: ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+      text += `3. Good examples (USE THIS STYLE):\n`;
+      text += `   - "${rc.federationHint} just got back to you — they confirmed it came through: '${(r.responsePayload || '').slice(0, 80)}...'"\n`;
+      text += `   - "Heard back from ${rc.federationHint}: ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+      text += `   - "Your ${rc.federationHint} replied — ${(r.responsePayload || '').slice(0, 80)}..."\n`;
     } else {
-      text += `- "${rc.label} got back to us: ${(r.responsePayload || '').slice(0, 80)}..."\n`;
-      text += `- "Oh — ${rc.label} mentioned ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+      text += `3. Good examples (USE THIS STYLE):\n`;
+      text += `   - "${rc.label} got back to us — ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+      text += `   - "Oh — ${rc.label} mentioned ${(r.responsePayload || '').slice(0, 80)}..."\n`;
+      text += `   - "${rc.label} said: ${(r.responsePayload || '').slice(0, 80)}..."\n`;
     }
-    text += `- Treat the response as information YOU are sharing with the operator, not a system notification.\n`;
+    text += `4. If the operator already moved on, weave at the next natural moment. Do NOT interrupt the current topic with a forced announcement.\n`;
+    text += `5. If the response doesn't match the current conversation at all, HOLD it silently — it will surface when the topic comes up.\n`;
   }
 
-  // Ambient inbound relay — one at a time, work it in naturally
+  // Ambient inbound relay — HOLD silently, weave when topic naturally surfaces
   if (ambientInbound.length > 0) {
     const r = ambientInbound[0];
     const s = resolveSender(r);
@@ -1578,11 +1585,17 @@ You operate within DiviDen's agent-to-agent communication protocol. This is NOT 
     let intent = (r as any).intent || 'custom';
     try { const p = JSON.parse(r.payload || '{}'); topic = p._topic || ''; } catch {}
     const intentLabel = intent === 'ask' ? 'question' : intent === 'share_update' ? 'update' : intent === 'intro' ? 'intro' : intent === 'schedule' ? 'scheduling note' : intent === 'opinion' ? 'opinion' : 'message';
-    text += `\n### 🌊 Ambient Relay — WEAVE NATURALLY (ONE AT A TIME)\n`;
+    text += `\n### 🌊 Ambient Relay — HOLD SILENTLY, WEAVE ON TOPIC MATCH\n`;
     text += `**From: ${s.label}${s.handle ? ` (${s.handle})` : ''}${s.federationHint ? ` — ${s.federationHint}` : ''}** sent an ambient ${intentLabel}${topic ? ` (topic: ${topic})` : ''} (intent: **${intent}**):\n`;
     text += `> "${r.subject}" [relay ID: ${r.id}]\n\n`;
-    text += `Do NOT announce this as "you have a relay" or "an ambient message arrived". Use the sender label above (e.g. "${s.label}${s.federationHint ? ` — ${s.federationHint}` : ''}") and weave the content into the conversation when the topic naturally comes up. If the topic isn't relevant yet, you can silently acknowledge and wait.\n\n`;
-    text += `If the ambient message merits a reply (questions/polls often do, updates/intros may not), use [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"<the reply>"}]] to send it back. If it doesn't need a reply, silently mark with [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"(acknowledged)"}]] after weaving it in. Handle this one before the next ambient relay surfaces.\n`;
+    text += `**🛑 HARD RULES — DO NOT BREAK:**\n`;
+    text += `1. DO NOT announce this relay. Not "you got a message", not "X sent you something", not "an ambient came in". The operator may never even know this relay exists if the topic never comes up — and that's the correct behavior.\n`;
+    text += `2. HOLD this context silently. On every turn where the operator's message is NOT about this relay's topic, act as if you don't have it. Do not mention it. Do not hint at it.\n`;
+    text += `3. ONLY when the operator's own message organically touches ${topic ? `"${topic}"` : 'the subject of this relay'} OR names ${s.label}, weave the content in as information you're adding to the conversation. Example: operator mentions the topic → you say "oh — ${s.label} actually mentioned ${topic ? `on ${topic}` : 'something relevant'}: '${(r.subject || '').slice(0, 60)}...' — want me to reply?"\n`;
+    text += `4. If the operator's reply after weaving answers/dismisses the relay, IMMEDIATELY fire [[relay_respond:{"relayId":"${r.id}", "status":"completed", "responsePayload":"<the reply operator gave OR '(acknowledged)' if no action needed>"}]] — silently, without announcing "I'm sending the response back". The response just goes.\n`;
+    text += `5. Topic match is fuzzy, not exact. If operator mentions a related concept, the sender's name, or something tangential, that counts. Err on the side of weaving — but ALWAYS integrate it, never announce it.\n`;
+    text += `6. If multiple turns pass and the topic never comes up, KEEP HOLDING. Do not force it. Ambient = passive.\n`;
+    text += `7. Never say "I'm responding to the relay" or "sending the reply". The response [[relay_respond:...]] fires silently in the background. Your visible conversation continues as normal.\n`;
   }
 
   // Append ambient learning insights if any patterns exist

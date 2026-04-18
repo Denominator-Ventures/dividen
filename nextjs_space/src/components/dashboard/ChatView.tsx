@@ -7,6 +7,7 @@ import type { WidgetItem, WidgetItemAction, AgentWidgetData } from '@/components
 import { emitSignal } from '@/lib/behavior-signals';
 import { OnboardingChatWidgets } from './OnboardingChatWidgets';
 import { MentionText } from '@/components/MentionText';
+import { RelayFootnote } from './RelayFootnote';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -968,37 +969,44 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
             {tagResults.length > 0 && (
               <div className="mx-11 space-y-2">
                 {/* Relay action results — green outgoing cards */}
-                {tagResults.filter(r => (r.tag === 'relay_respond' || r.tag === 'relay_request' || r.tag === 'relay_broadcast' || r.tag === 'relay_ambient') && r.success).map((r, i) => (
-                  <div key={`relay-${i}`} className="p-2.5 rounded-lg border-l-2 border-l-emerald-500/70 bg-emerald-500/[0.06] border border-emerald-500/20">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-emerald-400 text-[10px] font-bold">↗</span>
-                      <span className="text-[11px] font-medium text-emerald-300">
-                        {r.tag === 'relay_respond' ? '📡 Relay response sent' : r.tag === 'relay_broadcast' ? '📡 Broadcast sent' : r.tag === 'relay_ambient' ? '🌊 Ambient relay sent' : '📡 Relay sent'}
-                      </span>
-                      <span className="text-[8px] px-1 py-px rounded font-medium text-emerald-400 bg-emerald-500/10">
-                        {r.data?.status || 'completed'}
-                      </span>
+                {tagResults.filter(r => (r.tag === 'relay_respond' || r.tag === 'relay_request' || r.tag === 'relay_broadcast' || r.tag === 'relay_ambient') && r.success).map((r, i) => {
+                  const isAmbient = r.tag === 'relay_ambient' || (r.tag === 'relay_respond' && r.data?.ambientSignalCaptured);
+                  const body = r.data?.subject || r.data?.responseText || r.data?.message || r.data?.question || r.data?.note;
+                  const to = r.data?.to || r.data?.recipient;
+                  const sender = r.data?.to || r.data?.recipient || r.data?.recipientLabel || r.data?.peerName || 'peer';
+                  const ts = r.data?.timestamp || r.data?.createdAt || new Date().toISOString();
+                  return (
+                    <div key={`relay-${i}`} className="p-2.5 rounded-lg border-l-2 border-l-emerald-500/70 bg-emerald-500/[0.06] border border-emerald-500/20">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-emerald-400 text-[10px] font-bold">↗</span>
+                        <span className="text-[11px] font-medium text-emerald-300">
+                          {r.tag === 'relay_respond' ? '📡 Relay response sent' : r.tag === 'relay_broadcast' ? '📡 Broadcast sent' : r.tag === 'relay_ambient' ? '🌊 Ambient relay sent' : '📡 Relay sent'}
+                        </span>
+                      </div>
+                      {/* For relay_respond: show "Re: <original>" above what the operator actually sent */}
+                      {r.tag === 'relay_respond' && r.data?.originalSubject && (
+                        <p className="text-[9px] text-emerald-300/40 mt-0.5 pl-4 line-clamp-1 italic">Re: {r.data.originalSubject}</p>
+                      )}
+                      {to && (
+                        <p className="text-[9px] text-emerald-300/50 mt-0.5 pl-4 line-clamp-1">→ {to}</p>
+                      )}
+                      {body && (
+                        <p className="text-[10px] text-emerald-300/80 mt-0.5 pl-4 line-clamp-2">{body}</p>
+                      )}
+                      <div className="mt-1.5 pt-1 border-t border-emerald-500/10 pl-4">
+                        <RelayFootnote
+                          relayId={r.data?.relayId || null}
+                          sender={sender}
+                          type={isAmbient ? 'ambient' : 'direct'}
+                          timestamp={ts}
+                          status={(r.data?.status || 'delivered') as any}
+                          tone="emerald"
+                          dismissible={!!r.data?.relayId}
+                        />
+                      </div>
                     </div>
-                    {/* For relay_respond: show "Re: <original>" above what the operator actually sent */}
-                    {r.tag === 'relay_respond' && r.data?.originalSubject && (
-                      <p className="text-[9px] text-emerald-300/40 mt-0.5 pl-4 line-clamp-1 italic">Re: {r.data.originalSubject}</p>
-                    )}
-                    {(() => {
-                      const body = r.data?.subject || r.data?.responseText || r.data?.message || r.data?.question || r.data?.note;
-                      const to = r.data?.to || r.data?.recipient;
-                      return (
-                        <>
-                          {to && (
-                            <p className="text-[9px] text-emerald-300/50 mt-0.5 pl-4 line-clamp-1">→ {to}</p>
-                          )}
-                          {body && (
-                            <p className="text-[10px] text-emerald-300/80 mt-0.5 pl-4 line-clamp-2">{body}</p>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                ))}
+                  );
+                })}
                 {/* Failed relay results — red warning */}
                 {tagResults.filter(r => (r.tag === 'relay_respond' || r.tag === 'relay_request' || r.tag === 'relay_broadcast' || r.tag === 'relay_ambient') && !r.success).map((r, i) => (
                   <div key={`relay-err-${i}`} className="p-2 rounded-lg border-l-2 border-l-red-500/70 bg-red-500/[0.06] border border-red-500/20">

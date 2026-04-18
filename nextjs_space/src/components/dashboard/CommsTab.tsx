@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
 import { MentionText } from '@/components/MentionText';
+import { RelayFootnote } from './RelayFootnote';
 
 // ─── Types ───
 
@@ -47,6 +48,7 @@ interface Thread {
   totalCount: number;
   activeCount: number;
   isOutbound: boolean; // direction of latest
+  isAmbient: boolean;  // detected from latest payload._ambient
 }
 
 // Resolved statuses — these relays are "done"
@@ -76,6 +78,16 @@ const INTENT_ICONS: Record<string, string> = {
   ask: '\u2753',
   custom: '\uD83D\uDCAC',
 };
+
+function isAmbientPayload(payloadStr: string | null): boolean {
+  if (!payloadStr) return false;
+  try {
+    const p = JSON.parse(payloadStr);
+    return !!p?._ambient;
+  } catch {
+    return false;
+  }
+}
 
 // Derive the subject preview used in the thread row.
 // For outbound relay_respond, prefer the response text over the original subject
@@ -175,7 +187,8 @@ export function CommsTab() {
 
       const activeCount = items.filter((r) => !RESOLVED_STATUSES.has(r.status)).length;
       const isOutbound = latest.fromUserId === userId;
-      result.push({ connectionId, peerName, peerEmail, latestRelay: latest, totalCount: items.length, activeCount, isOutbound });
+      const isAmbient = isAmbientPayload(latest.payload);
+      result.push({ connectionId, peerName, peerEmail, latestRelay: latest, totalCount: items.length, activeCount, isOutbound, isAmbient });
     }
 
     // Sort threads by latest activity — newest first
@@ -202,20 +215,21 @@ export function CommsTab() {
     const bgHover = t.isOutbound ? 'hover:bg-emerald-500/[0.03]' : 'hover:bg-purple-500/[0.03]';
     const icon = INTENT_ICONS[r.intent] || '\uD83D\uDCAC';
     const preview = getPreviewText(r, t.isOutbound);
+    const tone: 'emerald' | 'purple' = t.isOutbound ? 'emerald' : 'purple';
 
     return (
       <Link
         key={t.connectionId}
         href={`/dashboard/comms?thread=${t.connectionId}`}
         className={`block border-l-2 ${borderColor} ${bgHover} transition-colors ${
-          isResolved ? 'opacity-40' : ''
+          isResolved ? 'opacity-50' : ''
         }`}
       >
         <div className="px-2.5 py-1.5">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className={`text-[10px] font-bold flex-shrink-0 ${dirColor}`}>{dirArrow}</span>
             <span className={`text-[11px] font-medium truncate flex-1 min-w-0 ${
-              isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-primary)]'
+              isResolved ? 'text-[var(--text-muted)] line-through decoration-[var(--text-muted)]/40' : 'text-[var(--text-primary)]'
             }`}>
               <MentionText text={t.peerName} />
             </span>
@@ -227,13 +241,24 @@ export function CommsTab() {
             <span className="text-[8px] text-[var(--text-muted)] flex-shrink-0">
               {t.totalCount}
             </span>
-            <span className="text-[9px] text-[var(--text-muted)] flex-shrink-0">{timeAgo(r.createdAt)}</span>
           </div>
           <p className={`text-[10px] line-clamp-1 mt-0.5 pl-4 ${
             isResolved ? 'text-[var(--text-muted)]' : 'text-[var(--text-secondary)]'
           }`}>
             {icon} <MentionText text={preview} />
           </p>
+          <div className="pl-4 mt-1">
+            <RelayFootnote
+              relayId={r.id}
+              sender={t.peerName}
+              senderHandle={t.peerEmail}
+              type={t.isAmbient ? 'ambient' : 'direct'}
+              timestamp={r.createdAt}
+              status={r.status as any}
+              tone={tone}
+              dismissible={!isResolved}
+            />
+          </div>
         </div>
       </Link>
     );

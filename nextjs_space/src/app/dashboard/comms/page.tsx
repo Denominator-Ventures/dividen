@@ -7,6 +7,7 @@ import { signOut } from 'next-auth/react';
 import { useSession } from 'next-auth/react';
 import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
 import type { WidgetItem, WidgetItemAction, AgentWidgetData } from '@/components/widgets';
+import { RelayFootnote } from '@/components/dashboard/RelayFootnote';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -493,6 +494,21 @@ export default function CommsPage() {
                               Due: {new Date(relay.dueDate).toLocaleDateString()}
                             </span>
                           )}
+                        </div>
+
+                        {/* Footnote: sender · type · timestamp · status · dismiss */}
+                        <div className="mt-2 pt-2 border-t border-[var(--border-color)]/40">
+                          <RelayFootnote
+                            relayId={relay.id}
+                            sender={isFromMe ? 'Your Divi' : `${activeThread.peerName}'s Agent`}
+                            senderHandle={isFromMe ? null : (activeThread.peerAgentName || null)}
+                            type={(payloadObj && payloadObj._ambient) ? 'ambient' : 'direct'}
+                            timestamp={relay.createdAt}
+                            status={relay.status as any}
+                            tone={isFromMe ? 'emerald' : 'purple'}
+                            dismissible={!['completed', 'declined', 'expired'].includes(relay.status)}
+                            onDismissed={() => fetchRelays()}
+                          />
                         </div>
                       </div>
                     </div>
