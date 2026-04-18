@@ -58,22 +58,34 @@ Self-test Bug 2 (green card content). Send a relay_request to Jaron with exactly
 
 ---
 
-### Bug 5 — Purple cards never resolving
+### Bug 5 — Purple cards resolving (v3 prompts, Apr 18 session 3.3.1)
 
-**Prompt to paste (turn 1)**:
+> **Clean-regime rules for this test**:
+> - Natural language only; never paste `[[tag:...]]` syntax.
+> - Divi emits the tag HERSELF based on the instruction.
+> - No `**First/Second summary:**` headers; one system note = one result.
+> - If she sees "contradictory" results → that's hallucination, flag it.
+
+**Turn 1 — emit the relay**:
 ```
-Self-test Bug 5. Send a relay_request to Jaron: "Do you have bandwidth to review the Q2 revenue model this week?" I'll accept it as Jaron in another tab, then come back.
+Self-test Bug 5 turn 1. Send Jaron a relay_request with the subject "Q2 revenue model review" and message "Do you have bandwidth to review the Q2 revenue model this week?" (ask intent). Emit the tag, say "Fired — I'll have the delivery status next turn" and stop. Do not write any summary blocks. Do not invent a relayId.
 ```
 
-**Prompt to paste (turn 2, after Jon accepts as Jaron)**:
+**Turn 2 — verify delivery** (paste after ~5 seconds):
 ```
-Now query the relay status — emit [[query_relays:{"direction":"outbound","limit":5}]]. Tell me what status the Q2 relay shows. Flag any new bugs.
+Now query your recent outbound relays (limit 5, direction outbound). On the system note that comes back next turn, quote the REAL relayId and status of the Q2 revenue model relay. One relay, one status.
+```
+
+**Turn 3 — after manual Jaron accept**: Jon opens another tab as Jaron, accepts the relay, then comes back and pastes:
+```
+Turn 3. Jaron has now acted on the Q2 relay in another session. Query your outbound relays again (limit 5). On next turn, tell me the relayId and the NEW status from the system note. Has it moved from delivered to completed? Also tell me: what does my purple card UI look like now — am I supposed to see it dim, disappear, or resolve visually?
 ```
 
 **Pass criteria**:
-- Turn 1: Divi fires relay, tag summary shows `status: delivered`
-- Turn 2: After Jaron acts, status reflects completed/declined
-- Visual: purple card dims/resolves
+- Turn 1: relay fires, one system note next turn with one relayId and `status: delivered`
+- Turn 2: quotes the same relayId, confirms `delivered`
+- Turn 3: status updated to `completed` (or `declined`)
+- Visual: purple card on Jon's chat dims/resolves after Jaron's action (manual check — Divi can't see)
 
 ---
 
@@ -105,16 +117,22 @@ Emit the tags for lines 1 and 4. Report which ones fired. Flag any new bugs.
 
 ---
 
-### Bug 9 — Dismiss
+### Bug 9 — Dismiss flow (v3 prompts, Apr 18 session 3.3.1)
 
-**Prompt to paste**:
+**Turn 1 — emit the relay**:
 ```
-Self-test Bug 9. Send a relay_request to Jaron: "test dismiss flow". I'll look at the green card on my screen and click dismiss. Then on next turn, emit [[query_relays:{"direction":"outbound","limit":5}]] and tell me: is the relay still listed as active, or has its status changed? Flag any new bugs.
+Self-test Bug 9 turn 1. Send Jaron a relay_request, subject "dismiss flow test", message "test dismiss flow", intent ask. Emit the tag, say "Fired" and stop. No fabricated summaries. No invented relayIds.
+```
+
+**Turn 2 — AFTER Jon clicks dismiss on the green card in the UI**, paste:
+```
+Turn 2. I just clicked dismiss on the green card for "dismiss flow test". Query your outbound relays (limit 10). On next turn, quote the relayId and status. I'm looking for: does the relay's dismissed flag show true? Is it excluded from the active list? Flag anything unexpected.
 ```
 
 **Pass criteria**:
-- Tag fires, green card appears
-- After Jon dismisses: relay's `dismissed` flag set; not in active list
+- Turn 1: one relayId returned in system note
+- After dismiss + turn 2: relay shows `dismissed: true` OR is excluded from active list
+- UI: the green card disappears from Jon's chat (manual visual check)
 
 ---
 
@@ -138,16 +156,20 @@ Self-test Bug 14. Emit [[query_connections:{}]]. Report back: for each connectio
 
 ---
 
-### Bug 19 — Errors swallowed
+### Bug 19 — Errors swallowed (v3 clean-regime prompt, Apr 18 session 3.3.2)
 
-**Prompt to paste**:
+**Test prompt (Tier 1 retest)**:
 ```
-Self-test Bug 19. Try to send a relay_request to "NobodyReal" (nonexistent recipient). After emitting, say "Tag fired — I'll have the error result on next turn." On next turn, check the tag summary: did the error surface? What was the error message? Flag any new bugs.
+Self-test Bug 19. Fire a relay_request to a person named "NobodyReal" with subject "error surface test", message "checking that the not_found error comes back visibly", intent ask. Use natural language — do not paste any bracket syntax in this prompt. Emit the tag in your response.
+
+On the NEXT turn (not this one), check the one system note that came back. Quote verbatim: what does it say about NobodyReal's resolution? Is it success=false with an error, or success=true with NobodyReal showing not_found status? One system note, one result. If you see "two fires" or "contradictory results", flag that as hallucination and stop — it didn't happen.
 ```
 
 **Pass criteria**:
-- Tag fires; on next turn, tag summary shows `FAILED: <error msg>`
-- Red error component renders in UI after response completes
+- Divi emits `relay_request` once (natural language, no raw bracket syntax echoed)
+- One system note on next turn with clean `not_found` reporting (either at tag level or per-recipient)
+- No "first fire succeeded, second failed" narrative
+- Red/amber card renders with the not_found signal surfaced
 
 ---
 
@@ -224,8 +246,8 @@ Self-test Bug 25b. Emit [[invite_to_project:{"projectName":"<a real project>","m
 
 | # | Bug | Status |
 |---|---|---|
-| 3 | Sender name on receive | Pending Jaron/FVP side-test |
-| 4 | Ambient weave not firing when topic surfaces | Pending test trace — need specific repro |
+| 3 | Sender name on receive | v3 test prompt below (needs Jaron-side verify) |
+| 4 | Ambient weave not firing when topic surfaces | v3 test prompt below (needs Jaron-side topic probe) |
 | 8 | Relay loop verification | Needs telemetry tooling pass |
 | 10 | Topic-matching for ambient delivery | Architecture — new ranker |
 | 11 | Passive signal collection | Architecture — new capture pipeline |
@@ -234,6 +256,49 @@ Self-test Bug 25b. Emit [[invite_to_project:{"projectName":"<a real project>","m
 | 15 | Discovery page | Needs scope clarification |
 | 17 | Card member add UI | UI build |
 | 18 | Unclear | Needs restatement |
+
+---
+
+### Bug 3 — Sender name on receive (v3 clean-regime prompt, Apr 18 session 3.3.2)
+
+**Turn 1 — Jon side (fire the relay)**:
+```
+Self-test Bug 3 turn 1. Send Jaron a relay_request, subject "sender display check", message "testing that my name and avatar render correctly on your side", intent ask. Use natural language — no bracket syntax. Emit the tag. One system note expected next turn — no fabrications, no "duplicate" narrative.
+```
+
+**Turn 2 — Jon switches to Jaron's account** (sign in as @djjaron / jaronrayhinds@gmail.com), opens chat, then pastes to Jaron's Divi:
+```
+Look at the latest purple relay card at the top of my chat. Tell me exactly: what sender name is displayed? What username (@handle)? What email? What's in the timestamp footnote? Quote the fields verbatim — do not guess.
+```
+
+**Pass criteria**:
+- Jaron's UI shows sender as "Jon Bradford" (full name, not blank, not just @handle)
+- Username shown as "@jonnydreams1"
+- Email shown as "jon@colab.la"
+- Timestamp and dismiss button visible in footnote
+- Jaron-side Divi reads the card correctly — no invented sender data
+
+---
+
+### Bug 4 — Ambient weave not firing when topic surfaces (v3 clean-regime prompt, Apr 18 session 3.3.2)
+
+**Turn 1 — Jon side (fire the ambient)**:
+```
+Self-test Bug 4 turn 1. Send Jaron a relay_ambient (fire-and-forget), subject "dividend math sanity check", message "I think the dividend payout math in the new deck is off by about 2% — want to double-check later", intent share_update. Use natural language. Emit the tag. One result expected next turn.
+```
+
+**Turn 2 — Jon switches to Jaron's account** (sign in as @djjaron), opens chat, pastes to Jaron's Divi:
+```
+What's the latest from Jon on dividend work? Any updates on the deck or payout math I should know about?
+```
+
+**Pass criteria**:
+- Turn 1: `relay_ambient` fires, one system note, relayId present
+- Turn 2 (Jaron-side): Divi's response naturally weaves Jon's concern about the 2% payout math into her answer — reads like context, not like a raw inbox dump
+- Divi does NOT say "you received an ambient relay" or quote the relay as an event
+- Topic match triggered surfacing (keywords: dividend, deck, payout math)
+
+---
 
 ## New bugs noticed by user in session 3
 
