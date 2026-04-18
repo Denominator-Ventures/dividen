@@ -162,6 +162,18 @@ export async function POST(request: Request) {
               for (const c of (d.connections || [])) {
                 lines.push(`    • ${c.id} | ${c.peerName}${c.peerUsername ? ` (@${c.peerUsername})` : ''} | ${c.peerEmail || 'no-email'} | fed=${c.isFederated} | trust=${c.trustLevel} | scopes=[${(c.scopes || []).join(',')}]`);
               }
+            } else if (t.tag === 'invite_to_project') {
+              const invs: any[] = d.invites || [];
+              lines.push(`- invite_to_project OK. projectId=${d.projectId}, project="${d.projectName}", ${invs.length} member attempt(s):`);
+              for (const iv of invs) {
+                lines.push(`    • ${iv.name || '?'} → ${iv.status}${iv.inviteId ? ` (inviteId=${iv.inviteId})` : ''}${iv.error ? ` — ${iv.error}` : ''}${iv.searched ? ` — searched for "${iv.searched}"` : ''}${iv.note ? ` — ${iv.note}` : ''}`);
+              }
+            } else if (t.tag === 'create_project') {
+              const invs: any[] = d.memberInvites || [];
+              lines.push(`- create_project OK. projectId=${d.projectId}, project="${d.projectName}", visibility=${d.visibility}, ${invs.length} initial member(s):`);
+              for (const iv of invs) {
+                lines.push(`    • ${iv.name || '?'} → ${iv.status}${iv.inviteId ? ` (inviteId=${iv.inviteId})` : ''}${iv.error ? ` — ${iv.error}` : ''}${iv.reason ? ` — ${iv.reason}` : ''}`);
+              }
             } else {
               lines.push(`- ${t.tag} OK. ${JSON.stringify(d).slice(0, 200)}`);
             }

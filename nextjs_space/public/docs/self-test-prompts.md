@@ -199,12 +199,33 @@ Self-test Bug 22. Emit [[query_relays:{"limit":5}]] and [[query_connections:{}]]
 
 ---
 
+### Bug 25 — Project invite visibility (FIXED Apr 18 session 3)
+
+**Root cause (confirmed via test C)**: Scopes are set correctly across the board. Previous "no scopes" reading was stale context loaded at session start (pre-fix deployment). The invite itself works.
+
+**Prevention changes (session 3)**:
+- `invite_to_project` and `create_project` results now render a dedicated card in chat showing per-member status (invited / already_member / not_found / error).
+- Tag summary injection now includes per-member details so Divi sees WHICH members failed to resolve and WHY on the next turn.
+- Card shows amber on partial failure, red on all-fail, indigo on all-success.
+
+**Test prompt (Tier 1 verify)**:
+```
+Self-test Bug 25. Emit [[invite_to_project:{"projectName":"<pick one of your real projects>","members":[{"name":"Jaron","role":"contributor"}]}]]. On next turn, quote back the tag summary: did it resolve Jaron? What inviteId got created? If it said not_found, what did it search for?
+```
+
+**Test prompt (negative case — invalid name)**:
+```
+Self-test Bug 25b. Emit [[invite_to_project:{"projectName":"<a real project>","members":[{"name":"NobodyReal"}]}]]. On next turn, tell me what the tag summary said about this resolution attempt.
+```
+
+---
+
 ## Still pending / need clarification
 
 | # | Bug | Status |
 |---|---|---|
 | 3 | Sender name on receive | Pending Jaron/FVP side-test |
-| 4 | Ambient weave not interrupting | Pending test trace |
+| 4 | Ambient weave not firing when topic surfaces | Pending test trace — need specific repro |
 | 8 | Relay loop verification | Needs telemetry tooling pass |
 | 10 | Topic-matching for ambient delivery | Architecture — new ranker |
 | 11 | Passive signal collection | Architecture — new capture pipeline |
@@ -213,7 +234,14 @@ Self-test Bug 22. Emit [[query_relays:{"limit":5}]] and [[query_connections:{}]]
 | 15 | Discovery page | Needs scope clarification |
 | 17 | Card member add UI | UI build |
 | 18 | Unclear | Needs restatement |
-| 25 | Project invite failing red with no scopes | May be fixed by Bug 14/24 backfill — re-test |
+
+## New bugs noticed by user in session 3
+
+### Bug 26 — Stale context at session start
+
+**Report**: User observed that at session start, Divi's loaded context for @alvaro was showing "jon bradford" — but live `query_connections` returned the correct data. This means context loading on session start happened BEFORE the display fix was deployed. Once deployment propagates, this should resolve on any new session. If it persists after deployment, it's a separate bug.
+
+**Status**: Monitoring. If reproducible after 10+ min from deploy, we'll investigate the session-start context path.
 
 ---
 

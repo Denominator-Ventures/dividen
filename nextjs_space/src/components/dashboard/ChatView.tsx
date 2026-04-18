@@ -1047,13 +1047,67 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
                     {r.error && <p className="text-[10px] text-red-300/70 mt-0.5 pl-4">{r.error}</p>}
                   </div>
                 ))}
+                {/* Project invite results — detailed per-member status */}
+                {tagResults.filter(r => (r.tag === 'invite_to_project' || r.tag === 'create_project')).map((r, i) => {
+                  const members = r.tag === 'create_project'
+                    ? (r.data?.memberInvites || [])
+                    : (r.data?.invites || []);
+                  const hasFailures = members.some((m: any) => m.status === 'not_found' || m.status === 'error');
+                  const hasSuccess = members.some((m: any) => m.status === 'invited' || m.status === 're-sent' || m.status === 'already_member');
+                  const tone = hasFailures
+                    ? (hasSuccess ? 'amber' : 'red')
+                    : 'indigo';
+                  const toneClass = tone === 'red'
+                    ? 'border-l-red-500/70 bg-red-500/[0.06] border-red-500/20'
+                    : tone === 'amber'
+                      ? 'border-l-amber-500/70 bg-amber-500/[0.06] border-amber-500/20'
+                      : 'border-l-indigo-500/70 bg-indigo-500/[0.06] border-indigo-500/20';
+                  const titleToneClass = tone === 'red'
+                    ? 'text-red-300'
+                    : tone === 'amber'
+                      ? 'text-amber-300'
+                      : 'text-indigo-300';
+                  return (
+                    <div key={`proj-${i}`} className={`p-2.5 rounded-lg border-l-2 border ${toneClass}`}>
+                      <div className="flex items-center gap-1.5">
+                        <span className={`${titleToneClass} text-[10px] font-bold`}>📋</span>
+                        <span className={`text-[11px] font-medium ${titleToneClass}`}>
+                          {r.tag === 'create_project' ? `Project created: ${r.data?.projectName}` : `Invites to: ${r.data?.projectName}`}
+                        </span>
+                      </div>
+                      {members.length > 0 && (
+                        <div className="mt-1.5 pl-4 space-y-0.5">
+                          {members.map((m: any, j: number) => {
+                            const icon = m.status === 'invited' || m.status === 're-sent'
+                              ? '✅'
+                              : m.status === 'already_member' || m.status === 'skipped'
+                                ? '⏭'
+                                : m.status === 'not_found'
+                                  ? '⚠️'
+                                  : '❌';
+                            return (
+                              <div key={j} className="text-[10px] text-[var(--text-muted)] flex items-start gap-1">
+                                <span className="shrink-0">{icon}</span>
+                                <span className="text-[var(--text-secondary)]">{m.name || '?'}</span>
+                                <span className="text-[var(--text-muted)]">— {m.status}</span>
+                                {m.error && <span className="text-red-400">({m.error})</span>}
+                                {m.reason && <span className="text-[var(--text-muted)]">({m.reason})</span>}
+                                {m.searched && <span className="text-[var(--text-muted)]">(searched: {m.searched})</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {/* Standard non-relay action results */}
-                {tagResults.some(r => !r.data?.gated && !r.data?.suggestions && !['relay_respond', 'relay_request', 'relay_broadcast', 'relay_ambient'].includes(r.tag)) && (
+                {tagResults.some(r => !r.data?.gated && !r.data?.suggestions && !['relay_respond', 'relay_request', 'relay_broadcast', 'relay_ambient', 'invite_to_project', 'create_project'].includes(r.tag)) && (
                   <div className="p-2 rounded bg-[var(--bg-surface)] border border-[var(--border-color)]">
                     <p className="text-xs text-[var(--text-muted)] mb-1 font-medium">
                       ⚡ Actions executed:
                     </p>
-                    {tagResults.filter(r => !r.data?.gated && !r.data?.suggestions && !['relay_respond', 'relay_request', 'relay_broadcast', 'relay_ambient'].includes(r.tag)).map((r, i) => (
+                    {tagResults.filter(r => !r.data?.gated && !r.data?.suggestions && !['relay_respond', 'relay_request', 'relay_broadcast', 'relay_ambient', 'invite_to_project', 'create_project'].includes(r.tag)).map((r, i) => (
                       <div key={i} className="text-xs text-[var(--text-muted)] flex items-center gap-1">
                         <span>{r.success ? '✅' : '❌'}</span>
                         <span>{r.tag.replace('_', ' ')}</span>
