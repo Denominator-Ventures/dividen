@@ -158,6 +158,7 @@ export default function DocumentationPage() {
             <a href="/docs/federation" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Federation Guide</a>
             <a href="/docs/relay-spec" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Relay Protocol Spec</a>
             <a href="/docs/integrations" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Integrations</a>
+            <a href="/docs/project-invites-integration" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Project Invites Guide <span className="text-emerald-400/60">new</span></a>
             <a href="/docs/release-notes" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">Changelog</a>
             <a href="https://github.com/Denominator-Ventures/dividen" target="_blank" rel="noopener noreferrer" className="block py-1 text-xs text-[var(--text-muted)] hover:text-brand-400">GitHub ↗</a>
           </div>

@@ -1026,8 +1026,9 @@ curl -X PATCH /api/v2/settings \\
         {/* ── Project Management API ──────────────────────────── */}
         <Section id="project-management" title="Project Management API">
           <p className="text-[var(--text-secondary)] mb-4">
-            Projects are scoped workspaces with members (local users or federated connections). Members can be leads, contributors, reviewers, or observers.
-            New in v2.1.3: Divi can create projects and invite members directly from chat using action tags.
+            Projects are scoped workspaces with contributors (local users or federated connections). Contributors can be leads, contributors, reviewers, or observers.
+            New in v2.1.3: Divi can create projects and invite contributors directly from chat using action tags.
+            New in v2.3.1: Every project invite is now a first-class Divi→Divi communication event — it emits an <InlineCode>AgentRelay</InlineCode> (<InlineCode>intent=&apos;introduce&apos;</InlineCode>) and a <InlineCode>CommsMessage</InlineCode> alongside the <InlineCode>ProjectInvite</InlineCode> + <InlineCode>QueueItem</InlineCode>, so the invite surfaces in the invitee&apos;s queue, bell count, Comms thread, and on the card as a ghost avatar. Duplicate invites return 409 <InlineCode>ALREADY_INVITED</InlineCode>; pass <InlineCode>{`{ force: true }`}</InlineCode> to deliberately reinvite. See the <a href="/docs/project-invites-integration" className="text-brand-400 hover:text-brand-300">Project Invites Integration Guide</a>.
           </p>
 
           <h4 className="text-base font-bold text-white mb-3">REST Endpoints</h4>
@@ -1036,8 +1037,9 @@ curl -X PATCH /api/v2/settings \\
             <Endpoint method="GET" path="/api/projects" description="List projects you created or are a member of" auth="Session" />
             <Endpoint method="GET" path="/api/projects/:id" description="Project detail with members, cards, invites" auth="Session (member)" />
             <Endpoint method="PUT" path="/api/projects/:id" description="Update project (lead only)" auth="Session (lead)" />
-            <Endpoint method="POST" path="/api/projects/:id/invite" description="Invite user by userId, email, or connectionId. Creates ProjectInvite + queue notification." auth="Session (lead)" />
+            <Endpoint method="POST" path="/api/projects/:id/invite" description="Invite user by userId, email, or connectionId. Creates ProjectInvite + QueueItem + AgentRelay (intent='introduce', payload.kind='project_invite') + CommsMessage. Body accepts { force: true } to deliberately replace an existing pending invite. Returns 409 { code: 'ALREADY_INVITED', inviteId } on duplicate when force is omitted." auth="Session (lead)" />
             <Endpoint method="GET" path="/api/projects/:id/invite" description="List pending invites" auth="Session (member)" />
+            <Endpoint method="PATCH" path="/api/project-invites" description="Accept or decline an invite. Body: { inviteId, action: 'accept' | 'decline' }. Accept writes ProjectMember + cancels queue item + resolves relay. Decline cancels queue item + comms thread without membership write." auth="Session (invitee)" />
             <Endpoint method="POST" path="/api/projects/:id/members" description="Direct-add member by email or connectionId (skip invite)" auth="Session (lead/contributor)" />
             <Endpoint method="DELETE" path="/api/projects/:id/members?memberId=x" description="Remove member" auth="Session (lead)" />
           </div>

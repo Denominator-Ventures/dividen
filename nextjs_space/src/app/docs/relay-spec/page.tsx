@@ -336,13 +336,49 @@ X-Federation-Token: <token-from-step-2.1>
               <FieldRow name="request_approval" type="string" description="Request go/no-go sign-off on a decision." />
               <FieldRow name="share_update" type="string" description="Informational status share. Often used with ambient mode." />
               <FieldRow name="schedule" type="string" description="Propose a meeting or time slot. Triggers calendar intent on the peer." />
-              <FieldRow name="introduce" type="string" description="Introduce a contact. Payload includes a contact_card artifact." />
+              <FieldRow name="introduce" type="string" description="Introduce a contact OR invite someone into a scoped workspace (project, team). Payload includes a contact_card OR a {kind:'project_invite'} block (v2.3.1)." />
               <FieldRow name="ask" type="string" description="(v2.2.0) Open-ended question, often ambient." />
               <FieldRow name="opinion" type="string" description="(v2.2.0) Solicit a judgement or review." />
               <FieldRow name="note" type="string" description="(v2.2.0) Drop a quiet note — lowest priority ambient." />
               <FieldRow name="intro" type="string" description="(v2.2.0) Informal intro variant of `introduce`." />
               <FieldRow name="custom" type="string" description="Catch-all. Receiver treats the subject + payload as free text." />
             </FieldTable>
+          </SubSection>
+
+          <SubSection title="4.3  Project invite sub-payload (v2.3.1)">
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              Project invites use <Inline>intent=&apos;introduce&apos;</Inline> with a structured payload. This allows a receiver
+              that knows about projects to surface it as a real invite (bell count, queue item, dashed avatar on card, Accept/Decline
+              buttons) while still degrading gracefully on a receiver that only understands <Inline>introduce</Inline> as a generic contact intro.
+            </p>
+            <Code>{`{
+  "relayType": "request",
+  "intent": "introduce",
+  "direction": "outbound",
+  "status": "delivered",
+  "subject": "Invite to \\"Q3 Rebrand\\"",
+  "payload": {
+    "kind": "project_invite",
+    "inviteId": "cmp_xyz",
+    "projectId": "proj_abc",
+    "projectName": "Q3 Rebrand",
+    "role": "contributor",
+    "message": "Optional note from inviter",
+    "inviterName": "Jon Bradford"
+  }
+}`}</Code>
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              Receivers SHOULD treat <Inline>payload.kind === &apos;project_invite&apos;</Inline> as the canonical invite discriminator and
+              mirror the same record set (<Inline>ProjectInvite</Inline>, <Inline>QueueItem</Inline>, <Inline>CommsMessage</Inline>) locally
+              when ingested. The invite is accepted or declined via <Inline>PATCH /api/project-invites</Inline> with
+              <Inline>{`{ inviteId, action }`}</Inline>.
+            </p>
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              Senders MUST enforce uniqueness — a duplicate <Inline>POST /api/projects/[id]/invite</Inline> returns
+              <Inline>409 {`{ code: 'ALREADY_INVITED', inviteId }`}</Inline>. To deliberately rotate a stale invite, resend with
+              <Inline>{`{ force: true }`}</Inline> in the body; the old invite + queue item + relay + comms message are cancelled and
+              a fresh set is created. The response surfaces <Inline>replacedInviteId</Inline> so downstream listeners can reconcile.
+            </p>
           </SubSection>
         </Section>
 
@@ -1002,6 +1038,7 @@ resolveRecipient(relay) → "you"`}</Code>
             <FieldRow name="v2.1" type="release" description="Ambient protocol, topic filters, quiet hours, card intent auto-create." />
             <FieldRow name="v2.2" type="release" description="Attachments (max 10), threadId echo, flexible intents (ask, opinion, note, intro)." />
             <FieldRow name="v2.3" type="release" description="Loop prevention (idempotency guard + status stamp), RelayFootnote, dismiss endpoint, sender resolution, 7-rule ambient HOLD/weave system prompt." />
+            <FieldRow name="v2.3.1" type="release" description="Project invites use intent='introduce' with payload.kind='project_invite' (§4.3). Duplicate guard (409 ALREADY_INVITED) + force:true reinvite. Every invite now emits ProjectInvite + QueueItem + AgentRelay + CommsMessage in one transaction." />
           </FieldTable>
 
           <SubSection title="Compatibility rules">

@@ -326,8 +326,21 @@ export default function IntegrationDocsPage() {
           </div>
         </section>
 
+        {/* Project Invites integration (v2.3.1) */}
+        <section className="mb-8">
+          <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+            <h2 className="text-lg font-semibold mb-1 text-emerald-300">🤝 Project Invites as Divi→Divi Comms (v2.3.1)</h2>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Project invites are now first-class AgentRelay + CommsMessage events with a duplicate guard and
+              clean reinvite path. For the full recipe — payload shape, federation delivery, Accept/Decline wiring,
+              and event listeners — see the
+              <a href="/docs/project-invites-integration" className="text-brand-400 hover:text-brand-300 mx-1 font-medium">Project Invites Integration Guide →</a>
+            </p>
+          </div>
+        </section>
+
         {/* Download */}
-        <DocFooterDownload filename="dividen-integration-docs" lastUpdated="April 14, 2026" />
+        <DocFooterDownload filename="dividen-integration-docs" lastUpdated="April 18, 2026" />
 
         <div className="border-t border-[var(--border-primary)] pt-6 mt-8 text-center text-sm text-[var(--text-muted)]" data-no-download>
           <p>Built by <a href="https://dividen.ai" className="text-brand-400 hover:text-brand-300">DiviDen</a> — the individual-first operating system</p>

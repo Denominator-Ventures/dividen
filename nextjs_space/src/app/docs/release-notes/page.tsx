@@ -39,11 +39,97 @@ export default function ReleaseNotesPage() {
             Chronological release updates for the DiviDen Command Center. Latest releases first.
           </p>
         </div>
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.3.1 PROJECT INVITES AS DIVI→DIVI COMMS          */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.3.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.1</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                  <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
+                  <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Projects</span>
+                </div>
+                <h2 className="text-2xl font-bold font-heading">Project Invites as First-Class Divi→Divi Comms</h2>
+              </div>
+              <DocDownloadButton containerId="release-v2.3.1" filename="dividen-release-v2.3.1" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] leading-relaxed mb-4">
+              Project invites are no longer silent DB writes — they&apos;re AgentRelay + CommsMessage events with
+              ghost avatars on cards, Accept / Decline inline in the queue, a duplicate guard with <code className="code-inline">409 ALREADY_INVITED</code>,
+              a clean <code className="code-inline">force: true</code> reinvite path, and a renamed &quot;Contributors&quot; section
+              that opens expanded by default inside each card.
+            </p>
+
+            <div className="space-y-4">
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🎯 What Changed</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li><strong>Project invites emit AgentRelay + CommsMessage</strong> — <code className="code-inline">POST /api/projects/[id]/invite</code> now writes 4 records atomically: <code className="code-inline">ProjectInvite</code>, <code className="code-inline">QueueItem</code>, <code className="code-inline">AgentRelay (intent=&apos;introduce&apos;)</code>, <code className="code-inline">CommsMessage (sender=&apos;divi&apos;)</code>.</li>
+                  <li><strong>Relay payload shape</strong> — <code className="code-inline">{`{ kind: 'project_invite', inviteId, projectId, projectName, role, message, inviterName }`}</code>. Federation-ready via existing <code className="code-inline">pushRelayToFederatedInstance</code>.</li>
+                  <li><strong>Accept / Decline in queue</strong> — <code className="code-inline">QueuePanel</code> detects <code className="code-inline">metadata.type === &apos;project_invite&apos;</code> and renders real Accept / Decline buttons wired to <code className="code-inline">PATCH /api/project-invites</code>. Pinned &quot;📬 Pending Invites&quot; section stays at top.</li>
+                  <li><strong>Ghost avatars on cards</strong> — pending invites render as dashed amber avatars next to active contributors on every kanban card. Visible state of who&apos;s been invited but hasn&apos;t responded.</li>
+                  <li><strong>Duplicate invite guard</strong> — if a pending invite already exists for that project+invitee, endpoint returns <code className="code-inline">409 {`{ error, code: 'ALREADY_INVITED', inviteId }`}</code>. Prevents double-fire from repeated clicks or stale UIs.</li>
+                  <li><strong>Force reinvite</strong> — pass <code className="code-inline">{`{ force: true }`}</code> to cancel the old invite + clean up its queue item, relay, and comms message, then create a fresh set. Response includes <code className="code-inline">replacedInviteId</code>.</li>
+                  <li><strong>Inline resend UI</strong> — modal surfaces a &quot;already has a pending invite&quot; prompt with <strong>Resend invite</strong> and <strong>Keep existing</strong> buttons when the 409 comes back.</li>
+                  <li><strong>Members → Contributors rename</strong> — every user-facing label changed. API field names and <code className="code-inline">ProjectMember.role</code> enum values unchanged for compatibility.</li>
+                  <li><strong>Contributors section open by default</strong> — when you click into a card, the Contributors section opens expanded so the + Add contributor picker is immediately visible.</li>
+                  <li><strong>Quick-add search picker</strong> — Add Contributor launches a search-as-you-type picker against your accepted <code className="code-inline">Connection</code> records. Pick someone, set role, optional message, invite.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🧱 API Surface</h3>
+                <div className="text-sm text-[var(--text-secondary)] space-y-2 font-mono">
+                  <div className="bg-[var(--bg-secondary)] p-3 rounded border border-[var(--border)]">
+                    <div className="text-brand-400 mb-1">POST /api/projects/[id]/invite</div>
+                    <div className="text-xs text-[var(--text-muted)]">Body: {`{ connectionId?, userId?, email?, role?, message?, force? }`}</div>
+                    <div className="text-xs text-[var(--text-muted)]">201 → {`{ success, invite, relayId, replacedInviteId?, message }`}</div>
+                    <div className="text-xs text-amber-400">409 → {`{ error, code: 'ALREADY_INVITED', inviteId }`} (unless force:true)</div>
+                  </div>
+                  <div className="bg-[var(--bg-secondary)] p-3 rounded border border-[var(--border)]">
+                    <div className="text-brand-400 mb-1">PATCH /api/project-invites</div>
+                    <div className="text-xs text-[var(--text-muted)]">Body: {`{ inviteId, action: 'accept' | 'decline' }`}</div>
+                    <div className="text-xs text-[var(--text-muted)]">200 → writes <code>ProjectMember</code> on accept, cancels queue item + comms thread on decline.</div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">📁 Files Touched</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm font-mono">
+                  <li>src/app/api/projects/[id]/invite/route.ts — duplicate guard + force reinvite + relay + comms emit</li>
+                  <li>src/app/api/project-invites/route.ts — Accept / Decline side-effects</li>
+                  <li>src/components/dashboard/CardDetailModal.tsx — Contributors section default open, rename, force reinvite prompt</li>
+                  <li>src/components/dashboard/KanbanView.tsx — ghost avatars for pending invites on each card</li>
+                  <li>src/components/dashboard/QueuePanel.tsx — pinned &quot;📬 Pending Invites&quot; + inline Accept/Decline</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🔌 Integration Guide</h3>
+                <p className="text-[var(--text-secondary)] text-sm">
+                  Full recipe for invoking or extending this flow — including federated delivery, event listeners
+                  (<code className="code-inline">dividen:board-refresh</code>, <code className="code-inline">dividen:comms-refresh</code>),
+                  and the canonical relay payload shape — in the new{' '}
+                  <a href="/docs/project-invites-integration" className="text-brand-400 hover:text-brand-300 underline">Project Invites Integration Guide</a>.
+                </p>
+              </section>
+            </div>
+
+            <DocFooterDownload containerId="release-v2.3.1" filename="dividen-release-v2.3.1" />
+          </div>
+        </div>
+
 
         {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 18, 2026 — v2.3.0 RELAY PROTOCOL OVERHAUL                     */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
-        <div id="release-v2.3.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+        <div id="release-v2.3.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/30 rounded-xl relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
           <div className="relative">
             <div className="flex items-center justify-between mb-4">
@@ -204,7 +290,7 @@ export default function ReleaseNotesPage() {
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.2.0</span>
-                <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-muted)] border border-[var(--border)]">v2.2.0</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-[var(--text-muted)]">April 17, 2026</span>
@@ -2489,7 +2575,7 @@ curl -s https://os.dividen.ai/api/mcp -X POST \\
         {/* Footer */}
         <div className="mt-8 pt-6 border-t border-[var(--border-color)] text-center" data-no-download>
           <p className="text-xs text-[var(--text-muted)]">
-            DiviDen Command Center — Last updated April 17, 2026
+            DiviDen Command Center — Last updated April 18, 2026
           </p>
           <div className="flex justify-center gap-4 mt-3 text-xs">
             <a href="/documentation" className="text-[var(--text-muted)] hover:text-[var(--text-secondary)]">Documentation</a>

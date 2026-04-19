@@ -82,12 +82,10 @@ function getSmartTags(card: KanbanCardData): { label: string; color: string; ico
 function KanbanCard({
   card,
   onClick,
-  onAddContributor,
   isDragging,
 }: {
   card: KanbanCardData;
   onClick: () => void;
-  onAddContributor?: () => void;
   isDragging?: boolean;
 }) {
   const completedCount = card.checklist?.filter((c) => c.completed).length ?? 0;
@@ -186,20 +184,9 @@ function KanbanCard({
             // Filter invites to exclude any whose invitee is already an active member (edge case)
             const memberUserIds = new Set(members.map((m: any) => m.userId).filter(Boolean));
             const visibleInvites = invites.filter(inv => !(inv.invitee?.id && memberUserIds.has(inv.invitee.id)));
-            const totalPeople = members.length + visibleInvites.length;
+            if (members.length === 0 && visibleInvites.length === 0) return null;
             return (
               <div className="flex items-center -space-x-1.5">
-                {totalPeople === 0 && onAddContributor && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onAddContributor(); }}
-                    title="Add contributor"
-                    aria-label="Add contributor"
-                    className="mr-1.5 text-[10px] text-[var(--text-muted)] hover:text-brand-400 hover:underline transition-colors"
-                  >
-                    + Add contributor
-                  </button>
-                )}
                 {members.slice(0, 5).map((m) => {
                   const name = m.user?.name || m.connection?.peerUserName || '?';
                   const initial = name.charAt(0).toUpperCase();
@@ -242,17 +229,6 @@ function KanbanCard({
                   <div className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center text-[8px] text-[var(--text-muted)] ring-1 ring-white/10">
                     +{(members.length + visibleInvites.length) - 5}
                   </div>
-                )}
-                {totalPeople > 0 && onAddContributor && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); onAddContributor(); }}
-                    title="Add contributor"
-                    aria-label="Add contributor"
-                    className="w-5 h-5 rounded-full bg-[var(--bg-surface)] hover:bg-brand-500/20 flex items-center justify-center text-[11px] font-semibold text-[var(--text-muted)] hover:text-brand-400 ring-1 ring-dashed ring-[var(--border-color)] hover:ring-brand-500/60 transition-all"
-                  >
-                    +
-                  </button>
                 )}
                 {visibleInvites.length > 0 && (
                   <span className="ml-2 pl-2 text-[9px] text-amber-400/70 whitespace-nowrap">
@@ -316,11 +292,9 @@ function KanbanCard({
 function SortableCard({
   card,
   onClick,
-  onAddContributor,
 }: {
   card: KanbanCardData;
   onClick: () => void;
-  onAddContributor?: () => void;
 }) {
   const {
     attributes,
@@ -338,7 +312,7 @@ function SortableCard({
 
   return (
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <KanbanCard card={card} onClick={onClick} onAddContributor={onAddContributor} isDragging={isDragging} />
+      <KanbanCard card={card} onClick={onClick} isDragging={isDragging} />
     </div>
   );
 }
@@ -350,13 +324,11 @@ function KanbanColumn({
   cards,
   onCardClick,
   onAddCard,
-  onAddContributor,
 }: {
   column: (typeof KANBAN_COLUMNS)[0];
   cards: KanbanCardData[];
   onCardClick: (card: KanbanCardData) => void;
   onAddCard: (status: CardStatus) => void;
-  onAddContributor?: (card: KanbanCardData) => void;
 }) {
   const cardIds = cards.map((c) => c.id);
 
@@ -395,7 +367,6 @@ function KanbanColumn({
                 key={card.id}
                 card={card}
                 onClick={() => onCardClick(card)}
-                onAddContributor={onAddContributor ? () => onAddContributor(card) : undefined}
               />
             ))
           )}
@@ -570,7 +541,6 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedCard, setSelectedCard] = useState<KanbanCardData | null>(null);
-  const [autoOpenContributors, setAutoOpenContributors] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [cortexScanning, setCortexScanning] = useState(false);
   const [cortexResult, setCortexResult] = useState<{ duplicates: number; stale: number; escalations: number; archives: number; autoActions: string[] } | null>(null);
@@ -903,9 +873,8 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
                 key={col.id}
                 column={col}
                 cards={cardsByColumn[col.id] || []}
-                onCardClick={(card) => { setAutoOpenContributors(false); setSelectedCard(card); }}
+                onCardClick={setSelectedCard}
                 onAddCard={setAddingToColumn}
-                onAddContributor={(card) => { setAutoOpenContributors(true); setSelectedCard(card); }}
               />
             ))}
           </div>
@@ -933,18 +902,16 @@ export function KanbanView({ onDiscuss }: KanbanViewProps = {}) {
       {selectedCard && (
         <CardDetailModal
           card={selectedCard}
-          onClose={() => { setSelectedCard(null); setAutoOpenContributors(false); }}
+          onClose={() => setSelectedCard(null)}
           onUpdated={handleCardUpdated}
           onDeleted={handleCardDeleted}
           allCards={cards}
           onMerged={(targetId, deletedId) => {
             setCards(prev => prev.filter(c => c.id !== deletedId));
             setSelectedCard(null);
-            setAutoOpenContributors(false);
             fetchCards();
           }}
           onDiscuss={onDiscuss}
-          autoOpenContributors={autoOpenContributors}
         />
       )}
     </>

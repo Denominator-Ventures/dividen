@@ -61,7 +61,8 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
 }) {
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
   const [invites, setInvites] = useState<PendingInvite[]>(initialInvites || []);
-  const [open, setOpen] = useState(!!autoOpen);
+  // Default to open for project-linked cards so the "+ Add contributor" affordance is always visible.
+  const [open, setOpen] = useState(true);
   const [showAdd, setShowAdd] = useState(!!autoOpen);
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
   const [loadingConn, setLoadingConn] = useState(false);

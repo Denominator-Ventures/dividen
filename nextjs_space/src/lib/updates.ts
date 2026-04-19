@@ -17,6 +17,70 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'project-invites-as-comms-v2-3-1',
+    date: '2026-04-18',
+    time: '6:30 PM',
+    title: 'Project Invites as First-Class Divi→Divi Comms',
+    subtitle: 'Project invites are now real AgentRelay + CommsMessage events. Ghost avatars on cards, Accept/Decline inline in the queue, duplicate guard, clean reinvite, and contributors renamed and surfaced front-and-center inside each card.',
+    tags: ['projects', 'invites', 'comms', 'relay', 'queue', 'contributors', 'v2.3.1'],
+    content: `v2.3.1. Inviting someone to a project used to be a quiet database write. Today it\'s a first-class communication event — logged, queued, surfaced, and federation-ready like every other relay on the protocol.
+
+## Project Invites Are Now Relays
+
+When you invite someone to a project, \`POST /api/projects/[id]/invite\` does four things atomically:
+
+- Creates the \`ProjectInvite\` record (unchanged — the source of truth for state)
+- Creates a \`QueueItem\` in the invitee\'s queue (so it surfaces like any other pending action)
+- Creates an \`AgentRelay\` with \`intent=\'introduce\'\` and \`payload.kind=\'project_invite\'\` (so it\'s logged on both sides\' Comms tab and picked up by federation push)
+- Creates a \`CommsMessage\` (\`sender=\'divi\'\`) so the invitee\'s Divi surfaces it naturally — bell count, inbox thread, the lot
+
+The relay payload carries \`{ inviteId, projectId, projectName, role, message, inviterName }\`. Federation push handles cross-instance delivery — if the invitee lives on another DiviDen node, the relay POSTs to their \`peerInstanceUrl\` via \`/api/federation/relay\` within a second. No polling gap.
+
+This is the pattern every important action should follow: mutate state, queue the action, log it as a relay, surface it as a message. One code path, four signals.
+
+## Accept / Decline Inline in the Queue
+
+The queue panel now renders project invites differently. Instead of a generic "respond" affordance, you get real Accept and Decline buttons right on the queue item — wired to \`PATCH /api/project-invites\` with \`{ inviteId, action }\`. Pinned **📬 Pending Invites** section stays at the top of the queue so they don\'t get buried.
+
+Accept adds you as a contributor and dismisses the queue item, the relay, and the comms message in one transaction. Decline does the same without the membership write. Both fire a \`dividen:board-refresh\` event so every open board view updates instantly.
+
+## Ghost Avatars for Pending Invites
+
+Project cards on the board show pending invites as dashed amber ghost avatars next to the active contributors. You can see at a glance who\'s been invited but hasn\'t responded yet. Hover for the name, click on the card to see the full list and manage.
+
+## Duplicate Invite Guard + Clean Reinvite
+
+You can\'t accidentally double-invite someone anymore. If a pending invite already exists for that project+invitee, the endpoint returns:
+
+\`\`\`
+409 { error, code: "ALREADY_INVITED", inviteId }
+\`\`\`
+
+To deliberately reinvite — say you want to resend because the first one got ignored — pass \`force: true\` in the request body. The old invite gets cancelled, the old queue item + relay + comms message get cleaned up, and a fresh set is created. The response includes \`replacedInviteId\` so you know what got rotated.
+
+The UI exposes this via an inline "already has a pending invite" prompt with **Resend invite** and **Keep existing** buttons. No more mystery about why someone got two notifications.
+
+## Members → Contributors
+
+The project membership role is now called **Contributor** everywhere in the UI. "Members" was ambiguous — it could mean team members, project members, or workspace members depending on context. Contributors are specifically the people actively working on a given project card, and that\'s what we\'re naming them.
+
+API surface stays the same for compatibility. The \`role\` field on \`ProjectMember\` still accepts \`"contributor" | "lead" | "observer"\`. Only the labels changed.
+
+## + Add Contributor Inside the Card
+
+The "+ Add contributor" affordance lives inside the card detail modal, in the **Contributors** section which now opens expanded by default. Search-as-you-type picker against your accepted connections — pick someone, optional role + message, hit invite. The duplicate guard kicks in if needed, the reinvite flow surfaces the resend prompt.
+
+We briefly put this button on the kanban board itself; it was too noisy. Card-only is the right scope — you manage contributors in the context of the card, not the board.
+
+## What This Unlocks
+
+Every action that should feel like a message now *is* a message. Invite someone to a project → they see it in their queue, their inbox, their bell, their Divi conversation, and on the card as a ghost avatar. One invite, five surfaces, zero polling. Cross-instance via federation push, same code path.
+
+Next: the same pattern for project role changes, shared-context handoffs, and team membership events.
+
+— Jon`
+  },
+  {
     id: 'federation-push-project-mgmt-v2-1-3',
     date: '2026-04-17',
     time: '11:59 PM',
