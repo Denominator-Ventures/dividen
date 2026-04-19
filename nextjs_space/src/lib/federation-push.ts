@@ -9,7 +9,20 @@
  */
 
 import { prisma } from '@/lib/prisma';
+import { signPayload, HMAC_HEADER } from '@/lib/federation-hmac';
 import { logActivity } from '@/lib/activity';
+
+/** Build federation headers, optionally including HMAC signature. */
+function federationHeaders(token: string, bodyJson: string, hmacEnabled?: boolean): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-federation-token': token,
+  };
+  if (hmacEnabled) {
+    headers[HMAC_HEADER] = signPayload(bodyJson, token);
+  }
+  return headers;
+}
 
 /**
  * Push a relay payload to a remote federated instance.
@@ -42,7 +55,7 @@ export async function pushRelayToFederatedInstance(
   try {
     const conn = await prisma.connection.findUnique({
       where: { id: connectionId },
-      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, peerUserEmail: true },
+      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, hmacEnabled: true, peerUserEmail: true },
     });
 
     if (!conn?.isFederated || !conn.peerInstanceUrl || !conn.federationToken) {
@@ -90,13 +103,11 @@ export async function pushRelayToFederatedInstance(
       callbackUrl: selfUrl ? `${selfUrl.replace(/\/$/, '')}/api/federation/relay-ack` : undefined,
     };
 
+    const bodyJson1 = JSON.stringify(body);
     fetch(remoteUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-federation-token': conn.federationToken,
-      },
-      body: JSON.stringify(body),
+      headers: federationHeaders(conn.federationToken, bodyJson1, conn.hmacEnabled),
+      body: bodyJson1,
       signal: AbortSignal.timeout(10000),
     }).then(async (res) => {
       if (!res.ok) {
@@ -189,29 +200,27 @@ export async function pushRelayAckToFederatedInstance(
 
     const conn = await prisma.connection.findUnique({
       where: { id: relay.connectionId },
-      select: { federationToken: true },
+      select: { federationToken: true, hmacEnabled: true },
     });
     if (!conn?.federationToken) return false;
 
     const remoteUrl = `${relay.peerInstanceUrl.replace(/\/$/, '')}/api/federation/relay-ack`;
 
+    const ackBody = {
+      relayId: relay.peerRelayId,
+      localRelayId: relay.id,
+      status: relay.status,
+      responsePayload: relay.responsePayload,
+      subject: relay.subject,
+      teamId: relay.teamId || null,
+      projectId: relay.projectId || null,
+      timestamp: new Date().toISOString(),
+    };
+    const bodyJson2 = JSON.stringify(ackBody);
     fetch(remoteUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-federation-token': conn.federationToken,
-      },
-      body: JSON.stringify({
-        relayId: relay.peerRelayId,   // The relay ID on the originating instance
-        localRelayId: relay.id,       // Our local relay ID
-        status: relay.status,         // 'completed' | 'declined'
-        responsePayload: relay.responsePayload,
-        subject: relay.subject,
-        // v2.3.2 — scope echo
-        teamId: relay.teamId || null,
-        projectId: relay.projectId || null,
-        timestamp: new Date().toISOString(),
-      }),
+      headers: federationHeaders(conn.federationToken, bodyJson2, conn.hmacEnabled),
+      body: bodyJson2,
       signal: AbortSignal.timeout(10000),
     }).then(async (res) => {
       if (!res.ok) {
@@ -254,7 +263,7 @@ export async function pushNotificationToFederatedInstance(
   try {
     const conn = await prisma.connection.findUnique({
       where: { id: connectionId },
-      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, peerUserEmail: true },
+      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, hmacEnabled: true, peerUserEmail: true },
     });
 
     if (!conn?.isFederated || !conn.peerInstanceUrl || !conn.federationToken) {
@@ -276,13 +285,11 @@ export async function pushNotificationToFederatedInstance(
       timestamp: new Date().toISOString(),
     };
 
+    const bodyJson3 = JSON.stringify(body);
     fetch(remoteUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-federation-token': conn.federationToken,
-      },
-      body: JSON.stringify(body),
+      headers: federationHeaders(conn.federationToken, bodyJson3, conn.hmacEnabled),
+      body: bodyJson3,
       signal: AbortSignal.timeout(10000),
     }).then(async (res) => {
       if (!res.ok) {
@@ -331,7 +338,7 @@ export async function pushCardUpdate(
   try {
     const conn = await prisma.connection.findUnique({
       where: { id: connectionId },
-      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, peerUserEmail: true, peerUserName: true },
+      select: { isFederated: true, peerInstanceUrl: true, federationToken: true, hmacEnabled: true, peerUserEmail: true, peerUserName: true },
     });
 
     if (!conn?.isFederated || !conn.peerInstanceUrl || !conn.federationToken) {
@@ -355,13 +362,11 @@ export async function pushCardUpdate(
       timestamp: new Date().toISOString(),
     };
 
+    const bodyJson4 = JSON.stringify(body);
     fetch(remoteUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-federation-token': conn.federationToken,
-      },
-      body: JSON.stringify(body),
+      headers: federationHeaders(conn.federationToken, bodyJson4, conn.hmacEnabled),
+      body: bodyJson4,
       signal: AbortSignal.timeout(10000),
     }).then(async (res) => {
       if (!res.ok) {

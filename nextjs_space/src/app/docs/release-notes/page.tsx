@@ -40,6 +40,46 @@ export default function ReleaseNotesPage() {
           </p>
         </div>
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 19, 2026 — v2.4.0 HMAC ENFORCEMENT + SELF-TEST SUITE       */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.4.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.4.0</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                </div>
+                <h2 className="text-2xl font-semibold text-[var(--text-primary)]">HMAC Enforcement + Self-Test Suite</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Feature-flagged HMAC-SHA256 signing for all federation payloads, with a 13-point self-test suite.</p>
+              </div>
+              <DocDownloadButton containerId="release-v2.4.0" filename="dividen-release-v2.4.0" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] mb-4">
+              All federation traffic (relays, notifications, relay-acks) can now be HMAC-SHA256 signed per-connection. When <span className="code-inline">Connection.hmacEnabled</span> is true, outbound payloads are signed with the <span className="code-inline">federationToken</span> as the HMAC key, and inbound payloads are verified before processing. Timing-safe comparison prevents timing attacks. The feature is off by default — flip it per-connection when both sides are ready.
+            </p>
+
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mt-4 mb-2">What changed</h3>
+            <ul className="list-disc pl-6 text-[var(--text-secondary)] space-y-1">
+              <li><strong>New: <span className="code-inline">src/lib/federation-hmac.ts</span></strong> — <span className="code-inline">signPayload(body, secret)</span> and <span className="code-inline">verifyHmac(body, signature, secret)</span> using HMAC-SHA256 with timing-safe comparison.</li>
+              <li><strong>Schema</strong> — additive <span className="code-inline">Connection.hmacEnabled Boolean @default(false)</span>.</li>
+              <li><strong>Outbound</strong> — all 4 fetch call sites in <span className="code-inline">federation-push.ts</span> now use <span className="code-inline">federationHeaders()</span> helper, which conditionally adds <span className="code-inline">x-federation-hmac</span> header.</li>
+              <li><strong>Inbound</strong> — <span className="code-inline">/api/federation/relay</span>, <span className="code-inline">/notifications</span>, and <span className="code-inline">/relay-ack</span> read raw body first, then verify HMAC if the connection has <span className="code-inline">hmacEnabled=true</span>. Rejects with 401 on failure.</li>
+              <li><strong>Self-test</strong> — <span className="code-inline">npx tsx -r dotenv/config scripts/check_hmac.ts</span> runs 13 assertions (crypto unit tests + DB field check). All green.</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mt-4 mb-2">Activation</h3>
+            <p className="text-[var(--text-secondary)]">
+              To enable HMAC on a connection, set <span className="code-inline">hmacEnabled: true</span> on the Connection row. Both sides must enable it simultaneously — once enabled, unsigned payloads from that connection will be rejected. The <span className="code-inline">federationToken</span> serves dual duty as both the bearer token and the HMAC key.
+            </p>
+
+            <DocFooterDownload containerId="release-v2.4.0" filename="dividen-release-v2.4.0" lastUpdated="April 19, 2026" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 19, 2026 — v2.3.5 PROJECT + TEAM ROLE CHANGES FOUR-SIGNAL    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v2.3.5" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
@@ -49,7 +89,7 @@ export default function ReleaseNotesPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs mb-2">
                   <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.5</span>
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 19, 2026</span>
                 </div>
                 <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Role Changes — Four-Signal Parity</h2>
                 <p className="text-sm text-[var(--text-muted)] mt-1">Promote/demote on projects and teams now emit the full four-signal pattern with federation push.</p>

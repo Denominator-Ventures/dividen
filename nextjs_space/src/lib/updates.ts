@@ -17,6 +17,24 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'hmac-enforcement-self-test-v2-4-0',
+    date: '2026-04-19',
+    time: '1:00 AM',
+    title: 'HMAC Enforcement + Self-Test Suite',
+    subtitle: 'Feature-flagged HMAC-SHA256 signing for all federation payloads. 13-point self-test suite confirms crypto correctness and DB field presence.',
+    tags: ['security', 'federation', 'hmac', 'testing', 'v2.4.0'],
+    content: `Federation traffic has been running on bearer tokens (x-federation-token) since v2.0. That's fine for authentication ("who are you?") but doesn't answer integrity ("was this payload tampered?"). HMAC closes that gap.
+
+**What shipped:**
+- **\`src/lib/federation-hmac.ts\`** — \`signPayload(body, secret)\` and \`verifyHmac(body, signature, secret)\` using HMAC-SHA256 with timing-safe comparison (crypto.timingSafeEqual). No new dependencies.
+- **\`Connection.hmacEnabled\`** — additive boolean field, defaults to false. Flip it per-connection when both sides are ready.
+- **Outbound** — all 4 fetch call sites in \`federation-push.ts\` now use a \`federationHeaders()\` helper that conditionally adds \`x-federation-hmac\` when the connection has \`hmacEnabled=true\`.
+- **Inbound** — \`/api/federation/relay\`, \`/notifications\`, and \`/relay-ack\` all read the raw body first (for signature verification), then parse JSON. If \`hmacEnabled=true\` on the matched connection, the signature is verified; on failure, 401 is returned.
+- **Self-test** — \`npx tsx -r dotenv/config scripts/check_hmac.ts\` runs 13 assertions covering determinism, acceptance, rejection (tampered body, wrong secret, empty sig, malformed hex), header inclusion/omission, and DB field presence. All green.
+
+The \`federationToken\` serves dual duty as both the bearer token and the HMAC key. No second secret, no extra handshake. To activate: flip \`hmacEnabled\` to true on the Connection row. Both sides must enable simultaneously.`,
+  },
+  {
     id: 'role-changes-four-signal-v2-3-5',
     date: '2026-04-19',
     time: '12:15 AM',

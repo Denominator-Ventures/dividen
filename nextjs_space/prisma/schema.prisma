@@ -931,6 +931,7 @@ model Connection {
   peerUserName    String?  // Display name of the remote user
   peerUserEmail   String?  // Email of the remote user
   federationToken String?  // Shared secret for authenticating relay messages
+  hmacEnabled     Boolean  @default(false) // v2.4.0 — when true, outbound payloads are HMAC-signed and inbound signatures are verified
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

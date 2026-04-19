@@ -25,7 +25,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Inbound federation disabled' }, { status: 403 });
     }
 
-    const body = await req.json();
+    // Read raw body for HMAC verification
+    const rawBody = await req.text();
+    const body = JSON.parse(rawBody);
     const {
       relayId,        // Our local relay ID (the one we sent)
       localRelayId,   // Remote instance's relay ID (informational)
@@ -50,6 +52,15 @@ export async function POST(req: NextRequest) {
 
     if (!connection) {
       return NextResponse.json({ error: 'No active federated connection for this token' }, { status: 404 });
+    }
+
+    // v2.4.0 — HMAC verification (feature-flagged per-connection)
+    if (connection.hmacEnabled) {
+      const { verifyHmac, HMAC_HEADER } = await import('@/lib/federation-hmac');
+      const hmacSig = req.headers.get(HMAC_HEADER);
+      if (!hmacSig || !verifyHmac(rawBody, hmacSig, federationToken)) {
+        return NextResponse.json({ error: 'HMAC verification failed' }, { status: 401 });
+      }
     }
 
     // Find the local relay

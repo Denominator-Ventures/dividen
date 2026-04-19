@@ -119,7 +119,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Inbound federation disabled' }, { status: 403 });
     }
 
-    const body = await req.json();
+    // Read raw body for HMAC verification before parsing
+    const rawBody = await req.text();
+    const body = JSON.parse(rawBody);
     const {
       connectionId: remoteConnectionId,
       relayId: remoteRelayId,
@@ -150,6 +152,15 @@ export async function POST(req: NextRequest) {
 
     if (!connection) {
       return NextResponse.json({ error: 'No active federated connection found for this token' }, { status: 404 });
+    }
+
+    // v2.4.0 — HMAC verification (feature-flagged per-connection)
+    if (connection.hmacEnabled) {
+      const { verifyHmac, HMAC_HEADER } = await import('@/lib/federation-hmac');
+      const hmacSig = req.headers.get(HMAC_HEADER);
+      if (!hmacSig || !verifyHmac(rawBody, hmacSig, federationToken)) {
+        return NextResponse.json({ error: 'HMAC verification failed' }, { status: 401 });
+      }
     }
 
     // ── Idempotency: FVP Build 522 §4 — dedup on peerRelayId + connectionId ──
