@@ -40,6 +40,45 @@ export default function ReleaseNotesPage() {
           </p>
         </div>
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.3.4 TEAM INVITES FOUR-SIGNAL                    */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.3.4" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.4</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                </div>
+                <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Team Invites — Four-Signal Parity</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Team invites now emit the full four-signal pattern with round-trip relay status stamping.</p>
+              </div>
+              <DocDownloadButton containerId="release-v2.3.4" filename="dividen-release-v2.3.4" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] mb-4">
+              Team invitation flows now parallel project invitations with the full four-signal pattern: <span className="code-inline">TeamInvite</span> DB row, <span className="code-inline">QueueItem</span>, <span className="code-inline">AgentRelay</span> (<span className="code-inline">intent=&apos;introduce&apos;</span>, <span className="code-inline">payload.kind=&apos;team_invite&apos;</span>, <span className="code-inline">teamId</span> scope), and <span className="code-inline">CommsMessage</span>. On accept/decline, the paired relay is stamped <span className="code-inline">completed</span> or <span className="code-inline">declined</span> with a round-trip <span className="code-inline">CommsMessage</span> back to the inviter.
+            </p>
+
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mt-4 mb-2">What changed</h3>
+            <ul className="list-disc pl-6 text-[var(--text-secondary)] space-y-1">
+              <li><strong>POST /api/teams/[id]/invites</strong> — now emits all four signals atomically and pushes to federated peers via <span className="code-inline">pushRelayToFederatedInstance</span> + <span className="code-inline">pushNotificationToFederatedInstance</span> with <span className="code-inline">teamId</span> on the wire.</li>
+              <li><strong>POST /api/teams/invite/[token]</strong> — accept/decline now stamps the paired <span className="code-inline">AgentRelay</span> (status + <span className="code-inline">resolvedAt</span>), deletes the pending <span className="code-inline">QueueItem</span>, and writes a <span className="code-inline">CommsMessage</span> back to the inviter (✅ accepted / ❌ declined).</li>
+              <li><strong>Duplicate guard</strong> — same <span className="code-inline">@@unique([teamId, inviteeId])</span> pattern as project invites; <span className="code-inline">force:true</span> param to re-invite after decline.</li>
+              <li><strong>Federation</strong> — team invite relays propagate to remote instances identically to project invites, producing the same visible audit trail on both sides.</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mt-4 mb-2">Why</h3>
+            <p className="text-[var(--text-secondary)]">
+              Team invitations were still running the legacy single-signal flow. This brings team coordination to full parity with projects — every team invite is now auditable, federated, threaded in Comms, and stamped with a lifecycle status.
+            </p>
+
+            <DocFooterDownload containerId="release-v2.3.4" filename="dividen-release-v2.3.4" lastUpdated="April 18, 2026" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 18, 2026 — v2.3.3 COMMS THREADING SCOPE PARITY UI             */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v2.3.3" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
@@ -49,7 +88,7 @@ export default function ReleaseNotesPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs mb-2 flex-wrap">
                   <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.3</span>
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 18, 2026</span>
                   <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
                   <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">UI</span>
                   <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">Comms</span>

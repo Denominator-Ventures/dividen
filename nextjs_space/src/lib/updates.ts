@@ -17,6 +17,23 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'team-invites-four-signal-v2-3-4',
+    date: '2026-04-18',
+    time: '11:45 PM',
+    title: 'Team Invites — Four-Signal Parity',
+    subtitle: 'Team invitations now emit all four signals (TeamInvite + QueueItem + AgentRelay + CommsMessage) with federation push. Accept/decline stamps the paired relay and writes a round-trip CommsMessage to the inviter.',
+    tags: ['backend', 'teams', 'invites', 'federation', 'four-signal', 'v2.3.4'],
+    content: `Team invites were still running the legacy single-signal flow — a \`TeamInvite\` row, maybe a \`QueueItem\`, but no relay, no CommsMessage thread, no federation push. Project invites (v2.3.1) already had all four. This closes the gap.
+
+**What shipped:**
+- **POST /api/teams/[id]/invites** rewritten with the full four-signal atomic pattern. Every team invite emits a \`TeamInvite\` row, a \`QueueItem\` for the invitee, an \`AgentRelay\` with \`intent='introduce'\`, \`payload.kind='team_invite'\`, \`teamId\` scope, and a \`CommsMessage\` that threads on the team invite ID.
+- **POST /api/teams/invite/[token]** accept/decline now stamps the paired \`AgentRelay\` (\`status='completed'\` or \`'declined'\`, \`resolvedAt=new Date()\`), deletes the pending \`QueueItem\`, and writes a round-trip \`CommsMessage\` back to the inviter (✅ accepted / ❌ declined).
+- **Federation** — remote team invites propagate identically to projects via \`pushRelayToFederatedInstance\` + \`pushNotificationToFederatedInstance\`. The \`teamId\` rides the wire (thanks v2.3.2) so the peer's audit trail mirrors ours.
+- **Duplicate guard** — \`@@unique([teamId, inviteeId])\` already enforced; added \`force:true\` param to re-invite after decline, matching project-invites ergonomics.
+
+Now every coordination mutation in the platform emits all four signals. Next up: project role changes (v2.3.5) and HMAC enforcement (v2.4.0).`,
+  },
+  {
     id: 'comms-threading-scope-parity-v2-3-3',
     date: '2026-04-18',
     time: '10:30 PM',

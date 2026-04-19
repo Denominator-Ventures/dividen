@@ -83,7 +83,7 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
         await prisma.queueItem.deleteMany({
           where: {
             userId,
-            kind: 'team_invite',
+            type: "team_invite",
             status: 'pending',
             metadata: { contains: `"inviteId":"${invite.id}"` },
           },
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
       await prisma.queueItem.deleteMany({
         where: {
           userId,
-          kind: 'team_invite',
+          type: "team_invite",
           status: 'pending',
           metadata: { contains: `"inviteId":"${invite.id}"` },
         },
