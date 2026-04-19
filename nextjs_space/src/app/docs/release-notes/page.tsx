@@ -40,6 +40,46 @@ export default function ReleaseNotesPage() {
           </p>
         </div>
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 19, 2026 — v2.3.5 PROJECT + TEAM ROLE CHANGES FOUR-SIGNAL    */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.3.5" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.5</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                </div>
+                <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Role Changes — Four-Signal Parity</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Promote/demote on projects and teams now emit the full four-signal pattern with federation push.</p>
+              </div>
+              <DocDownloadButton containerId="release-v2.3.5" filename="dividen-release-v2.3.5" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] mb-4">
+              Role changes on both project members and team members now follow the same four-signal doctrine: <span className="code-inline">DB update</span> + <span className="code-inline">QueueItem</span> + <span className="code-inline">AgentRelay</span> (<span className="code-inline">intent=&apos;notify&apos;</span>, <span className="code-inline">payload.kind=&apos;project_role_change&apos;</span> or <span className="code-inline">&apos;team_role_change&apos;</span>) + <span className="code-inline">CommsMessage</span>. Federated members get a notification push to the remote instance with scope on the wire.
+            </p>
+
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mt-4 mb-2">What changed</h3>
+            <ul className="list-disc pl-6 text-[var(--text-secondary)] space-y-1">
+              <li><strong>PATCH /api/projects/[id]/members</strong> — new endpoint. Accepts <span className="code-inline">{'{'}memberId, role{'}'}</span>. Emits all four signals. Only the project lead can promote/demote. <span className="code-inline">projectId</span> + <span className="code-inline">teamId</span> (inherited) on the relay envelope.</li>
+              <li><strong>PATCH /api/teams/[id]/members</strong> — new endpoint. Same pattern. Only owner/admin can change roles. Owner demotion blocked (must transfer ownership first). <span className="code-inline">teamId</span> on the relay envelope.</li>
+              <li><strong>Direction detection</strong> — auto-labels the change as &quot;promoted&quot; or &quot;demoted&quot; based on role hierarchy position.</li>
+              <li><strong>Dual CommsMessage</strong> — both the changer and the affected member get a threaded message for full audit trail.</li>
+              <li><strong>Federation</strong> — federated members trigger <span className="code-inline">pushNotificationToFederatedInstance</span> with scope fields, so the remote instance can surface the role change in their own audit trail.</li>
+            </ul>
+
+            <h3 className="text-lg font-semibold text-[var(--text-primary)] mt-4 mb-2">Four-signal coverage</h3>
+            <p className="text-[var(--text-secondary)]">
+              With v2.3.5, every coordination mutation in the platform now emits all four signals: task routing (v2.1.2), project invites (v2.3.1), team invites (v2.3.4), and role changes (v2.3.5). The next milestone is HMAC enforcement (v2.4.0).
+            </p>
+
+            <DocFooterDownload containerId="release-v2.3.5" filename="dividen-release-v2.3.5" lastUpdated="April 19, 2026" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 18, 2026 — v2.3.4 TEAM INVITES FOUR-SIGNAL                    */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v2.3.4" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
@@ -49,7 +89,7 @@ export default function ReleaseNotesPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs mb-2">
                   <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.4</span>
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">April 18, 2026</span>
                 </div>
                 <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Team Invites — Four-Signal Parity</h2>
                 <p className="text-sm text-[var(--text-muted)] mt-1">Team invites now emit the full four-signal pattern with round-trip relay status stamping.</p>

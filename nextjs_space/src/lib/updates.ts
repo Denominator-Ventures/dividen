@@ -17,6 +17,23 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'role-changes-four-signal-v2-3-5',
+    date: '2026-04-19',
+    time: '12:15 AM',
+    title: 'Role Changes — Four-Signal Parity',
+    subtitle: 'Promote/demote on projects and teams now emit the full four-signal pattern (DB update + QueueItem + AgentRelay + CommsMessage) with federation push for federated members.',
+    tags: ['backend', 'projects', 'teams', 'roles', 'federation', 'four-signal', 'v2.3.5'],
+    content: `Role changes were the last coordination mutation still running the legacy single-signal flow — a quiet DB update and maybe a log. With v2.3.5, every promote/demote on both projects and teams now follows the same four-signal doctrine.
+
+**What shipped:**
+- **PATCH /api/projects/[id]/members** — new endpoint. Accepts \`{memberId, role}\`. Only the project lead can change roles. Emits all four signals: \`ProjectMember\` update, \`QueueItem\` notification for the affected member, \`AgentRelay\` with \`intent='notify'\` and \`payload.kind='project_role_change'\` (carrying \`projectId\` + inherited \`teamId\` on the envelope), and dual \`CommsMessage\` (one for the changer, one for the affected member).
+- **PATCH /api/teams/[id]/members** — same pattern for teams. Only owner/admin can promote/demote. Owner demotion is blocked (must transfer ownership first). \`teamId\` on the relay envelope.
+- **Direction detection** — auto-labels the change as "promoted" or "demoted" based on role hierarchy position (lead > contributor > reviewer > observer for projects; owner > admin > member for teams).
+- **Federation** — federated members trigger \`pushNotificationToFederatedInstance\` with scope fields, so the remote instance can surface the role change in their own audit trail.
+
+Every coordination mutation in the platform now emits all four signals. Next up: HMAC enforcement (v2.4.0).`,
+  },
+  {
     id: 'team-invites-four-signal-v2-3-4',
     date: '2026-04-18',
     time: '11:45 PM',
