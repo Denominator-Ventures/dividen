@@ -287,6 +287,19 @@ export default function CommsPage() {
                 const statusInfo = STATUS_CONFIG[latest.status] || STATUS_CONFIG.pending;
                 const isOutbound = latest.fromUserId === userId;
 
+                // v2.3.3: check if thread has any scoped relays for a list-level hint
+                let threadHasScope = false;
+                for (const r of thread.relays) {
+                  try {
+                    if (!r.payload) continue;
+                    const p = JSON.parse(r.payload);
+                    if (p.projectId || p.teamId || p._scope?.projectId || p._scope?.teamId) {
+                      threadHasScope = true;
+                      break;
+                    }
+                  } catch {}
+                }
+
                 return (
                   <button
                     key={thread.connectionId}
@@ -319,7 +332,7 @@ export default function CommsPage() {
                           {INTENT_ICONS[latest.intent] || '💬'} {latest.subject}
                         </p>
 
-                        <div className="flex items-center gap-2 mt-1.5">
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           <span
                             className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded"
                             style={{ background: `${statusInfo.color}20`, color: statusInfo.color }}
@@ -334,6 +347,11 @@ export default function CommsPage() {
                               {thread.unresolved} active
                             </span>
                           )}
+                          {threadHasScope && (
+                            <span className="text-[9px] text-emerald-400/80" title="Thread contains scoped relays (project/team)">
+                              {'\uD83D\uDCC1'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -346,17 +364,53 @@ export default function CommsPage() {
 
         {/* ── Right: Thread detail ── */}
         <div className="hidden md:flex flex-1 flex-col min-h-0">
-          {activeThread ? (
+          {activeThread ? (() => {
+            // v2.3.3: aggregate distinct scope IDs across the thread for the header chips
+            const scopeProjectIds = new Set<string>();
+            const scopeTeamIds = new Set<string>();
+            for (const r of activeThread.relays) {
+              try {
+                if (!r.payload) continue;
+                const p = JSON.parse(r.payload);
+                const pid = p.projectId || p._scope?.projectId;
+                const tid = p.teamId || p._scope?.teamId;
+                if (pid) scopeProjectIds.add(pid);
+                if (tid) scopeTeamIds.add(tid);
+              } catch {}
+            }
+            const projectScopeArr = Array.from(scopeProjectIds);
+            const teamScopeArr = Array.from(scopeTeamIds);
+
+            return (
             <div className="flex-1 flex flex-col min-h-0">
               {/* Thread header */}
               <div className="px-6 py-4 border-b border-[var(--border-color)]">
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-lg text-brand-400">⬡</span>
                     <span className="text-sm font-semibold text-[var(--text-primary)]">
                       Divi ↔ {activeThread.peerName}
                       {activeThread.peerAgentName && ` (${activeThread.peerAgentName})`}
                     </span>
+                    {/* v2.3.3: aggregate scope chips in thread header */}
+                    {projectScopeArr.map(pid => (
+                      <span
+                        key={`proj-${pid}`}
+                        className="text-[10px] font-mono text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-2 py-0.5"
+                        title={`project: ${pid}`}
+                      >
+                        {'\uD83D\uDCC1 '}{pid.slice(-6)}
+                      </span>
+                    ))}
+                    {teamScopeArr.filter(tid => !projectScopeArr.length || !activeThread.relays.some(r => { try { const p = r.payload ? JSON.parse(r.payload) : null; return p && (p.projectId === projectScopeArr[0]) && (p.teamId === tid); } catch { return false; } })).map(tid => (
+                      <span
+                        key={`team-${tid}`}
+                        className="text-[10px] font-mono text-sky-300 bg-sky-500/15 border border-sky-500/30 rounded-full px-2 py-0.5"
+                        title={`team: ${tid}`}
+                      >
+                        {'\uD83D\uDC65 '}{tid.slice(-6)}
+                      </span>
+                    ))}
                   </div>
                   <span
                     className="text-[10px] uppercase font-bold px-2 py-1 rounded"
@@ -371,6 +425,7 @@ export default function CommsPage() {
                 <p className="text-[10px] text-[var(--text-muted)]">
                   {activeThread.relays.length} relay{activeThread.relays.length !== 1 ? 's' : ''} with this connection
                   {activeThread.latestRelay.peerInstanceUrl && ` · Federated: ${activeThread.latestRelay.peerInstanceUrl}`}
+                  {(projectScopeArr.length + teamScopeArr.length) > 0 && ` · ${projectScopeArr.length + teamScopeArr.length} scoped context${(projectScopeArr.length + teamScopeArr.length) !== 1 ? 's' : ''}`}
                 </p>
               </div>
 
@@ -384,6 +439,12 @@ export default function CommsPage() {
                   let responseObj: any = null;
                   try { if (relay.responsePayload) responseObj = JSON.parse(relay.responsePayload); } catch {}
 
+                  // v2.3.3: extract scope from relay payload (top-level or nested _scope)
+                  const scopeProjectId: string | null =
+                    (payloadObj && (payloadObj.projectId || payloadObj._scope?.projectId)) || null;
+                  const scopeTeamId: string | null =
+                    (payloadObj && (payloadObj.teamId || payloadObj._scope?.teamId)) || null;
+
                   return (
                     <div
                       key={relay.id}
@@ -395,7 +456,7 @@ export default function CommsPage() {
                           : 'bg-[var(--bg-surface)] border border-[var(--border-color)]'
                       }`}>
                         {/* Sender line */}
-                        <div className="flex items-center gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                           <span className={`text-[10px] font-bold uppercase ${
                             isFromMe ? 'text-brand-400' : 'text-purple-400'
                           }`}>
@@ -407,6 +468,23 @@ export default function CommsPage() {
                           <span className="text-[9px] text-[var(--text-muted)]">
                             {timeAgo(relay.createdAt)}
                           </span>
+                          {/* v2.3.3: scope chips */}
+                          {scopeProjectId && (
+                            <span
+                              className="text-[9px] font-mono text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-1.5 py-0.5"
+                              title={`project: ${scopeProjectId}`}
+                            >
+                              {'\uD83D\uDCC1 '}{scopeProjectId.slice(-6)}
+                            </span>
+                          )}
+                          {scopeTeamId && !scopeProjectId && (
+                            <span
+                              className="text-[9px] font-mono text-sky-300 bg-sky-500/15 border border-sky-500/30 rounded-full px-1.5 py-0.5"
+                              title={`team: ${scopeTeamId}`}
+                            >
+                              {'\uD83D\uDC65 '}{scopeTeamId.slice(-6)}
+                            </span>
+                          )}
                         </div>
 
                         {/* Intent badge + subject */}
@@ -516,7 +594,8 @@ export default function CommsPage() {
                 })}
               </div>
             </div>
-          ) : (
+            );
+          })() : (
             /* Empty state */
             <div className="flex-1 flex flex-col items-center justify-center text-center px-8">
               <div className="text-4xl mb-4">📡</div>
@@ -553,18 +632,44 @@ export default function CommsPage() {
               {activeThread.relays.map((relay) => {
                 const isFromMe = relay.fromUserId === userId;
                 const statusInfo = STATUS_CONFIG[relay.status] || STATUS_CONFIG.pending;
+                // v2.3.3: extract scope for mobile overlay chips
+                let mobileScopeProject: string | null = null;
+                let mobileScopeTeam: string | null = null;
+                try {
+                  if (relay.payload) {
+                    const p = JSON.parse(relay.payload);
+                    mobileScopeProject = p.projectId || p._scope?.projectId || null;
+                    mobileScopeTeam = p.teamId || p._scope?.teamId || null;
+                  }
+                } catch {}
                 return (
                   <div key={relay.id} className={`flex ${isFromMe ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[90%] rounded-xl p-3 ${
                       isFromMe ? 'bg-[var(--brand-primary)]/10 border border-brand-500/20' : 'bg-[var(--bg-surface)] border border-[var(--border-color)]'
                     }`}>
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <span className={`text-[10px] font-bold uppercase ${
                           isFromMe ? 'text-brand-400' : 'text-purple-400'
                         }`}>
                           {isFromMe ? 'Your Divi' : `${activeThread.peerName}`}
                         </span>
                         <span className="text-[9px] text-[var(--text-muted)]">{timeAgo(relay.createdAt)}</span>
+                        {mobileScopeProject && (
+                          <span
+                            className="text-[9px] font-mono text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-1.5 py-0.5"
+                            title={`project: ${mobileScopeProject}`}
+                          >
+                            {'\uD83D\uDCC1 '}{mobileScopeProject.slice(-6)}
+                          </span>
+                        )}
+                        {mobileScopeTeam && !mobileScopeProject && (
+                          <span
+                            className="text-[9px] font-mono text-sky-300 bg-sky-500/15 border border-sky-500/30 rounded-full px-1.5 py-0.5"
+                            title={`team: ${mobileScopeTeam}`}
+                          >
+                            {'\uD83D\uDC65 '}{mobileScopeTeam.slice(-6)}
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs font-medium text-[var(--text-primary)] mb-1">
                         {INTENT_ICONS[relay.intent] || '💬'} {relay.subject}

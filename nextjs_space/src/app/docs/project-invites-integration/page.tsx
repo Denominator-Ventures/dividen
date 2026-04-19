@@ -77,6 +77,14 @@ export default function ProjectInvitesIntegrationPage() {
           monorepo, on a federated peer instance (FVP, a self-hosted node, an agent bridge), or in a third-party integration that needs to react to invite events.
         </Note>
 
+        <Note kind="success">
+          <strong>v2.3.2 update:</strong> Federated project invites now correctly push over the wire. The invite route fires both{' '}
+          <Inline>pushRelayToFederatedInstance</Inline> AND <Inline>pushNotificationToFederatedInstance</Inline> (type=<Inline>project_invite</Inline>, with
+          <Inline>projectId</Inline> top-level) after records are written. The v2.3.1 gap where federated invitees received the local records but
+          no cross-instance notification is now closed. Relay stays <Inline>pending</Inline> until peer ACKs via <Inline>/api/federation/relay-ack</Inline>.
+          See <a href="/docs/relay-spec#scope-resolution" className="text-brand-400 hover:text-brand-300">relay-spec §7.6</a> for scope resolution semantics on the receiver.
+        </Note>
+
         {/* TOC */}
         <div className="mb-10 p-4 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-primary)]">
           <p className="text-xs uppercase tracking-wider text-[var(--text-muted)] mb-2">Contents</p>
@@ -256,10 +264,11 @@ if (res.status === 409) {
         {/* ── 5 ─────────────────────────────────────────── */}
         <Section id="federation" title="5. Federation / cross-instance delivery">
           <p className="text-[var(--text-secondary)] mb-3">
-            If the target connection has <Inline>isFederated=true</Inline> and a <Inline>peerInstanceUrl</Inline>, the relay is
-            pushed to the peer via <Inline>pushRelayToFederatedInstance(relayId)</Inline> — a fire-and-forget POST to the peer&apos;s
-            <Inline>/api/federation/relay</Inline> endpoint with the <Inline>x-federation-token</Inline> header. 10-second timeout;
-            failure leaves the relay in place locally for the peer to pick up on next poll.
+            If the target connection has <Inline>isFederated=true</Inline> and a <Inline>peerInstanceUrl</Inline>, the invite route
+            fires <strong>two</strong> async pushes (v2.3.2): <Inline>pushRelayToFederatedInstance(relayId)</Inline> and
+            <Inline>pushNotificationToFederatedInstance({`{type:'project_invite', projectId, ...}`})</Inline>. Both are
+            fire-and-forget POSTs to the peer&apos;s <Inline>/api/federation/relay</Inline> and <Inline>/api/federation/notifications</Inline>{' '}
+            with the <Inline>x-federation-token</Inline> header. 10-second timeout; failure leaves the relay in place locally for the peer to pick up on next poll.
           </p>
           <Code>{`// Inside the invite route, after records are written:
 if (invitee.connection?.isFederated && invitee.connection.peerInstanceUrl) {
@@ -267,10 +276,25 @@ if (invitee.connection?.isFederated && invitee.connection.peerInstanceUrl) {
   pushRelayToFederatedInstance(relay.id).catch(err =>
     console.error('[invite] federation push failed', err)
   );
+  pushNotificationToFederatedInstance({
+    connectionId: invitee.connection.id,
+    type: 'project_invite',
+    title: \`Project invite: \${project.name}\`,
+    message: \`\${inviter.name} invited you to join \${project.name}\`,
+    projectId: project.id,
+    teamId: project.teamId ?? undefined,
+    metadata: { inviteId: invite.id, inviterUserId: inviter.id },
+  }).catch(err => console.error('[invite] notification push failed', err));
 }`}</Code>
-          <p className="text-[var(--text-secondary)]">
+          <p className="text-[var(--text-secondary)] mb-2">
             The federation push is idempotent (v2.3): if <Inline>peerRelayId</Inline> is already stamped, it skips re-pushing,
             preventing the duplicate-delivery cascade that used to happen on retries.
+          </p>
+          <p className="text-[var(--text-secondary)]">
+            <strong>Scope wire fields (v2.3.2):</strong> both endpoints accept top-level <Inline>teamId</Inline> and <Inline>projectId</Inline>. The
+            receiver runs scope resolution — if the IDs exist locally, they&apos;re attached to the mirrored records; if not, they&apos;re
+            dropped and echoed back as <Inline>scopeDropped</Inline> in the ack response. See{' '}
+            <a href="/docs/relay-spec#scope-resolution" className="text-brand-400 hover:text-brand-300">relay-spec §7.6</a>.
           </p>
         </Section>
 

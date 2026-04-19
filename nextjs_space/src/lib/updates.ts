@@ -17,6 +17,37 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'comms-threading-scope-parity-v2-3-3',
+    date: '2026-04-18',
+    time: '10:30 PM',
+    title: 'Comms Threading Surface — Scope Parity UI',
+    subtitle: 'The full Comms page now surfaces team/project scope chips in three places: thread list hint, thread header aggregate badges, and per-relay bubbles. Matches QueuePanel + CommsTab from v2.3.2 byte-for-byte. Mobile overlay matches desktop.',
+    tags: ['ui', 'comms', 'scope', 'federation', 'v2.3.3'],
+    content: `v2.3.3. Shipping the wire in v2.3.2 put scope on every relay. The point of putting it there is that humans can *see* which workstream an ambient or invite belongs to at a glance — not decode IDs out of a JSON payload in dev tools. This release finishes that job across the full Comms page.
+
+## Where the Chips Show Up
+
+**Thread list (left rail).** A compact folder emoji appears next to the message-count metadata when any relay in the thread carries a scope. Unscoped threads look identical to before — zero visual weight for the legacy case.
+
+**Thread header (right panel top).** Aggregate distinct scopes, emerald for projects (📁) and sky for teams (👥), with hover tooltips revealing the full CUID. The inheritance relationship is respected: if a project chip is already present, the redundant team chip (same team) is suppressed. Meta line adds "\`N scoped contexts\`" when scope is set.
+
+**Per-relay bubble.** Each message renders its own scope chip inline with the sender label + direction + timestamp. A thread that spans multiple projects is now visually disambiguated message-by-message — which was impossible before v2.3.3.
+
+**Mobile overlay.** Everything above, in the same places, with the same colors. No responsive divergence.
+
+## Why Last-6 Chars
+
+The chip body shows "📁 abc123" — the last 6 characters of the CUID. Long enough to disambiguate in practice, short enough that two chips fit comfortably on a 375px-wide mobile header. Full ID on hover (\`title\` attribute).
+
+## Additive Only
+
+Unscoped relays render zero new chrome. \`payload.projectId\`, \`payload.teamId\`, and \`payload._scope.{projectId,teamId}\` are all tolerated — no single canonical shape required yet, because different sender paths (v2.3.1 invites, v2.3.2 wire-level, nested ambient gating) emit slightly different envelope shapes and we accept all of them.
+
+## What This Unblocks
+
+v2.3.4 (team invites as four-signal) ships next. When that lands, team-invite ambient + comms events will flow with a \`teamId\` scope already visible in the UI — no UI work required on the follow-up.`,
+  },
+  {
     id: 'multi-tenant-relay-wire-v2-3-2',
     date: '2026-04-18',
     time: '9:45 PM',

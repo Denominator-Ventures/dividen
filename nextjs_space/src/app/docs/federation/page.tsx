@@ -909,11 +909,32 @@ POST /api/federation/connect/accept   ← acceptance callback (Federation token)
               <p>• Routing priority: project members (+10) → team members (+5) → all connections (base score)</p>
             </div>
           </div>
+
+          <div className="bg-gradient-to-br from-sky-500/10 to-emerald-500/10 border border-sky-500/30 rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 text-[10px] font-semibold text-sky-300 bg-sky-500/20 border border-sky-500/30 rounded-full uppercase tracking-wide">v2.3.2</span>
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Cross-Instance Scope on the Wire</h3>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              As of v2.3.2, <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">teamId</code> and <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">projectId</code> travel as <strong>top-level fields</strong> on every relay
+              pushed to <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">POST /api/federation/relay</code> (and <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">/notify</code>). The receiving instance runs local scope resolution — if the referenced team/project exists,
+              it&rsquo;s attached to the created AgentRelay + QueueItem. If not (e.g. the peer doesn&rsquo;t know about your project),
+              the scope is <em>dropped silently</em> and echoed back as <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">scopeDropped</code> in the ack response so your UI can surface the miss.
+            </p>
+            <div className="space-y-1 text-xs text-[var(--text-muted)] pt-1 border-t border-sky-500/20">
+              <p>• <strong>Project implies team</strong> — if project resolves, its team also resolves automatically (inheritance).</p>
+              <p>• <strong>Ambient gating</strong> accepts object filters: <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">{"{ teamIds: [...], projectIds: [...] }"}</code> in addition to legacy string-array tags.</p>
+              <p>• <strong>Federated project invites</strong> (v2.3.1 four-signal pattern) now correctly push over the wire — the cross-instance gap is closed.</p>
+            </div>
+            <p className="text-xs text-[var(--text-muted)] pt-1">
+              → Full wire details: <a href="/docs/relay-spec#scope-resolution" className="text-brand-400 hover:text-brand-300">relay-spec §7.6 Scope resolution</a>.
+            </p>
+          </div>
         </section>
 
 
         {/* Download */}
-        <DocFooterDownload filename="dividen-federation-guide" lastUpdated="April 16, 2026" />
+        <DocFooterDownload filename="dividen-federation-guide" lastUpdated="April 18, 2026" />
 
         {/* Footer */}
         <div className="border-t border-[var(--border-primary)] pt-6 mt-8 text-center space-y-2" data-no-download>

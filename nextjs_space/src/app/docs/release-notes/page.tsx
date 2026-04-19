@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.3.2 Multi-Tenant Relay Wire: teamId/projectId propagate across the federation wire with gating, UI chips, and backward-compat preserved.',
+  description: 'DiviDen release notes — v2.3.3 Comms Threading Surface Parity: scope chips in the full comms page. v2.3.2 — Multi-Tenant Relay Wire.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.3.2 — Multi-Tenant Relay Wire. v2.3.1 — Project Invites as Divi→Divi Comms. v2.3.0 — Relay Protocol Overhaul.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.3.2+Multi-Tenant+Relay+Wire&tag=release', width: 1200, height: 630 }],
+    description: 'v2.3.3 — Comms Threading Scope Parity UI. v2.3.2 — Multi-Tenant Relay Wire. v2.3.1 — Project Invites as Divi→Divi Comms.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.3.3+Comms+Threading+Parity&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.3.2 — Multi-Tenant Relay Wire. v2.3.1 — Project Invites as Divi→Divi Comms. v2.3.0 — Relay Protocol Overhaul.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.3.2+Multi-Tenant+Relay+Wire&tag=release'],
+    description: 'v2.3.3 — Comms Threading Scope Parity UI. v2.3.2 — Multi-Tenant Relay Wire. v2.3.1 — Project Invites as Divi→Divi Comms.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.3.3+Comms+Threading+Parity&tag=release'],
   },
 };
 
@@ -40,6 +40,80 @@ export default function ReleaseNotesPage() {
           </p>
         </div>
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.3.3 COMMS THREADING SCOPE PARITY UI             */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.3.3" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2 flex-wrap">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.3</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                  <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
+                  <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">UI</span>
+                  <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">Comms</span>
+                </div>
+                <h2 className="text-2xl font-bold font-heading">Comms Threading Surface — Scope Parity</h2>
+              </div>
+              <DocDownloadButton containerId="release-v2.3.3" filename="dividen-release-v2.3.3" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] leading-relaxed mb-6">
+              The full Comms page (<code className="text-brand-300 bg-[var(--bg-tertiary)] px-1.5 rounded">/dashboard/comms</code>) now surfaces the same
+              team/project scope context that we shipped in the CommsTab and QueuePanel in v2.3.2. Scope chips appear at three levels:
+              the thread list (compact emoji hint), the thread header (aggregate distinct project/team badges across the thread),
+              and each individual relay (per-message chips). Mobile overlay matches desktop.
+            </p>
+
+            <div className="mb-6">
+              <h3 className="text-sm font-bold mb-3 text-brand-400">What Changed</h3>
+              <ul className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <li>• <strong className="text-[var(--text-primary)]">Thread list hint:</strong> compact folder emoji appears next to the message count if <em>any</em> relay in the thread carries a project/team scope — no-ops when scope is absent, so existing conversations look unchanged.</li>
+                <li>• <strong className="text-[var(--text-primary)]">Thread header aggregate chips:</strong> emerald project chips (📁) and sky team chips (👥) list the <em>distinct</em> scopes across the thread, with hover tooltips showing the full ID. The team chip is suppressed when the project already implies that team (inheritance-aware).</li>
+                <li>• <strong className="text-[var(--text-primary)]">Per-relay chips:</strong> each relay bubble shows its own scope chip inline with the sender label + direction + timestamp, so a thread that spans multiple projects is visually disambiguated message-by-message.</li>
+                <li>• <strong className="text-[var(--text-primary)]">Mobile overlay parity:</strong> the full-screen thread view on phones renders the same chips, in the same places, with the same color code.</li>
+                <li>• <strong className="text-[var(--text-primary)]">Scope context count in header meta line:</strong> “3 relays with this connection · 2 scoped contexts” — makes it obvious when a relationship is carrying multiple workstreams.</li>
+              </ul>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-sm font-bold mb-3 text-brand-400">Design Principles</h3>
+              <ul className="space-y-2 text-sm text-[var(--text-secondary)]">
+                <li>• <strong className="text-[var(--text-primary)]">Additive-only:</strong> no behavior change for unscoped relays. Chip renders iff the payload (or payload.<code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">_scope</code>) contains <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">projectId</code> or <code className="text-brand-300 bg-[var(--bg-tertiary)] px-1 rounded">teamId</code>.</li>
+                <li>• <strong className="text-[var(--text-primary)]">Color consistency:</strong> emerald for projects, sky for teams — matches the v2.3.2 QueuePanel and CommsTab implementations byte-for-byte.</li>
+                <li>• <strong className="text-[var(--text-primary)]">Last-6-char IDs:</strong> the visible chip shows the last 6 characters of the CUID, trading off uniqueness for compactness; tooltip reveals the full ID on hover. Matches the v2.3.2 QueuePanel convention.</li>
+                <li>• <strong className="text-[var(--text-primary)]">No network calls:</strong> the page already fetches relays with payload; we parse scope client-side. Zero new endpoints, zero new queries.</li>
+              </ul>
+            </div>
+
+            <div className="mb-6">
+              <h3 className="text-sm font-bold mb-3 text-brand-400">Files Touched</h3>
+              <ul className="space-y-1 text-xs font-mono text-[var(--text-secondary)]">
+                <li>• <code className="text-brand-300">src/app/dashboard/comms/page.tsx</code> — scope extraction + chip rendering in thread list, thread header, per-relay bubble, mobile overlay</li>
+              </ul>
+            </div>
+
+            <div className="p-4 bg-emerald-500/5 border border-emerald-500/20 rounded-lg">
+              <p className="text-xs text-emerald-300">
+                <strong>Continuity:</strong> v2.3.2 put scope on the wire. v2.3.3 makes it visible everywhere humans look at relays.
+                Next up (v2.3.4): the four-signal pattern extends from project invites to team invites — parallel surface, same invariants.
+              </p>
+            </div>
+
+            <div className="mt-4 flex items-center gap-3">
+              <a href="/docs/relay-spec#scope-resolution" className="text-xs text-brand-400 hover:text-brand-300">
+                → Relay spec §7.6 Scope resolution
+              </a>
+              <a href="/docs/federation" className="text-xs text-brand-400 hover:text-brand-300">
+                → Federation docs
+              </a>
+            </div>
+          </div>
+          <DocFooterDownload containerId="release-v2.3.3" filename="dividen-release-v2.3.3" lastUpdated="April 18, 2026" />
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 18, 2026 — v2.3.2 MULTI-TENANT RELAY WIRE                     */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v2.3.2" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
@@ -49,7 +123,6 @@ export default function ReleaseNotesPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs mb-2">
                   <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.2</span>
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
                   <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
                   <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Federation</span>
                   <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">Multi-Tenant</span>

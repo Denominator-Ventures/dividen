@@ -489,6 +489,8 @@ X-Federation-Token: <token-from-step-2.1>
               <FieldRow name="parentRelayId" type="string" description="Sender's ID of the parent relay. Receiver maps this to its local parent via peerRelayId." />
               <FieldRow name="attachments" type="array" description="Up to 10 attachment objects. Can also be nested inside payload.attachments. See §12." />
               <FieldRow name="callbackUrl" type="URL" description="Sender's `/api/federation/relay-ack` URL. Receiver uses this to push back completion acks." />
+              <FieldRow name="teamId" type="string" description="(v2.3.2) Sender's team ID — routing scope. Receiver validates against local Team rows; unknown IDs are dropped silently + echoed as `scopeDropped.teamId` in §7.4 response." />
+              <FieldRow name="projectId" type="string" description="(v2.3.2) Sender's project ID — routing scope. Receiver validates against local Project rows. If projectId resolves and has a teamId, it inherits as scope automatically." />
             </FieldTable>
           </SubSection>
 
@@ -518,7 +520,16 @@ X-Federation-Token: <token-from-step-2.1>
   "threadId": "clx...",         // echoed so sender can thread
   "parentRelayId": null,
   "attachmentCount": 0,
-  "fallback": false             // true if toUserEmail had no match, routed to connection owner
+  "fallback": false,            // true if toUserEmail had no match, routed to connection owner
+  // v2.3.2: scope echo
+  "scopeResolved": {            // what the receiver actually persisted
+    "teamId": "cm_recv_team_x", // null if no scope resolved or sent
+    "projectId": "cm_recv_proj_y"
+  },
+  "scopeDropped": {             // fields sender sent but receiver couldn't resolve locally
+    "teamId": null,             // null means no drop; string means the dropped ID
+    "projectId": null
+  }
 }
 
 // Idempotent duplicate
@@ -545,6 +556,46 @@ X-Federation-Token: <token-from-step-2.1>
               <li>Log activity.</li>
               <li>Respond 200 with receiver&apos;s <Inline>relayId</Inline> and <Inline>threadId</Inline>.</li>
             </ol>
+          </SubSection>
+
+          <SubSection title="7.6  Scope resolution (v2.3.2)">
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              When the sender includes <Inline>teamId</Inline> and/or <Inline>projectId</Inline> on the envelope, the receiver runs
+              a deterministic resolution step. Scope is <strong>advisory</strong>, not strict — an unresolvable ID never rejects
+              the relay. The receiver simply drops that field and echoes the drop.
+            </p>
+            <ol className="list-decimal list-inside text-sm text-[var(--text-secondary)] space-y-1 pl-2 mb-3">
+              <li>If <Inline>teamId</Inline> is present, look up <Inline>Team</Inline> by ID on the local instance. Drop if not found.</li>
+              <li>If <Inline>projectId</Inline> is present, look up <Inline>Project</Inline>. Drop if not found.</li>
+              <li>If <Inline>projectId</Inline> resolved and its <Inline>project.teamId</Inline> is set, and the sender did NOT provide a <Inline>teamId</Inline> (or we dropped it), inherit <Inline>project.teamId</Inline> as the scope team.</li>
+              <li>Persist the resolved values on the new <Inline>AgentRelay</Inline> row (<Inline>teamId</Inline>, <Inline>projectId</Inline>).</li>
+              <li>If the relay creates a <Inline>KanbanCard</Inline>, also persist <Inline>projectId</Inline> on the card (Kanban is project-scoped only — no teamId on card).</li>
+              <li>Echo <Inline>scopeResolved</Inline> + <Inline>scopeDropped</Inline> in the 200 response.</li>
+            </ol>
+            <p className="text-sm text-[var(--text-secondary)]">
+              Peers that don&apos;t implement scope continue to work unchanged — both fields are optional on the wire and
+              omitted fields skip the entire resolution step. A future <Inline>strictScope: true</Inline> flag on the connection
+              record will let operators opt in to bounce-on-drop behavior; it is NOT enabled by default.
+            </p>
+          </SubSection>
+
+          <SubSection title="7.7  Ambient gating with scope (v2.3.2)">
+            <p className="text-sm text-[var(--text-secondary)] mb-3">
+              The ambient filter table (see §10) now accepts object-form entries in addition to legacy topic strings:
+            </p>
+            <Code>{`// Legacy: opts-out of all "engineering" topic ambient
+ambientFilters: ["engineering"]
+
+// v2.3.2: opts-out only of ambient scoped to project cm_proj_xyz
+ambientFilters: [{ topic: "engineering", projectId: "cm_proj_xyz" }]
+
+// v2.3.2: opts-out of any ambient scoped to a specific team
+ambientFilters: [{ teamId: "cm_team_abc" }]`}</Code>
+            <p className="text-sm text-[var(--text-secondary)]">
+              When an object-form filter is used, ALL specified fields must match the incoming relay for the filter to
+              trigger. A filter of <Inline>{`{ topic: "eng", teamId: "X" }`}</Inline> only blocks ambient with BOTH topic=eng
+              AND teamId=X — narrower filtering, less bleed.
+            </p>
           </SubSection>
         </Section>
 
@@ -1039,6 +1090,7 @@ resolveRecipient(relay) → "you"`}</Code>
             <FieldRow name="v2.2" type="release" description="Attachments (max 10), threadId echo, flexible intents (ask, opinion, note, intro)." />
             <FieldRow name="v2.3" type="release" description="Loop prevention (idempotency guard + status stamp), RelayFootnote, dismiss endpoint, sender resolution, 7-rule ambient HOLD/weave system prompt." />
             <FieldRow name="v2.3.1" type="release" description="Project invites use intent='introduce' with payload.kind='project_invite' (§4.3). Duplicate guard (409 ALREADY_INVITED) + force:true reinvite. Every invite now emits ProjectInvite + QueueItem + AgentRelay + CommsMessage in one transaction." />
+            <FieldRow name="v2.3.2" type="release" description="Multi-tenant routing: top-level teamId/projectId on relay envelopes + notification envelopes (§7.2). Receiver runs scope resolution (§7.6) and echoes scopeResolved/scopeDropped in the response. Ambient gating accepts both string arrays and object-form filters (§7.7). Federated project invites now push via /api/federation/relay + /api/federation/notify (v2.3.1 wire gap closed)." />
           </FieldTable>
 
           <SubSection title="Compatibility rules">

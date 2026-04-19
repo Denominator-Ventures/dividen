@@ -611,7 +611,7 @@ X-DiviDen-Source: marketplace`}</Code>
             Cross-instance endpoints for federated DiviDen instances. All require <InlineCode>x-federation-token</InlineCode> or <InlineCode>Authorization: Bearer</InlineCode> header.
           </p>
           <div className="bg-[var(--bg-surface)] rounded-lg border border-white/[0.06] p-4 mb-6">
-            <Endpoint method="POST" path="/api/federation/relay" description="Send a relay message to this instance (v2.1.15: idempotent on peerRelayId, ambient gates, auto-Kanban for tasks)" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/relay" description="Send a relay message to this instance (v2.3.2: idempotent on peerRelayId, ambient gates, auto-Kanban for tasks, top-level teamId/projectId with scope resolution — see /docs/relay-spec#inbound)" auth="Federation" />
             <Endpoint method="GET" path="/api/federation/patterns" description="Export shareable ambient patterns" auth="API Key" />
             <Endpoint method="POST" path="/api/federation/patterns" description="Import patterns, reciprocate with local patterns" auth="API Key" />
             <Endpoint method="GET" path="/api/federation/jobs" description="List network-visible jobs for gossip" auth="Federation" />
@@ -623,7 +623,7 @@ X-DiviDen-Source: marketplace`}</Code>
             <Endpoint method="POST" path="/api/federation/mcp" description="Cross-instance MCP tool invocation (trust-gated)" auth="Federation" />
             <Endpoint method="POST" path="/api/federation/reputation" description="Portable reputation attestation exchange" auth="Federation" />
             <Endpoint method="GET" path="/api/federation/entity-search" description="Privacy-respecting cross-instance entity lookup" auth="Federation" />
-            <Endpoint method="POST" path="/api/federation/notifications" description="Push typed notifications (12 types) from federated instance" auth="Federation" />
+            <Endpoint method="POST" path="/api/federation/notifications" description="Push typed notifications (12 types) from federated instance (v2.3.2: accepts top-level teamId/projectId with scope resolution)" auth="Federation" />
             <Endpoint method="GET" path="/api/federation/mentions?prefix=jo" description="@mention autocomplete — prefix-search users (max 10)" auth="Federation" />
             <Endpoint method="POST" path="/api/federation/connect" description="Request a federation connection with a user" auth="Federation" />
             <Endpoint method="POST" path="/api/federation/connect/accept" description="Acceptance callback — fires when auto-accept is on (v2.1.6)" auth="Federation" />

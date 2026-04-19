@@ -929,7 +929,7 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
       post: {
         tags: ['Federation'],
         summary: 'Send federation relay (v2 proxy)',
-        description: 'Proxies to /api/federation/relay. Use X-Federation-Token header for auth. This endpoint exists for v2 protocol compatibility.',
+        description: 'Proxies to /api/federation/relay. Use X-Federation-Token header for auth. This endpoint exists for v2 protocol compatibility. v2.3.2: accepts top-level teamId/projectId with scope resolution on the receiver; response echoes scopeResolved + scopeDropped.',
         parameters: [
           { name: 'X-Federation-Token', in: 'header', required: true, schema: { type: 'string' }, description: 'Federation token from connection handshake' },
         ],
@@ -950,6 +950,8 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
                   subject: { type: 'string' },
                   payload: { type: 'object' },
                   priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
+                  teamId: { type: 'string', nullable: true, description: 'v2.3.2: sender-side team ID. Receiver runs scope resolution; dropped if unknown locally. Echoed in scopeResolved/scopeDropped.' },
+                  projectId: { type: 'string', nullable: true, description: 'v2.3.2: sender-side project ID. Receiver runs scope resolution; dropped if unknown locally. Project implies team (inheritance).' },
                 },
               },
             },
@@ -957,7 +959,7 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
         },
         responses: {
           '200': {
-            description: 'Relay accepted (v2.1.15: idempotent on peerRelayId, may return duplicate=true, ambient=true with filtered=true, or task=true with cardId)',
+            description: 'Relay accepted (v2.3.2: idempotent on peerRelayId, may return duplicate=true, ambient=true with filtered=true, task=true with cardId, and scopeResolved/scopeDropped objects)',
             content: {
               'application/json': {
                 examples: {
@@ -966,6 +968,8 @@ data: {"type":"wake","reason":"urgent_task","metadata":{...}}
                   ambientFiltered: { value: { success: true, ambient: true, filtered: true, reason: 'topic-filter | quiet-hours | ambient-disabled' } },
                   ambientAccepted: { value: { success: true, relayId: 'clx...', ambient: true, message: 'Ambient broadcast received' } },
                   fallback: { value: { success: true, relayId: 'clx...', fallback: true, message: 'Recipient unknown — surfaced to instance owner' } },
+                  scopeResolved: { value: { success: true, relayId: 'clx...', scopeResolved: { teamId: 'tm_local_abc', projectId: 'prj_local_xyz' }, scopeDropped: {}, message: 'Relay accepted with full scope' } },
+                  scopeDropped: { value: { success: true, relayId: 'clx...', scopeResolved: {}, scopeDropped: { teamId: 'tm_remote_def', projectId: 'prj_remote_ghi' }, message: 'Relay accepted; scope not resolvable locally' } },
                 },
               },
             },

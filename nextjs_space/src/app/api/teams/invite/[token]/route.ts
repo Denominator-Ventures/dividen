@@ -61,6 +61,50 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
         data: { status: 'declined', declinedAt: new Date() },
       });
 
+      // v2.3.4 — stamp AgentRelay with status='declined' and ack back to inviter
+      try {
+        const relays = await prisma.agentRelay.findMany({
+          where: {
+            teamId: invite.teamId,
+            intent: 'introduce',
+            status: 'pending',
+            payload: { contains: `"inviteId":"${invite.id}"` },
+          },
+          select: { id: true },
+        });
+        if (relays.length > 0) {
+          await prisma.agentRelay.updateMany({
+            where: { id: { in: relays.map(r => r.id) } },
+            data: { status: 'declined', resolvedAt: new Date() },
+          });
+        }
+
+        // Delete pending QueueItem
+        await prisma.queueItem.deleteMany({
+          where: {
+            userId,
+            kind: 'team_invite',
+            status: 'pending',
+            metadata: { contains: `"inviteId":"${invite.id}"` },
+          },
+        });
+
+        // Write decline CommsMessage to inviter
+        if (invite.inviterId) {
+          const declinerName = (session.user as any).name || (session.user as any).email || 'Someone';
+          await prisma.commsMessage.create({
+            data: {
+              userId: invite.inviterId,
+              sender: 'agent',
+              content: `❌ ${declinerName} declined your invite to team "${invite.team.name}".`,
+              metadata: JSON.stringify({ kind: 'team_invite_declined', inviteId: invite.id, teamId: invite.teamId, declinedBy: userId }),
+            },
+          });
+        }
+      } catch (e) {
+        console.error('v2.3.4 decline relay stamp failed:', e);
+      }
+
       await logActivity({
         userId,
         action: 'team_invite_declined',
@@ -116,6 +160,50 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
       summary: `Joined team "${invite.team.name}"`,
       metadata: { teamId: invite.teamId, inviteId: invite.id, role: member.role },
     }).catch(() => {});
+
+    // v2.3.4 — stamp AgentRelay with status='completed' and ack back to inviter
+    try {
+      const relays = await prisma.agentRelay.findMany({
+        where: {
+          teamId: invite.teamId,
+          intent: 'introduce',
+          status: 'pending',
+          payload: { contains: `"inviteId":"${invite.id}"` },
+        },
+        select: { id: true },
+      });
+      if (relays.length > 0) {
+        await prisma.agentRelay.updateMany({
+          where: { id: { in: relays.map(r => r.id) } },
+          data: { status: 'completed', resolvedAt: new Date() },
+        });
+      }
+
+      // Delete pending QueueItem
+      await prisma.queueItem.deleteMany({
+        where: {
+          userId,
+          kind: 'team_invite',
+          status: 'pending',
+          metadata: { contains: `"inviteId":"${invite.id}"` },
+        },
+      });
+
+      // Write acceptance CommsMessage to inviter
+      if (invite.inviterId) {
+        const accepterName = (session.user as any).name || (session.user as any).email || 'Someone';
+        await prisma.commsMessage.create({
+          data: {
+            userId: invite.inviterId,
+            sender: 'agent',
+            content: `✅ ${accepterName} accepted your invite to team "${invite.team.name}".`,
+            metadata: JSON.stringify({ kind: 'team_invite_accepted', inviteId: invite.id, teamId: invite.teamId, acceptedBy: userId, role: member.role }),
+          },
+        });
+      }
+    } catch (e) {
+      console.error('v2.3.4 accept relay stamp failed:', e);
+    }
 
     // Notify the inviter that their invite was accepted
     if (invite.inviterId) {
