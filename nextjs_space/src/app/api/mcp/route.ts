@@ -247,6 +247,8 @@ const TOOLS = [
         threadId: { type: 'string', description: 'Continue an existing thread (optional)' },
         parentRelayId: { type: 'string', description: 'Reply to a specific relay (optional)' },
         payload: { type: 'object', description: 'Structured data payload (optional)' },
+        teamId: { type: 'string', description: 'v2.3.2 — scope relay to a team (optional, multi-tenant routing)' },
+        projectId: { type: 'string', description: 'v2.3.2 — scope relay to a project (optional, multi-tenant routing)' },
       },
       required: ['connectionId', 'subject'],
     },
@@ -558,10 +560,13 @@ async function executeTool(toolName: string, args: any, userId: string) {
           priority: args.priority || 'normal',
           threadId,
           parentRelayId: args.parentRelayId || null,
+          // v2.3.2 — multi-tenant routing (agent tool can scope to team/project)
+          teamId: args.teamId || undefined,
+          projectId: args.projectId || undefined,
         },
       });
 
-      return { id: relay.id, threadId, subject: relay.subject, status: 'pending', message: 'Relay sent' };
+      return { id: relay.id, threadId, subject: relay.subject, status: 'pending', message: 'Relay sent', teamId: relay.teamId || null, projectId: relay.projectId || null };
     }
 
     case 'serendipity_matches': {

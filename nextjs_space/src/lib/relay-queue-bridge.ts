@@ -89,9 +89,9 @@ export async function syncRelayWithQueueCompletion(
 export async function createLinkedDispatch(
   userId: string,
   connectionId: string,
-  item: { id: string; title: string; description?: string | null; metadata?: string | null },
+  item: { id: string; title: string; description?: string | null; metadata?: string | null; teamId?: string | null; projectId?: string | null },
   toUserId?: string,
-  opts?: { widgets?: any[]; widgetResponseUrl?: string }
+  opts?: { widgets?: any[]; widgetResponseUrl?: string; teamId?: string | null; projectId?: string | null }
 ): Promise<{ relayId: string }> {
   // Build payload — include widget definitions if provided
   const payloadData: Record<string, any> = {
@@ -106,6 +106,10 @@ export async function createLinkedDispatch(
     payloadData.widgetResponseUrl = opts.widgetResponseUrl;
   }
 
+  // v2.3.2 — scope priority: explicit opts → queue item scope → none
+  const relayTeamId = opts?.teamId || item.teamId || undefined;
+  const relayProjectId = opts?.projectId || item.projectId || undefined;
+
   const relay = await prisma.agentRelay.create({
     data: {
       connectionId,
@@ -119,6 +123,8 @@ export async function createLinkedDispatch(
       status: 'pending',
       priority: 'normal',
       queueItemId: item.id,
+      teamId: relayTeamId,
+      projectId: relayProjectId,
     },
   });
 

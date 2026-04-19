@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const userId = (session.user as any).id;
     const body = await req.json();
 
-    const { connectionId, type, intent, subject, payload, priority, dueDate, parentRelayId } = body;
+    const { connectionId, type, intent, subject, payload, priority, dueDate, parentRelayId, teamId, projectId } = body;
 
     if (!connectionId || !type || !intent || !subject) {
       return NextResponse.json({ error: 'connectionId, type, intent, and subject are required' }, { status: 400 });
@@ -90,6 +90,18 @@ export async function POST(req: NextRequest) {
     // Determine the receiver
     const toUserId = connection.requesterId === userId ? connection.accepterId : connection.requesterId;
 
+    // v2.3.2 — validate scope rows exist (drop silently if not; advisory routing)
+    let scopedTeamId: string | null = null;
+    let scopedProjectId: string | null = null;
+    if (teamId) {
+      const t = await prisma.team.findUnique({ where: { id: String(teamId) }, select: { id: true } });
+      if (t) scopedTeamId = t.id;
+    }
+    if (projectId) {
+      const p = await prisma.project.findUnique({ where: { id: String(projectId) }, select: { id: true } });
+      if (p) scopedProjectId = p.id;
+    }
+
     const relay = await prisma.agentRelay.create({
       data: {
         connectionId,
@@ -105,6 +117,9 @@ export async function POST(req: NextRequest) {
         dueDate: dueDate ? new Date(dueDate) : null,
         parentRelayId: parentRelayId || null,
         peerInstanceUrl: connection.isFederated ? connection.peerInstanceUrl : null,
+        // v2.3.2 — multi-tenant routing fields
+        teamId: scopedTeamId || undefined,
+        projectId: scopedProjectId || undefined,
       },
       include: {
         connection: {

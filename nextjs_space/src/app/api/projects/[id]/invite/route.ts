@@ -180,7 +180,15 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let relayCreated: { id: string } | null = null;
   if (relayConnectionId) {
     try {
+      // v2.3.2 — Resolve whether this connection is federated so we can push the
+      // invite across the wire (including project scope).
+      const relayConn = await prisma.connection.findUnique({
+        where: { id: relayConnectionId },
+        select: { id: true, isFederated: true, peerInstanceUrl: true, peerUserEmail: true },
+      });
+
       const senderName = (session.user as any).name || (session.user as any).email || 'Someone';
+      const senderEmail = (session.user as any).email || '';
       const relaySubject = `Project invite: ${project.name}`;
       const relayPayload = {
         kind: 'project_invite',
@@ -195,21 +203,24 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         data: {
           connectionId: relayConnectionId,
           fromUserId: inviterId,
-          toUserId: inviteeId || null,
+          // Federated: no local toUserId (remote user has no local row)
+          toUserId: relayConn?.isFederated ? null : (inviteeId || null),
           direction: 'outbound',
           type: 'request',
           intent: 'introduce',
           subject: relaySubject,
           payload: JSON.stringify(relayPayload),
-          status: inviteeId ? 'delivered' : 'pending',
+          // Local invitees: delivered immediately; federated: pending until peer acks
+          status: relayConn?.isFederated ? 'pending' : (inviteeId ? 'delivered' : 'pending'),
           priority: 'normal',
           projectId: params.id,
+          peerInstanceUrl: relayConn?.isFederated ? relayConn.peerInstanceUrl : null,
         },
       });
       relayCreated = { id: relay.id };
 
-      // Also create a comms message for the invitee so their CommsTab/inbox lights up.
-      if (inviteeId) {
+      // Also create a comms message for the LOCAL invitee so their CommsTab/inbox lights up.
+      if (inviteeId && !relayConn?.isFederated) {
         await prisma.commsMessage.create({
           data: {
             sender: 'divi',
@@ -220,6 +231,46 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
             metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id, relayId: relay.id, projectId: params.id }),
           },
         });
+      }
+
+      // ── v2.3.2: Federation push — ship the invite across the wire ──
+      if (relayConn?.isFederated) {
+        const { pushRelayToFederatedInstance, pushNotificationToFederatedInstance } = await import('@/lib/federation-push');
+
+        // Push the relay (structured introduce) so the peer creates its mirror AgentRelay.
+        pushRelayToFederatedInstance(relayConn.id, {
+          relayId: relay.id,
+          fromUserEmail: senderEmail,
+          fromUserName: senderName,
+          fromUserId: inviterId,
+          toUserEmail: inviteeEmail || relayConn.peerUserEmail || '',
+          type: 'request',
+          intent: 'introduce',
+          subject: relaySubject,
+          payload: relayPayload,
+          priority: 'normal',
+          // v2.3.2 — multi-tenant routing on the wire
+          projectId: params.id,
+        }).catch(() => {});
+
+        // Also fire a notification so the peer's CommsTab surfaces immediately (parallel to relay).
+        pushNotificationToFederatedInstance(relayConn.id, {
+          type: 'project_invite',
+          fromUserName: senderName,
+          fromUserEmail: senderEmail,
+          title: relaySubject,
+          body: `${senderName} invited you to project "${project.name}" as ${role || 'contributor'}.${message ? ` — "${message}"` : ''}`,
+          metadata: {
+            inviteId: invite.id,
+            projectId: params.id,
+            projectName: project.name,
+            role: role || 'contributor',
+            message: message || null,
+            relayId: relay.id,
+          },
+          // v2.3.2 — scope on the notification
+          projectId: params.id,
+        }).catch(() => {});
       }
     } catch (relayErr: any) {
       // Don't fail the invite if relay/comms creation fails

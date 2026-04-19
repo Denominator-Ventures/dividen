@@ -37,9 +37,16 @@ function isWithinQuietHours(quietHours: any): boolean {
   } catch { return false; }
 }
 
+// v2.3.2 — filter entry can be a legacy string (topic match) OR a scoped object
+// { topic?, projectId?, teamId? }. All provided fields on the object must match the
+// inbound relay for the filter to trigger. This is additive — existing string
+// filters still work unchanged.
+type ScopedFilter = { topic?: string; projectId?: string; teamId?: string };
+
 async function checkAmbientInboundGate(
   userId: string,
   payload: any,
+  scope?: { teamId?: string | null; projectId?: string | null },
 ): Promise<AmbientGateResult> {
   const profile = await prisma.userProfile.findUnique({ where: { userId } });
   if (!profile) return { allow: true }; // No prefs set → allow by default
@@ -57,12 +64,35 @@ async function checkAmbientInboundGate(
     return { allow: false, reason: 'ambient_inbound_disabled' };
   }
 
-  // Topic filter gate
+  // Topic + scope filter gate
   const topic = payload?.topic || payload?._topic || null;
-  if (topic) {
-    const filters = parseJsonSafe<string[]>(profile.relayTopicFilters, []);
-    if (filters.some(f => String(f).toLowerCase() === String(topic).toLowerCase())) {
-      return { allow: false, reason: `topic_filtered:${topic}` };
+  const inboundProjectId = scope?.projectId || null;
+  const inboundTeamId = scope?.teamId || null;
+
+  const filtersRaw = parseJsonSafe<any[]>(profile.relayTopicFilters, []);
+  for (const f of filtersRaw) {
+    // Legacy string form — topic match only
+    if (typeof f === 'string') {
+      if (topic && String(f).toLowerCase() === String(topic).toLowerCase()) {
+        return { allow: false, reason: `topic_filtered:${topic}` };
+      }
+      continue;
+    }
+    // v2.3.2 scoped object form — all specified fields must match to trigger
+    if (f && typeof f === 'object') {
+      const sf: ScopedFilter = f;
+      const topicOk = !sf.topic || (topic && String(sf.topic).toLowerCase() === String(topic).toLowerCase());
+      const projectOk = !sf.projectId || (inboundProjectId && sf.projectId === inboundProjectId);
+      const teamOk = !sf.teamId || (inboundTeamId && sf.teamId === inboundTeamId);
+      // Require at least ONE scope field on the filter so "{}" doesn't block everything
+      const hasAnyScope = !!(sf.topic || sf.projectId || sf.teamId);
+      if (hasAnyScope && topicOk && projectOk && teamOk) {
+        const parts: string[] = [];
+        if (sf.topic) parts.push(`topic=${sf.topic}`);
+        if (sf.projectId) parts.push(`projectId=${sf.projectId}`);
+        if (sf.teamId) parts.push(`teamId=${sf.teamId}`);
+        return { allow: false, reason: `scope_filtered:${parts.join(',')}` };
+      }
     }
   }
 
@@ -105,6 +135,8 @@ export async function POST(req: NextRequest) {
       threadId: remoteThreadId,          // v2.2.0 / FVP Build 525 — inbound thread continuity
       parentRelayId: remoteParentRelayId,// v2.2.0 — who this relay is replying to
       attachments: bodyAttachments,      // v2.2.0 — FVP attachments passthrough
+      teamId: remoteTeamId,              // v2.3.2 — multi-tenant routing (receiver may drop if row doesn't exist locally)
+      projectId: remoteProjectId,        // v2.3.2 — multi-tenant routing
     } = body;
 
     // Find the local connection by federation token
@@ -183,9 +215,32 @@ export async function POST(req: NextRequest) {
     // Resolve the target user (local match or fallback to connection requester)
     const targetUserId = localUser?.id || connection.requesterId;
 
+    // ── v2.3.2: Multi-tenant scope resolution ──
+    // If the peer sent teamId/projectId, verify those rows exist locally.
+    // If they don't exist (e.g. the peer's project isn't mirrored here), we
+    // DROP the scope fields from the stored relay but still ingest the relay
+    // itself — multi-tenant routing is advisory, not authoritative.
+    let scopedTeamId: string | null = null;
+    let scopedProjectId: string | null = null;
+    if (remoteTeamId) {
+      const team = await prisma.team.findUnique({ where: { id: String(remoteTeamId) }, select: { id: true } });
+      if (team) scopedTeamId = team.id;
+    }
+    if (remoteProjectId) {
+      const project = await prisma.project.findUnique({ where: { id: String(remoteProjectId) }, select: { id: true, teamId: true } });
+      if (project) {
+        scopedProjectId = project.id;
+        // Project's teamId wins when both are present (consistency guard)
+        if (project.teamId && !scopedTeamId) scopedTeamId = project.teamId;
+      }
+    }
+
     // ── Ambient gating: check recipient preferences before ingesting ──
     if (isAmbient) {
-      const gate = await checkAmbientInboundGate(targetUserId, parsedPayload);
+      const gate = await checkAmbientInboundGate(targetUserId, parsedPayload, {
+        teamId: scopedTeamId,
+        projectId: scopedProjectId,
+      });
       if (gate.allow === false) {
         // FVP Build 522 §5: silent filter — return 200 but no record created
         return NextResponse.json({ ok: true, filtered: true, reason: gate.reason });
@@ -229,6 +284,9 @@ export async function POST(req: NextRequest) {
         peerInstanceUrl: connection.peerInstanceUrl,
         threadId: resolvedThreadId || undefined,
         parentRelayId: resolvedParentRelayId || undefined,
+        // v2.3.2 — multi-tenant routing (nulls are OK if peer didn't send or rows don't exist here)
+        teamId: scopedTeamId,
+        projectId: scopedProjectId,
       },
     });
 
@@ -270,6 +328,8 @@ export async function POST(req: NextRequest) {
             dueDate: dueDate ? new Date(dueDate) : null,
             sourceRelayId: relay.id,
             originUserId: null, // Remote user — no local row to link
+            // v2.3.2 — inherit project scope so the card lands on the right project board
+            projectId: scopedProjectId || undefined,
           },
         });
         kanbanCardId = card.id;
@@ -318,6 +378,9 @@ export async function POST(req: NextRequest) {
           threadId: resolvedThreadId || relay.id,
           parentRelayId: resolvedParentRelayId || null,
           attachments: attachments.length > 0 ? attachments : undefined,
+          // v2.3.2 — multi-tenant scope, null if peer didn't send or rows don't exist here
+          teamId: scopedTeamId,
+          projectId: scopedProjectId,
         }),
       },
     });
@@ -345,6 +408,14 @@ export async function POST(req: NextRequest) {
       parentRelayId: resolvedParentRelayId || null,
       attachmentCount: attachments.length,
       fallback: !localUser, // Tell FVP we couldn't route to the specified email
+      // v2.3.2 — echo back whatever scope we resolved. Peer can detect drops by
+      // comparing to what they sent (null here = row didn't exist locally).
+      teamId: scopedTeamId,
+      projectId: scopedProjectId,
+      scopeDropped: {
+        teamId: !!(remoteTeamId && !scopedTeamId),
+        projectId: !!(remoteProjectId && !scopedProjectId),
+      },
     });
   } catch (error: any) {
     console.error('POST /api/federation/relay error:', error);

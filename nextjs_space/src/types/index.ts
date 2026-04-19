@@ -126,6 +126,9 @@ export interface QueueItemData {
   metadata: string | null;
   createdAt: string;
   updatedAt: string;
+  // v2.3.2: multi-tenant scope
+  teamId?: string | null;
+  projectId?: string | null;
 }
 
 // ─── Chat Types ─────────────────────────────────────────────────────────────

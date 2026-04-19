@@ -211,6 +211,9 @@ async function executeTask(userId: string, item: any): Promise<{ executed: boole
           toUserId: connection.peerUserId || connection.accepterId || connection.requesterId,
           connectionId,
           queueItemId: item.id,
+          // v2.3.2 — carry queue-item scope onto the relay so federation propagates it
+          teamId: item.teamId || meta?.teamId || undefined,
+          projectId: item.projectId || meta?.projectId || undefined,
         },
       });
 

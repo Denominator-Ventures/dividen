@@ -1271,6 +1271,9 @@ export async function executeTag(
             parentRelayId: params.parentRelayId || null,
             peerInstanceUrl: connection.isFederated ? connection.peerInstanceUrl : null,
             cardId: params.cardId || null, // v2: Direct FK to source card if provided
+            // v2.3.2 — multi-tenant routing (caller supplies scope when relay is project/team-linked)
+            teamId: params.teamId || undefined,
+            projectId: params.projectId || undefined,
           },
         });
 
@@ -2030,6 +2033,9 @@ export async function executeTag(
                 status: 'ready',
                 source: 'agent',
                 userId,
+                // v2.3.2 — top-level scope on the queue item so dashboards and sequential dispatch can filter by project/team
+                teamId: routeTeamId || undefined,
+                projectId: routeProjectId || undefined,
                 metadata: JSON.stringify({
                   type: 'task_route',
                   // ── All data needed for dispatch to create relay + deliver ──
@@ -2052,6 +2058,9 @@ export async function executeTag(
                   matchScore: targetMatch.score,
                   matchReasoning: targetMatch.reasoning,
                   isAmbient: routeMode === 'ambient',
+                  // v2.3.2 — scope echoed into meta so executeTaskRouteDispatch can read it in one place
+                  teamId: routeTeamId || null,
+                  projectId: routeProjectId || null,
                 }),
               },
             });

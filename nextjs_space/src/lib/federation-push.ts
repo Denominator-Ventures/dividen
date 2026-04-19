@@ -33,6 +33,10 @@ export async function pushRelayToFederatedInstance(
     dueDate?: string | null;
     threadId?: string | null;
     parentRelayId?: string | null;
+    // v2.3.2 — Multi-tenant routing fields. If present, receiver scopes the relay
+    // and any surfaces derived from it (cards, comms) to the same project/team.
+    teamId?: string | null;
+    projectId?: string | null;
   }
 ): Promise<boolean> {
   try {
@@ -50,14 +54,19 @@ export async function pushRelayToFederatedInstance(
     // re-invocations of the same relay create duplicate peer records on the remote side.
     let threadId = payload.threadId || null;
     let parentRelayId = payload.parentRelayId || null;
+    // v2.3.2 — pull scope off the stored relay when the caller didn't supply it
+    let teamId = payload.teamId || null;
+    let projectId = payload.projectId || null;
     try {
       const localRelay = await prisma.agentRelay.findUnique({
         where: { id: payload.relayId },
-        select: { threadId: true, parentRelayId: true, peerRelayId: true, status: true },
+        select: { threadId: true, parentRelayId: true, peerRelayId: true, status: true, teamId: true, projectId: true },
       });
       if (localRelay) {
         threadId = threadId || localRelay.threadId;
         parentRelayId = parentRelayId || localRelay.parentRelayId;
+        teamId = teamId || localRelay.teamId;
+        projectId = projectId || localRelay.projectId;
         // Skip duplicate push
         if (localRelay.peerRelayId || localRelay.status === 'delivered' || localRelay.status === 'completed' || localRelay.status === 'declined') {
           console.log(`[federation-push] Skipping duplicate push for relay ${payload.relayId} (peerRelayId=${localRelay.peerRelayId}, status=${localRelay.status})`);
@@ -74,6 +83,9 @@ export async function pushRelayToFederatedInstance(
       ...payload,
       threadId,
       parentRelayId,
+      // v2.3.2 — multi-tenant routing fields on the wire
+      teamId,
+      projectId,
       toUserEmail: payload.toUserEmail || conn.peerUserEmail,
       callbackUrl: selfUrl ? `${selfUrl.replace(/\/$/, '')}/api/federation/relay-ack` : undefined,
     };
@@ -165,6 +177,9 @@ export async function pushRelayAckToFederatedInstance(
     subject: string;
     status: string;
     responsePayload: string | null;
+    // v2.3.2 — echo scope back so the originating side can correlate audit rows
+    teamId?: string | null;
+    projectId?: string | null;
   }
 ): Promise<boolean> {
   try {
@@ -192,6 +207,9 @@ export async function pushRelayAckToFederatedInstance(
         status: relay.status,         // 'completed' | 'declined'
         responsePayload: relay.responsePayload,
         subject: relay.subject,
+        // v2.3.2 — scope echo
+        teamId: relay.teamId || null,
+        projectId: relay.projectId || null,
         timestamp: new Date().toISOString(),
       }),
       signal: AbortSignal.timeout(10000),
@@ -226,6 +244,11 @@ export async function pushNotificationToFederatedInstance(
     title: string;
     body: string;
     metadata?: any;
+    // v2.3.2 — multi-tenant scope for federated notifications (e.g. project invites).
+    // When present, the receiver MUST persist the scope on any derived record
+    // (AgentRelay, CommsMessage) so it's discoverable in the project/team view.
+    teamId?: string | null;
+    projectId?: string | null;
   }
 ): Promise<boolean> {
   try {
@@ -247,6 +270,9 @@ export async function pushNotificationToFederatedInstance(
       title: notification.title,
       body: notification.body,
       metadata: notification.metadata || {},
+      // v2.3.2 — multi-tenant routing fields
+      teamId: notification.teamId || null,
+      projectId: notification.projectId || null,
       timestamp: new Date().toISOString(),
     };
 

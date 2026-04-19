@@ -139,6 +139,8 @@ export async function autoProposeTasks(
           }),
           status: 'pending',
           priority: job.urgency === 'critical' ? 'urgent' : 'normal',
+          // v2.3.2 — scope the relay to the poster's project so downstream surfaces inherit context
+          projectId: job.projectId || undefined,
         },
       });
 

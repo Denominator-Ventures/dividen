@@ -143,6 +143,9 @@ export async function executeTaskRouteDispatch(
     cardTitle,
     cardStatus,
     isAmbient,
+    // v2.3.2 — multi-tenant scope propagated from the queue item metadata
+    teamId: routeTeamId,
+    projectId: routeProjectId,
   } = meta;
 
   // Build relay payload
@@ -168,6 +171,9 @@ export async function executeTaskRouteDispatch(
       priority: taskPriority,
       cardId: cardId || undefined,
       queueItemId,
+      // v2.3.2 — multi-tenant routing so downstream surfaces (federation, peer card, comms filters) inherit scope
+      teamId: routeTeamId || undefined,
+      projectId: routeProjectId || undefined,
     },
   });
 
@@ -203,6 +209,8 @@ export async function executeTaskRouteDispatch(
       userId: targetUserId,
       originCardId: cardId || null,
       originUserId: userId,
+      // v2.3.2 — inherit project scope so recipient sees card under the right project board
+      projectId: routeProjectId || undefined,
     },
   });
   recipientCardId = recipientCard.id;
@@ -241,6 +249,9 @@ export async function executeTaskRouteDispatch(
     payload: relayPayload,
     priority: taskPriority,
     dueDate: taskDueDate || null,
+    // v2.3.2 — forward multi-tenant scope on the wire (push helper also hydrates from stored relay)
+    teamId: routeTeamId || null,
+    projectId: routeProjectId || null,
   }).catch(() => {}); // fire-and-forget
 
   // ── Step 3: Comms on sender side (tracking thread) ──
