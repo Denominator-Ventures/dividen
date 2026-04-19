@@ -58,17 +58,19 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
   initialInvites?: PendingInvite[];
 }) {
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
-  const [invites] = useState<PendingInvite[]>(initialInvites || []);
+  const [invites, setInvites] = useState<PendingInvite[]>(initialInvites || []);
   const [open, setOpen] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
   const [loadingConn, setLoadingConn] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedConnId, setSelectedConnId] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState('contributor');
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   // Fetch connections when add form opens
   const loadConnections = useCallback(async () => {
@@ -78,9 +80,10 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
       const res = await fetch('/api/connections?status=active');
       const data = await res.json();
       if (Array.isArray(data)) {
-        // Filter out connections already in members
+        // Filter out connections already in members or already invited
         const existingConnIds = new Set(members.filter(m => m.connection).map(m => m.connection!.id));
-        setConnections(data.filter((c: any) => !existingConnIds.has(c.id)).map((c: any) => ({
+        const invitedConnIds = new Set(invites.map(inv => inv.connection?.id).filter(Boolean));
+        setConnections(data.filter((c: any) => !existingConnIds.has(c.id) && !invitedConnIds.has(c.id)).map((c: any) => ({
           id: c.id,
           peerUserName: c.peerUserName,
           peerUserEmail: c.peerUserEmail,
@@ -88,10 +91,21 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
       }
     } catch { /* ignore */ }
     setLoadingConn(false);
-  }, [connections.length, members]);
+  }, [connections.length, members, invites]);
+
+  // Filtered connection list based on search
+  const filteredConnections = searchTerm.trim()
+    ? connections.filter(c => {
+        const q = searchTerm.toLowerCase();
+        return (c.peerUserName?.toLowerCase().includes(q) || c.peerUserEmail?.toLowerCase().includes(q));
+      })
+    : connections;
+
+  const selectedConn = connections.find(c => c.id === selectedConnId);
 
   const handleAdd = async () => {
     setError('');
+    setSuccessMsg('');
     if (!selectedConnId && !addEmail.trim()) {
       setError('Select a connection or enter an email');
       return;
@@ -102,23 +116,41 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
       if (selectedConnId) body.connectionId = selectedConnId;
       else body.email = addEmail.trim();
 
-      const res = await fetch(`/api/projects/${projectId}/members`, {
+      const res = await fetch(`/api/projects/${projectId}/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Failed to add member');
+        setError(data.error || 'Failed to send invite');
       } else {
-        setMembers(prev => [...prev, data]);
-        setShowAdd(false);
+        // Add a local pending invite entry so it shows immediately
+        const inv = data.invite;
+        const conn = selectedConnId ? connections.find(c => c.id === selectedConnId) : null;
+        setInvites(prev => [
+          ...prev,
+          {
+            id: inv.id,
+            role: inv.role || addRole,
+            inviteeEmail: inv.inviteeEmail || addEmail || null,
+            invitee: null,
+            connection: conn ? { id: conn.id, peerUserName: conn.peerUserName, peerUserEmail: conn.peerUserEmail } : null,
+          },
+        ]);
+        setSuccessMsg(data.message || 'Invite sent');
         setSelectedConnId('');
         setAddEmail('');
+        setSearchTerm('');
         // Remove from available connections
         if (selectedConnId) {
           setConnections(prev => prev.filter(c => c.id !== selectedConnId));
         }
+        // Refresh comms so the new relay shows up
+        window.dispatchEvent(new CustomEvent('dividen:comms-refresh'));
+        window.dispatchEvent(new CustomEvent('dividen:board-refresh'));
+        // Auto-close after a short delay
+        setTimeout(() => { setShowAdd(false); setSuccessMsg(''); }, 1400);
       }
     } catch (e: any) {
       setError(e.message);
@@ -239,36 +271,88 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
           ) : (
             <div className="space-y-2 p-2 rounded-lg bg-[var(--bg-tertiary)]">
               {error && <p className="text-xs text-red-400">{error}</p>}
+              {successMsg && <p className="text-xs text-green-400">{successMsg}</p>}
 
-              {/* Connection dropdown */}
+              {/* Connection search */}
               <div>
                 <label className="text-[10px] text-[var(--text-muted)] uppercase">From connections</label>
-                <select
-                  value={selectedConnId}
-                  onChange={e => { setSelectedConnId(e.target.value); if (e.target.value) setAddEmail(''); }}
-                  className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)]"
-                >
-                  <option value="">— select connection —</option>
-                  {loadingConn && <option disabled>Loading...</option>}
-                  {connections.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.peerUserName || c.peerUserEmail || c.id}
-                    </option>
-                  ))}
-                </select>
+                {!selectedConn ? (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Search by name or email"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                      className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                    />
+                    {loadingConn && (
+                      <div className="text-[10px] text-[var(--text-muted)] mt-1">Loading connections...</div>
+                    )}
+                    {!loadingConn && filteredConnections.length > 0 && (
+                      <div className="mt-1 max-h-40 overflow-y-auto rounded border border-[var(--border-primary)] bg-[var(--bg-secondary)] divide-y divide-[var(--border-primary)]">
+                        {filteredConnections.slice(0, 8).map(c => (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => { setSelectedConnId(c.id); setAddEmail(''); setSearchTerm(''); }}
+                            className="w-full text-left px-2 py-1.5 hover:bg-[var(--bg-tertiary)] flex items-center gap-2"
+                          >
+                            <div className="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[10px] font-medium flex-shrink-0">
+                              {((c.peerUserName || c.peerUserEmail || '?')[0] || '?').toUpperCase()}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs text-[var(--text-primary)] truncate">{c.peerUserName || c.peerUserEmail}</div>
+                              {c.peerUserName && c.peerUserEmail && (
+                                <div className="text-[10px] text-[var(--text-muted)] truncate">{c.peerUserEmail}</div>
+                              )}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {!loadingConn && connections.length === 0 && (
+                      <div className="text-[10px] text-[var(--text-muted)] mt-1">No available connections. Use email below.</div>
+                    )}
+                    {!loadingConn && searchTerm.trim() && filteredConnections.length === 0 && connections.length > 0 && (
+                      <div className="text-[10px] text-[var(--text-muted)] mt-1">No matches. Try a different search.</div>
+                    )}
+                  </>
+                ) : (
+                  <div className="mt-0.5 flex items-center gap-2 px-2 py-1.5 rounded bg-[var(--bg-secondary)] border border-[var(--accent)]/40">
+                    <div className="w-5 h-5 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center text-[10px] font-medium flex-shrink-0">
+                      {((selectedConn.peerUserName || selectedConn.peerUserEmail || '?')[0] || '?').toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs text-[var(--text-primary)] truncate">{selectedConn.peerUserName || selectedConn.peerUserEmail}</div>
+                      {selectedConn.peerUserName && selectedConn.peerUserEmail && (
+                        <div className="text-[10px] text-[var(--text-muted)] truncate">{selectedConn.peerUserEmail}</div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedConnId('')}
+                      className="text-xs text-[var(--text-muted)] hover:text-red-400 px-1"
+                      aria-label="Clear selection"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Or by email */}
-              <div>
-                <label className="text-[10px] text-[var(--text-muted)] uppercase">Or by email</label>
-                <input
-                  type="email"
-                  placeholder="user@example.com"
-                  value={addEmail}
-                  onChange={e => { setAddEmail(e.target.value); if (e.target.value) setSelectedConnId(''); }}
-                  className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
-                />
-              </div>
+              {!selectedConn && (
+                <div>
+                  <label className="text-[10px] text-[var(--text-muted)] uppercase">Or invite by email</label>
+                  <input
+                    type="email"
+                    placeholder="user@example.com"
+                    value={addEmail}
+                    onChange={e => { setAddEmail(e.target.value); if (e.target.value) setSelectedConnId(''); }}
+                    className="w-full mt-0.5 px-2 py-1.5 text-sm rounded bg-[var(--bg-secondary)] border border-[var(--border-primary)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)]"
+                  />
+                </div>
+              )}
 
               {/* Role */}
               <div>
@@ -290,10 +374,10 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
                   disabled={adding}
                   className="px-3 py-1 text-xs rounded bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-50"
                 >
-                  {adding ? 'Adding...' : 'Add'}
+                  {adding ? 'Sending...' : 'Send Invite'}
                 </button>
                 <button
-                  onClick={() => { setShowAdd(false); setError(''); }}
+                  onClick={() => { setShowAdd(false); setError(''); setSearchTerm(''); setSelectedConnId(''); setAddEmail(''); setSuccessMsg(''); }}
                   className="px-3 py-1 text-xs rounded text-[var(--text-muted)] hover:text-[var(--text-primary)]"
                 >
                   Cancel

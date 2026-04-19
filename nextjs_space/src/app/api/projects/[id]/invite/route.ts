@@ -96,7 +96,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     metadata: { projectId: params.id, inviteId: invite.id, inviteeId, connectionId },
   });
 
-  // Notification for invitee — activity log + queue item
+  // Notification for invitee — activity log + queue item + comms relay
   if (inviteeId) {
     logActivity({
       userId: inviteeId,
@@ -122,9 +122,77 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     });
   }
 
+  // ── Comms relay — surface the invite as a Divi→Divi event on both sides ──
+  // Find a connection between inviter and invitee so we can log the relay.
+  let relayConnectionId = connectionId || null;
+  if (!relayConnectionId && inviteeId) {
+    const conn = await prisma.connection.findFirst({
+      where: {
+        status: 'active',
+        OR: [
+          { requesterId: inviterId, accepterId: inviteeId },
+          { requesterId: inviteeId, accepterId: inviterId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (conn) relayConnectionId = conn.id;
+  }
+
+  let relayCreated: { id: string } | null = null;
+  if (relayConnectionId) {
+    try {
+      const senderName = (session.user as any).name || (session.user as any).email || 'Someone';
+      const relaySubject = `Project invite: ${project.name}`;
+      const relayPayload = {
+        kind: 'project_invite',
+        inviteId: invite.id,
+        projectId: params.id,
+        projectName: project.name,
+        role: role || 'contributor',
+        message: message || null,
+        inviterName: senderName,
+      };
+      const relay = await prisma.agentRelay.create({
+        data: {
+          connectionId: relayConnectionId,
+          fromUserId: inviterId,
+          toUserId: inviteeId || null,
+          direction: 'outbound',
+          type: 'request',
+          intent: 'introduce',
+          subject: relaySubject,
+          payload: JSON.stringify(relayPayload),
+          status: inviteeId ? 'delivered' : 'pending',
+          priority: 'normal',
+          projectId: params.id,
+        },
+      });
+      relayCreated = { id: relay.id };
+
+      // Also create a comms message for the invitee so their CommsTab/inbox lights up.
+      if (inviteeId) {
+        await prisma.commsMessage.create({
+          data: {
+            sender: 'divi',
+            content: `📡 ${senderName}'s Divi requested you join project "${project.name}" as ${role || 'contributor'}.${message ? ` — "${message}"` : ''}`,
+            state: 'new',
+            priority: 'normal',
+            userId: inviteeId,
+            metadata: JSON.stringify({ type: 'project_invite', inviteId: invite.id, relayId: relay.id, projectId: params.id }),
+          },
+        });
+      }
+    } catch (relayErr: any) {
+      // Don't fail the invite if relay/comms creation fails
+      console.warn('Failed to create relay/comms for project invite:', relayErr?.message);
+    }
+  }
+
   return NextResponse.json({
     success: true,
     invite,
+    relayId: relayCreated?.id || null,
     message: `Invite sent${inviteeId ? '' : ' (user not on DiviDen yet)'}.`,
   });
 }
