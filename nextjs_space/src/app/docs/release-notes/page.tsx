@@ -4,17 +4,17 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Release Notes',
-  description: 'DiviDen release notes — v2.3.0 Relay Protocol Overhaul: standardized component footnote, dismiss control, outbound loop prevention, and HOLD-and-weave ambient surfacing directives.',
+  description: 'DiviDen release notes — v2.3.2 Multi-Tenant Relay Wire: teamId/projectId propagate across the federation wire with gating, UI chips, and backward-compat preserved.',
   openGraph: {
     title: 'DiviDen Release Notes',
-    description: 'v2.3.0 — Relay Protocol Overhaul. v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
-    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.3.0+Relay+Protocol+Overhaul&tag=release', width: 1200, height: 630 }],
+    description: 'v2.3.2 — Multi-Tenant Relay Wire. v2.3.1 — Project Invites as Divi→Divi Comms. v2.3.0 — Relay Protocol Overhaul.',
+    images: [{ url: '/api/og?title=Release+Notes&subtitle=v2.3.2+Multi-Tenant+Relay+Wire&tag=release', width: 1200, height: 630 }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'DiviDen Release Notes',
-    description: 'v2.3.0 — Relay Protocol Overhaul. v2.2.1 — Relay Context Handling. v2.2.0 — Comms Threading & Bidirectional Federation.',
-    images: ['/api/og?title=Release+Notes&subtitle=v2.3.0+Relay+Protocol+Overhaul&tag=release'],
+    description: 'v2.3.2 — Multi-Tenant Relay Wire. v2.3.1 — Project Invites as Divi→Divi Comms. v2.3.0 — Relay Protocol Overhaul.',
+    images: ['/api/og?title=Release+Notes&subtitle=v2.3.2+Multi-Tenant+Relay+Wire&tag=release'],
   },
 };
 
@@ -40,6 +40,110 @@ export default function ReleaseNotesPage() {
           </p>
         </div>
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 18, 2026 — v2.3.2 MULTI-TENANT RELAY WIRE                     */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.3.2" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.2</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                  <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
+                  <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Federation</span>
+                  <span className="px-2 py-1 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">Multi-Tenant</span>
+                </div>
+                <h2 className="text-2xl font-bold font-heading">Multi-Tenant Routing Fields on the Relay Wire</h2>
+              </div>
+              <DocDownloadButton containerId="release-v2.3.2" filename="dividen-release-v2.3.2" variant="icon" />
+            </div>
+
+            <p className="text-[var(--text-secondary)] leading-relaxed mb-4">
+              <code className="code-inline">teamId</code> and <code className="code-inline">projectId</code> now ride every
+              relay payload end-to-end — outbound mutation → federation wire → inbound handler → persisted row → gating
+              cascade → UI chips. Federated project invites finally deliver cross-instance.
+              FVP (Build 522) unblocked.
+            </p>
+
+            <div className="space-y-4">
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🎯 What Changed on the Wire</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li><strong>Outbound (federation-push.ts)</strong> — <code className="code-inline">pushRelayToFederatedInstance</code>, <code className="code-inline">pushRelayAckToFederatedInstance</code>, and <code className="code-inline">pushNotificationToFederatedInstance</code> all accept optional <code className="code-inline">teamId</code> / <code className="code-inline">projectId</code>. Hydrated from the stored relay when not provided.</li>
+                  <li><strong>Inbound (POST /api/federation/relay)</strong> — destructures new fields, validates against local Team/Project rows, persists on AgentRelay + KanbanCard + CommsMessage metadata. Drops silently and echoes <code className="code-inline">scopeDropped</code> if peer sends unknown IDs.</li>
+                  <li><strong>Inbound (POST /api/federation/notifications)</strong> — same scope propagation, plus dual wire-shape support (<code className="code-inline">{`{type,title,body}`}</code> and legacy <code className="code-inline">{`{action,summary}`}</code>).</li>
+                  <li><strong>Ambient gates</strong> — filters now accept object form <code className="code-inline">{`{ topic?, projectId?, teamId? }`}</code>, all specified fields must match. Legacy string filters still work.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🧱 Every Relay Call Site Backfilled</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm font-mono">
+                  <li>lib/cos-sequential-dispatch.ts — relay case reads from item + meta</li>
+                  <li>lib/queue-dispatch.ts — executeTaskRouteDispatch propagates scope to relay + KanbanCard + push</li>
+                  <li>lib/action-tags.ts — relay_request + task_route top-level and in metadata JSON</li>
+                  <li>lib/relay-queue-bridge.ts — createLinkedDispatch accepts scope on item or opts</li>
+                  <li>lib/task-exchange.ts — projectId piped through from linked job</li>
+                  <li>POST /api/relays — validates and persists scope</li>
+                  <li>POST /api/mcp (relay_send) — new fields in input schema + output payload</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🩹 v2.3.1 Invite Gap, Closed</h3>
+                <p className="text-[var(--text-secondary)] text-sm">
+                  v2.3.1 emitted the four signals for local invitees but never pushed to federation for cross-instance ones.
+                  v2.3.2 calls <code className="code-inline">pushRelayToFederatedInstance</code> + <code className="code-inline">pushNotificationToFederatedInstance</code> with <code className="code-inline">projectId</code>,
+                  keeps the relay <code className="code-inline">pending</code> until peer ACKs, and skips local CommsMessage
+                  (peer owns their side). Symmetry restored.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🐛 Two Latent Bugs Fixed</h3>
+                <ul className="list-disc list-inside text-[var(--text-secondary)] space-y-1 text-sm">
+                  <li><strong>Wire-shape mismatch</strong> — <code className="code-inline">/api/federation/notifications</code> was pushing <code className="code-inline">{`{type,title,body}`}</code> but reading <code className="code-inline">{`{action,summary}`}</code>. Handler now accepts both.</li>
+                  <li><strong>Status enum violation</strong> — federated notifications created QueueItems with <code className="code-inline">status: &apos;open&apos;</code> which isn&apos;t valid. Now uses <code className="code-inline">status: &apos;ready&apos;</code>.</li>
+                </ul>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🎨 UI: Scope Chips</h3>
+                <p className="text-[var(--text-secondary)] text-sm">
+                  QueuePanel and CommsTab now render a compact scope badge in item metadata rows:{' '}
+                  <span className="inline-block px-1 py-px rounded font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px]">📁 abc123</span>
+                  {' '}for project, <span className="inline-block px-1 py-px rounded font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20 text-[10px]">👥 xyz789</span>
+                  {' '}for team. Last 6 chars of ID, tooltip shows full ID. Only rendered when scope exists.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">🔬 Verification Script</h3>
+                <pre className="text-xs bg-[var(--bg-secondary)] p-3 rounded border border-[var(--border)] overflow-x-auto">
+cd nextjs_space && npx tsx scripts/check_federation_scope.ts 100
+                </pre>
+                <p className="text-[var(--text-secondary)] text-sm mt-2">
+                  Walks the most recent N AgentRelay / QueueItem / KanbanCard rows and reports what fraction
+                  carry scope. Spot-check after any deploy that touches federation.
+                </p>
+              </section>
+
+              <section>
+                <h3 className="text-lg font-semibold mb-2">⬆️ Backward Compatibility</h3>
+                <p className="text-[var(--text-secondary)] text-sm">
+                  All changes are purely additive. Old peers that don&apos;t send <code className="code-inline">teamId</code> / <code className="code-inline">projectId</code> continue to work unchanged.
+                  No schema migration required on DiviDen side (columns were already present on <code className="code-inline">AgentRelay</code>, <code className="code-inline">QueueItem</code>, <code className="code-inline">KanbanCard</code>, <code className="code-inline">NetworkJob</code>).
+                  Peer instances can upgrade on their own schedule.
+                </p>
+              </section>
+            </div>
+
+            <DocFooterDownload containerId="release-v2.3.2" filename="dividen-release-v2.3.2" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 18, 2026 — v2.3.1 PROJECT INVITES AS DIVI→DIVI COMMS          */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v2.3.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
@@ -49,7 +153,6 @@ export default function ReleaseNotesPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs mb-2">
                   <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.3.1</span>
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
                   <span className="px-2 py-1 rounded bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border)]">April 18, 2026</span>
                   <span className="px-2 py-1 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">Projects</span>
                 </div>

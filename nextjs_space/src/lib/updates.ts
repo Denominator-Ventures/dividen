@@ -17,6 +17,86 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'multi-tenant-relay-wire-v2-3-2',
+    date: '2026-04-18',
+    time: '9:45 PM',
+    title: 'Multi-Tenant Routing Fields on the Relay Wire',
+    subtitle: 'teamId and projectId now ride every relay payload end-to-end — outbound mutation → federation wire → inbound handler → persisted row → gating cascade → UI chips. Federated project invites finally deliver cross-instance. FVP (Build 522) unblocked.',
+    tags: ['federation', 'relay', 'multi-tenant', 'projects', 'teams', 'v2.3.2'],
+    content: `v2.3.2. The v2.3.1 project-invite work proved the four-signal pattern for a single namespace. FVP needed the next obvious step: scope. Teams and projects had to propagate across the federation wire so routing, gating, and audit trails stayed coherent once more than one tenant started relaying through a single instance.
+
+## What Changed on the Wire
+
+Every outbound federation call now carries \`teamId?\` and \`projectId?\` as optional top-level fields alongside the existing relay payload:
+
+\`\`\`json
+{
+  "type": "relay",
+  "intent": "introduce",
+  "subject": "Project invite: Q2 Launch",
+  "teamId": "cm_team_xyz",
+  "projectId": "cm_proj_abc",
+  "payload": { "kind": "project_invite", "inviteId": "...", "role": "member" }
+}
+\`\`\`
+
+Three outbound functions in \`lib/federation-push.ts\` were extended: \`pushRelayToFederatedInstance\`, \`pushRelayAckToFederatedInstance\`, and \`pushNotificationToFederatedInstance\`. Each hydrates scope from the stored relay when the caller doesn't provide it directly.
+
+## What Changed at the Receiving End
+
+\`POST /api/federation/relay\` and \`POST /api/federation/notifications\` both destructure the new fields, validate them against local \`Team\` and \`Project\` rows, and persist scope on the resulting \`AgentRelay\`, \`KanbanCard\`, and \`QueueItem\` records. If the peer sends a scope that doesn't resolve locally — unknown team, unknown project — we drop the scope field silently but still ingest the relay, and echo \`scopeDropped: { teamId, projectId }\` in the response so the sender can detect the miss.
+
+The ambient-gate resolver was also extended. Old filter entries (plain topic strings) still work; new entries can be object form \`{ topic?, projectId?, teamId? }\` and all specified fields must match for the relay to land in ambient. Narrower gates, less bleed.
+
+## Backfill: Every Relay Call Site Carries Scope
+
+Every internal function that creates an \`AgentRelay\` was updated to read and persist \`teamId\` / \`projectId\` when available in context:
+
+- \`lib/cos-sequential-dispatch.ts\` — relay case reads from item + meta
+- \`lib/queue-dispatch.ts\` — \`executeTaskRouteDispatch\` persists scope on relay, recipient \`KanbanCard\`, and the federation push call
+- \`lib/action-tags.ts\` — \`relay_request\` and \`task_route\` both now carry scope at the top level and inside JSON metadata
+- \`lib/relay-queue-bridge.ts\` — \`createLinkedDispatch\` accepts scope on item or opts, with opts precedence
+- \`lib/task-exchange.ts\` — \`projectId\` piped through from the linked job
+- \`POST /api/relays\` — validates and persists scope
+- \`POST /api/mcp\` (\`relay_send\` tool) — new fields in input schema + output payload
+
+## The v2.3.1 Invite Gap, Closed
+
+v2.3.1 did the right thing for local invitees (four-signal: ProjectInvite + QueueItem + AgentRelay + CommsMessage) but **never pushed to federation** if the invitee was on another DiviDen instance. The relay stayed \`pending\` indefinitely — no visible error, just silently never-delivered.
+
+v2.3.2 fixes that. When \`POST /api/projects/[id]/invite\` detects a federated invitee (their connection has \`isFederated=true\` and a \`peerInstanceUrl\`), it now calls \`pushRelayToFederatedInstance\` + \`pushNotificationToFederatedInstance\` with \`projectId\`, leaves the relay in \`pending\` until the peer ACKs, and skips local \`CommsMessage\` creation (the peer owns that side of the conversation). The symmetry finally matches the local path.
+
+## Two Latent Bugs Fixed Along the Way
+
+While instrumenting \`/api/federation/notifications\` we found two bugs in the handler that predate v2.3.2:
+
+1. **Wire-shape mismatch** — outbound push sent \`{ type, title, body }\` but the handler was reading \`{ action, summary }\`. The handler now accepts both shapes and normalizes internally.
+2. **Status enum violation** — QueueItems created from federated notifications used \`status: 'open'\`, which isn't in the enum. They now use \`status: 'ready'\`, matching the rest of the system.
+
+## UI: Minimal Scope Chips
+
+The QueuePanel and CommsTab now render a compact scope badge in the item metadata row: 📁 for project, 👥 for team. Last six chars of the ID, tooltip shows the full ID. The chip is only rendered when scope exists — no visual cost for ungrouped items.
+
+## Verification Script
+
+\`scripts/check_federation_scope.ts\` walks the most recent AgentRelay / QueueItem / KanbanCard rows and reports what fraction carry scope, for spot-checking after deploys:
+
+\`\`\`
+cd nextjs_space && npx tsx scripts/check_federation_scope.ts 100
+\`\`\`
+
+## Backward Compatibility
+
+All three changes are purely additive. Old peers that don't send \`teamId\` / \`projectId\` continue to work unchanged — the fields are optional on both the outbound and inbound contracts, and every consumer uses \`??\` / truthy checks. No schema migration required on DiviDen side (the columns were already present on \`AgentRelay\`, \`QueueItem\`, \`KanbanCard\`, \`NetworkJob\` from a prior change). Peer instances can upgrade to v2.3.2 on their own schedule.
+
+## What This Unblocks
+
+FVP (Build 522) was waiting on exactly this shape for their Project-as-Team rollout. With v2.3.2, a relay from FVP tagged with their \`teamId\` + \`projectId\` round-trips cleanly into DiviDen — scoped, gated, persisted, visible on the right boards, audited symmetrically. Next up for us: v2.3.3 comms threading surface parity, then v2.3.4/5 four-signal extension to team invites and project role changes, then v2.4.0 HMAC enforcement and a full self-test suite.
+
+— Jon
+`
+  },
+  {
     id: 'project-invites-as-comms-v2-3-1',
     date: '2026-04-18',
     time: '6:30 PM',

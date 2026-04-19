@@ -216,6 +216,19 @@ export function CommsTab() {
     const icon = INTENT_ICONS[r.intent] || '\uD83D\uDCAC';
     const preview = getPreviewText(r, t.isOutbound);
     const tone: 'emerald' | 'purple' = t.isOutbound ? 'emerald' : 'purple';
+    // v2.3.2: extract scope from relay payload metadata
+    let scopeProjectId: string | null = null;
+    let scopeTeamId: string | null = null;
+    try {
+      const rAny = r as any;
+      scopeProjectId = rAny.projectId || null;
+      scopeTeamId = rAny.teamId || null;
+      if (!scopeProjectId && r.payload) {
+        const p = JSON.parse(r.payload);
+        scopeProjectId = p?.projectId || p?._scope?.projectId || null;
+        scopeTeamId = scopeTeamId || p?.teamId || p?._scope?.teamId || null;
+      }
+    } catch {}
 
     return (
       <Link
@@ -236,6 +249,17 @@ export function CommsTab() {
             {t.activeCount > 0 && (
               <span className="text-[8px] px-1 py-px rounded font-medium text-amber-400 bg-amber-500/10 flex-shrink-0">
                 {t.activeCount} active
+              </span>
+            )}
+            {/* v2.3.2: scope chips — project/team badges */}
+            {scopeProjectId && (
+              <span className="text-[8px] px-1 py-px rounded font-medium shrink-0 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`Project ${scopeProjectId}`}>
+                {'\uD83D\uDCC1 '}{scopeProjectId.slice(-6)}
+              </span>
+            )}
+            {scopeTeamId && !scopeProjectId && (
+              <span className="text-[8px] px-1 py-px rounded font-medium shrink-0 bg-sky-500/10 text-sky-400 border border-sky-500/20" title={`Team ${scopeTeamId}`}>
+                {'\uD83D\uDC65 '}{scopeTeamId.slice(-6)}
               </span>
             )}
             <span className="text-[8px] text-[var(--text-muted)] flex-shrink-0">

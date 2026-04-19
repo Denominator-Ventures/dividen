@@ -225,12 +225,12 @@ function QueueItemCard({
             {/* v2.3.2: scope chips — project/team badges */}
             {item.projectId && (
               <span className="text-[8px] px-1 py-px rounded font-medium shrink-0 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title={`Project ${item.projectId}`}>
-                \uD83D\uDCC1 {item.projectId.slice(-6)}
+                {'\uD83D\uDCC1 '}{item.projectId.slice(-6)}
               </span>
             )}
             {item.teamId && !item.projectId && (
               <span className="text-[8px] px-1 py-px rounded font-medium shrink-0 bg-sky-500/10 text-sky-400 border border-sky-500/20" title={`Team ${item.teamId}`}>
-                \uD83D\uDC65 {item.teamId.slice(-6)}
+                {'\uD83D\uDC65 '}{item.teamId.slice(-6)}
               </span>
             )}
             {capMeta?.capabilityType === 'email' && capMeta.recipient && (
