@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { userId: inviteeUserId, email, connectionId, role, message } = body;
+  const { userId: inviteeUserId, email, connectionId, role, message, force } = body;
 
   // Resolve invitee
   let inviteeId = inviteeUserId || null;
@@ -50,16 +50,54 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Check if already a member
   if (inviteeId) {
     const existing = project.members.find((m: any) => m.userId === inviteeId);
-    if (existing) return NextResponse.json({ error: 'User is already a project member' }, { status: 409 });
+    if (existing) return NextResponse.json({ error: 'User is already a project contributor' }, { status: 409 });
   }
 
   // Check if already invited (pending)
+  //   - If NOT force: block with 409 (tell UI to prompt "Resend invite?")
+  //   - If force: delete the old invite + its queue item, then create a fresh one.
+  let replacedInviteId: string | null = null;
   if (inviteeId) {
     const existingInvite = await prisma.projectInvite.findUnique({
       where: { projectId_inviteeId: { projectId: params.id, inviteeId } },
     });
     if (existingInvite && existingInvite.status === 'pending') {
-      return NextResponse.json({ error: 'Invite already pending for this user' }, { status: 409 });
+      if (!force) {
+        return NextResponse.json({
+          error: 'Invite already pending for this user',
+          code: 'ALREADY_INVITED',
+          inviteId: existingInvite.id,
+        }, { status: 409 });
+      }
+      // force-reinvite: wipe the old invite + any queue item so we don't duplicate
+      replacedInviteId = existingInvite.id;
+      try {
+        await prisma.queueItem.deleteMany({
+          where: {
+            userId: inviteeId,
+            projectId: params.id,
+            metadata: { contains: `"inviteId":"${existingInvite.id}"` },
+          },
+        });
+      } catch { /* non-fatal */ }
+      await prisma.projectInvite.delete({ where: { id: existingInvite.id } });
+    }
+  }
+  // Same guardrail for email-only invites (not yet on DiviDen)
+  if (!inviteeId && inviteeEmail) {
+    const existingByEmail = await prisma.projectInvite.findFirst({
+      where: { projectId: params.id, inviteeEmail, status: 'pending' },
+    });
+    if (existingByEmail) {
+      if (!force) {
+        return NextResponse.json({
+          error: 'Invite already pending for this email',
+          code: 'ALREADY_INVITED',
+          inviteId: existingByEmail.id,
+        }, { status: 409 });
+      }
+      replacedInviteId = existingByEmail.id;
+      await prisma.projectInvite.delete({ where: { id: existingByEmail.id } });
     }
   }
 
@@ -193,7 +231,10 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     success: true,
     invite,
     relayId: relayCreated?.id || null,
-    message: `Invite sent${inviteeId ? '' : ' (user not on DiviDen yet)'}.`,
+    replacedInviteId,
+    message: replacedInviteId
+      ? 'Invite re-sent.'
+      : `Invite sent${inviteeId ? '' : ' (user not on DiviDen yet)'}.`,
   });
 }
 

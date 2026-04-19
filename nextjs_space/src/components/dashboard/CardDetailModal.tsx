@@ -19,6 +19,7 @@ interface CardDetailModalProps {
   allCards?: KanbanCardData[];
   onMerged?: (targetCardId: string, deletedCardId: string) => void;
   onDiscuss?: (context: string) => void;
+  autoOpenContributors?: boolean;
 }
 
 const priorities: { id: CardPriority; label: string; color: string }[] = [
@@ -28,7 +29,7 @@ const priorities: { id: CardPriority; label: string; color: string }[] = [
   { id: 'urgent', label: 'Urgent', color: 'bg-red-600/30 text-red-400' },
 ];
 
-// ─── Members Section (project-linked cards) ─────────────────────────────────
+// ─── Contributors Section (project-linked cards) ──────────────────────────
 type MemberData = {
   id: string;
   role: string;
@@ -51,16 +52,17 @@ type ConnectionOption = {
   peerUserEmail: string | null;
 };
 
-function MembersSection({ projectId, projectName, initialMembers, initialInvites }: {
+function MembersSection({ projectId, projectName, initialMembers, initialInvites, autoOpen }: {
   projectId: string;
   projectName: string;
   initialMembers: MemberData[];
   initialInvites?: PendingInvite[];
+  autoOpen?: boolean;
 }) {
   const [members, setMembers] = useState<MemberData[]>(initialMembers);
   const [invites, setInvites] = useState<PendingInvite[]>(initialInvites || []);
-  const [open, setOpen] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
+  const [open, setOpen] = useState(!!autoOpen);
+  const [showAdd, setShowAdd] = useState(!!autoOpen);
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
   const [loadingConn, setLoadingConn] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -71,6 +73,8 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
   const [removing, setRemoving] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  // Reinvite prompt state: when server returns ALREADY_INVITED we stash { existingInviteId, body } and ask the user whether to resend.
+  const [pendingResend, setPendingResend] = useState<{ inviteId: string; body: any; label: string } | null>(null);
 
   // Fetch connections when add form opens
   const loadConnections = useCallback(async () => {
@@ -80,10 +84,9 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
       const res = await fetch('/api/connections?status=active');
       const data = await res.json();
       if (Array.isArray(data)) {
-        // Filter out connections already in members or already invited
+        // Filter out connections already active contributors
         const existingConnIds = new Set(members.filter(m => m.connection).map(m => m.connection!.id));
-        const invitedConnIds = new Set(invites.map(inv => inv.connection?.id).filter(Boolean));
-        setConnections(data.filter((c: any) => !existingConnIds.has(c.id) && !invitedConnIds.has(c.id)).map((c: any) => ({
+        setConnections(data.filter((c: any) => !existingConnIds.has(c.id)).map((c: any) => ({
           id: c.id,
           peerUserName: c.peerUserName,
           peerUserEmail: c.peerUserEmail,
@@ -91,7 +94,16 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
       }
     } catch { /* ignore */ }
     setLoadingConn(false);
-  }, [connections.length, members, invites]);
+  }, [connections.length, members]);
+
+  // Auto-load connections when autoOpen is triggered
+  useEffect(() => {
+    if (autoOpen) {
+      setOpen(true);
+      setShowAdd(true);
+      loadConnections();
+    }
+  }, [autoOpen, loadConnections]);
 
   // Filtered connection list based on search
   const filteredConnections = searchTerm.trim()
@@ -103,19 +115,11 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
 
   const selectedConn = connections.find(c => c.id === selectedConnId);
 
-  const handleAdd = async () => {
+  // Shared invite sender — accepts optional `force` to reinvite (delete old + create new)
+  const sendInvite = async (body: any, opts: { label?: string; replacePrevId?: string } = {}) => {
     setError('');
-    setSuccessMsg('');
-    if (!selectedConnId && !addEmail.trim()) {
-      setError('Select a connection or enter an email');
-      return;
-    }
     setAdding(true);
     try {
-      const body: any = { role: addRole };
-      if (selectedConnId) body.connectionId = selectedConnId;
-      else body.email = addEmail.trim();
-
       const res = await fetch(`/api/projects/${projectId}/invite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -123,39 +127,75 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Failed to send invite');
-      } else {
-        // Add a local pending invite entry so it shows immediately
-        const inv = data.invite;
-        const conn = selectedConnId ? connections.find(c => c.id === selectedConnId) : null;
-        setInvites(prev => [
-          ...prev,
+        // Duplicate pending invite — prompt the user to resend
+        if (res.status === 409 && data?.code === 'ALREADY_INVITED' && !body.force) {
+          setPendingResend({
+            inviteId: data.inviteId,
+            body,
+            label: opts.label || body.email || 'this contact',
+          });
+          setError('');
+        } else {
+          setError(data.error || 'Failed to send invite');
+        }
+        setAdding(false);
+        return;
+      }
+      const inv = data.invite;
+      const conn = body.connectionId ? connections.find(c => c.id === body.connectionId) : null;
+      setInvites(prev => {
+        const toReplace = opts.replacePrevId || data.replacedInviteId;
+        const filtered = toReplace ? prev.filter(p => p.id !== toReplace) : prev;
+        return [
+          ...filtered,
           {
             id: inv.id,
-            role: inv.role || addRole,
-            inviteeEmail: inv.inviteeEmail || addEmail || null,
+            role: inv.role || body.role || 'contributor',
+            inviteeEmail: inv.inviteeEmail || body.email || null,
             invitee: null,
             connection: conn ? { id: conn.id, peerUserName: conn.peerUserName, peerUserEmail: conn.peerUserEmail } : null,
           },
-        ]);
-        setSuccessMsg(data.message || 'Invite sent');
-        setSelectedConnId('');
-        setAddEmail('');
-        setSearchTerm('');
-        // Remove from available connections
-        if (selectedConnId) {
-          setConnections(prev => prev.filter(c => c.id !== selectedConnId));
-        }
-        // Refresh comms so the new relay shows up
-        window.dispatchEvent(new CustomEvent('dividen:comms-refresh'));
-        window.dispatchEvent(new CustomEvent('dividen:board-refresh'));
-        // Auto-close after a short delay
-        setTimeout(() => { setShowAdd(false); setSuccessMsg(''); }, 1400);
-      }
+        ];
+      });
+      setSuccessMsg(data.message || 'Invite sent');
+      setSelectedConnId('');
+      setAddEmail('');
+      setSearchTerm('');
+      setPendingResend(null);
+      // Refresh comms so the new relay shows up
+      window.dispatchEvent(new CustomEvent('dividen:comms-refresh'));
+      window.dispatchEvent(new CustomEvent('dividen:board-refresh'));
+      setTimeout(() => { setShowAdd(false); setSuccessMsg(''); }, 1400);
     } catch (e: any) {
       setError(e.message);
     }
     setAdding(false);
+  };
+
+  const handleAdd = async () => {
+    setError('');
+    setSuccessMsg('');
+    setPendingResend(null);
+    if (!selectedConnId && !addEmail.trim()) {
+      setError('Select a connection or enter an email');
+      return;
+    }
+    const selectedConnForLabel = selectedConnId ? connections.find(c => c.id === selectedConnId) : null;
+    const label = selectedConnForLabel?.peerUserName
+      || selectedConnForLabel?.peerUserEmail
+      || addEmail.trim();
+    const body: any = { role: addRole };
+    if (selectedConnId) body.connectionId = selectedConnId;
+    else body.email = addEmail.trim();
+    await sendInvite(body, { label });
+  };
+
+  const handleResend = async () => {
+    if (!pendingResend) return;
+    await sendInvite(
+      { ...pendingResend.body, force: true },
+      { label: pendingResend.label, replacePrevId: pendingResend.inviteId },
+    );
   };
 
   const handleRemove = async (memberId: string) => {
@@ -197,7 +237,7 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
         <label className="text-xs font-medium text-[var(--text-muted)] uppercase tracking-wider cursor-pointer">
-          Members
+          Contributors
         </label>
         <span className="text-xs text-[var(--text-muted)]">
           ({members.length}{invites.length > 0 ? ` + ${invites.length} pending` : ''})
@@ -266,12 +306,37 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
               onClick={() => { setShowAdd(true); loadConnections(); }}
               className="text-xs text-[var(--accent)] hover:underline"
             >
-              + Add member
+              + Add contributor
             </button>
           ) : (
             <div className="space-y-2 p-2 rounded-lg bg-[var(--bg-tertiary)]">
               {error && <p className="text-xs text-red-400">{error}</p>}
               {successMsg && <p className="text-xs text-green-400">{successMsg}</p>}
+              {pendingResend && (
+                <div className="p-2 rounded border border-amber-500/40 bg-amber-500/10 space-y-1.5">
+                  <p className="text-xs text-amber-300">
+                    <span className="font-semibold">{pendingResend.label}</span> already has a pending invite to this project.
+                  </p>
+                  <p className="text-[11px] text-amber-300/80">Resending will cancel the old invite and send a fresh one.</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleResend}
+                      disabled={adding}
+                      className="px-2.5 py-1 text-[11px] rounded bg-amber-500/80 hover:bg-amber-500 text-black font-medium disabled:opacity-50"
+                    >
+                      {adding ? 'Resending...' : 'Resend invite'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingResend(null)}
+                      className="px-2.5 py-1 text-[11px] rounded text-amber-300 hover:text-amber-200"
+                    >
+                      Keep existing
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Connection search */}
               <div>
@@ -391,7 +456,7 @@ function MembersSection({ projectId, projectName, initialMembers, initialInvites
   );
 }
 
-export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards, onMerged, onDiscuss }: CardDetailModalProps) {
+export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards, onMerged, onDiscuss, autoOpenContributors }: CardDetailModalProps) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
   const [status, setStatus] = useState<CardStatus>(card.status);
@@ -834,13 +899,14 @@ export function CardDetailModal({ card, onClose, onUpdated, onDeleted, allCards,
             </div>
           )}
 
-          {/* Members (only for project-linked cards) */}
+          {/* Contributors (only for project-linked cards) */}
           {card.project && (
             <MembersSection
               projectId={card.project.id}
               projectName={card.project.name}
               initialMembers={card.project.members}
               initialInvites={(card.project as any).projectInvites || []}
+              autoOpen={autoOpenContributors}
             />
           )}
 
