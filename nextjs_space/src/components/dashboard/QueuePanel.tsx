@@ -48,6 +48,19 @@ const capabilityIcons: Record<string, string> = {
   meetings: '📅',
 };
 
+// ─── Project invite metadata parser ──────────────────────────────────────────
+
+function parseProjectInviteMeta(metadata?: string | null): { inviteId: string; projectId?: string } | null {
+  if (!metadata) return null;
+  try {
+    const m = JSON.parse(metadata);
+    if (m?.type === 'project_invite' && m?.inviteId) {
+      return { inviteId: m.inviteId, projectId: m.projectId };
+    }
+    return null;
+  } catch { return null; }
+}
+
 // ─── Auto-categorization ────────────────────────────────────────────────────
 
 type QueueCategory = 'action' | 'notification' | 'relay' | 'fyi' | 'task';
@@ -84,6 +97,7 @@ function QueueItemCard({
   onSendToComms,
   onDiscuss,
   onEdit,
+  onProjectInviteAction,
 }: {
   item: QueueItemData;
   onStatusChange: (id: string, status: QueueItemStatus) => void;
@@ -91,6 +105,7 @@ function QueueItemCard({
   onSendToComms?: (id: string, title: string) => void;
   onDiscuss?: (context: string) => void;
   onEdit?: (id: string, data: { title?: string; description?: string; priority?: string }) => Promise<void>;
+  onProjectInviteAction?: (queueItemId: string, inviteId: string, action: 'accept' | 'decline') => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [editTitle, setEditTitle] = useState(item.title);
@@ -98,12 +113,15 @@ function QueueItemCard({
   const [editPriority, setEditPriority] = useState(item.priority);
   const [saving, setSaving] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
+  const [inviteProcessing, setInviteProcessing] = useState<'accept' | 'decline' | null>(null);
 
   const pi = priorityIndicator[item.priority] || priorityIndicator.medium;
   const cat = categorizeItem(item);
   const capMeta = parseCapabilityMeta(item.metadata);
   const isCapabilityAction = !!capMeta?.capabilityType;
   const capIcon = capMeta ? (capabilityIcons[capMeta.capabilityType || ''] || '⚡') : '';
+  const inviteMeta = parseProjectInviteMeta(item.metadata);
+  const isProjectInvite = !!inviteMeta && item.status === 'ready';
 
   // Parse smart prompter metadata
   const parsedMeta = (() => {
@@ -177,7 +195,9 @@ function QueueItemCard({
   return (
     <div className={cn(
       "group relative border-l-2 transition-colors",
-      isCapabilityAction
+      isProjectInvite
+        ? "border-l-amber-500/70 bg-amber-500/[0.04] hover:bg-amber-500/[0.07]"
+        : isCapabilityAction
         ? "border-l-[var(--brand-primary)]/50 hover:bg-[var(--brand-primary)]/[0.03]"
         : cat.category === 'relay' ? "border-l-purple-500/50 hover:bg-purple-500/[0.03]"
         : cat.category === 'action' ? "border-l-red-500/50 hover:bg-red-500/[0.03]"
@@ -245,6 +265,42 @@ function QueueItemCard({
           <button onClick={() => onStatusChange(item.id, 'done_today')} className="text-[9px] px-1.5 py-0.5 rounded bg-green-600/15 text-green-400 hover:bg-green-600/25 font-medium">\u2713 Approve</button>
           <button onClick={() => onStatusChange(item.id, 'in_progress')} className="text-[9px] px-1.5 py-0.5 rounded bg-blue-600/15 text-blue-400 hover:bg-blue-600/25 font-medium">\u270F\uFE0F Review</button>
           <button onClick={() => onStatusChange(item.id, 'blocked')} className="text-[9px] px-1.5 py-0.5 rounded bg-red-600/10 text-red-400/70 hover:bg-red-600/20 font-medium">\u2715 Skip</button>
+        </div>
+      )}
+
+      {/* Project invite action buttons — always visible, interactive notification */}
+      {isProjectInvite && inviteMeta && (
+        <div className="flex items-center gap-1.5 px-2 pb-2 pl-5">
+          <button
+            onClick={async () => {
+              if (!onProjectInviteAction || inviteProcessing) return;
+              setInviteProcessing('accept');
+              try {
+                await onProjectInviteAction(item.id, inviteMeta.inviteId, 'accept');
+              } finally {
+                setInviteProcessing(null);
+              }
+            }}
+            disabled={inviteProcessing !== null}
+            className="flex-1 text-[11px] px-2 py-1 rounded-md bg-green-500/15 text-green-400 border border-green-500/30 hover:bg-green-500/25 font-medium disabled:opacity-50 transition-colors"
+          >
+            {inviteProcessing === 'accept' ? 'Accepting…' : '\u2713 Accept'}
+          </button>
+          <button
+            onClick={async () => {
+              if (!onProjectInviteAction || inviteProcessing) return;
+              setInviteProcessing('decline');
+              try {
+                await onProjectInviteAction(item.id, inviteMeta.inviteId, 'decline');
+              } finally {
+                setInviteProcessing(null);
+              }
+            }}
+            disabled={inviteProcessing !== null}
+            className="flex-1 text-[11px] px-2 py-1 rounded-md bg-red-500/10 text-red-400 border border-red-500/25 hover:bg-red-500/20 font-medium disabled:opacity-50 transition-colors"
+          >
+            {inviteProcessing === 'decline' ? 'Declining…' : '\u2715 Decline'}
+          </button>
         </div>
       )}
 
@@ -598,17 +654,24 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
     };
   }, [fetchItems]);
 
-  // ─── Group by status ──────────────────────────────────────────────────
+  // ─── Pinned project invites (always on top until actioned) ────────────
+
+  const pinnedInvites = items.filter(
+    (i) => i.status === 'ready' && !!parseProjectInviteMeta(i.metadata)
+  );
+  const pinnedInviteIds = new Set(pinnedInvites.map((i) => i.id));
+
+  // ─── Group by status (excluding pinned invites which are rendered separately) ────
 
   const grouped = QUEUE_SECTIONS.reduce(
     (acc, sec) => {
-      acc[sec.id] = items.filter((i) => i.status === sec.id);
+      acc[sec.id] = items.filter((i) => i.status === sec.id && !pinnedInviteIds.has(i.id));
       return acc;
     },
     {} as Record<QueueItemStatus, QueueItemData[]>
   );
 
-  const readyCount = grouped.ready?.length ?? 0;
+  const readyCount = (grouped.ready?.length ?? 0) + pinnedInvites.length;
   const totalCount = items.length;
 
   // ─── Actions ──────────────────────────────────────────────────────────
@@ -713,6 +776,39 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
       await handleStatusChange(id, 'done_today');
     } catch (e) {
       console.error('Failed to send to comms:', e);
+    }
+  }
+
+  async function handleProjectInviteAction(queueItemId: string, inviteId: string, action: 'accept' | 'decline') {
+    try {
+      const res = await fetch('/api/project-invites', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ inviteId, action }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // Remove the queue item: accept → done_today (completed), decline → delete (no longer relevant)
+        if (action === 'accept') {
+          await fetch(`/api/queue/${queueItemId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'done_today' }),
+          }).catch(() => {});
+        } else {
+          await fetch(`/api/queue/${queueItemId}`, { method: 'DELETE' }).catch(() => {});
+        }
+        setItems((prev) => prev.filter((i) => i.id !== queueItemId));
+        emitSignal(`project_invite_${action}`, { itemId: queueItemId, inviteId });
+        // Refresh kanban board so the ghost avatar updates (or becomes solid on accept)
+        window.dispatchEvent(new CustomEvent('dividen:board-refresh'));
+        window.dispatchEvent(new CustomEvent('dividen:now-refresh'));
+        window.dispatchEvent(new CustomEvent('dividen:queue-refresh'));
+      } else {
+        console.warn('[QueuePanel] project invite action failed:', data);
+      }
+    } catch (err) {
+      console.error('[QueuePanel] project invite action error:', err);
     }
   }
 
@@ -942,6 +1038,33 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                 {showAddForm && (
                   <SmartTaskAssembly onAdd={handleAdd} onCancel={() => setShowAddForm(false)} />
                 )}
+
+                {/* Pinned project invites — stay at top until user responds */}
+                {pinnedInvites.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[11px]">📬</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-400">Pending Invites</span>
+                      <span className="text-[9px] bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded text-amber-400">{pinnedInvites.length}</span>
+                    </div>
+                    <div className="border border-amber-500/20 rounded-lg overflow-hidden divide-y divide-amber-500/15 bg-amber-500/[0.02]">
+                      {pinnedInvites.map((item) => (
+                        <div key={item.id} className="relative">
+                          <QueueItemCard
+                            item={item}
+                            onStatusChange={handleStatusChange}
+                            onDelete={handleDelete}
+                            onSendToComms={handleSendToComms}
+                            onDiscuss={onDiscuss}
+                            onEdit={handleEdit}
+                            onProjectInviteAction={handleProjectInviteAction}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {QUEUE_SECTIONS.map((section) => {
                   const sectionItems = grouped[section.id] || [];
                   if (sectionItems.length === 0) return null;
@@ -1013,7 +1136,7 @@ export function QueuePanel({ onNavigateToMarketplace, onNavigateToComms, onDiscu
                               </button>
                             )}
                             <div className={batchMode ? 'ml-5' : ''}>
-                              <QueueItemCard item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} onEdit={handleEdit} />
+                              <QueueItemCard item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onSendToComms={handleSendToComms} onDiscuss={onDiscuss} onEdit={handleEdit} onProjectInviteAction={handleProjectInviteAction} />
                             </div>
                           </div>
                         ))}
