@@ -29,13 +29,25 @@ export async function POST(req: NextRequest) {
     const rawBody = await req.text();
     const body = JSON.parse(rawBody);
     const {
-      relayId,        // Our local relay ID (the one we sent)
-      localRelayId,   // Remote instance's relay ID (informational)
-      status,         // 'completed' | 'declined'
+      relayId: bodyRelayId,   // Could be their relay ID (FVP convention) or our relay ID (DiviDen convention)
+      peerRelayId,            // FVP sends our relay ID here (v2.4.2 compat)
+      localRelayId,           // Remote instance's relay ID (informational — DiviDen convention)
+      status: rawStatus,      // 'completed' | 'declined' | 'accepted' (FVP sends 'accepted')
+      type: ackType,          // e.g. 'project_invite_response' (FVP Build 540+)
       responsePayload,
       subject,
       timestamp,
+      metadata,               // FVP includes { inviteId, connectionId, action, respondedAt }
     } = body;
+
+    // v2.4.2 — Cross-instance relay ID resolution:
+    // DiviDen convention: relayId = recipient's (our) relay ID
+    // FVP convention: relayId = their relay ID, peerRelayId = our relay ID
+    // Try peerRelayId first (FVP), then fall back to relayId (DiviDen), then metadata.inviteId
+    const relayId = peerRelayId || bodyRelayId || metadata?.inviteId;
+
+    // Normalize status: FVP sends 'accepted', DiviDen uses 'completed'
+    const status = rawStatus === 'accepted' ? 'completed' : rawStatus;
 
     if (!relayId || !status) {
       return NextResponse.json({ error: 'relayId and status are required' }, { status: 400 });
@@ -63,9 +75,16 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Find the local relay
-    const relay = await prisma.agentRelay.findUnique({ where: { id: relayId } });
+    // Find the local relay — try direct ID lookup first, then by peerRelayId field
+    let relay = await prisma.agentRelay.findUnique({ where: { id: relayId } });
+    if (!relay && bodyRelayId && bodyRelayId !== relayId) {
+      // FVP may have sent their relay ID as bodyRelayId — try looking up by peerRelayId field
+      relay = await prisma.agentRelay.findFirst({
+        where: { peerRelayId: bodyRelayId, connectionId: connection.id },
+      });
+    }
     if (!relay) {
+      console.warn(`[relay-ack] Relay not found: relayId=${relayId}, bodyRelayId=${bodyRelayId}, peerRelayId=${peerRelayId}`);
       return NextResponse.json({ error: 'Relay not found' }, { status: 404 });
     }
 
@@ -87,8 +106,9 @@ export async function POST(req: NextRequest) {
     } catch {}
 
     // ── 1. Update relay status ──
+    // Use relay.id (the resolved local record) — may differ from relayId if we matched via peerRelayId
     await prisma.agentRelay.update({
-      where: { id: relayId },
+      where: { id: relay.id },
       data: {
         status,
         responsePayload: responsePayload ? (typeof responsePayload === 'string' ? responsePayload : JSON.stringify(responsePayload)) : null,
@@ -102,8 +122,8 @@ export async function POST(req: NextRequest) {
       action: 'federation_relay_completed',
       summary: `📡 ${targetName} ${statusLabel} relay: "${relay.subject}"`,
       metadata: {
-        relayId,
-        remoteRelayId: localRelayId,
+        relayId: relay.id,
+        remoteRelayId: localRelayId || bodyRelayId,
         connectionId: connection.id,
         status,
         targetName,
@@ -112,21 +132,27 @@ export async function POST(req: NextRequest) {
     }).catch(() => {});
 
     // ── 3. Comms message to sender — response received, with target name ──
+    const isInviteResponse = ackType === 'project_invite_response';
+    const commsContent = isInviteResponse
+      ? `📡 ${targetName} ${status === 'completed' ? '✅ accepted' : '❌ declined'} the project invite: "${relay.subject}"`
+      : `📡 ${targetName} ${statusLabel} the task: "${relay.subject}"${responsePayload ? `\n\nResponse: ${typeof responsePayload === 'string' ? responsePayload : JSON.stringify(responsePayload)}` : ''}`;
+
     await prisma.commsMessage.create({
       data: {
         sender: 'divi',
-        content: `📡 ${targetName} ${statusLabel} the task: "${relay.subject}"${responsePayload ? `\n\nResponse: ${typeof responsePayload === 'string' ? responsePayload : JSON.stringify(responsePayload)}` : ''}`,
+        content: commsContent,
         state: 'new',
         priority: relay.priority || 'normal',
         userId: senderUserId,
         metadata: JSON.stringify({
-          type: 'federation_relay_completed',
-          relayId,
-          remoteRelayId: localRelayId,
+          type: isInviteResponse ? 'federation_invite_response' : 'federation_relay_completed',
+          relayId: relay.id,
+          remoteRelayId: localRelayId || bodyRelayId,
           status,
           targetName,
           connectionId: connection.id,
           peerInstanceUrl: connection.peerInstanceUrl,
+          ...(isInviteResponse ? { ackType, inviteId: metadata?.inviteId } : {}),
         }),
       },
     });
@@ -155,7 +181,7 @@ export async function POST(req: NextRequest) {
     if (isTerminal) {
       try {
         const linkedChecklist = await prisma.checklistItem.findFirst({
-          where: { sourceType: 'relay', sourceId: relayId },
+          where: { sourceType: 'relay', sourceId: relay.id },
         });
         if (linkedChecklist) {
           const newDelegationStatus = status === 'completed' ? 'completed' : 'declined';
@@ -170,11 +196,69 @@ export async function POST(req: NextRequest) {
       } catch {}
     }
 
-    // ── 6. Push relay state webhook (local webhook subscribers) ──
+    // ── 6. Project invite response — update ProjectInvite record (v2.4.2) ──
+    if (ackType === 'project_invite_response' && isTerminal) {
+      try {
+        // Find the ProjectInvite linked to this relay's connection
+        // The relay payload or metadata should reference the invite
+        const inviteId = metadata?.inviteId || relayId;
+        const invite = await prisma.projectInvite.findFirst({
+          where: {
+            OR: [
+              { id: inviteId },
+              // Fall back: find pending invite for this connection
+              { connectionId: connection.id, status: 'pending' },
+            ],
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+
+        if (invite && invite.status === 'pending') {
+          const newInviteStatus = status === 'completed' ? 'accepted' : 'declined';
+          await prisma.projectInvite.update({
+            where: { id: invite.id },
+            data: {
+              status: newInviteStatus,
+              acceptedAt: status === 'completed' ? new Date() : undefined,
+              declinedAt: status === 'declined' ? new Date() : undefined,
+            },
+          });
+          console.log(`[relay-ack] ProjectInvite ${invite.id} → ${newInviteStatus} (ack from ${targetName})`);
+
+          // If accepted, add as a project member (local user or federated connection)
+          if (status === 'completed') {
+            const memberWhere = invite.inviteeId
+              ? { projectId: invite.projectId, userId: invite.inviteeId }
+              : invite.connectionId
+              ? { projectId: invite.projectId, connectionId: invite.connectionId }
+              : null;
+
+            if (memberWhere) {
+              const existingMember = await prisma.projectMember.findFirst({ where: memberWhere });
+              if (!existingMember) {
+                await prisma.projectMember.create({
+                  data: {
+                    projectId: invite.projectId,
+                    userId: invite.inviteeId || undefined,
+                    connectionId: invite.connectionId || undefined,
+                    role: invite.role || 'contributor',
+                  },
+                });
+                console.log(`[relay-ack] Added member to project ${invite.projectId} (userId=${invite.inviteeId}, connectionId=${invite.connectionId})`);
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[relay-ack] ProjectInvite update failed:`, err?.message);
+      }
+    }
+
+    // ── 7. Push relay state webhook (local webhook subscribers) ──
     try {
       const { pushRelayStateChanged } = await import('@/lib/webhook-push');
       pushRelayStateChanged(senderUserId, {
-        relayId,
+        relayId: relay.id,
         threadId: relay.threadId,
         previousState: relay.status,
         newState: status,
@@ -183,7 +267,7 @@ export async function POST(req: NextRequest) {
       });
     } catch {}
 
-    return NextResponse.json({ success: true, relayId, status });
+    return NextResponse.json({ success: true, relayId: relay.id, status });
   } catch (error: any) {
     console.error('POST /api/federation/relay-ack error:', error);
     return NextResponse.json({ error: error.message || 'Relay ack failed' }, { status: 500 });
