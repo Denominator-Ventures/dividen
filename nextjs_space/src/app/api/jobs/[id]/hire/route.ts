@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   } catch {}
 
   // Start transaction: update job, create contract, create dual projects
-  const result = await prisma.$transaction(async (tx: any) => {
+  const result: any = await prisma.$transaction(async (tx: any) => {
     // Accept the application, reject others
     await tx.jobApplication.update({
       where: { id: application.id },
@@ -193,7 +193,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   // For flat-fee paid jobs with Stripe: create payment intent immediately
-  let paymentInfo = null;
+  let paymentInfo: any = null;
   if (isPaid && compType === 'flat' && compAmount && result.contract && stripe) {
     try {
       const user = await prisma.user.findUnique({ where: { id: userId } });

@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
 
     // Return the first incomplete task with its action config for direct widget triggering
     const firstTask = card.checklist.find((t: any) => !t.completed);
-    let firstTaskAction = null;
+    let firstTaskAction: any = null;
     if (firstTask) {
       const { getSetupTaskAction } = await import('@/lib/onboarding-project');
       firstTaskAction = getSetupTaskAction(firstTask.text) || null;

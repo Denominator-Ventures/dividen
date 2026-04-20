@@ -20,8 +20,8 @@ export async function GET(req: NextRequest) {
     const active = instances.filter((i) => i.isActive).length;
     const trusted = instances.filter((i) => i.isTrusted).length;
     const platformLinked = instances.filter((i) => i.platformLinked).length;
-    const totalUsers = instances.reduce((sum, i) => sum + (i.userCount || 0), 0);
-    const totalAgents = instances.reduce((sum, i) => sum + (i.agentCount || 0), 0);
+    const totalUsers = instances.reduce((sum: number, i: any) => sum + (i.userCount || 0), 0);
+    const totalAgents = instances.reduce((sum: number, i: any) => sum + (i.agentCount || 0), 0);
 
     return NextResponse.json({
       instances: instances.map((i) => ({

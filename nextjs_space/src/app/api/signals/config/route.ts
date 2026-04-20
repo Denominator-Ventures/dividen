@@ -15,7 +15,7 @@ export async function GET() {
 
     // Fetch existing configs
     const configs = await prisma.signalConfig.findMany({ where: { userId } });
-    const configMap = new Map(configs.map(c => [c.signalId, c]));
+    const configMap = new Map<string, any>(configs.map(c => [c.signalId, c]));
 
     // Fetch custom signals
     const customSignals = await prisma.customSignal.findMany({

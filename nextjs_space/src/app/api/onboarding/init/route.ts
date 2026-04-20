@@ -180,7 +180,7 @@ export async function POST(req: NextRequest) {
     );
 
     // ── Create tasks ──────────────────────────────────────────────────────
-    const createdTasks = [];
+    const createdTasks: any[] = [];
     for (const task of ONBOARDING_TASKS) {
       if (existingStepKeys.has(task.stepKey)) continue;
 

@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     // Check if completing these tasks auto-completes any cards
     const cardIds = [...new Set(matchingTasks.map(t => t.cardId))];
     for (const cardId of cardIds) {
-      await checkAndAutoCompleteCard(cardId, userId);
+      await checkAndAutoCompleteCard(cardId as string, userId);
     }
 
     // Find the next incomplete task
