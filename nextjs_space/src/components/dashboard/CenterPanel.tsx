@@ -19,7 +19,7 @@ import { MarketplaceView } from './MarketplaceView';
 import FederationIntelligenceView from './FederationIntelligenceView';
 import DiscoverView from './DiscoverView';
 import ProfileView from './ProfileView';
-import { CapabilitiesMarketplace } from './CapabilitiesMarketplace';
+// CapabilitiesMarketplace is now rendered inside MarketplaceView (Bubble Store)
 import { TriageButton } from './TriageButton';
 import { TAB_TO_SIGNAL, getSignalById } from '@/lib/signals';
 import { TabErrorBoundary } from './TabErrorBoundary';
@@ -57,7 +57,6 @@ const networkTabs: { id: CenterTab; label: string; icon: string }[] = [
   { id: 'connections', label: 'Connections', icon: '🔗' },
   { id: 'teams', label: 'Teams', icon: '🏢' },
   { id: 'jobs', label: 'Tasks', icon: '📋' },
-  { id: 'capabilities', label: 'Capabilities', icon: '⚡' },
   { id: 'federation', label: 'Federation Intel', icon: '🧠' },
 ];
 
@@ -254,9 +253,8 @@ export function CenterPanel({ activeTab, onTabChange, marketplacePrefill, onMark
         {activeTab === 'teams' && <TabErrorBoundary tabName="Teams"><TeamsView /></TabErrorBoundary>}
         {activeTab === 'goals' && <TabErrorBoundary tabName="Goals"><GoalsView /></TabErrorBoundary>}
         {activeTab === 'jobs' && <TabErrorBoundary tabName="Jobs"><JobBoardView /></TabErrorBoundary>}
-        {activeTab === 'marketplace' && <TabErrorBoundary tabName="Bubble Store"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} /></TabErrorBoundary>}
-        {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" /></TabErrorBoundary>}
-        {activeTab === 'capabilities' && <TabErrorBoundary tabName="Capabilities"><CapabilitiesMarketplace onStartGuidedChat={(msg) => { if (onChatWithPrefill) onChatWithPrefill(msg); else onTabChange('chat'); }} /></TabErrorBoundary>}
+        {(activeTab === 'marketplace' || activeTab === 'capabilities') && <TabErrorBoundary tabName="Bubble Store"><MarketplaceView prefillAgent={marketplacePrefill} onPrefillConsumed={onMarketplacePrefillConsumed} initialView={activeTab === 'capabilities' ? 'capabilities' : undefined} onStartGuidedChat={(msg) => { if (onChatWithPrefill) onChatWithPrefill(msg); else onTabChange('chat'); }} /></TabErrorBoundary>}
+        {activeTab === 'earnings' && <TabErrorBoundary tabName="Earnings"><MarketplaceView initialView="earnings" onStartGuidedChat={(msg) => { if (onChatWithPrefill) onChatWithPrefill(msg); else onTabChange('chat'); }} /></TabErrorBoundary>}
         {activeTab === 'federation' && <TabErrorBoundary tabName="Federation Intel"><FederationIntelligenceView /></TabErrorBoundary>}
         {activeTab === 'profile' && <TabErrorBoundary tabName="Profile"><ProfileView onClose={() => onTabChange('chat')} /></TabErrorBoundary>}
       </div>

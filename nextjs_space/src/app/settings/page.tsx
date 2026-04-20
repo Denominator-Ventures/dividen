@@ -586,7 +586,7 @@ function SettingsPageInner() {
                 href="/dashboard"
                 onClick={(e) => {
                   e.preventDefault();
-                  // Navigate to dashboard capabilities tab
+                  // Navigate to Bubble Store with Capabilities sub-view
                   window.location.href = '/dashboard?tab=capabilities';
                 }}
                 className="text-xs px-3 py-1.5 rounded-lg bg-brand-500/20 text-brand-400 hover:bg-brand-500/30 border border-brand-500/30 transition-colors whitespace-nowrap"

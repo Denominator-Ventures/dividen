@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { CapabilitiesMarketplace } from './CapabilitiesMarketplace';
 
 /* ── Types ─────────────────────────────────────────────────── */
 
@@ -106,7 +107,7 @@ interface EarningsData {
   recentExecutions?: any[];
 }
 
-type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents' | 'earnings';
+type ViewMode = 'browse' | 'detail' | 'register' | 'my_agents' | 'earnings' | 'capabilities';
 type EarningsTab = 'agent' | 'job';
 
 interface JobEarningsTotals {
@@ -133,6 +134,7 @@ interface MarketplaceViewProps {
   };
   onPrefillConsumed?: () => void;
   initialView?: ViewMode;
+  onStartGuidedChat?: (message: string) => void;
 }
 
 /* ── Constants ─────────────────────────────────────────────── */
@@ -175,7 +177,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 /* ── Component ─────────────────────────────────────────────── */
 
-export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }: MarketplaceViewProps = {}) {
+export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView, onStartGuidedChat }: MarketplaceViewProps = {}) {
   const [view, setView] = useState<ViewMode>(initialView || 'browse');
   const [agents, setAgents] = useState<MarketplaceAgent[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<MarketplaceAgent | null>(null);
@@ -2035,7 +2037,18 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
               )}
             >
-              Browse
+              Agents
+            </button>
+            <button
+              onClick={() => setView('capabilities')}
+              className={cn(
+                'px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                view === 'capabilities'
+                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                  : 'bg-white/5 text-white/50 hover:bg-white/10'
+              )}
+            >
+              Capabilities
             </button>
             <button
               onClick={() => setView('register')}
@@ -2046,7 +2059,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
               )}
             >
-              + List Agent
+              + List
             </button>
             {/* Earnings tab - always visible (job + agent earnings) */}
             <button
@@ -2058,7 +2071,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
                   : 'bg-white/5 text-white/50 hover:bg-white/10'
               )}
             >
-              💰 Earnings
+              {'\uD83D\uDCB0'} Earnings
             </button>
           </div>
         </div>
@@ -2070,6 +2083,7 @@ export function MarketplaceView({ prefillAgent, onPrefillConsumed, initialView }
         {view === 'detail' && renderDetail()}
         {view === 'register' && renderRegister()}
         {view === 'earnings' && renderEarnings()}
+        {view === 'capabilities' && <CapabilitiesMarketplace onStartGuidedChat={onStartGuidedChat} />}
       </div>
     </div>
   );
