@@ -130,6 +130,7 @@ export async function PATCH(req: NextRequest) {
     const project = await prisma.project.findUnique({ where: { id: invite.projectId }, select: { name: true } });
     const projectName = project?.name || 'a project';
     const userName = (session.user as any).name || (session.user as any).email;
+    const userEmail = (session.user as any).email;
 
     // Notify accepter
     logActivity({ userId, action: 'project_invite_accepted', summary: `Joined project "${projectName}"`, actor: 'user', metadata: { projectId: invite.projectId, inviteId } });
@@ -149,6 +150,69 @@ export async function PATCH(req: NextRequest) {
       }).catch(() => {});
     }
 
+    // v2.4.3 — Federation ack-back: if this invite came via a federated connection,
+    // push the acceptance back to the originating instance so they close the loop.
+    if (invite.connectionId) {
+      try {
+        const { pushRelayAckToFederatedInstance, pushNotificationToFederatedInstance } = await import('@/lib/federation-push');
+
+        // Find the AgentRelay linked to this invite (the inbound relay that carried it)
+        const linkedRelay = await prisma.agentRelay.findFirst({
+          where: {
+            connectionId: invite.connectionId,
+            OR: [
+              { id: inviteId }, // relay ID might match invite ID
+              { payload: { contains: inviteId } }, // invite ID in payload
+            ],
+            direction: 'inbound',
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, peerRelayId: true, peerInstanceUrl: true, connectionId: true, subject: true, status: true, teamId: true, projectId: true },
+        });
+
+        if (linkedRelay?.peerRelayId && linkedRelay?.peerInstanceUrl) {
+          // Push relay ack — closes the relay lifecycle on the peer side
+          pushRelayAckToFederatedInstance({
+            id: linkedRelay.id,
+            peerRelayId: linkedRelay.peerRelayId,
+            peerInstanceUrl: linkedRelay.peerInstanceUrl,
+            connectionId: linkedRelay.connectionId,
+            subject: linkedRelay.subject,
+            status: 'completed',
+            responsePayload: JSON.stringify({ action: 'accepted', projectName, role: invite.role }),
+            teamId: linkedRelay.teamId,
+            projectId: linkedRelay.projectId,
+          }).catch(() => {});
+
+          // Update relay status locally
+          await prisma.agentRelay.update({
+            where: { id: linkedRelay.id },
+            data: { status: 'completed', resolvedAt: new Date() },
+          }).catch(() => {});
+        }
+
+        // Also push a notification so peer's 542.2 handler can process it
+        pushNotificationToFederatedInstance(invite.connectionId, {
+          type: 'project_invite_accepted',
+          fromUserName: userName,
+          fromUserEmail: userEmail,
+          title: `Project invite accepted`,
+          body: `${userName} accepted your invite to project "${projectName}" as ${invite.role || 'contributor'}.`,
+          metadata: {
+            inviteId,
+            projectId: invite.projectId,
+            projectName,
+            role: invite.role,
+            acceptedByName: userName,
+            acceptedByEmail: userEmail,
+          },
+          projectId: invite.projectId,
+        }).catch(() => {});
+      } catch (fedErr: any) {
+        console.warn('[project-invites] Federation ack-back failed:', fedErr?.message);
+      }
+    }
+
     return NextResponse.json({ success: true, message: 'Invite accepted — you are now a project member.' });
   } else {
     // Decline
@@ -159,6 +223,7 @@ export async function PATCH(req: NextRequest) {
 
     const project = await prisma.project.findUnique({ where: { id: invite.projectId }, select: { name: true } });
     const declineName = (session.user as any).name || (session.user as any).email;
+    const declineEmail = (session.user as any).email;
     logActivity({ userId, action: 'project_invite_declined', summary: `Declined invite to "${project?.name || 'a project'}"`, actor: 'user', metadata: { projectId: invite.projectId, inviteId } });
     // Notify inviter via comms
     if (invite.inviterId) {
@@ -172,6 +237,63 @@ export async function PATCH(req: NextRequest) {
           metadata: JSON.stringify({ type: 'project_invite_declined', projectId: invite.projectId, inviteId }),
         },
       }).catch(() => {});
+    }
+
+    // v2.4.3 — Federation ack-back for decline
+    if (invite.connectionId) {
+      try {
+        const { pushRelayAckToFederatedInstance, pushNotificationToFederatedInstance } = await import('@/lib/federation-push');
+
+        const linkedRelay = await prisma.agentRelay.findFirst({
+          where: {
+            connectionId: invite.connectionId,
+            OR: [
+              { id: inviteId },
+              { payload: { contains: inviteId } },
+            ],
+            direction: 'inbound',
+          },
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, peerRelayId: true, peerInstanceUrl: true, connectionId: true, subject: true, status: true, teamId: true, projectId: true },
+        });
+
+        if (linkedRelay?.peerRelayId && linkedRelay?.peerInstanceUrl) {
+          pushRelayAckToFederatedInstance({
+            id: linkedRelay.id,
+            peerRelayId: linkedRelay.peerRelayId,
+            peerInstanceUrl: linkedRelay.peerInstanceUrl,
+            connectionId: linkedRelay.connectionId,
+            subject: linkedRelay.subject,
+            status: 'declined',
+            responsePayload: JSON.stringify({ action: 'declined', projectName: project?.name }),
+            teamId: linkedRelay.teamId,
+            projectId: linkedRelay.projectId,
+          }).catch(() => {});
+
+          await prisma.agentRelay.update({
+            where: { id: linkedRelay.id },
+            data: { status: 'declined', resolvedAt: new Date() },
+          }).catch(() => {});
+        }
+
+        pushNotificationToFederatedInstance(invite.connectionId, {
+          type: 'project_invite_declined',
+          fromUserName: declineName,
+          fromUserEmail: declineEmail,
+          title: `Project invite declined`,
+          body: `${declineName} declined your invite to project "${project?.name || 'a project'}".`,
+          metadata: {
+            inviteId,
+            projectId: invite.projectId,
+            projectName: project?.name,
+            declinedByName: declineName,
+            declinedByEmail: declineEmail,
+          },
+          projectId: invite.projectId,
+        }).catch(() => {});
+      } catch (fedErr: any) {
+        console.warn('[project-invites] Federation decline ack-back failed:', fedErr?.message);
+      }
     }
 
     return NextResponse.json({ success: true, message: 'Invite declined.' });
