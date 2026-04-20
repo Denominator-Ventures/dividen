@@ -41,15 +41,14 @@ export async function GET(req: NextRequest) {
 
     // ── People ──────────────────────────────────────────────────
     if (section === 'all' || section === 'people') {
+      const profileIs: any = { visibility: { not: 'private' } };
+      if (capacity) {
+        profileIs.capacity = capacity;
+      }
       const where: any = {
         id: { not: userId },
-        profile: { isNot: null, visibility: { not: 'private' } },
+        profile: { isNot: null, is: profileIs },
       };
-
-      // Filters applied via post-query since skills/industry are JSON strings
-      if (capacity) {
-        where.profile = { ...where.profile, capacity };
-      }
 
       const users = await prisma.user.findMany({
         where,

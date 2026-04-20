@@ -40,6 +40,34 @@ export default function ReleaseNotesPage() {
           </p>
         </div>
         {/* ═══════════════════════════════════════════════════════════════════ */}
+        {/* APRIL 20, 2026 — v2.4.1 INBOX CONTEXT FIX + DISCOVER BUG FIX     */}
+        {/* ═══════════════════════════════════════════════════════════════════ */}
+        <div id="release-v2.4.1" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-brand-500/8 to-transparent pointer-events-none" />
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <div className="flex items-center gap-2 text-xs mb-2">
+                  <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.4.1</span>
+                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
+                </div>
+                <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Inbox Context Fix + Discover Bug Fix</h2>
+                <p className="text-sm text-[var(--text-muted)] mt-1">Divi now has inbox context when you ask about email, even if all messages are read.</p>
+              </div>
+              <DocDownloadButton containerId="release-v2.4.1" filename="dividen-release-v2.4.1" variant="icon" />
+            </div>
+            <p className="text-xs text-[var(--text-muted)] mb-4">April 20, 2026</p>
+            <div className="space-y-3 text-sm text-[var(--text-secondary)] leading-relaxed">
+              <p>Spotted during Andre{'\u2019'}s onboarding: Divi couldn{'\u2019'}t access inbox context after connecting Google. Two root causes fixed:</p>
+              <p><strong className="text-[var(--text-primary)]">1. Signal gating bug</strong> {'\u2014'} Inbox data was only injected into the system prompt when the <code className="code-inline">schedule</code> signal fired (calendar keywords). Asking {'\u201C'}what{'\u2019'}s in my inbox{'\u201D'} triggered <code className="code-inline">capabilities_triage</code> instead {'\u2014'} which loaded triage <em>instructions</em> but not the actual <em>email data</em>. Fixed: inbox context now loads when either signal is relevant.</p>
+              <p><strong className="text-[var(--text-primary)]">2. Read-only inbox</strong> {'\u2014'} The system prompt only showed unread emails. If you{'\u2019'}re a zero-inbox person, Divi saw nothing. Fixed: now fetches the 10 most recent emails regardless of read status, deduped against unread.</p>
+              <p><strong className="text-[var(--text-primary)]">3. Discover page crash</strong> {'\u2014'} <code className="code-inline">/api/discover</code> was failing with a Prisma validation error: <code className="code-inline">visibility</code> was incorrectly nested in the profile relation filter.</p>
+            </div>
+            <DocFooterDownload containerId="release-v2.4.1" filename="dividen-release-v2.4.1" lastUpdated="April 20, 2026" />
+          </div>
+        </div>
+
+        {/* ═══════════════════════════════════════════════════════════════════ */}
         {/* APRIL 19, 2026 — v2.4.0 HMAC ENFORCEMENT + SELF-TEST SUITE       */}
         {/* ═══════════════════════════════════════════════════════════════════ */}
         <div id="release-v2.4.0" className="mb-16 p-6 bg-[var(--bg-surface)] border border-brand-500/40 rounded-xl relative overflow-hidden">
@@ -49,7 +77,6 @@ export default function ReleaseNotesPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs mb-2">
                   <span className="px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20">Platform: v2.4.0</span>
-                  <span className="px-2 py-1 rounded bg-green-500/10 text-green-400 border border-green-500/20">LATEST</span>
                 </div>
                 <h2 className="text-2xl font-semibold text-[var(--text-primary)]">HMAC Enforcement + Self-Test Suite</h2>
                 <p className="text-sm text-[var(--text-muted)] mt-1">Feature-flagged HMAC-SHA256 signing for all federation payloads, with a 13-point self-test suite.</p>

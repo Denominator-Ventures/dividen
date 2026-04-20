@@ -168,6 +168,7 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
     recentMessages,
     contacts,
     unreadEmails,
+    recentEmails,
     connections,
     myChecklistTasks,
   ] = await Promise.all([
@@ -207,6 +208,13 @@ export async function buildSystemPrompt(ctx: PromptContext): Promise<string> {
       where: { userId, isRead: false },
       orderBy: { receivedAt: 'desc' },
       take: 5,
+    }),
+    // Recent emails (read or unread) for general inbox context
+    prisma.emailMessage.findMany({
+      where: { userId },
+      orderBy: { receivedAt: 'desc' },
+      take: 10,
+      select: { id: true, subject: true, fromName: true, fromEmail: true, snippet: true, isRead: true, isStarred: true, receivedAt: true },
     }),
     prisma.connection.findMany({
       where: {
@@ -524,29 +532,56 @@ Your humor is dry and understated. You are culturally aware and socially fluent 
     }
   }
 
-  // ── Group 6: Calendar & Inbox (merged old 12+13) ──
+  // ── Group 6: Calendar & Inbox ──
+  // Load when schedule OR triage is relevant (inbox questions trigger triage, not schedule)
   let group6 = '';
-  if (relevantGroups.has('schedule')) {
-    const nextWeek = new Date(now); nextWeek.setDate(nextWeek.getDate() + 7);
-    const events = await prisma.calendarEvent.findMany({
-      where: { userId, startTime: { gte: now, lte: nextWeek } },
-      orderBy: { startTime: 'asc' },
-      take: 15,
-    });
+  const needsSchedule = relevantGroups.has('schedule');
+  const needsInbox = relevantGroups.has('capabilities_triage') || relevantGroups.has('schedule');
+  if (needsSchedule || needsInbox) {
     group6 = '## Schedule & Inbox\n';
-    if (events.length > 0) {
-      group6 += `### Calendar (next 7 days — ${events.length} events)\n`;
-      group6 += events.map((e: any) => {
-        const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-        const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        return `- ${day} ${time}: "${e.title}"${e.location ? ` @ ${e.location}` : ''}`;
-      }).join('\n') + '\n';
-    } else {
-      group6 += 'No upcoming events.\n';
+
+    // Calendar section — only when schedule is relevant
+    if (needsSchedule) {
+      const nextWeek = new Date(now); nextWeek.setDate(nextWeek.getDate() + 7);
+      const events = await prisma.calendarEvent.findMany({
+        where: { userId, startTime: { gte: now, lte: nextWeek } },
+        orderBy: { startTime: 'asc' },
+        take: 15,
+      });
+      if (events.length > 0) {
+        group6 += `### Calendar (next 7 days — ${events.length} events)\n`;
+        group6 += events.map((e: any) => {
+          const day = e.startTime.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          const time = e.startTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+          return `- ${day} ${time}: "${e.title}"${e.location ? ` @ ${e.location}` : ''}`;
+        }).join('\n') + '\n';
+      } else {
+        group6 += 'No upcoming events.\n';
+      }
     }
-    if (unreadEmails.length > 0) {
-      group6 += `\n### Inbox (${unreadEmails.length} unread)\n`;
-      group6 += unreadEmails.map((e: any) => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n');
+
+    // Inbox section — unread first, then recent for context
+    if (needsInbox) {
+      if (unreadEmails.length > 0) {
+        group6 += `\n### Inbox — Unread (${unreadEmails.length})\n`;
+        group6 += unreadEmails.map((e: any) => `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"`).join('\n') + '\n';
+      }
+      // Always show recent emails for context (even if all read)
+      if (recentEmails.length > 0) {
+        // Deduplicate — don't repeat unread emails already shown above
+        const unreadIds = new Set(unreadEmails.map((e: any) => e.id));
+        const readRecent = recentEmails.filter((e: any) => !unreadIds.has(e.id));
+        if (readRecent.length > 0) {
+          group6 += `\n### Recent Inbox (${readRecent.length} latest)\n`;
+          group6 += readRecent.map((e: any) => {
+            const age = e.receivedAt ? _timeAgo(e.receivedAt, now) : '';
+            return `- ${e.isStarred ? '⭐ ' : ''}From ${e.fromName || e.fromEmail}: "${e.subject}"${age ? ` — ${age}` : ''}`;
+          }).join('\n') + '\n';
+        }
+      }
+      if (unreadEmails.length === 0 && recentEmails.length === 0) {
+        group6 += '\nNo emails synced yet. Operator may need to connect their inbox.\n';
+      }
     }
   }
 
@@ -1938,4 +1973,18 @@ async function buildActiveCapabilitiesContext(userId: string): Promise<string> {
     console.error('buildActiveCapabilitiesContext error:', err);
     return '';
   }
+}
+
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function _timeAgo(date: Date, now: Date): string {
+  const diff = now.getTime() - date.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
 }

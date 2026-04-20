@@ -17,6 +17,22 @@ export interface Update {
 
 export const UPDATES: Update[] = [
   {
+    id: 'inbox-context-fix-v2-4-1',
+    date: '2026-04-20',
+    time: '10:00 AM',
+    title: 'Inbox Context Fix + Discover Bug Fix',
+    subtitle: 'Divi now has inbox context when you ask about email, even if all messages are read. Also fixed a Prisma query bug on the Discover page.',
+    tags: ['bugfix', 'system-prompt', 'inbox', 'onboarding', 'v2.4.1'],
+    content: `Spotted during Andre\`s onboarding: Divi couldn\`t access inbox context after connecting Google.
+
+**Root causes:**
+1. **Signal gating bug** — inbox data was only injected into the system prompt when the \`schedule\` signal fired (calendar keywords like "meeting", "tomorrow"). Asking "what\`s in my inbox" or "catch me up" triggered \`capabilities_triage\` instead — which loaded triage *instructions* but not the actual *email data*. Fixed: inbox context now loads when either \`schedule\` or \`capabilities_triage\` is relevant.
+2. **Read-only inbox** — the system prompt only showed unread emails (\`isRead: false\`). If you\`re a zero-inbox person (everything read in Gmail), Divi saw nothing. Fixed: now fetches the 10 most recent emails regardless of read status, deduped against unread. Divi always has recent inbox context.
+3. **Discover page crash** — \`/api/discover\` was failing with a Prisma validation error: \`visibility\` was incorrectly nested in the \`profile\` relation filter. Fixed: wrapped in proper \`is: { ... }\` syntax.
+
+**First connect scope issue (not a bug, but noted):** Google now lets users deselect scopes during consent. Andre\`s first connect was missing \`gmail.readonly\` — had to reconnect. This is a Google UX thing, not something we can override. The scopes we request are correct.`,
+  },
+  {
     id: 'hmac-enforcement-self-test-v2-4-0',
     date: '2026-04-19',
     time: '1:00 AM',
