@@ -740,6 +740,52 @@ Users can opt in/out of AmbientSurveys via Settings → Relay → "Participate i
     console.log('Seeded AmbientSurveys marketplace agent.');
   }
 
+  // ── DiviCore Team (v2.4.2) ──
+  const jonId = 'cmo1kgydf00o4sz086ffjsmp1';
+  const jaronId = 'cmo1milx900g9o408deuk7h2f';
+  const andreId = 'cmo7aym7n02pzlm08ybymtzq4';
+  const alvaroId = 'cmo1n6psb023co408ikcsw7xb';
+  const fvpConnId = 'cmo2bx2nb0001t2bbs8j75id8';
+
+  const existingTeam = await prisma.team.findFirst({ where: { name: 'DiviCore' } });
+  if (!existingTeam) {
+    const team = await prisma.team.create({
+      data: {
+        name: 'DiviCore',
+        description: 'Core team for DiviDen platform development and operations.',
+        avatar: '🧠',
+        type: 'work',
+        visibility: 'network',
+        headline: 'Building the personal OS for operators',
+        createdById: jonId,
+      },
+    });
+    const members = [
+      { userId: jonId, role: 'owner' },
+      { userId: jaronId, role: 'member' },
+      { userId: andreId, role: 'member' },
+      { userId: alvaroId, role: 'member' },
+      { connectionId: fvpConnId, role: 'member' },
+    ];
+    for (const m of members) {
+      await prisma.teamMember.upsert({
+        where: m.userId
+          ? { teamId_userId: { teamId: team.id, userId: m.userId } }
+          : { id: 'noop' }, // connectionId members use create
+        update: {},
+        create: {
+          teamId: team.id,
+          userId: m.userId || undefined,
+          connectionId: m.connectionId || undefined,
+          role: m.role,
+        },
+      });
+    }
+    console.log('Seeded DiviCore team with 5 members.');
+  } else {
+    console.log('DiviCore team already exists, skipping.');
+  }
+
   console.log('Database seeded successfully.');
 }
 
