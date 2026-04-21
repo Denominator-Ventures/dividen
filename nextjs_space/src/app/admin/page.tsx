@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSession, signOut } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import { DragScrollContainer } from '@/components/ui/DragScrollContainer';
 import InstancesTab from '@/components/admin/InstancesTab';
 import MarketplaceTab from '@/components/admin/MarketplaceTab';
@@ -127,86 +129,26 @@ function MiniBarChart({ data, label }: { data: { date: string; count: number }[]
   );
 }
 
-// ─── Login Screen ───────────────────────────────────────────────────────────
-function AdminLogin({ onLogin }: { onLogin: (password: string) => void }) {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    try {
-      const res = await fetch('/api/admin/stats', {
-        headers: { Authorization: `Bearer ${password}` },
-      });
-      if (res.ok) {
-        onLogin(password);
-      } else {
-        setError('Invalid admin password');
-      }
-    } catch {
-      setError('Connection error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center px-4">
-      <div className="w-full max-w-sm">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <svg width="32" height="32" viewBox="0 0 91 35" fill="none">
-              <rect x="0.5" y="0.5" width="90" height="34" rx="8" fill="#0a0a0a" stroke="rgba(255,255,255,0.08)" />
-              <rect x="6" y="28" width="79" height="2" rx="1" fill="#4F7CFF" />
-            </svg>
-            <span className="text-white font-heading text-xl font-semibold">Admin</span>
-          </div>
-          <p className="text-[var(--text-secondary)] text-sm">DiviDen Command Center Admin</p>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="label-mono text-[10px] mb-1.5 block">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter admin password"
-              className="w-full px-3 py-2.5 bg-white/[0.04] border border-white/[0.06] rounded-lg text-white text-sm focus:outline-none focus:ring-1 focus:ring-brand-500/40 focus:border-brand-500/40"
-              autoFocus
-            />
-          </div>
-          {error && <p className="text-red-400 text-xs">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || !password}
-            className="w-full py-2.5 rounded-lg bg-brand-500 text-white text-sm font-medium hover:bg-brand-500/90 disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Verifying…' : 'Sign In'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 // ─── Main Admin Dashboard ───────────────────────────────────────────────────
 export default function AdminPage() {
-  const [token, setToken] = useState<string | null>(null);
+  const { data: session, status } = useSession() || {};
+  const router = useRouter();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'content' | 'activity' | 'federation' | 'telemetry' | 'instances' | 'marketplace' | 'prompt' | 'usage' | 'tasks' | 'workflows' | 'feedback'>('overview');
 
-  const fetchStats = useCallback(async (t: string) => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/admin/stats', {
-        headers: { Authorization: `Bearer ${t}` },
-      });
+      const res = await fetch('/api/admin/stats');
+      if (res.status === 401 || res.status === 403) {
+        router.replace('/login');
+        return;
+      }
       if (!res.ok) throw new Error('Failed to fetch');
       const data = await res.json();
       setStats(data);
@@ -215,20 +157,27 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
-
-  const handleLogin = (password: string) => {
-    setToken(password);
-    fetchStats(password);
-  };
+  }, [router]);
 
   useEffect(() => {
-    if (!token) return;
-    const interval = setInterval(() => fetchStats(token), 60000);
+    if (status === 'loading') return;
+    if (!session?.user || (session.user as any).role !== 'admin') {
+      router.replace('/login');
+      return;
+    }
+    fetchStats();
+    const interval = setInterval(fetchStats, 60000);
     return () => clearInterval(interval);
-  }, [token, fetchStats]);
+  }, [session, status, router, fetchStats]);
 
-  if (!token) return <AdminLogin onLogin={handleLogin} />;
+  if (status === 'loading' || (!session?.user)) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
+        <div className="text-[var(--text-secondary)] text-sm">Authenticating…</div>
+      </div>
+    );
+  }
+  if ((session.user as any).role !== 'admin') return null;
 
   if (loading && !stats) {
     return (
@@ -281,13 +230,13 @@ export default function AdminPage() {
             Updated {timeAgo(stats.generatedAt)}
           </span>
           <button
-            onClick={() => token && fetchStats(token)}
+            onClick={() => fetchStats()}
             className="text-xs px-3 py-1.5 rounded-md bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.08] transition-colors"
           >
             ↻ Refresh
           </button>
           <button
-            onClick={() => { setToken(null); setStats(null); }}
+            onClick={() => signOut({ callbackUrl: '/login' })}
             className="text-xs px-3 py-1.5 rounded-md text-red-400 hover:bg-red-500/10 transition-colors"
           >
             Sign Out
@@ -319,18 +268,18 @@ export default function AdminPage() {
       {/* Content */}
       <main className="p-4 md:p-6 max-w-7xl mx-auto">
         {activeTab === 'overview' && <OverviewTab stats={stats} />}
-        {activeTab === 'users' && <UsersTab stats={stats} token={token} onRefresh={() => fetchStats(token)} />}
+        {activeTab === 'users' && <UsersTab stats={stats} onRefresh={() => fetchStats()} />}
         {activeTab === 'content' && <ContentTab stats={stats} />}
         {activeTab === 'activity' && <ActivityTab stats={stats} />}
-        {activeTab === 'instances' && <InstancesTab token={token} />}
-        {activeTab === 'marketplace' && <MarketplaceTab token={token} />}
-        {activeTab === 'usage' && <UsageTab token={token} />}
-        {activeTab === 'prompt' && <SystemPromptTab token={token} />}
-        {activeTab === 'tasks' && <TasksTab token={token} />}
-        {activeTab === 'federation' && <FederationTab token={token} />}
-        {activeTab === 'telemetry' && <TelemetryTab token={token} />}
-        {activeTab === 'workflows' && <WorkflowsTab token={token} />}
-        {activeTab === 'feedback' && <FeedbackAdminTab token={token} />}
+        {activeTab === 'instances' && <InstancesTab />}
+        {activeTab === 'marketplace' && <MarketplaceTab />}
+        {activeTab === 'usage' && <UsageTab />}
+        {activeTab === 'prompt' && <SystemPromptTab />}
+        {activeTab === 'tasks' && <TasksTab />}
+        {activeTab === 'federation' && <FederationTab />}
+        {activeTab === 'telemetry' && <TelemetryTab />}
+        {activeTab === 'workflows' && <WorkflowsTab />}
+        {activeTab === 'feedback' && <FeedbackAdminTab />}
       </main>
     </div>
   );
@@ -413,7 +362,7 @@ function OverviewTab({ stats }: { stats: AdminStats }) {
 }
 
 // ─── Users Tab ──────────────────────────────────────────────────────────────
-function UsersTab({ stats, token, onRefresh }: { stats: AdminStats; token: string; onRefresh: () => void }) {
+function UsersTab({ stats, onRefresh }: { stats: AdminStats; onRefresh: () => void }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [deleteResult, setDeleteResult] = useState<string | null>(null);
@@ -428,7 +377,6 @@ function UsersTab({ stats, token, onRefresh }: { stats: AdminStats; token: strin
     try {
       const res = await fetch(`/api/admin/users/${userId}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Delete failed');
@@ -714,7 +662,7 @@ interface FedInstance {
   createdAt: string;
 }
 
-function FederationTab({ token }: { token: string | null }) {
+function FederationTab() {
   const [subTab, setSubTab] = useState<FedSubTab>('instances');
   const [activity, setActivity] = useState<FedActivity | null>(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
@@ -738,20 +686,16 @@ function FederationTab({ token }: { token: string | null }) {
   const fetchActivity = useCallback(async () => {
     setLoadingActivity(true);
     try {
-      const res = await fetch('/api/admin/federation-activity', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch('/api/admin/federation-activity');
       if (res.ok) setActivity(await res.json());
     } catch { /* ignore */ }
     finally { setLoadingActivity(false); }
-  }, [token]);
+  }, []);
 
   const fetchInstances = useCallback(async () => {
     setLoadingInstances(true);
     try {
-      const res = await fetch('/api/admin/instances', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch('/api/admin/instances');
       if (res.ok) {
         const data = await res.json();
         setInstances(data.instances || []);
@@ -759,15 +703,15 @@ function FederationTab({ token }: { token: string | null }) {
       }
     } catch { /* ignore */ }
     finally { setLoadingInstances(false); }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
-    if (token) {
+    {
       if (!activity) fetchActivity();
       if (instances.length === 0 && !loadingInstances) fetchInstances();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, activity, fetchActivity, fetchInstances]);
+  }, [activity, fetchActivity, fetchInstances]);
 
   const handleAddInstance = async () => {
     if (!addForm.name.trim() || !addForm.baseUrl.trim()) return;
@@ -775,7 +719,7 @@ function FederationTab({ token }: { token: string | null }) {
     try {
       const res = await fetch('/api/admin/instances', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify({
           name: addForm.name.trim(),
           baseUrl: addForm.baseUrl.trim().replace(/\/$/, ''),
@@ -796,7 +740,7 @@ function FederationTab({ token }: { token: string | null }) {
     try {
       await fetch('/api/admin/instances', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify({ id, [field]: value }),
       });
       await fetchInstances();
@@ -811,7 +755,7 @@ function FederationTab({ token }: { token: string | null }) {
     try {
       const res = await fetch('/api/admin/federation-check', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify({ url: url || '' }),
       });
       const data = await res.json();
@@ -1508,19 +1452,16 @@ interface TelemetryData {
   generatedAt: string;
 }
 
-function TelemetryTab({ token }: { token: string | null }) {
+function TelemetryTab() {
   const [data, setData] = useState<TelemetryData | null>(null);
   const [loading, setLoading] = useState(false);
   const [range, setRange] = useState<'24h' | '7d' | '30d'>('24h');
   const [subTab, setSubTab] = useState<'overview' | 'requests' | 'database' | 'errors' | 'schema'>('overview');
 
   const fetchTelemetry = useCallback(async () => {
-    if (!token) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/admin/telemetry?range=${range}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`/api/admin/telemetry?range=${range}`);
       if (res.ok) {
         const json = await res.json();
         setData(json);
@@ -1530,7 +1471,7 @@ function TelemetryTab({ token }: { token: string | null }) {
     } finally {
       setLoading(false);
     }
-  }, [token, range]);
+  }, [range]);
 
   useEffect(() => {
     fetchTelemetry();
@@ -1902,7 +1843,7 @@ function MetricCard({
 }
 
 // ─── Workflow Discovery Tab ───────────────────────────────────────────────────
-function WorkflowsTab({ token }: { token: string }) {
+function WorkflowsTab() {
   const [patterns, setPatterns] = useState<Array<{
     id: string;
     description: string;
@@ -1917,9 +1858,7 @@ function WorkflowsTab({ token }: { token: string }) {
   useEffect(() => {
     async function fetchPatterns() {
       try {
-        const res = await fetch('/api/admin/workflows', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch('/api/admin/workflows');
         if (res.ok) {
           const data = await res.json();
           setPatterns(data.patterns || []);
@@ -1927,13 +1866,13 @@ function WorkflowsTab({ token }: { token: string }) {
       } catch { /* ignore */ } finally { setLoading(false); }
     }
     fetchPatterns();
-  }, [token]);
+  }, []);
 
   const handleReview = async (id: string) => {
     try {
       await fetch('/api/admin/workflows', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify({ id, adminReviewed: true }),
       });
       setPatterns(prev => prev.map(p => p.id === id ? { ...p, adminReviewed: true } : p));
@@ -2014,7 +1953,7 @@ function WorkflowsTab({ token }: { token: string }) {
 
 // ─── Feedback Admin Tab ──────────────────────────────────────────────────────
 
-function FeedbackAdminTab({ token }: { token: string }) {
+function FeedbackAdminTab() {
   const [feedback, setFeedback] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -2024,9 +1963,7 @@ function FeedbackAdminTab({ token }: { token: string }) {
   const fetchFeedback = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/feedback?status=${filter}&limit=100`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(`/api/feedback?status=${filter}&limit=100`);
       const data = await res.json();
       if (data.success) {
         setFeedback(data.data.feedback);
@@ -2037,7 +1974,7 @@ function FeedbackAdminTab({ token }: { token: string }) {
     } finally {
       setLoading(false);
     }
-  }, [token, filter]);
+  }, [filter]);
 
   useEffect(() => { fetchFeedback(); }, [fetchFeedback]);
 
@@ -2045,7 +1982,7 @@ function FeedbackAdminTab({ token }: { token: string }) {
     try {
       await fetch('/api/feedback', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json', },
         body: JSON.stringify({ id, status, ...(adminNote !== undefined ? { adminNote } : {}) }),
       });
       fetchFeedback();

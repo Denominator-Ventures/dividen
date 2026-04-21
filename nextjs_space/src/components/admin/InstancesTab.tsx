@@ -33,8 +33,8 @@ interface InstancesData {
   };
 }
 
-export default function InstancesTab({ token }: { token: string }) {
-  const adminFetch = useAdminFetch(token);
+export default function InstancesTab() {
+  const adminFetch = useAdminFetch();
   const [data, setData] = useState<InstancesData | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'trusted' | 'linked'>('all');

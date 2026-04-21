@@ -1,16 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
+
 
 export const dynamic = 'force-dynamic';
 
-function verifyAdmin(req: NextRequest): boolean {
-  const auth = req.headers.get('authorization');
-  const token = auth?.replace('Bearer ', '');
-  return token === process.env.ADMIN_PASSWORD;
-}
 
 export async function GET(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
   
   try {
     const patterns = await prisma.workflowPattern.findMany({
@@ -25,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
   
   try {
     const { id, adminReviewed } = await req.json();

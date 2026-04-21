@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { requireAdmin } from '@/lib/admin-auth';
 
 /**
  * GET /api/admin/federation-activity
@@ -15,20 +15,7 @@ import bcrypt from 'bcryptjs';
  * - Recent federation events timeline
  */
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get('authorization');
-  const token = authHeader?.replace('Bearer ', '');
-  if (!token) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const admin = await prisma.user.findFirst({ where: { role: 'admin' } });
-  if (!admin) {
-    return NextResponse.json({ error: 'No admin user' }, { status: 401 });
-  }
-  const valid = await bcrypt.compare(token, admin.passwordHash);
-  if (!valid) {
-    return NextResponse.json({ error: 'Invalid admin password' }, { status: 401 });
-  }
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);

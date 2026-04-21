@@ -66,14 +66,14 @@ export function MiniBarChart({ data, label }: { data: { date: string; count: num
 }
 
 // ─── Admin Fetch Hook ────────────────────────────────────────────────────────
-export function useAdminFetch(token: string) {
+// Session cookie handles auth automatically — no token needed.
+export function useAdminFetch(_token?: string) {
   const adminFetch = useCallback(
     async (url: string, options?: RequestInit) => {
       const res = await fetch(url, {
         ...options,
         headers: {
           ...options?.headers,
-          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
@@ -83,7 +83,7 @@ export function useAdminFetch(token: string) {
       }
       return res.json();
     },
-    [token]
+    []
   );
   return adminFetch;
 }

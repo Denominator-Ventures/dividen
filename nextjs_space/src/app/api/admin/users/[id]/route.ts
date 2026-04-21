@@ -2,13 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
-function verifyAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  const token = authHeader.slice(7);
-  return token === process.env.ADMIN_PASSWORD;
-}
+
 
 /**
  * DELETE /api/admin/users/[id]
@@ -25,9 +21,7 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  if (!verifyAdmin(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const userId = params.id;
 

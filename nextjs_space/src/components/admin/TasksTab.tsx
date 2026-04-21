@@ -36,23 +36,20 @@ const URGENCY_COLORS: Record<string, string> = {
   low: 'text-zinc-400',
 };
 
-export default function TasksTab({ token }: { token: string | null }) {
+export default function TasksTab() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'completed' | 'cancelled'>('all');
   const [search, setSearch] = useState('');
 
   useEffect(() => {
-    if (!token) return;
     setLoading(true);
-    fetch('/api/admin/tasks', {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetch('/api/admin/tasks')
       .then(r => r.json())
       .then(data => setTasks(data.tasks || []))
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [token]);
+  }, []);
 
   const filtered = tasks.filter(t => {
     if (filter !== 'all' && t.status !== filter) return false;

@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
+
 
 /**
  * Admin Marketplace Agent Approval
@@ -14,14 +16,9 @@ import { prisma } from '@/lib/prisma';
  * so it knows the approval decision without polling.
  */
 
-function verifyAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
-}
 
 export async function GET(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const status = req.nextUrl.searchParams.get('status'); // optional filter
   const sourceOnly = req.nextUrl.searchParams.get('federated') === 'true';
@@ -57,7 +54,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
     const body = await req.json();

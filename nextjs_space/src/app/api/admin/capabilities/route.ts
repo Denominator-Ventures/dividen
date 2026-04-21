@@ -2,16 +2,13 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
-function verifyAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
-}
+
 
 // GET /api/admin/capabilities — list all capabilities with stats
 export async function GET(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const capabilities = await prisma.marketplaceCapability.findMany({
     orderBy: { createdAt: 'desc' },
@@ -33,7 +30,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/admin/capabilities — create a new capability
 export async function POST(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const body = await req.json();
   const { name, slug, description, longDescription, icon, category, prompt, pricingModel, price, editableFields, tags, integrationType, featured, publishAsUserId, skillFormat, skillBody, skillSource } = body;
@@ -87,7 +84,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH /api/admin/capabilities — update a capability
 export async function PATCH(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const body = await req.json();
   const { id, ...updates } = body;
@@ -145,7 +142,7 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE /api/admin/capabilities — permanently remove a capability
 export async function DELETE(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');

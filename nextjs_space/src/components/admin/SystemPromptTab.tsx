@@ -18,8 +18,8 @@ interface SystemPromptData {
   generatedAt: string;
 }
 
-export default function SystemPromptTab({ token }: { token: string }) {
-  const adminFetch = useAdminFetch(token);
+export default function SystemPromptTab() {
+  const adminFetch = useAdminFetch();
   const [data, setData] = useState<SystemPromptData | null>(null);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<number | null>(null);

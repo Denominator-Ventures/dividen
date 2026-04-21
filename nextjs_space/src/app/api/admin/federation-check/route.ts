@@ -1,6 +1,8 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/admin-auth';
+
 
 /**
  * POST /api/admin/federation-check
@@ -19,16 +21,9 @@ interface CheckResult {
   detail: string;
 }
 
-function verifyAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
-}
 
 export async function POST(req: NextRequest) {
-  if (!verifyAdmin(req)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const body = await req.json().catch(() => ({}));
   let targetUrl: string = body.url || '';

@@ -3,6 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { requireAdmin } from '@/lib/admin-auth';
+
 
 /**
  * Admin Federation Management
@@ -13,14 +15,9 @@ import crypto from 'crypto';
  * GET /api/admin/federation — List all instances with their tokens (admin-only)
  */
 
-function verifyAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
-}
 
 export async function GET(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const instances = await prisma.instanceRegistry.findMany({
     orderBy: { createdAt: 'desc' },
@@ -47,7 +44,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
     const body = await req.json();

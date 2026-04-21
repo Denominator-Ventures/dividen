@@ -2,15 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
-function verifyAdmin(req: NextRequest): boolean {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader?.startsWith('Bearer ')) return false;
-  return authHeader.slice(7) === process.env.ADMIN_PASSWORD;
-}
+
 
 export async function GET(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
     const agents = await prisma.marketplaceAgent.findMany({
@@ -63,7 +60,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
     const body = await req.json();
@@ -90,7 +87,7 @@ export async function PATCH(req: NextRequest) {
 
 // POST /api/admin/marketplace — create and publish a new agent
 export async function POST(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
     const body = await req.json();
@@ -148,7 +145,7 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/admin/marketplace — permanently remove an agent
 export async function DELETE(req: NextRequest) {
-  if (!verifyAdmin(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
     const { searchParams } = new URL(req.url);

@@ -28,8 +28,8 @@ interface UsageData {
   };
 }
 
-export default function UsageTab({ token }: { token: string }) {
-  const adminFetch = useAdminFetch(token);
+export default function UsageTab() {
+  const adminFetch = useAdminFetch();
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<'7d' | '30d'>('30d');

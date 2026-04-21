@@ -2,14 +2,12 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { requireAdmin } from '@/lib/admin-auth';
 
 // GET /api/admin/tasks — list ALL tasks across all users (admin only)
 export async function GET(req: NextRequest) {
   try {
-    const auth = req.headers.get('authorization');
-    if (!auth?.startsWith('Bearer ') || auth.split(' ')[1] !== process.env.ADMIN_TOKEN) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
     const tasks = await prisma.networkJob.findMany({
       include: {

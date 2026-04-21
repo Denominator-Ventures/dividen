@@ -43,8 +43,8 @@ const CAP_CATEGORIES = ['operations', 'research', 'coding', 'writing', 'analysis
 /* ═══════════════════════════════════════════════════════════════════════════
    Main Component
    ═══════════════════════════════════════════════════════════════════════════ */
-export default function MarketplaceTab({ token }: { token: string }) {
-  const adminFetch = useAdminFetch(token);
+export default function MarketplaceTab() {
+  const adminFetch = useAdminFetch();
   const [subTab, setSubTab] = useState<SubTab>('agents');
 
   /* shared state */
@@ -83,8 +83,8 @@ export default function MarketplaceTab({ token }: { token: string }) {
         ))}
       </div>
 
-      {subTab === 'agents' && <AgentsSubTab token={token} adminFetch={adminFetch} users={users} />}
-      {subTab === 'capabilities' && <CapabilitiesSubTab token={token} adminFetch={adminFetch} />}
+      {subTab === 'agents' && <AgentsSubTab adminFetch={adminFetch} users={users} />}
+      {subTab === 'capabilities' && <CapabilitiesSubTab adminFetch={adminFetch} />}
       {subTab === 'create-cap' && <CreateCapabilityForm adminFetch={adminFetch} users={users} onCreated={() => setSubTab('capabilities')} />}
       {subTab === 'create-agent' && <CreateAgentForm adminFetch={adminFetch} users={users} onCreated={() => setSubTab('agents')} />}
     </div>
@@ -94,7 +94,7 @@ export default function MarketplaceTab({ token }: { token: string }) {
 /* ═══════════════════════════════════════════════════════════════════════════
    Agents Sub-Tab (mostly preserved from original)
    ═══════════════════════════════════════════════════════════════════════════ */
-function AgentsSubTab({ token, adminFetch, users }: { token: string; adminFetch: any; users: UserOption[] }) {
+function AgentsSubTab({ adminFetch, users }: { adminFetch: any; users: UserOption[] }) {
   const [agents, setAgents] = useState<MarketplaceAgentRow[]>([]);
   const [totals, setTotals] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -254,7 +254,7 @@ function AgentsSubTab({ token, adminFetch, users }: { token: string; adminFetch:
 /* ═══════════════════════════════════════════════════════════════════════════
    Capabilities Sub-Tab
    ═══════════════════════════════════════════════════════════════════════════ */
-function CapabilitiesSubTab({ token, adminFetch }: { token: string; adminFetch: any }) {
+function CapabilitiesSubTab({ adminFetch }: { adminFetch: any }) {
   const [capabilities, setCapabilities] = useState<CapabilityRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
