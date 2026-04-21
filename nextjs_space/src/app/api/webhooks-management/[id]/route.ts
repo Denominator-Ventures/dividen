@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getWebhookUrl } from '@/lib/webhook-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 // GET - Get single webhook details
-export async function GET(
+async function _GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -37,7 +38,7 @@ export async function GET(
 }
 
 // PATCH - Update webhook
-export async function PATCH(
+async function _PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -87,7 +88,7 @@ export async function PATCH(
 }
 
 // DELETE - Delete webhook
-export async function DELETE(
+async function _DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -107,3 +108,7 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { stripe } from '@/lib/stripe';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/stripe/connect/onboard — Create or resume Stripe Connect Express onboarding
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     if (!stripe) {
       return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
@@ -59,3 +60,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to create onboarding link' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

@@ -6,13 +6,14 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { scoreAndRankNow } from '@/lib/now-engine';
 import { logRequest, logError, getClientIp } from '@/lib/telemetry';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/now
  * Returns dynamically scored + ranked items for the NOW panel.
  * Combines: queue items, upcoming deadlines, goal urgency, calendar gaps, relay responses.
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const start = Date.now();
   const ip = getClientIp(req.headers);
   try {
@@ -152,3 +153,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

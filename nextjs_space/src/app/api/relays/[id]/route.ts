@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { pushRelayStateChanged } from '@/lib/webhook-push';
+import { withTelemetry } from '@/lib/telemetry';
 
 // PATCH /api/relays/[id] — update relay status, respond, etc.
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -109,3 +110,5 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: error.message || 'Failed to update relay' }, { status: 500 });
   }
 }
+
+export const PATCH = withTelemetry(_PATCH);

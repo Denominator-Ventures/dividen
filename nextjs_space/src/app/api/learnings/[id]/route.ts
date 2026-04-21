@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * PATCH /api/learnings/:id — Edit a learning's observation or dismiss it.
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ success: false }, { status: 401 });
@@ -41,7 +42,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 /**
  * DELETE /api/learnings/:id — Permanently delete a learning.
  */
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ success: false }, { status: 401 });
@@ -60,3 +61,6 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }
+
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

@@ -5,11 +5,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { recomputeReputation } from '@/lib/job-matcher';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/jobs/[id]/review — Leave a review after job completion
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -57,3 +58,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({ review }, { status: 201 });
 }
+
+export const POST = withTelemetry(_POST);

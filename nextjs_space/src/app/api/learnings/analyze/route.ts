@@ -4,12 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/learnings/analyze — Analyze recent behavior signals and generate learnings.
  * Called periodically or on-demand to process accumulated signals.
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ success: false }, { status: 401 });
@@ -173,3 +174,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: err?.message }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/marketplace/[id]/install — Install an agent into Divi's toolkit
@@ -14,7 +15,7 @@ import { prisma } from '@/lib/prisma';
  * 
  * If no subscription exists, creates one (free agents don't need payment).
  */
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -199,7 +200,7 @@ export async function POST(
  * 1. Marks the subscription as uninstalled
  * 2. Removes all Memory entries for this agent — Divi forgets how to work with it
  */
-export async function DELETE(
+async function _DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -246,3 +247,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to uninstall agent' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

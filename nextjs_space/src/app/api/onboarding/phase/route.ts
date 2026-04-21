@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 const PHASE_NAMES: Record<number, string> = {
   0: 'api-key',
@@ -19,7 +20,7 @@ const PHASE_NAMES: Record<number, string> = {
  * GET /api/onboarding/phase
  * Returns the current onboarding phase + context for the user.
  */
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -81,7 +82,7 @@ export async function GET() {
  * Advance or set the onboarding phase.
  * Body: { phase?: number, action?: 'advance' | 'skip' | 'set', settings?: any }
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -177,3 +178,6 @@ async function applyPhaseSettings(userId: string, phase: number, settings: any) 
       break;
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 /**
@@ -22,7 +23,7 @@ interface CheckResult {
 }
 
 
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const body = await req.json().catch(() => ({}));
@@ -246,3 +247,5 @@ export async function POST(req: NextRequest) {
     score: { passed, failed, warned, total: checks.length },
   });
 }
+
+export const POST = withTelemetry(_POST);

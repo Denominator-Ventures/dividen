@@ -4,12 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/learnings — List user's learnings with optional filters.
  * Query: ?category=style&includeNew=true
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ success: false }, { status: 401 });
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
  * POST /api/learnings — Mark learnings as seen (batch).
  * Body: { markSeen: true } — marks all isNew=true as isNew=false
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ success: false }, { status: 401 });
@@ -64,3 +65,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

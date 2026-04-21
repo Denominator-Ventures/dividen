@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET: List briefs for the current user
-export async function GET(request: NextRequest) {
+async function _GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -38,3 +39,5 @@ export async function GET(request: NextRequest) {
     })),
   });
 }
+
+export const GET = withTelemetry(_GET);

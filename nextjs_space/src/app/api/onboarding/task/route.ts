@@ -4,13 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * PATCH /api/onboarding/task
  * Mark an onboarding task as completed or skipped.
  * Body: { taskId: string, action: 'complete' | 'skip' }
  */
-export async function PATCH(req: NextRequest) {
+async function _PATCH(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -74,7 +75,7 @@ export async function PATCH(req: NextRequest) {
  * GET /api/onboarding/task
  * Get onboarding task status for the current user.
  */
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -119,3 +120,6 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { resolveEntity } from '@/lib/entity-resolution';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * FVP Brief Proposal #5: Universal Entity Resolution
@@ -13,7 +14,7 @@ import { resolveEntity } from '@/lib/entity-resolution';
  * Resolves an entity (person, company, email) across all surfaces:
  * contacts, connections, cards, calendar events, emails, relays, team members.
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -37,3 +38,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Entity resolution failed' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

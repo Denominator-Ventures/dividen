@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkTeamProjectLimit, FeatureGateError } from '@/lib/feature-gates';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/projects — list projects for current user
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -64,7 +65,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/projects — create a new project
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -124,3 +125,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

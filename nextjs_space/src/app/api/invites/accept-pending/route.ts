@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/invites/accept-pending — auto-accept any pending invites for the logged-in user's email
 // Called after login/signup to pick up any invitations
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -109,3 +110,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

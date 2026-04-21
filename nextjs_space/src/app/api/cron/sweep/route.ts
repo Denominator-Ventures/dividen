@@ -396,6 +396,18 @@ export async function POST(req: NextRequest) {
     }
 
     // ══════════════════════════════════════════════════════════════════════
+    // CHECK 8: Telemetry retention — purge events older than 90 days
+    // ══════════════════════════════════════════════════════════════════════
+    const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const purgedTelemetry = await prisma.telemetryEvent.deleteMany({
+      where: { createdAt: { lt: ninetyDaysAgo } },
+    });
+    if (purgedTelemetry.count > 0) {
+      fixes.push(`Purged ${purgedTelemetry.count} telemetry event${purgedTelemetry.count > 1 ? 's' : ''} (>90d old)`);
+      totalFixed += purgedTelemetry.count;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
     // SUMMARY LOG
     // ══════════════════════════════════════════════════════════════════════
     const summary = [
@@ -406,6 +418,7 @@ export async function POST(req: NextRequest) {
       `Unacked completions: ${unackedCompletions.length}`,
       `Dormant connections (7d): ${activeConnections.length - activeConnections.filter(() => true).length || warnings.filter(w => w.includes('Dormant')).length}`,
       `Auto-expired invites: ${expiredInvites.count}`,
+      `Telemetry purged (>90d): ${purgedTelemetry.count}`,
     ];
 
     console.log(`[sweep] Reconciliation complete: ${totalFixed} fixes, ${warnings.length} warnings`);

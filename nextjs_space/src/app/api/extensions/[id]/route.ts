@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/extensions/:id — Get a single extension
  */
-export async function GET(
+async function _GET(
   _req: NextRequest,
   { params }: { params: { id: string } },
 ) {
@@ -33,7 +34,7 @@ export async function GET(
 /**
  * PUT /api/extensions/:id — Update an extension (toggle active, change config, etc.)
  */
-export async function PUT(
+async function _PUT(
   req: NextRequest,
   { params }: { params: { id: string } },
 ) {
@@ -83,7 +84,7 @@ export async function PUT(
 /**
  * DELETE /api/extensions/:id — Uninstall an extension
  */
-export async function DELETE(
+async function _DELETE(
   _req: NextRequest,
   { params }: { params: { id: string } },
 ) {
@@ -106,3 +107,7 @@ export async function DELETE(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PUT = withTelemetry(_PUT);
+export const DELETE = withTelemetry(_DELETE);

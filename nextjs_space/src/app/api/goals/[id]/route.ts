@@ -5,11 +5,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/goals/:id
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -35,7 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 /**
  * PUT /api/goals/:id
  */
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -81,7 +82,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 /**
  * DELETE /api/goals/:id
  */
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -98,3 +99,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: err?.message || 'Server error' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PUT = withTelemetry(_PUT);
+export const DELETE = withTelemetry(_DELETE);

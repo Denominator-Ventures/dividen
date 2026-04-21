@@ -3,9 +3,10 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/admin/tasks — list ALL tasks across all users (admin only)
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
@@ -25,3 +26,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch tasks' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

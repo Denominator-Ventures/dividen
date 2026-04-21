@@ -4,12 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/capabilities/[type]
  * Get a specific capability.
  */
-export async function GET(req: NextRequest, { params }: { params: { type: string } }) {
+async function _GET(req: NextRequest, { params }: { params: { type: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest, { params }: { params: { type: string
  * PATCH /api/capabilities/[type]
  * Update a specific capability (rules, config, status, identity).
  */
-export async function PATCH(req: NextRequest, { params }: { params: { type: string } }) {
+async function _PATCH(req: NextRequest, { params }: { params: { type: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -80,7 +81,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { type: stri
  * DELETE /api/capabilities/[type]
  * Delete a capability.
  */
-export async function DELETE(req: NextRequest, { params }: { params: { type: string } }) {
+async function _DELETE(req: NextRequest, { params }: { params: { type: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -96,3 +97,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { type: str
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

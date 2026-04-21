@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 // GET /api/integrations — list all integration accounts for the user
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -44,7 +45,7 @@ export async function GET() {
 }
 
 // POST /api/integrations — create or update an integration account
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/integrations — delete an integration account (revokes Google tokens if applicable)
-export async function DELETE(req: NextRequest) {
+async function _DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -162,3 +163,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed to delete integration' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

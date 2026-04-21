@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { pushRelayStateChanged } from '@/lib/webhook-push';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/relays/widget-response
@@ -21,7 +22,7 @@ import { pushRelayStateChanged } from '@/lib/webhook-push';
  *   3. This endpoint records the response on the relay
  *   4. If the originating relay has a widgetResponseUrl, forwards the response there
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -146,3 +147,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

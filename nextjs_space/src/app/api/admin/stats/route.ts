@@ -3,10 +3,11 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
@@ -179,3 +180,5 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export const GET = withTelemetry(_GET);

@@ -5,13 +5,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueSplit } from '@/lib/marketplace-config';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/marketplace-capabilities — Browse available capabilities
  * POST /api/marketplace-capabilities — Install (purchase) a capability
  */
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -152,7 +153,7 @@ export async function GET(req: NextRequest) {
   });
 }
 
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -337,7 +338,7 @@ export async function POST(req: NextRequest) {
 }
 
 // PUT /api/marketplace-capabilities — Submit a user-created capability for review
-export async function PUT(req: NextRequest) {
+async function _PUT(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -402,3 +403,7 @@ export async function PUT(req: NextRequest) {
     message: 'Capability submitted for review. It will be visible in the Bubble Store once approved.',
   }, { status: 201 });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const PUT = withTelemetry(_PUT);

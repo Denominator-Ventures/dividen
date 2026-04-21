@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { parsePrefs, DEFAULT_PREFS, type NotificationPrefs } from '@/lib/notification-prefs';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 /** GET /api/notifications/preferences */
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -24,7 +25,7 @@ export async function GET() {
 }
 
 /** PUT /api/notifications/preferences */
-export async function PUT(req: NextRequest) {
+async function _PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -49,3 +50,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PUT = withTelemetry(_PUT);

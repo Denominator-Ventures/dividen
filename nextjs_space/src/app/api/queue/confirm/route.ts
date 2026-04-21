@@ -6,13 +6,14 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { pushQueueChanged } from '@/lib/webhook-push';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/queue/confirm
  * Confirms or rejects a pending_confirmation queue item.
  * Body: { id: string, action: 'approve' | 'reject' }
  */
-export async function POST(req: Request) {
+async function _POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!(session?.user as any)?.id) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -74,3 +75,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: error.message || 'Server error' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

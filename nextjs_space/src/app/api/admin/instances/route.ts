@@ -3,10 +3,11 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
@@ -46,7 +47,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
@@ -99,7 +100,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+async function _DELETE(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
@@ -128,7 +129,7 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function _PATCH(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
@@ -187,3 +188,8 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to update instance' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

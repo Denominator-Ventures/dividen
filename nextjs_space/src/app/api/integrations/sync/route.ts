@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { ImapFlow } from 'imapflow';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 // POST /api/integrations/sync — sync emails/calendar/drive from IMAP or Google OAuth
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -189,3 +190,5 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

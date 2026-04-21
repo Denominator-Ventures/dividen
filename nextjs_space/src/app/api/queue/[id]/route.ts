@@ -11,10 +11,11 @@ import { validateStatusTransition, onTaskComplete } from '@/lib/cos-sequential-d
 import { syncRelayWithQueueCompletion } from '@/lib/relay-queue-bridge';
 import { pushQueueChanged } from '@/lib/webhook-push';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function PATCH(
+async function _PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -89,7 +90,7 @@ export async function PATCH(
   return NextResponse.json({ success: true, data: item, autoDispatched });
 }
 
-export async function DELETE(
+async function _DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -109,3 +110,6 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

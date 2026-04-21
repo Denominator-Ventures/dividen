@@ -4,11 +4,12 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/settings/installed-agents — Return user's installed marketplace agents
  */
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -46,3 +47,5 @@ export async function GET() {
     return NextResponse.json({ error: 'Failed to fetch' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

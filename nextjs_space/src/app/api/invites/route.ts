@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 async function sendInviteEmail(invite: {
   inviterName: string;
@@ -84,7 +85,7 @@ async function sendInviteEmail(invite: {
 }
 
 // GET /api/invites — list user's sent invites
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/invites — create and send an invitation
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -226,3 +227,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to create invitation' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

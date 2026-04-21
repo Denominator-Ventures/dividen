@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/profile/[userId]/relationship
@@ -22,7 +23,7 @@ import { prisma } from '@/lib/prisma';
  * - Email exchange count (EmailMessage)
  * - Shared calendar events (CalendarEvent with both in attendees)
  */
-export async function GET(
+async function _GET(
   _req: NextRequest,
   { params }: { params: { userId: string } }
 ) {
@@ -215,3 +216,5 @@ export async function GET(
     return NextResponse.json({ error: error.message || 'Failed to load relationship data' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

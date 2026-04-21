@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import nodemailer from 'nodemailer';
 import { getValidAccessToken } from '@/lib/google-oauth';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,7 +64,7 @@ async function sendViaGmail(
 }
 
 // POST /api/integrations/send — send an email via Gmail API or SMTP
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -163,3 +164,5 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

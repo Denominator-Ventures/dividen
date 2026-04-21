@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { checkAndAutoCompleteCard } from '@/lib/card-auto-complete';
 import { getSetupTaskAction } from '@/lib/onboarding-project';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/onboarding/complete-task
@@ -17,7 +18,7 @@ import { getSetupTaskAction } from '@/lib/onboarding-project';
  * Body: { taskText: string }
  * Returns: { success, nextTaskText?, nextTaskAction?, allTasksComplete }
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -90,3 +91,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

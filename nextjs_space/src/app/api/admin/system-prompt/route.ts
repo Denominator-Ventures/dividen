@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { buildSystemPrompt } from '@/lib/system-prompt';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 
@@ -12,7 +13,7 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   try {
@@ -62,3 +63,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to generate system prompt' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

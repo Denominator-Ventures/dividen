@@ -11,6 +11,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logRequest, logError, getClientIp } from '@/lib/telemetry';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +33,7 @@ function parseJson(val: string | null, fallback: any = []) {
   try { return JSON.parse(val); } catch { return fallback; }
 }
 
-export async function GET(request: NextRequest) {
+async function _GET(request: NextRequest) {
   const start = Date.now();
   const ip = getClientIp(request.headers);
   const session = await getServerSession(authOptions);
@@ -292,3 +293,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Search failed' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

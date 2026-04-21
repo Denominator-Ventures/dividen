@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { withTelemetry } from '@/lib/telemetry';
 
 // PUT /api/stripe/payment-methods/default — Set default payment method
-export async function PUT(req: NextRequest) {
+async function _PUT(req: NextRequest) {
   try {
     if (!stripe) {
       return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
@@ -36,3 +37,5 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to set default' }, { status: 500 });
   }
 }
+
+export const PUT = withTelemetry(_PUT);

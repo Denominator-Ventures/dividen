@@ -14,10 +14,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+async function _GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -207,3 +208,5 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch activity' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

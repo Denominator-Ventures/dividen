@@ -7,10 +7,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+async function _GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -39,7 +40,7 @@ export async function GET(
   return NextResponse.json({ success: true, data: contact });
 }
 
-export async function PATCH(
+async function _PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -72,7 +73,7 @@ export async function PATCH(
   return NextResponse.json({ success: true, data: contact });
 }
 
-export async function DELETE(
+async function _DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -92,3 +93,7 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

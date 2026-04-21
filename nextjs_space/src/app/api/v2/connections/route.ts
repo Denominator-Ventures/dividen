@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/v2/connections — list connections (authenticated or federation token)
@@ -14,7 +15,7 @@ import { authOptions } from '@/lib/auth';
  * so cross-instance connection requests land correctly.
  */
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     // Auth: session or federation platform token
     const session = await getServerSession(authOptions);
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const body = await req.json();
     console.log('[v2/connections] POST received:', JSON.stringify(body));
@@ -201,3 +202,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Connection request failed' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/marketplace/[id]/rate — Rate an execution
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -60,3 +61,5 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to rate' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

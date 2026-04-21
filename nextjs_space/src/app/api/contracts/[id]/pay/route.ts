@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateRecruitingFee } from '@/lib/recruiting-config';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/contracts/[id]/pay — Record/initiate a payment for a recurring contract
@@ -16,7 +17,7 @@ import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
  *   - Creates JobPayment record
  *   - If Stripe is configured + client has payment method, creates PaymentIntent
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -118,3 +119,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     message: `Payment of $${paymentAmount.toFixed(2)} recorded. Recruiting fee: $${recruitingFee.toFixed(2)} (${feePercent}%).`,
   });
 }
+
+export const POST = withTelemetry(_POST);

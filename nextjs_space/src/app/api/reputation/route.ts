@@ -5,11 +5,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { recomputeReputation } from '@/lib/job-matcher';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/reputation — Get current user's reputation (or ?userId=xxx for another user)
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const currentUserId = (session.user as any).id;
@@ -42,3 +43,5 @@ export async function GET(req: NextRequest) {
     reviews,
   });
 }
+
+export const GET = withTelemetry(_GET);

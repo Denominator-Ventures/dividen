@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/users/resolve?usernames=jon,sarah,research-agent,fvp
@@ -18,7 +19,7 @@ import { prisma } from '@/lib/prisma';
  *      only when the request is authenticated. The connection must belong to the
  *      session user.
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const raw = req.nextUrl.searchParams.get('usernames') || '';
   const usernames = raw.split(',').map(u => u.trim().toLowerCase()).filter(Boolean).slice(0, 50);
 
@@ -130,3 +131,5 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ success: true, data: map });
 }
+
+export const GET = withTelemetry(_GET);

@@ -4,11 +4,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/jobs/[id]/apply — Apply to a job / accept an agent match
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -40,3 +41,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({ application }, { status: 201 });
 }
+
+export const POST = withTelemetry(_POST);

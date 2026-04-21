@@ -4,12 +4,13 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/jobs/earnings — Get job earnings for current user
  * Returns contracts where user is the worker, with payment summaries.
  */
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -112,3 +113,5 @@ export async function GET() {
     },
   });
 }
+
+export const GET = withTelemetry(_GET);

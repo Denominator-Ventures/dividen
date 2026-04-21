@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -19,7 +20,7 @@ export async function GET() {
   return NextResponse.json({ success: true, data: documents });
 }
 
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -53,3 +54,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ success: true, data: document });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

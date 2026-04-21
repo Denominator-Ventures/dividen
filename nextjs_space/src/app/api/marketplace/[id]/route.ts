@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/marketplace/[id] — Get agent detail
-export async function GET(
+async function _GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -76,7 +77,7 @@ export async function GET(
 }
 
 // PUT /api/marketplace/[id] — Update agent (owner only)
-export async function PUT(
+async function _PUT(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -166,7 +167,7 @@ export async function PUT(
 }
 
 // DELETE /api/marketplace/[id] — Remove agent (owner only)
-export async function DELETE(
+async function _DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -192,3 +193,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PUT = withTelemetry(_PUT);
+export const DELETE = withTelemetry(_DELETE);

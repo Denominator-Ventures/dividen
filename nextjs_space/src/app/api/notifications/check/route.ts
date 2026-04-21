@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,7 +22,7 @@ interface ActiveBanner {
  *
  * Called by the dashboard on a polling interval (e.g. every 30s).
  */
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -179,3 +180,5 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Failed to check notifications' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

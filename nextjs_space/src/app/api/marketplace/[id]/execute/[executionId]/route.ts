@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { calculateRevenueSplit } from '@/lib/marketplace-config';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/marketplace/[id]/execute/[executionId] — Approve or decline a dynamic price quote.
@@ -22,7 +23,7 @@ import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
  *
  * GET — Get execution details including quote status.
  */
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string; executionId: string } }
 ) {
@@ -168,7 +169,7 @@ export async function POST(
   }
 }
 
-export async function GET(
+async function _GET(
   req: NextRequest,
   { params }: { params: { id: string; executionId: string } }
 ) {
@@ -205,3 +206,6 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

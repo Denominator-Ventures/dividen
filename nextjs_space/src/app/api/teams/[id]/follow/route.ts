@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/teams/:id/follow — follow a team
-export async function POST(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -46,7 +47,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
 }
 
 // DELETE /api/teams/:id/follow — unfollow a team
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -62,3 +63,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

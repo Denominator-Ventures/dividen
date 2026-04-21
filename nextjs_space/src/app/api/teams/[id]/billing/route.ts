@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/teams/:id/billing — get billing details + spending policies
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,7 +44,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // PUT /api/teams/:id/billing — update billing settings (budget, etc.)
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PUT(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -77,7 +78,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // POST /api/teams/:id/billing — create/update spending policy
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -131,3 +132,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const PUT = withTelemetry(_PUT);

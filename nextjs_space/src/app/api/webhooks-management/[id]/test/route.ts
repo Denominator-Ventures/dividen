@@ -11,11 +11,12 @@ import {
   MappingRule,
 } from '@/lib/webhook-actions';
 import { parseMappingConfig } from '@/lib/webhook-learn';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 // POST - Test a webhook with sample payload
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -89,3 +90,5 @@ export async function POST(
     results,
   });
 }
+
+export const POST = withTelemetry(_POST);

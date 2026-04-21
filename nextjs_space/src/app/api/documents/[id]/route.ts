@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PUT(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
@@ -32,7 +33,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ success: true, data: document });
 }
 
-export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
 
@@ -43,3 +44,6 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   await prisma.document.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });
 }
+
+export const PUT = withTelemetry(_PUT);
+export const DELETE = withTelemetry(_DELETE);

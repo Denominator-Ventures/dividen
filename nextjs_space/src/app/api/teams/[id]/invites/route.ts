@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/teams/:id/invites — create a team invite (email, inviteeId, or connectionId)
@@ -19,7 +20,7 @@ import { logActivity } from '@/lib/activity';
  * Accepts `force: true` to dismiss an ALREADY_INVITED (409) and retry by deleting
  * the existing pending invite + its queue item + its relay.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -301,7 +302,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // GET /api/teams/:id/invites — list pending invites
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -328,3 +329,6 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

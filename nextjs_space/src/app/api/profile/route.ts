@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // Helper to safely parse JSON string fields
 function parseJsonField(val: string | null, fallback: any = []) {
@@ -65,7 +66,7 @@ function serializeProfile(p: any) {
 }
 
 // GET: Fetch current user's profile (create if missing)
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -90,7 +91,7 @@ export async function GET() {
 }
 
 // PUT: Update current user's profile
-export async function PUT(request: NextRequest) {
+async function _PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -171,3 +172,6 @@ export async function PUT(request: NextRequest) {
   const updatedUser = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, email: true, username: true, profilePhotoUrl: true } });
   return NextResponse.json({ success: true, profile: serializeProfile(profile), user: updatedUser ? { name: updatedUser.name, email: updatedUser.email, username: updatedUser.username, profilePhotoUrl: updatedUser.profilePhotoUrl } : null });
 }
+
+export const GET = withTelemetry(_GET);
+export const PUT = withTelemetry(_PUT);

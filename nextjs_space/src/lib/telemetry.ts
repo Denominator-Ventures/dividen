@@ -1,4 +1,7 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
 
 /**
  * Fire-and-forget telemetry logger.
@@ -82,4 +85,64 @@ export function getClientIp(headers: Headers): string | null {
     headers.get('x-real-ip') ||
     null
   );
+}
+
+// ─── withTelemetry HOF ──────────────────────────────────────────────────────
+
+type RouteHandler = (
+  req: NextRequest,
+  ctx?: any,
+) => Promise<NextResponse | Response>;
+
+/**
+ * Wraps a Next.js route handler with automatic telemetry.
+ * Logs: method, path, statusCode, duration, userId, ip.
+ * On error: logs errorMessage + errorStack, returns 500.
+ *
+ * Usage:
+ *   export const GET = withTelemetry(async (req) => { ... });
+ *   export const POST = withTelemetry(async (req) => { ... });
+ */
+export function withTelemetry(handler: RouteHandler): RouteHandler {
+  return async (req: NextRequest, ctx?: any) => {
+    const start = Date.now();
+    const ip = getClientIp(req.headers);
+    const method = req.method;
+    const path = new URL(req.url).pathname;
+
+    // Try to extract userId from session (non-blocking — don't fail if no session)
+    let userId: string | null = null;
+    try {
+      const session = await getServerSession(authOptions);
+      userId = (session?.user as any)?.id || null;
+    } catch {
+      // session extraction failed — that's fine, log without userId
+    }
+
+    try {
+      const response = await handler(req, ctx);
+      const statusCode = response instanceof NextResponse
+        ? response.status
+        : (response as any)?.status ?? 200;
+      const duration = Date.now() - start;
+
+      logRequest({ userId, ip, method, path, statusCode, duration });
+      return response;
+    } catch (error: any) {
+      const duration = Date.now() - start;
+      logError({
+        userId,
+        ip,
+        path,
+        method,
+        errorMessage: error?.message || 'Unknown error',
+        errorStack: error?.stack,
+      });
+      logRequest({ userId, ip, method, path, statusCode: 500, duration });
+      return NextResponse.json(
+        { error: 'Internal server error' },
+        { status: 500 },
+      );
+    }
+  };
 }

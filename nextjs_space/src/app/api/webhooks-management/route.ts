@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generateWebhookSecret, getWebhookUrl } from '@/lib/webhook-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 // GET - List all webhooks for authenticated user
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -58,7 +59,7 @@ export async function GET() {
 }
 
 // POST - Create a new webhook
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -115,3 +116,6 @@ export async function POST(req: NextRequest) {
     },
   });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

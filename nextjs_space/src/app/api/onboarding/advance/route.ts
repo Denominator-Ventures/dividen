@@ -15,6 +15,7 @@ import {
   type SettingsWidgetGroup,
 } from '@/lib/onboarding-phases';
 import { getSetupTaskAction } from '@/lib/onboarding-project';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/onboarding/advance
@@ -25,7 +26,7 @@ import { getSetupTaskAction } from '@/lib/onboarding-project';
  * Body:
  *   { action: 'advance' | 'skip' | 'init' | 'show_settings', settings?: any, settingsGroup?: string }
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -364,3 +365,5 @@ async function handleShowSettings(userId: string, group: string, settings?: any)
 
   return NextResponse.json({ success: true, data: { message, widgets, settingsGroup: group } });
 }
+
+export const POST = withTelemetry(_POST);

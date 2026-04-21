@@ -6,9 +6,10 @@ import { authOptions } from '@/lib/auth';
 import { logActivity } from '@/lib/activity';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/connections — list all connections for the current user
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/connections — create a new connection request
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -298,3 +299,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to create connection' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

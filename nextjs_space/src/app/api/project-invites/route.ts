@@ -5,12 +5,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/project-invites — List invites for current user (received)
  * Query: ?status=pending&type=received|sent
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -56,7 +57,7 @@ export async function GET(req: NextRequest) {
  * PATCH /api/project-invites — Accept or decline an invite
  * Body: { inviteId, action: 'accept' | 'decline' }
  */
-export async function PATCH(req: NextRequest) {
+async function _PATCH(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -299,3 +300,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ success: true, message: 'Invite declined.' });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);

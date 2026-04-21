@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getFeeInfo } from '@/lib/marketplace-config';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/marketplace/earnings — Developer earnings dashboard
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -133,3 +134,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to fetch earnings' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

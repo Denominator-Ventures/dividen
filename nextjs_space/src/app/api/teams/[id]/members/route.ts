@@ -8,9 +8,10 @@ import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
 import { syncNewMemberToTeamProjects } from '@/lib/team-project-sync';
 import { logActivity } from '@/lib/activity';
 import { pushNotificationToFederatedInstance } from '@/lib/federation-push';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/teams/:id/members — add a member (local user or federated connection)
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // DELETE /api/teams/:id/members — remove a member
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -175,7 +176,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
 // Emits: TeamMember update + QueueItem + AgentRelay + CommsMessage
 //        + federation push if the member is federated (connectionId)
 // ─────────────────────────────────────────────────────────────────────────────
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -325,3 +326,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

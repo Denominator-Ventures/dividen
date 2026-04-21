@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET  /api/jobs/[id] — Get job detail
@@ -11,7 +12,7 @@ import { prisma } from '@/lib/prisma';
  * DELETE /api/jobs/[id] — Cancel job
  */
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ job });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+async function _PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -74,7 +75,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ job: updated });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -86,3 +87,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   await prisma.networkJob.update({ where: { id: params.id }, data: { status: 'cancelled' } });
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

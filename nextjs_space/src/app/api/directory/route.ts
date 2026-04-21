@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 function parseJsonField(val: string | null, fallback: any = []) {
   if (!val) return fallback;
@@ -11,7 +12,7 @@ function parseJsonField(val: string | null, fallback: any = []) {
 }
 
 // GET /api/directory — browse discoverable users on this instance
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -234,3 +235,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to fetch directory' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

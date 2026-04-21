@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { randomBytes } from 'crypto';
 import { z } from 'zod';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ function generateApiKey(): string {
 }
 
 // GET: List external API keys
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -50,7 +51,7 @@ export async function GET() {
 }
 
 // POST: Create a new external API key
-export async function POST(request: NextRequest) {
+async function _POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -106,7 +107,7 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE: Revoke/delete an API key
-export async function DELETE(request: NextRequest) {
+async function _DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -135,7 +136,7 @@ export async function DELETE(request: NextRequest) {
 }
 
 // PATCH: Toggle active status
-export async function PATCH(request: NextRequest) {
+async function _PATCH(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -164,3 +165,8 @@ export async function PATCH(request: NextRequest) {
 
   return NextResponse.json({ success: true, data: { id: updated.id, isActive: updated.isActive } });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

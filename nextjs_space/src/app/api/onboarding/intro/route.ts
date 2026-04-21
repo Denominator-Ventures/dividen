@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createOnboardingProject, SETUP_TASKS } from '@/lib/onboarding-project';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/onboarding/intro
@@ -12,7 +13,7 @@ import { createOnboardingProject, SETUP_TASKS } from '@/lib/onboarding-project';
  * The setup project/card/checklist is created at signup time (see onboarding-project.ts),
  * so this endpoint only handles the chat-side intro — fast, single DB round-trip.
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -67,3 +68,5 @@ I've put a **DiviDen Setup** card on your board with 6 tasks to get everything c
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

@@ -4,9 +4,10 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/relays/counts — get relay counts for badge display
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -35,3 +36,5 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

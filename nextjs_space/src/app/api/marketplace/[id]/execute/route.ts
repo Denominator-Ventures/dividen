@@ -8,11 +8,12 @@ import { calculateRevenueSplit } from '@/lib/marketplace-config';
 import { parsePricingConfig, resolveExecutionPrice } from '@/lib/pricing-types';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
 import { heavyLimiter, getRateLimitKey } from '@/lib/rate-limit';
+import { withTelemetry } from '@/lib/telemetry';
 
 const EXECUTION_TIMEOUT = 30000; // 30s
 
 // POST /api/marketplace/[id]/execute — Execute a task against an agent
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -483,3 +484,5 @@ export async function POST(
     return NextResponse.json({ error: 'Failed to execute task' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

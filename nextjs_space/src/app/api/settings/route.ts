@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { onEnterCoSMode } from '@/lib/cos-sequential-dispatch';
 import { pushWake, pushQueueChanged } from '@/lib/webhook-push';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 const updateModeSchema = z.object({
   mode: z.enum(['cockpit', 'chief_of_staff']),
@@ -20,7 +21,7 @@ const apiKeySchema = z.object({
 });
 
 // GET: Fetch user settings and API keys
-export async function GET() {
+async function _GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json(
@@ -53,7 +54,7 @@ export async function GET() {
 }
 
 // PUT: Update settings
-export async function PUT(request: NextRequest) {
+async function _PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json(
@@ -214,7 +215,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // POST: Add API key (upsert — deactivates old keys for same provider first)
-export async function POST(request: NextRequest) {
+async function _POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json(
@@ -263,7 +264,7 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE: Remove an API key
-export async function DELETE(request: NextRequest) {
+async function _DELETE(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json(
@@ -290,3 +291,8 @@ export async function DELETE(request: NextRequest) {
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const PUT = withTelemetry(_PUT);
+export const DELETE = withTelemetry(_DELETE);

@@ -5,10 +5,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { syncTeamMembersToProject } from '@/lib/team-project-sync';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/teams/:id/projects — assign a team to a project
 // Body: { projectId: string }
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -58,7 +59,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // GET /api/teams/:id/projects — list projects assigned to this team
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -87,7 +88,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
 // DELETE /api/teams/:id/projects — unassign a team from a project
 // Body: { projectId: string }
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+async function _DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -114,3 +115,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

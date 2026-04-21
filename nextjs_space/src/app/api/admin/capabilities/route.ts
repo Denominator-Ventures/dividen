@@ -3,11 +3,12 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 
 // GET /api/admin/capabilities — list all capabilities with stats
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const capabilities = await prisma.marketplaceCapability.findMany({
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/admin/capabilities — create a new capability
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const body = await req.json();
@@ -83,7 +84,7 @@ export async function POST(req: NextRequest) {
 }
 
 // PATCH /api/admin/capabilities — update a capability
-export async function PATCH(req: NextRequest) {
+async function _PATCH(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const body = await req.json();
@@ -141,7 +142,7 @@ export async function PATCH(req: NextRequest) {
 }
 
 // DELETE /api/admin/capabilities — permanently remove a capability
-export async function DELETE(req: NextRequest) {
+async function _DELETE(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const { searchParams } = new URL(req.url);
@@ -199,3 +200,8 @@ async function notifySourceInstanceCapability(
     return { sent: false, error: err.message };
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

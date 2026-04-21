@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/marketplace/[id]/subscribe — Subscribe to an agent
 // Body: { accessPassword?: string } — if agent has a password and it matches, grant free access
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -81,7 +82,7 @@ export async function POST(
 }
 
 // DELETE /api/marketplace/[id]/subscribe — Unsubscribe
-export async function DELETE(
+async function _DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -126,3 +127,6 @@ export async function DELETE(
     return NextResponse.json({ error: 'Failed to unsubscribe' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/marketplace-capabilities/[id] — Get detail (prompt hidden unless installed)
@@ -11,7 +12,7 @@ import { prisma } from '@/lib/prisma';
  * DELETE /api/marketplace-capabilities/[id] — Uninstall capability
  */
 
-export async function GET(
+async function _GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -57,7 +58,7 @@ export async function GET(
   });
 }
 
-export async function PATCH(
+async function _PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -104,7 +105,7 @@ export async function PATCH(
   });
 }
 
-export async function DELETE(
+async function _DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -126,3 +127,7 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

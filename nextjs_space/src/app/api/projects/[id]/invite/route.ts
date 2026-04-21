@@ -5,13 +5,14 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/projects/[id]/invite — Invite a user to a project
  * Body: { userId?, email?, connectionId?, role?, message? }
  * No recruiting fee — this is for connected users/team members.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const inviterId = (session.user as any).id;
@@ -292,7 +293,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 /**
  * GET /api/projects/[id]/invite — List invites for a project
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -317,3 +318,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
   return NextResponse.json({ success: true, invites });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 
@@ -17,7 +18,7 @@ import { requireAdmin } from '@/lib/admin-auth';
  *   - Kanban cards in shared projects → ownership transferred to project lead / next member
  *   - Solo projects, solo teams, personal cards, chat history, etc. → deleted (cascade)
  */
-export async function DELETE(
+async function _DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -179,3 +180,5 @@ export async function DELETE(
     );
   }
 }
+
+export const DELETE = withTelemetry(_DELETE);

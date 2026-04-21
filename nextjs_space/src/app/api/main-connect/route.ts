@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * DEP-006: Connection Ceremony & Trust Negotiation
@@ -20,7 +21,7 @@ import crypto from 'crypto';
  * 5. Log to comms + activity
  * 6. Return credentials + endpoints
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -181,3 +182,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Connection ceremony failed' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

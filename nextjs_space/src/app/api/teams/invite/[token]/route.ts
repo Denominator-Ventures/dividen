@@ -7,9 +7,10 @@ import { prisma } from '@/lib/prisma';
 import { checkTeamMemberLimit, FeatureGateError } from '@/lib/feature-gates';
 import { syncNewMemberToTeamProjects } from '@/lib/team-project-sync';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/teams/invite/:token — get invite details (no auth required for preview)
-export async function GET(_req: NextRequest, { params }: { params: { token: string } }) {
+async function _GET(_req: NextRequest, { params }: { params: { token: string } }) {
   try {
     const invite = await prisma.teamInvite.findUnique({
       where: { token: params.token },
@@ -34,7 +35,7 @@ export async function GET(_req: NextRequest, { params }: { params: { token: stri
 }
 
 // POST /api/teams/invite/:token — accept or decline an invite
-export async function POST(req: NextRequest, { params }: { params: { token: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { token: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized — log in to accept' }, { status: 401 });
@@ -229,3 +230,6 @@ export async function POST(req: NextRequest, { params }: { params: { token: stri
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

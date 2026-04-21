@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 function parseJsonField(val: string | null, fallback: any = []) {
   if (!val) return fallback;
@@ -11,7 +12,7 @@ function parseJsonField(val: string | null, fallback: any = []) {
 }
 
 // GET: View another user's profile (respecting privacy + connection status)
-export async function GET(
+async function _GET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
@@ -128,3 +129,5 @@ function serializeFiltered(p: any, sections: string[]) {
 
   return result;
 }
+
+export const GET = withTelemetry(_GET);

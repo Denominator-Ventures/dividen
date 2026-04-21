@@ -3,11 +3,12 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { analyzePayload, learnAndSaveMapping, parseMappingConfig } from '@/lib/webhook-learn';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
 // POST - Trigger Divi auto-learn from a sample payload or latest log
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -69,7 +70,7 @@ export async function POST(
 }
 
 // GET - Get current mapping config
-export async function GET(
+async function _GET(
   _req: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -95,3 +96,6 @@ export async function GET(
     hasMapping: !!config,
   });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

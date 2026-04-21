@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,7 +14,7 @@ const INCLUDE_LINKED = {
 };
 
 // GET /api/comms — list messages (with optional state filter)
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/comms — create a new message
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -93,3 +94,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed to create message' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

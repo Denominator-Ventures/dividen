@@ -4,12 +4,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/chat/mentions?type=people|agents|commands&q=searchterm
  * Returns matching entities for inline @mention and !command search.
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!(session?.user as any)?.id) {
@@ -295,3 +296,5 @@ function safeJsonParse(val: any, fallback: any) {
   if (!val) return fallback;
   try { return typeof val === 'string' ? JSON.parse(val) : val; } catch { return fallback; }
 }
+
+export const GET = withTelemetry(_GET);

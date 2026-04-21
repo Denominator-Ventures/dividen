@@ -4,9 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET /api/stripe/payment-methods — List saved payment methods
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     if (!stripe) {
       return NextResponse.json({ configured: false, paymentMethods: [] });
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/stripe/payment-methods — Create a SetupIntent to add a new card
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     if (!stripe) {
       return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
@@ -81,7 +82,7 @@ export async function POST(req: NextRequest) {
 }
 
 // DELETE /api/stripe/payment-methods — Remove a payment method
-export async function DELETE(req: NextRequest) {
+async function _DELETE(req: NextRequest) {
   try {
     if (!stripe) {
       return NextResponse.json({ error: 'Stripe is not configured' }, { status: 503 });
@@ -114,3 +115,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: error.message || 'Failed to remove payment method' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

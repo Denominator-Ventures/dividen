@@ -10,10 +10,11 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { dispatchNextItem } from '@/lib/queue-dispatch';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST() {
+async function _POST() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -39,3 +40,5 @@ export async function POST() {
 
   return NextResponse.json({ success: true, data: result.item });
 }
+
+export const POST = withTelemetry(_POST);

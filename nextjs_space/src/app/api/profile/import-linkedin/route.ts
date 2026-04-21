@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getAvailableProvider } from '@/lib/llm';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST: Import LinkedIn profile data (user pastes text or JSON)
-export async function POST(request: NextRequest) {
+async function _POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -108,3 +109,5 @@ Do NOT include any explanation, markdown, or text outside the JSON.`;
     return NextResponse.json({ success: false, error: 'Failed to parse LinkedIn data: ' + (e.message || 'Unknown error') }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

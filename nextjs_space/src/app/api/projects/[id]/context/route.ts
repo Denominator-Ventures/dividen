@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { assembleProjectContext, generateProjectDashboardMarkdown } from '@/lib/brief-assembly';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/projects/:id/context
@@ -11,7 +12,7 @@ import { assembleProjectContext, generateProjectDashboardMarkdown } from '@/lib/
  * Used by Divi's system prompt and by the UI for project overview.
  * ?format=markdown returns the Markdown dashboard string.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+async function _GET(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -31,3 +32,5 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);

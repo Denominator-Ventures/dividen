@@ -8,10 +8,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+async function _GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -46,7 +47,7 @@ export async function GET(
   return NextResponse.json({ success: true, data: relationships });
 }
 
-export async function POST(
+async function _POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -98,7 +99,7 @@ export async function POST(
   }
 }
 
-export async function DELETE(
+async function _DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
@@ -118,3 +119,7 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

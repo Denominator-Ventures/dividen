@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 
 export const dynamic = 'force-dynamic';
 
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
   
   try {
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+async function _PATCH(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
   
   try {
@@ -36,3 +37,6 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);

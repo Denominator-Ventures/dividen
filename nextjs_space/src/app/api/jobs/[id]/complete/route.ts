@@ -5,12 +5,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { recomputeReputation } from '@/lib/job-matcher';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/jobs/[id]/complete — Mark job as completed
  * Can be called by poster (to confirm completion) or assignee (to submit completion)
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -36,3 +37,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   return NextResponse.json({ success: true, message: 'Task marked as completed. Leave a review to build reputation.' });
 }
+
+export const POST = withTelemetry(_POST);

@@ -10,10 +10,11 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { stripActionTags } from '@/lib/action-tags';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: NextRequest) {
+async function _GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json(
@@ -106,7 +107,7 @@ export async function GET(request: NextRequest) {
  * Save a single message to chat history (used for system-injected messages
  * that need to persist so the LLM sees them in conversation context).
  */
-export async function POST(request: NextRequest) {
+async function _POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -128,7 +129,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ success: true, data: msg });
 }
 
-export async function DELETE() {
+async function _DELETE() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json(
@@ -148,3 +149,7 @@ export async function DELETE() {
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);
+export const DELETE = withTelemetry(_DELETE);

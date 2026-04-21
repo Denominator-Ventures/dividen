@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireAdmin } from '@/lib/admin-auth';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/admin/federation-activity
@@ -14,7 +15,7 @@ import { requireAdmin } from '@/lib/admin-auth';
  * - Queue items created via external sources (api, webhook, federation)
  * - Recent federation events timeline
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   { const g = await requireAdmin(); if (g instanceof NextResponse) return g; }
 
   const now = new Date();
@@ -193,3 +194,5 @@ export async function GET(req: NextRequest) {
     } : null,
   });
 }
+
+export const GET = withTelemetry(_GET);

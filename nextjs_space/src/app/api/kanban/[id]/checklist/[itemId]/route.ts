@@ -9,10 +9,11 @@ import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { checkAndAutoCompleteCard } from '@/lib/card-auto-complete';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function PATCH(
+async function _PATCH(
   request: Request,
   { params }: { params: { id: string; itemId: string } }
 ) {
@@ -59,7 +60,7 @@ export async function PATCH(
   return NextResponse.json({ success: true, data: item, cardAutoCompleted });
 }
 
-export async function DELETE(
+async function _DELETE(
   request: Request,
   { params }: { params: { id: string; itemId: string } }
 ) {
@@ -72,3 +73,6 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

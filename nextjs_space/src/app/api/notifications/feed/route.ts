@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { parsePrefs } from '@/lib/notification-prefs';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
@@ -191,7 +192,7 @@ function buildSummary(action: string, items: RawActivity[]): string {
 /**
  * GET /api/notifications/feed — aggregated, filtered notification feed.
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -250,7 +251,7 @@ export async function GET(req: NextRequest) {
 /**
  * POST /api/notifications/feed — mark notifications as seen
  */
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!((session?.user as any)?.id)) {
@@ -270,3 +271,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Failed to mark seen' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

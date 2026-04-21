@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { SIGNAL_DEFINITIONS } from '@/lib/signals';
+import { withTelemetry } from '@/lib/telemetry';
 
 // GET — return user's signal configs merged with defaults for all known signals
-export async function GET() {
+async function _GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!(session?.user as any)?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -59,7 +60,7 @@ export async function GET() {
 }
 
 // PUT — bulk update signal configs (expects array of { signalId, priority, catchUpEnabled, triageEnabled })
-export async function PUT(req: NextRequest) {
+async function _PUT(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!(session?.user as any)?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -101,3 +102,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Internal error' }, { status: 500 });
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const PUT = withTelemetry(_PUT);

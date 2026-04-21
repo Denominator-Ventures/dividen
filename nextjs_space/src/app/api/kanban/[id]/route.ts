@@ -9,10 +9,11 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { logActivity } from '@/lib/activity';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(
+async function _GET(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -44,7 +45,7 @@ export async function GET(
   return NextResponse.json({ success: true, data: card });
 }
 
-export async function PATCH(
+async function _PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -155,7 +156,7 @@ export async function PATCH(
   return NextResponse.json({ success: true, data: card });
 }
 
-export async function DELETE(
+async function _DELETE(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -176,3 +177,7 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
+
+export const GET = withTelemetry(_GET);
+export const PATCH = withTelemetry(_PATCH);
+export const DELETE = withTelemetry(_DELETE);

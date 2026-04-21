@@ -9,10 +9,11 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
 import { optimizeTaskForAgent } from '@/lib/smart-task-prompter';
+import { withTelemetry } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 
-export async function POST(
+async function _POST(
   request: Request,
   { params }: { params: { id: string } }
 ) {
@@ -34,3 +35,5 @@ export async function POST(
   const updated = await prisma.queueItem.findUnique({ where: { id: params.id } });
   return NextResponse.json({ success: true, data: updated });
 }
+
+export const POST = withTelemetry(_POST);

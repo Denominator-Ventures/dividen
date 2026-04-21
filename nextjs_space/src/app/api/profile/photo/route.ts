@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { generatePresignedUploadUrl, getFileUrl } from '@/lib/s3';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST: Get presigned URL for profile photo upload
-export async function POST(request: NextRequest) {
+async function _POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest) {
 }
 
 // PUT: Confirm upload and save URL to user record
-export async function PUT(request: NextRequest) {
+async function _PUT(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -73,7 +74,7 @@ export async function PUT(request: NextRequest) {
 }
 
 // DELETE: Remove profile photo
-export async function DELETE() {
+async function _DELETE() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -91,3 +92,7 @@ export async function DELETE() {
     return NextResponse.json({ success: false, error: 'Failed to remove profile photo' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);
+export const PUT = withTelemetry(_PUT);
+export const DELETE = withTelemetry(_DELETE);

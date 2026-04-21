@@ -5,6 +5,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { pushRelayStateChanged } from '@/lib/webhook-push';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * v2.3.0 — Dismiss/clear a relay from the operator's UI.
@@ -17,7 +18,7 @@ import { pushRelayStateChanged } from '@/lib/webhook-push';
  * clears a stale green outgoing card. The relay disappears from Comms and from
  * Divi's context, breaking any surfacing loop.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
@@ -115,3 +116,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ error: error.message || 'Failed to dismiss relay' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

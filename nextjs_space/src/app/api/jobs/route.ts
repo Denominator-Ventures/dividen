@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * DEP-013: Network Task Board
@@ -11,7 +12,7 @@ import { prisma } from '@/lib/prisma';
  * POST /api/jobs — Post a new task (optionally linked to existing project)
  */
 
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ jobs });
 }
 
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -124,3 +125,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ job }, { status: 201 });
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

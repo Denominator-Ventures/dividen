@@ -5,12 +5,13 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { findMatchingJobsForUser, findMatchesForJob } from '@/lib/job-matcher';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * GET /api/jobs/match — Find matching jobs for current user
  * GET /api/jobs/match?jobId=xxx — Find matching users for a specific job
  */
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -28,3 +29,5 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ matches });
   }
 }
+
+export const GET = withTelemetry(_GET);

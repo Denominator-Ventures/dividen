@@ -4,13 +4,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { synthesizePatterns, captureIgnoredAmbientSignals, synthesizeBehaviorLearnings } from '@/lib/ambient-learning';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/ambient-learning/synthesize
 // Triggers full learning pipeline:
 // 1. Capture ignored ambient relay signals
 // 2. Synthesize ambient relay patterns
 // 3. Synthesize behavior signal → UserLearning patterns
-export async function POST(req: NextRequest) {
+async function _POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     const userId = (session?.user as any)?.id;
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
 
 // GET /api/ambient-learning/synthesize
 // Returns current active patterns (read-only view).
-export async function GET(req: NextRequest) {
+async function _GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!(session?.user as any)?.id) {
@@ -93,3 +94,6 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export const GET = withTelemetry(_GET);
+export const POST = withTelemetry(_POST);

@@ -4,10 +4,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { withTelemetry } from '@/lib/telemetry';
 
 // POST /api/invites/[token]/accept — accept an invitation (creates a connection)
 // Called after a user signs up or logs in with a pending invite
-export async function POST(
+async function _POST(
   req: NextRequest,
   { params }: { params: { token: string } }
 ) {
@@ -125,3 +126,5 @@ export async function POST(
     return NextResponse.json({ error: error.message || 'Failed to accept invitation' }, { status: 500 });
   }
 }
+
+export const POST = withTelemetry(_POST);

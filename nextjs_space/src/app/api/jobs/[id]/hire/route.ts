@@ -6,6 +6,7 @@ import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { getRecruitingFeePercent, calculateRecruitingFee } from '@/lib/recruiting-config';
 import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
+import { withTelemetry } from '@/lib/telemetry';
 
 /**
  * POST /api/jobs/[id]/hire — Assign a contributor, create contract, set up dual projects
@@ -17,7 +18,7 @@ import { stripe, getOrCreateStripeCustomer } from '@/lib/stripe';
  *   3. Both become project members on their respective projects
  *   4. For paid tasks: contract + payment flow
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+async function _POST(req: NextRequest, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const userId = (session.user as any).id;
@@ -272,3 +273,5 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       : `Assigned! Projects created on both boards. No payment required.`,
   });
 }
+
+export const POST = withTelemetry(_POST);
