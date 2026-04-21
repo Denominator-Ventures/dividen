@@ -13,6 +13,7 @@ import { buildSystemPrompt } from '@/lib/system-prompt';
 import { parseActionTags, executeActionTags, stripActionTags, sanitizeAssistantContent } from '@/lib/action-tags';
 import { streamLLMResponse, type LLMMessage } from '@/lib/llm';
 import { assembleBriefing } from '@/lib/catch-up-pipeline';
+import { processUserInput, wrapUntrustedContent, MAX_USER_MESSAGE_LENGTH } from '@/lib/prompt-guard';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -48,12 +49,23 @@ export async function POST(request: Request) {
     });
   }
 
+  // ── v2.4.6: Prompt Injection Hardening ──────────────────────────────
+  const guardResult = processUserInput(message);
+  const cleanMessage = guardResult.processedText;
+
+  if (guardResult.detection.isInjection) {
+    console.warn(`[prompt-guard] Injection detected from user=${userId} | risk=${guardResult.detection.riskScore} | patterns=${guardResult.detection.matchedPatterns.join(',')}${guardResult.detection.highSeverityHit ? ' | HIGH_SEVERITY' : ''}`);
+  }
+  if (guardResult.wasTruncated) {
+    console.warn(`[prompt-guard] Message truncated from user=${userId} | original_length=${message.length} | max=${MAX_USER_MESSAGE_LENGTH}`);
+  }
+
   // ── Save User Message + Fetch User Data (parallel) ─────────────────
   const [, user] = await Promise.all([
     prisma.chatMessage.create({
       data: {
         role: 'user',
-        content: message.trim(),
+        content: cleanMessage,
         userId,
       },
     }),
@@ -76,7 +88,7 @@ export async function POST(request: Request) {
       userId: user.id,
       mode: user.mode,
       userName: user.name,
-      currentMessage: message.trim(),
+      currentMessage: cleanMessage,
     }),
     prisma.chatMessage.findMany({
       where: { userId, clearedAt: null },
@@ -124,9 +136,18 @@ export async function POST(request: Request) {
     { role: 'system', content: systemPrompt },
   ];
   for (const m of recentMessages.reverse()) {
+    let messageContent: string;
+    if (m.role === 'assistant') {
+      messageContent = stripActionTags(m.content);
+    } else if (m.role === 'user') {
+      // v2.4.6: Wrap user messages with boundary markers for LLM awareness
+      messageContent = wrapUntrustedContent(m.content);
+    } else {
+      messageContent = m.content;
+    }
     llmMessages.push({
       role: m.role as 'user' | 'assistant' | 'system',
-      content: m.role === 'assistant' ? stripActionTags(m.content) : m.content,
+      content: messageContent,
     });
     if (m.role === 'assistant' && m.metadata) {
       try {
