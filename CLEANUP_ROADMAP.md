@@ -74,6 +74,41 @@ Cover these paths end-to-end:
 
 ---
 
+## Phase 2.5 — Chat UX Polish (Should Fix, audit-driven)
+
+**Goal**: Ship four small streaming-UX wins surfaced by the chat-sdk.dev audit (April 22, 2026). Cheap, isolated, high-visibility. Do before the ChatView decomp so the behavior baseline is in place when we refactor.
+**Estimated effort**: 2–3 hours
+**Prerequisite**: Phase 2 complete ✅
+
+### 2.5.1 — Markdown healing during streaming
+- `renderMarkdownLite()` in `ChatView.tsx` currently dumps whatever the LLM has streamed so far. Mid-word, `**bold` with no closer, unterminated `` ` `` inline code all flash broken.
+- Add a `healStreamingMarkdown(text: string): string` helper that auto-closes the minimum set of unbalanced tokens (`**`, `_`, `` ` ``, ``` ``` ```) for the *streaming* view only. Final saved message uses raw text unchanged.
+- Apply ONLY to the streaming bubble (line ~968 of `ChatView.tsx`), not to persisted messages in history.
+- **Acceptance**: Paste a 400-char LLM response with bold/italic mid-word — no "flash of raw asterisks" during stream. Final message renders identically to pre-change.
+
+### 2.5.2 — Table buffering during streaming
+- GFM tables emit as `| a | b |\n|---|---|\n| 1 | 2 |`. During stream, the first line arrives before the separator, so the table flashes as pipe-delimited text.
+- In `healStreamingMarkdown()` (same helper), detect a potential table header (line starts with `|` and has ≥ 2 pipes) that is NOT yet followed by a separator line, and suppress rendering of the orphaned header until the separator arrives.
+- **Acceptance**: Prompt Divi for a markdown table. No "raw pipes flash" before the separator lands. Final table renders.
+
+### 2.5.3 — First-chunk placeholder polish
+- Current "streaming indicator" is a dot when `isStreaming && !streamingContent` (line ~983). Replace with a soft-toned one-liner that adapts to mode:
+  - Default: `"Thinking…"`
+  - When `catchUpMode`: `"Gathering context…"`
+  - When a prior message's last action tag fired background work: (future, out of scope)
+- **Acceptance**: Chat shows a one-line placeholder instead of a naked dot until the first real token arrives.
+
+### 2.5.4 — (Deferred) Typed LLM errors + `Retry-After`
+- Moved to **Phase 4** where it fits naturally with error-class refactoring.
+
+**Items explicitly skipped from the audit**:
+- Durable workflow sessions (architecture mismatch — we don't use Vercel Workflow)
+- JSX card DSL (existing widget system works; too much refactor)
+- Concurrency strategies (we're already serialized per-tab)
+- Catch-all tag handler (no demand)
+
+---
+
 ## Phase 3 — Component Decomposition (Should Fix, UX impact)
 
 **Goal**: Make the 4 largest React components maintainable.
@@ -131,6 +166,19 @@ Extract into `src/components/dashboard/chat/`:
 - 39 casts in `src/lib/` alone. Each one is a bug waiting to happen.
 - Fix the root type (usually a Prisma relation or JSON field) instead of casting.
 - **Acceptance**: Zero `as any` in `src/lib/`. Components may retain a few for third-party library interop.
+
+### 4.3 — Typed error taxonomy (audit-driven, from chat-sdk.dev)
+- Add `src/lib/errors.ts` with discriminated-union error classes:
+  - `LLMRateLimitError(retryAfterMs?: number)` — parse `Retry-After` header from OpenAI/Anthropic/Abacus responses
+  - `LLMAuthError` — 401/403 (invalid or expired key)
+  - `LLMNetworkError` — fetch failure / timeout
+  - `LLMProviderError` — generic 5xx
+  - `TagValidationError` / `TagPermissionError` / `TagNotFoundError` — for action-tag handlers
+  - `FederationHMACError` / `FederationAuthError` / `FederationScopeError`
+- Teach `src/lib/llm.ts` `streamOpenAI` / `streamAnthropic` / `streamAbacus` to throw these typed errors.
+- Teach `streamLLMResponse()` to respect `retryAfterMs` — when a provider returns 429, wait up to 5s before falling through to the next provider (don't burn through the user's fallback key in a hot retry loop).
+- Teach action-tag handlers to throw typed errors; dispatcher in `action-tags.ts` categorizes them into `TagExecutionResult.errorCategory` so the UI can distinguish validation vs permission vs internal.
+- **Acceptance**: Every provider failure in `llm.ts` surfaces a typed class; 429s respect `Retry-After`; failed tag results carry a category.
 
 ---
 
@@ -203,12 +251,13 @@ These are product decisions, not cleanup:
 
 | Sprint | Phase(s) | Why |
 |--------|----------|-----|
-| Sprint 1 | Phase 1 (Safety Net) | Nothing else is safe without this |
-| Sprint 2 | Phase 2.1 (action-tags split) | Highest leverage single change |
-| Sprint 3 | Phase 2.2 + 2.3 (prompt + content split) | Unblocks type safety work |
-| Sprint 4 | Phase 3 (component decomposition) | Makes UX work pleasant again |
-| Sprint 5 | Phase 4 (type safety) | Catches bug class that currently ships to prod |
-| Sprint 6 | Phase 5 + 6 (observability + QoL) | Polish; do between feature sprints |
+| Sprint 1 | Phase 1 (Safety Net) ✅ | Nothing else is safe without this |
+| Sprint 2 | Phase 2.1 (action-tags split) ✅ | Highest leverage single change |
+| Sprint 3 | Phase 2.2 + 2.3 (prompt + content split) ✅ | Unblocks type safety work |
+| Sprint 4 | **Phase 2.5 (Chat UX Polish) ← NEXT** | Cheap streaming wins from chat-sdk.dev audit |
+| Sprint 5 | Phase 3 (component decomposition) | Makes UX work pleasant again |
+| Sprint 6 | Phase 4 (type safety + error taxonomy) | Catches bug class that currently ships to prod |
+| Sprint 7 | Phase 5 + 6 (observability + QoL) | Polish; do between feature sprints |
 
 Each sprint = one session. Each ships independently. Each is reversible.
 

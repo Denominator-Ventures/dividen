@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils';
 import { AgentWidgetContainer, parseWidgetPayload } from '@/components/widgets';
 import type { WidgetItem, WidgetItemAction, AgentWidgetData } from '@/components/widgets';
 import { emitSignal } from '@/lib/behavior-signals';
+import { healStreamingMarkdown } from '@/lib/streaming-markdown';
 import { OnboardingChatWidgets } from './OnboardingChatWidgets';
 import { MentionText } from '@/components/MentionText';
 import { RelayFootnote } from './RelayFootnote';
@@ -62,6 +63,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
+  const [streamingMode, setStreamingMode] = useState<'default' | 'catchUp'>('default');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [tagResults, setTagResults] = useState<TagResult[]>([]);
@@ -324,6 +326,7 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
       setMessages((prev) => [...prev, userMsg]);
       setIsStreaming(true);
       setStreamingContent('');
+      setStreamingMode(opts?.catchUpMode ? 'catchUp' : 'default');
       emitSignal('chat_send', { contentLength: content.length });
 
       try {
@@ -964,32 +967,37 @@ export function ChatView({ prefill, onPrefillConsumed }: ChatViewProps = {}) {
               <MessageBubble key={msg.id} message={msg} userPhoto={userPhoto} userName={userName} diviName={diviName} resolvedRelayIds={resolvedRelayIds} onRelayDismissed={(id: string) => setDismissedRelayIds(prev => { const n = new Set(prev); n.add(id); return n; })} onAddMessage={(m: ChatMessage) => setMessages(prev => [...prev, m])} onOnboardingAction={handleOnboardingAction} onSetupNextTask={handleSetupNextTask} onSetupSkipTask={handleSetupSkipTask} onSignalsSetupComplete={handleSignalsSetupComplete} />
             ))}
 
-            {/* Streaming response */}
+            {/* Streaming response (Phase 2.5.1/2.5.2: markdown-rendered with healing + table buffering) */}
             {isStreaming && streamingContent && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {(diviName || 'D')[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-[var(--bg-surface)] rounded-lg p-3 max-w-[80%]">
-                  <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">
-                    {stripTagsClient(streamingContent)}
-                    <span className="animate-pulse">▌</span>
-                  </p>
+                  <div className="text-sm text-[var(--text-primary)] leading-relaxed">
+                    {renderMarkdownLite(healStreamingMarkdown(stripTagsClient(streamingContent)))}
+                    <span className="animate-pulse text-[var(--text-muted)]">▌</span>
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* Streaming placeholder when no content yet */}
+            {/* Streaming placeholder when no content yet (Phase 2.5.3: adaptive text) */}
             {isStreaming && !streamingContent && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-[var(--brand-primary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {(diviName || 'D')[0].toUpperCase()}
                 </div>
                 <div className="flex-1 bg-[var(--bg-surface)] rounded-lg p-3 max-w-[80%]">
-                  <div className="flex gap-1">
-                    <span className="w-2 h-2 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                    <span className="w-2 h-2 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                    <span className="w-2 h-2 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <div className="flex items-center gap-2">
+                    <span className="flex gap-0.5">
+                      <span className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-[var(--text-muted)] rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </span>
+                    <span className="text-xs text-[var(--text-muted)] italic">
+                      {streamingMode === 'catchUp' ? 'Gathering context\u2026' : 'Thinking\u2026'}
+                    </span>
                   </div>
                 </div>
               </div>
