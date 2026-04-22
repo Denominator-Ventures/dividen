@@ -26,6 +26,24 @@ interface UsageData {
     avgMessagesPerUser: number;
     totalMarketplaceExecs: number;
   };
+  promptMetrics?: {
+    windowHours: number;
+    totalPrompts: number;
+    totalTokens: number;
+    uniqueUsers: number;
+    avgTokensPerPrompt: number;
+    avgSystemTokensPerPrompt: number;
+    avgTokensPerUser: number;
+    topUsers: {
+      userId: string;
+      email: string;
+      name: string | null;
+      prompts: number;
+      totalTokens: number;
+      avgTokens: number;
+      maxTokens: number;
+    }[];
+  };
 }
 
 export default function UsageTab() {
@@ -127,6 +145,58 @@ export default function UsageTab() {
           })}
         </div>
       </div>
+
+      {/* Prompt Token Load — last 24h (v2.4.7 Phase 1.3) */}
+      {data.promptMetrics && (
+        <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl overflow-hidden">
+          <div className="label-mono text-[10px] text-[var(--text-secondary)] px-4 pt-3 pb-2">
+            Prompt Token Load — last {data.promptMetrics.windowHours}h
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 px-4 pb-4">
+            <MetricCard label="Prompts (24h)" value={data.promptMetrics.totalPrompts.toLocaleString()} icon="📝" />
+            <MetricCard label="Total Tokens" value={data.promptMetrics.totalTokens.toLocaleString()} icon="🎫" />
+            <MetricCard label="Unique Users" value={data.promptMetrics.uniqueUsers} icon="👤" />
+            <MetricCard label="Avg Tokens/Prompt" value={data.promptMetrics.avgTokensPerPrompt.toLocaleString()} icon="📏" accent />
+            <MetricCard label="Avg Tokens/User" value={data.promptMetrics.avgTokensPerUser.toLocaleString()} icon="📊" />
+          </div>
+          {data.promptMetrics.topUsers.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-t border-white/[0.06]">
+                    <th className="text-left label-mono text-[10px] px-4 py-2">User</th>
+                    <th className="text-right label-mono text-[10px] px-4 py-2">Prompts</th>
+                    <th className="text-right label-mono text-[10px] px-4 py-2">Total tok</th>
+                    <th className="text-right label-mono text-[10px] px-4 py-2">Avg tok</th>
+                    <th className="text-right label-mono text-[10px] px-4 py-2">Max tok</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.promptMetrics.topUsers.map((u) => (
+                    <tr key={u.userId} className="border-b border-white/[0.03] hover:bg-white/[0.02]">
+                      <td className="px-4 py-2">
+                        <div className="text-[11px] text-white">{u.name || 'Unnamed'}</div>
+                        <div className="text-[10px] text-[var(--text-secondary)] font-mono">{u.email}</div>
+                      </td>
+                      <td className="px-4 py-2 text-[11px] font-mono text-right text-white">{u.prompts.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-[11px] font-mono text-right text-white font-semibold">{u.totalTokens.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-[11px] font-mono text-right text-[var(--text-secondary)]">{u.avgTokens.toLocaleString()}</td>
+                      <td className="px-4 py-2 text-[11px] font-mono text-right text-[var(--text-secondary)]">{u.maxTokens.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="px-4 pb-3 text-[11px] text-[var(--text-secondary)]">
+              No prompt telemetry in the last {data.promptMetrics.windowHours}h yet.
+            </div>
+          )}
+          <div className="px-4 py-2 text-[10px] text-[var(--text-secondary)] border-t border-white/[0.06]">
+            Source: TelemetryEvent(type='prompt'). System prompt avg: {data.promptMetrics.avgSystemTokensPerPrompt.toLocaleString()} tok.
+          </div>
+        </div>
+      )}
 
       {/* Top Users */}
       {data.topUsers.length > 0 && (

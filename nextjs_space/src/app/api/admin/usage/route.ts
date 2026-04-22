@@ -20,6 +20,8 @@ async function _GET(req: NextRequest) {
     const sevenDaysAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     // ── Parallel batch fetch ──
+    const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
     const [
       totalUsers,
       totalChatMessages,
@@ -28,6 +30,7 @@ async function _GET(req: NextRequest) {
       recentActivity,
       recentExecs,
       activeUsersRaw,
+      promptEvents24h,
     ] = await Promise.all([
       prisma.user.count(),
       prisma.chatMessage.count(),
@@ -65,6 +68,11 @@ async function _GET(req: NextRequest) {
         where: { createdAt: { gte: sevenDaysAgo } },
         select: { userId: true },
         distinct: ['userId'],
+      }),
+      // v2.4.7 Phase 1.3 — prompt token metering (last 24h)
+      prisma.telemetryEvent.findMany({
+        where: { type: 'prompt', createdAt: { gte: last24h } },
+        select: { userId: true, duration: true, metadata: true },
       }),
     ]);
 
@@ -125,6 +133,60 @@ async function _GET(req: NextRequest) {
 
     const avgMessagesPerUser = totalUsers > 0 ? totalChatMessages / totalUsers : 0;
 
+    // ── Prompt token metering (last 24h) ──
+    // TelemetryEvent rows with type='prompt' store totalTokens in `duration` and
+    // { systemTokens, totalTokens, messageCount, provider, catchUpMode } in metadata.
+    const userEmailById = new Map<string, { email: string; name: string | null }>();
+    for (const u of usersWithCounts) userEmailById.set(u.id, { email: u.email, name: u.name });
+
+    const perUserPrompt = new Map<string, { prompts: number; totalTokens: number; maxTokens: number }>();
+    let totalPromptCount = 0;
+    let totalTokenSum = 0;
+    let systemTokenSum = 0;
+    let systemTokenSamples = 0;
+    for (const ev of promptEvents24h) {
+      totalPromptCount++;
+      const tokens = ev.duration || 0;
+      totalTokenSum += tokens;
+      try {
+        const meta = ev.metadata ? JSON.parse(ev.metadata) : null;
+        if (meta && typeof meta.systemTokens === 'number') {
+          systemTokenSum += meta.systemTokens;
+          systemTokenSamples++;
+        }
+      } catch { /* ignore malformed metadata */ }
+      const uid = ev.userId || '(anon)';
+      const cur = perUserPrompt.get(uid) || { prompts: 0, totalTokens: 0, maxTokens: 0 };
+      cur.prompts++;
+      cur.totalTokens += tokens;
+      if (tokens > cur.maxTokens) cur.maxTokens = tokens;
+      perUserPrompt.set(uid, cur);
+    }
+
+    const promptTopUsers = Array.from(perUserPrompt.entries())
+      .map(([userId, v]) => ({
+        userId,
+        email: userEmailById.get(userId)?.email || (userId === '(anon)' ? '(unauthenticated)' : userId),
+        name: userEmailById.get(userId)?.name ?? null,
+        prompts: v.prompts,
+        totalTokens: v.totalTokens,
+        avgTokens: Math.round(v.totalTokens / v.prompts),
+        maxTokens: v.maxTokens,
+      }))
+      .sort((a, b) => b.totalTokens - a.totalTokens)
+      .slice(0, 10);
+
+    const promptMetrics = {
+      windowHours: 24,
+      totalPrompts: totalPromptCount,
+      totalTokens: totalTokenSum,
+      uniqueUsers: perUserPrompt.size,
+      avgTokensPerPrompt: totalPromptCount > 0 ? Math.round(totalTokenSum / totalPromptCount) : 0,
+      avgSystemTokensPerPrompt: systemTokenSamples > 0 ? Math.round(systemTokenSum / systemTokenSamples) : 0,
+      avgTokensPerUser: perUserPrompt.size > 0 ? Math.round(totalTokenSum / perUserPrompt.size) : 0,
+      topUsers: promptTopUsers,
+    };
+
     return NextResponse.json({
       featureAdoption,
       topUsers,
@@ -138,6 +200,7 @@ async function _GET(req: NextRequest) {
         avgMessagesPerUser: Math.round(avgMessagesPerUser * 10) / 10,
         totalMarketplaceExecs: recentExecs.length,
       },
+      promptMetrics,
     });
   } catch (error) {
     console.error('Admin usage error:', error);
