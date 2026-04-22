@@ -168,6 +168,36 @@ export function processUserInput(rawText: string): {
   };
 }
 
+// ── Token Estimation ────────────────────────────────────────────────────────
+
+/**
+ * Cheap token estimator. Uses the widely-accepted ~4 chars/token heuristic
+ * for English LLM tokenizers (GPT-4, Claude).
+ *
+ * This is deliberately NOT tiktoken \u2014 we want zero dependencies and sub-ms
+ * overhead. For prompt budgeting and cost tracking the error bar (\u00b115%)
+ * is well within the precision we need.
+ *
+ * For code-heavy or non-English text, actual tokens will be higher; treat
+ * this as a lower bound for cost alarms.
+ */
+export function estimateTokens(text: string): number {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Estimate total tokens across a list of LLM messages. Adds a small per-message
+ * overhead (~4 tokens) for role markers and formatting that most tokenizers add.
+ */
+export function estimateMessageTokens(messages: Array<{ role: string; content: string }>): number {
+  let total = 0;
+  for (const m of messages) {
+    total += estimateTokens(m.content) + 4; // role framing overhead
+  }
+  return total;
+}
+
 /**
  * Process relay payload: enforce length → sanitize → detect → wrap.
  */

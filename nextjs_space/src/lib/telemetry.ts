@@ -77,6 +77,41 @@ export function logDbQuery(opts: {
 }
 
 /**
+ * Log prompt size metrics for a chat request.
+ * Fires `type: 'prompt'` telemetry event so the admin dashboard can surface
+ * per-user averages and flag runaway prompt growth before it hits billing.
+ *
+ * Non-blocking \u2014 all errors swallowed.
+ */
+export function logPromptMetrics(opts: {
+  userId?: string | null;
+  path: string;
+  totalTokens: number;     // estimated tokens across all messages
+  systemTokens: number;    // tokens in the system prompt alone
+  messageCount: number;    // number of messages in context
+  provider?: string;       // 'abacus' | 'anthropic' | 'openai'
+  catchUpMode?: boolean;
+}) {
+  prisma.telemetryEvent
+    .create({
+      data: {
+        type: 'prompt',
+        userId: opts.userId || null,
+        path: opts.path,
+        duration: opts.totalTokens, // repurpose duration column for tokens (indexed, int)
+        metadata: JSON.stringify({
+          systemTokens: opts.systemTokens,
+          totalTokens: opts.totalTokens,
+          messageCount: opts.messageCount,
+          provider: opts.provider || null,
+          catchUpMode: !!opts.catchUpMode,
+        }),
+      },
+    })
+    .catch(() => {});
+}
+
+/**
  * Extract client IP from request headers.
  */
 export function getClientIp(headers: Headers): string | null {

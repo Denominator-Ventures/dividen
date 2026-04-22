@@ -13,7 +13,8 @@ import { buildSystemPrompt } from '@/lib/system-prompt';
 import { parseActionTags, executeActionTags, stripActionTags, sanitizeAssistantContent } from '@/lib/action-tags';
 import { streamLLMResponse, type LLMMessage } from '@/lib/llm';
 import { assembleBriefing } from '@/lib/catch-up-pipeline';
-import { processUserInput, wrapUntrustedContent, MAX_USER_MESSAGE_LENGTH } from '@/lib/prompt-guard';
+import { processUserInput, wrapUntrustedContent, MAX_USER_MESSAGE_LENGTH, estimateTokens, estimateMessageTokens } from '@/lib/prompt-guard';
+import { logPromptMetrics } from '@/lib/telemetry';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -204,6 +205,30 @@ export async function POST(request: Request) {
         }
       } catch {}
     }
+  }
+
+  // ── Phase 1.3: Prompt token metering ──────────────────────────────────
+  // Logs estimated prompt size so we can see cost trends per user over time.
+  // See CLEANUP_ROADMAP.md Phase 1.3. This is observational only — no budget
+  // enforcement yet (that's v2.4.7).
+  try {
+    const systemTokens = estimateTokens(systemPrompt);
+    const totalTokens = estimateMessageTokens(llmMessages);
+    console.log(
+      `[prompt] user=${userId} total\u2248${totalTokens}tok system\u2248${systemTokens}tok msgs=${llmMessages.length} provider=${provider || 'auto'}${catchUpMode ? ' catchUp' : ''}`
+    );
+    logPromptMetrics({
+      userId,
+      path: '/api/chat/send',
+      totalTokens,
+      systemTokens,
+      messageCount: llmMessages.length,
+      provider,
+      catchUpMode,
+    });
+  } catch (err) {
+    // Never block chat on telemetry
+    console.warn('[prompt-meter] logging failed:', err);
   }
 
   // ── Stream Response via SSE ───────────────────────────────────────────
