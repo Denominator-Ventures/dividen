@@ -228,19 +228,34 @@ export function scoreAndRankNow(input: NowEngineInput): NowEngineOutput {
     }
   }
 
-  // ─── Score Kanban Cards with due dates ─────────────────────────────────
+  // ─── Score Kanban Cards ────────────────────────────────────────────────
+  // Cards with due dates get deadline-based scoring.
+  // Active/development cards without due dates still surface (the work you're doing right now).
   for (const card of kanbanCards) {
-    if (!card.dueDate) continue; // Only surface cards with deadlines
-    const dlScore = deadlineScore(card.dueDate, now);
-    if (dlScore < 20) continue; // Only show if within 48h
     const prioScore = PRIORITY_WEIGHT[card.priority] || 12;
-    const totalScore = dlScore + prioScore * 0.5;
+    let totalScore: number;
+    let subtitle = `Board: ${card.status}`;
+
+    if (card.dueDate) {
+      const dlScore = deadlineScore(card.dueDate, now);
+      if (dlScore < 20) continue; // Within 48h only
+      totalScore = dlScore + prioScore * 0.5;
+    } else {
+      // No due date: only surface active/development cards (the stuff currently being worked on).
+      // Planning/leads/qualifying/etc without dates stay hidden until they advance or get a date.
+      const isActive = card.status === 'active' || card.status === 'development';
+      if (!isActive) continue;
+      // Base visibility score: 25 (medium urgency floor) + priority boost.
+      // urgent→55, high→40, medium→32, low→28 — all 'medium' urgency in the UI.
+      totalScore = 25 + prioScore * 0.75;
+      subtitle = `Active · ${card.priority}`;
+    }
 
     items.push({
       id: `kanban_${card.id}`,
       type: 'kanban_due',
       title: card.title,
-      subtitle: `Board: ${card.status}`,
+      subtitle,
       score: totalScore,
       urgency: urgencyFromScore(totalScore),
       sourceId: card.id,
