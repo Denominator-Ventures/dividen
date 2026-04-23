@@ -202,31 +202,44 @@ See [Protocol Specification](docs/PROTOCOL.md) and [Architecture Guide](docs/ARC
 
 ---
 
-## Project Structure
+## Repository Layout
+
 ```
-nextjs_space/
-├── src/
-│   ├── app/              # Next.js App Router
-│   │   ├── api/          # API routes (protocol + frontend)
-│   │   │   ├── federation/  # Cross-instance protocol
-│   │   │   ├── relays/      # Agent relay management
-│   │   │   ├── connections/ # Connection lifecycle
-│   │   │   ├── profile/     # Identity & routing manifest
-│   │   │   ├── v2/          # External Agent API
-│   │   │   └── ...          # Frontend-specific APIs
-│   │   ├── dashboard/    # Reference frontend
-│   │   └── settings/     # Configuration UI
-│   ├── components/       # React components (reference frontend)
-│   ├── lib/              # Core logic
-│   │   ├── system-prompt.ts  # 18-layer agent intelligence
-│   │   ├── action-tags.ts    # 26 executable actions
-│   │   ├── auth.ts           # Authentication
-│   │   ├── prisma.ts         # Database client
-│   │   └── llm.ts            # LLM integration
-│   └── types/            # TypeScript definitions
-├── prisma/               # Database schema
-├── docs/                 # Protocol & architecture docs
-└── scripts/              # Seed & utilities
+dividen/
+├── README.md                 # You are here
+├── LICENSE
+├── .env.example              # Environment variable template
+├── .nvmrc                    # Node version (22)
+├── docs/                     # Current protocol & project documentation
+│   ├── ARCHITECTURE.md       # System architecture
+│   ├── PROTOCOL.md           # Protocol specification
+│   ├── INTEGRATION_GUIDE.md  # How to integrate with DiviDen
+│   ├── PROJECT_BIBLE.md      # Onboarding reference for new contributors
+│   ├── FEDERATION_HANDOFF.md # Federation developer handoff
+│   ├── FVP_INTEGRATION.md    # FVP cross-operability UI/UX guide
+│   ├── CLEANUP_ROADMAP.md    # Ongoing refactor tracker
+│   └── archive/              # Historical transition & reply docs (read-only)
+└── nextjs_space/             # Reference frontend (Next.js app)
+    ├── src/
+    │   ├── app/              # Next.js App Router
+    │   │   ├── api/          # API routes
+    │   │   │   ├── federation/  # Cross-instance protocol
+    │   │   │   ├── relays/      # Agent relay management
+    │   │   │   ├── connections/ # Connection lifecycle
+    │   │   │   ├── profile/     # Identity & routing manifest
+    │   │   │   ├── v2/          # External Agent API
+    │   │   │   └── ...          # Frontend-specific APIs
+    │   │   ├── dashboard/    # Reference frontend UI
+    │   │   └── settings/     # Configuration UI
+    │   ├── components/       # React components
+    │   ├── lib/              # Core logic (system-prompt, action-tags, auth, prisma, llm)
+    │   └── types/            # TypeScript definitions
+    ├── prisma/schema.prisma  # Database schema
+    ├── public/               # Static assets + public integration docs
+    ├── scripts/              # Seed, migrations, diagnostics
+    ├── README.md             # Next.js app-specific readme
+    ├── SELF_HOSTING.md       # Self-hosting guide
+    └── STYLE_GUIDE.md        # UI style guide
 ```
 
 ---

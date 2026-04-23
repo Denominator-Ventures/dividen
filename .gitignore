@@ -21,3 +21,11 @@ out
 .logs
 *.tsbuildinfo
 .project_instructions.md
+.project_instructions.pdf
+
+# Auto-generated PDF mirrors of .md files — keep only the .md sources.
+# (Exception: PDFs under public/ are intentionally shipped as static assets.)
+/*.pdf
+nextjs_space/*.pdf
+docs/**/*.pdf
+nextjs_space/docs/**/*.pdf
